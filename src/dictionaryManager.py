@@ -72,11 +72,7 @@ class DictionaryManagerWidget(QWidget):
         web_installer_lang_btn.clicked.connect(self.web_installer_lang)
         lang_lyt2.addWidget(web_installer_lang_btn)
 
-        import_dict_btn = QPushButton('Install Dictionary From File')
-        import_dict_btn.clicked.connect(self.import_dict)
-        lang_lyt2.addWidget(import_dict_btn)
-
-        import_dicts_btn = QPushButton('Install Dictionaries From File')
+        import_dicts_btn = QPushButton('Install Dictionaries From Files')
         import_dicts_btn.clicked.connect(self.import_dicts)
         lang_lyt2.addWidget(import_dicts_btn)
 
@@ -430,8 +426,6 @@ class DictionaryManagerWidget(QWidget):
             dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dict_name)
 
             lang_item.addChild(dict_item)
-
-            # Update progress
             progress.setValue(i + 1)
 
         progress.close()
