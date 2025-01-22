@@ -6,7 +6,8 @@ from .miutils import miInfo
 import time
 from anki.httpclient import HttpClient
 
-addonId = 1655992655
+# todo:needs new id for anki addon
+addonId = 000
 dledIds = []
 
 
@@ -14,12 +15,12 @@ def shutdownDB( parent, mgr, ids, on_done, client):
     global dledIds 
     dledIds = ids
     if addonId in ids and hasattr(mw, 'miDictDB'):
-        miInfo('The Migaku Dictionary database will be diconnected so that the update may proceed. The add-on will not function properly until Anki is restarted after the update.')
+        miInfo('The miso Dictionary database will be diconnected so that the update may proceed. The add-on will not function properly until Anki is restarted after the update.')
         mw.miDictDB.closeConnection()
         mw.miDictDB = False
-        if hasattr(mw.migakuDictionary, 'db'):
-            mw.migakuDictionary.db.closeConnection()
-            mw.migakuDictionary.db = False
+        if hasattr(mw.misoDictionary, 'db'):
+            mw.misoDictionary.db.closeConnection()
+            mw.misoDictionary.db = False
         time.sleep(2)
         
         
@@ -27,14 +28,14 @@ def shutdownDB( parent, mgr, ids, on_done, client):
 def restartDB(*args):
     if addonId in dledIds and hasattr(mw, 'miDictDB'):
         mw.miDictDB =  dictdb.DictDB()
-        if hasattr(mw.migakuDictionary, 'db'):
-            mw.migakuDictionary.db = dictdb.DictDB()
-        miInfo('The Migaku Dictionary has been updated, please restart Anki to start using the new version now!')
+        if hasattr(mw.misoDictionary, 'db'):
+            mw.misoDictionary.db = dictdb.DictDB()
+        miInfo('The Miso Dictionary has been updated, please restart Anki to start using the new version now!')
 
 def wrapOnDone(self, log):
     self.mgr.mw.progress.timer(50, lambda: restartDB(), False)
 
-addons.download_addons = wrap(addons.download_addons, shutdownDB, 'before')
-addons.DownloaderInstaller._download_done = wrap(addons.DownloaderInstaller._download_done, wrapOnDone)
+# addons.download_addons = wrap(addons.download_addons, shutdownDB, 'before')
+# addons.DownloaderInstaller._download_done = wrap(addons.DownloaderInstaller._download_done, wrapOnDone)
 
 

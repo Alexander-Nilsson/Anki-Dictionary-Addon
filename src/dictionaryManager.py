@@ -1,22 +1,20 @@
 import aqt
 import json
 import zipfile
-import sip
 import re
 import operator
 import shutil
+import logging
 from aqt.qt import *
-from aqt import mw
+from aqt import mw 
 from .dictionaryWebInstallWizard import DictionaryWebInstallWizard
 from .freqConjWebWindow import FreqConjWebWindow
-
-
+logger = logging.getLogger(__name__)
 
 class DictionaryManagerWidget(QWidget):
     
     def __init__(self, parent=None):
         super(DictionaryManagerWidget, self).__init__(parent)
-
         lyt = QVBoxLayout()
         lyt.setContentsMargins(0, 0, 0, 0)
         self.setLayout(lyt)
@@ -78,6 +76,10 @@ class DictionaryManagerWidget(QWidget):
         import_dict_btn.clicked.connect(self.import_dict)
         lang_lyt2.addWidget(import_dict_btn)
 
+        import_dicts_btn = QPushButton('Install Dictionaries From File')
+        import_dicts_btn.clicked.connect(self.import_dicts)
+        lang_lyt2.addWidget(import_dicts_btn)
+
         web_freq_data_btn = QPushButton('Install Frequency Data in Wizard')
         web_freq_data_btn.clicked.connect(self.web_freq_data)
         lang_lyt3.addWidget(web_freq_data_btn)
@@ -127,20 +129,16 @@ class DictionaryManagerWidget(QWidget):
         self.reload_tree_widget()
 
         self.on_current_item_change(None, None)
-
-
     def info(self, text):
-        dlg = QMessageBox(QMessageBox.Information, 'Migaku Dictioanry', text, QMessageBox.Ok, self)
-        return dlg.exec_()
-
-
+        dlg = QMessageBox(QMessageBox.Icon.Information, 'Miso Dictionary', text, QMessageBox.StandardButton.Ok, self)
+        return dlg.exec()
     def get_string(self, text, default_text=''):
         dlg = QInputDialog(self)
-        dlg.setWindowTitle('Migaku Dictionary')
+        dlg.setWindowTitle('Miso Dictionary')
         dlg.setLabelText(text + ':')
         dlg.setTextValue(default_text)
         dlg.resize(350, dlg.sizeHint().height())
-        ok = dlg.exec_()
+        ok = dlg.exec()
         txt = dlg.textValue()
         return txt, ok
 
@@ -162,8 +160,8 @@ class DictionaryManagerWidget(QWidget):
 
         for lang in langs:
             lang_item = QTreeWidgetItem([lang])
-            lang_item.setData(0, Qt.UserRole+0, lang)
-            lang_item.setData(0, Qt.UserRole+1, None)
+            lang_item.setData(0, Qt.ItemDataRole.UserRole+0, lang)
+            lang_item.setData(0, Qt.ItemDataRole.UserRole+1, None)
             
             self.dict_tree.addTopLevelItem(lang_item)
 
@@ -171,8 +169,8 @@ class DictionaryManagerWidget(QWidget):
                 dict_name = db.cleanDictName(d)
                 dict_name = dict_name.replace('_', ' ')
                 dict_item = QTreeWidgetItem([dict_name])
-                dict_item.setData(0, Qt.UserRole+0, lang)
-                dict_item.setData(0, Qt.UserRole+1, d)
+                dict_item.setData(0, Qt.ItemDataRole.UserRole+0, lang)
+                dict_item.setData(0, Qt.ItemDataRole.UserRole+1, d)
                 lang_item.addChild(dict_item)
 
             lang_item.setExpanded(True)
@@ -194,8 +192,8 @@ class DictionaryManagerWidget(QWidget):
         dict_ = None
 
         if curr_item:
-            lang = curr_item.data(0, Qt.UserRole+0)
-            dict_ = curr_item.data(0, Qt.UserRole+1)
+            lang = curr_item.data(0, Qt.ItemDataRole.UserRole+0)
+            dict_ = curr_item.data(0, Qt.ItemDataRole.UserRole+1)
 
         return lang, dict_
 
@@ -249,8 +247,8 @@ class DictionaryManagerWidget(QWidget):
             return
 
         lang_item = QTreeWidgetItem([name])
-        lang_item.setData(0, Qt.UserRole+0, name)
-        lang_item.setData(0, Qt.UserRole+1, None)
+        lang_item.setData(0, Qt.ItemDataRole.UserRole+0, name)
+        lang_item.setData(0, Qt.ItemDataRole.UserRole+1, None)
 
         self.dict_tree.addTopLevelItem(lang_item)
         self.dict_tree.setCurrentItem(lang_item)
@@ -262,14 +260,14 @@ class DictionaryManagerWidget(QWidget):
         lang_item = self.get_current_lang_item()
         if lang_item is None:
             return
-        lang_name = lang_item.data(0, Qt.UserRole+0)
+        lang_name = lang_item.data(0, Qt.ItemDataRole.UserRole+0)
 
-        dlg = QMessageBox(QMessageBox.Question, 'Migaku Dictioanry',
+        dlg = QMessageBox(QMessageBox.Icon.Question, 'Miso Dictionary',
                           'Do you really want to remove the language "%s"?\n\nAll settings and dictionaries for it will be removed.' % lang_name,
-                          QMessageBox.Yes | QMessageBox.No, self)
-        r = dlg.exec_()
+                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
+        r = dlg.exec()
 
-        if r != QMessageBox.Yes:
+        if r != QMessageBox.StandardButton.Yes:
             return
 
         # Remove language from db
@@ -289,7 +287,7 @@ class DictionaryManagerWidget(QWidget):
         except OSError:
             pass
 
-        sip.delete(lang_item)
+        aqt.qt.sip.delete(lang_item)
 
 
     def set_freq_data(self):
@@ -319,7 +317,7 @@ class DictionaryManagerWidget(QWidget):
         lang_item = self.get_current_lang_item()
         if lang_item is None:
             return
-        lang_name = lang_item.data(0, Qt.UserRole+0)
+        lang_name = lang_item.data(0, Qt.ItemDataRole.UserRole+0)
 
         FreqConjWebWindow.execute_modal(lang_name, FreqConjWebWindow.Mode.Freq)
 
@@ -351,7 +349,7 @@ class DictionaryManagerWidget(QWidget):
         lang_item = self.get_current_lang_item()
         if lang_item is None:
             return
-        lang_name = lang_item.data(0, Qt.UserRole+0)
+        lang_name = lang_item.data(0, Qt.ItemDataRole.UserRole+0)
 
         FreqConjWebWindow.execute_modal(lang_name, FreqConjWebWindow.Mode.Conj)
 
@@ -360,7 +358,7 @@ class DictionaryManagerWidget(QWidget):
         lang_item = self.get_current_lang_item()
         if lang_item is None:
             return
-        lang_name = lang_item.data(0, Qt.UserRole+0)
+        lang_name = lang_item.data(0, Qt.ItemDataRole.UserRole+0)
 
         path = QFileDialog.getOpenFileName(self, 'Select the dictionary you want to import',
                                            os.path.expanduser('~'), 'ZIP Files (*.zip);;All Files (*.*)')[0]
@@ -377,21 +375,79 @@ class DictionaryManagerWidget(QWidget):
             return
 
         dict_item = QTreeWidgetItem([dict_name.replace('_', ' ')])
-        dict_item.setData(0, Qt.UserRole+0, lang_name)
-        dict_item.setData(0, Qt.UserRole+1, dict_name)
+        dict_item.setData(0, Qt.ItemDataRole.UserRole+0, lang_name)
+        dict_item.setData(0, Qt.ItemDataRole.UserRole+1, dict_name)
 
         lang_item.addChild(dict_item)
         self.dict_tree.setCurrentItem(dict_item)
 
-
-    def web_installer_lang(self):
+    def import_dicts(self):
         lang_item = self.get_current_lang_item()
         if lang_item is None:
             return
-        lang_name = lang_item.data(0, Qt.UserRole+0)
+        lang_name = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)
 
-        DictionaryWebInstallWizard.execute_modal(lang_name)
-        self.reload_tree_widget()
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            'Select the dictionaries you want to import',
+            os.path.expanduser('~'),
+            'ZIP Files (*.zip);;All Files (*.*)'
+        )
+        if not paths:
+            return
+
+        use_default_names = QMessageBox.question(
+            self,
+            "Use Default Names?",
+            "Do you want to use default names for the imported dictionaries?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes
+
+        progress = QProgressDialog("Importing dictionaries...", "Cancel", 0, len(paths), self)
+        progress.setWindowTitle("Progress")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setValue(0)
+
+        for i, path in enumerate(paths):
+            if progress.wasCanceled():
+                break
+
+            dict_name = os.path.splitext(os.path.basename(path))[0]
+
+            if not use_default_names:
+                dict_name, ok = self.get_string('Set name of dictionary', dict_name)
+                if not ok:
+                    continue
+
+            try:
+                importDict(lang_name, path, dict_name)
+            except ValueError as e:
+                self.info(str(e))
+                continue
+
+            dict_item = QTreeWidgetItem([dict_name.replace('_', ' ')])
+            dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, lang_name)
+            dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dict_name)
+
+            lang_item.addChild(dict_item)
+
+            # Update progress
+            progress.setValue(i + 1)
+
+        progress.close()
+
+        if paths:
+            self.dict_tree.setCurrentItem(lang_item.child(lang_item.childCount() - 1))
+
+
+    def web_installer_lang(self):
+            lang_item = self.get_current_lang_item()
+            if lang_item is None:
+                return
+            lang_name = lang_item.data(0, Qt.ItemDataRole.UserRole+0)
+
+            DictionaryWebInstallWizard.execute_modal(lang_name)
+            self.reload_tree_widget()
 
 
     def remove_dict(self):
@@ -400,19 +456,19 @@ class DictionaryManagerWidget(QWidget):
         dict_item = self.get_current_dict_item()
         if dict_item is None:
             return
-        dict_name = dict_item.data(0, Qt.UserRole+1)
-        dict_display = dict_item.data(0, Qt.DisplayRole)
+        dict_name = dict_item.data(0, Qt.ItemDataRole.UserRole+1)
+        dict_display = dict_item.data(0, Qt.ItemDataRole.DisplayRole)
 
-        dlg = QMessageBox(QMessageBox.Question, 'Migaku Dictioanry',
+        dlg = QMessageBox(QMessageBox.Icon.Question, 'Miso Dictionary',
                           'Do you really want to remove the dictionary "%s"?' % dict_display,
-                          QMessageBox.Yes | QMessageBox.No, self)
-        r = dlg.exec_()
+                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
+        r = dlg.exec()
 
-        if r != QMessageBox.Yes:
+        if r != QMessageBox.StandardButton.Yes:
             return
 
         db.deleteDict(dict_name)
-        sip.delete(dict_item)
+        aqt.qt.sip.delete(dict_item)
 
 
     def set_term_header(self):
@@ -444,77 +500,75 @@ class DictionaryManagerWidget(QWidget):
 
         db.setDictTermHeader(dict_clean, json.dumps(parts))
 
-
-
-
 addon_path = os.path.dirname(__file__)
 
 def importDict(lang_name, file, dict_name):
     db = aqt.mw.miDictDB
-
-    # Load ZIP file
+    
     try:
         zfile = zipfile.ZipFile(file)
     except zipfile.BadZipFile:
         raise ValueError('Dictionary archive is invalid.')
 
-    # Check if dict is yomichan or has index.json
-    is_yomichan = any(fn.startswith('term_bank_') for fn in zfile.namelist())
+    is_pitch_dict = any(
+        fn.endswith('.json') and "pitches" in zfile.read(fn).decode(errors='ignore')
+        for fn in zfile.namelist()
+    )
+    is_yomichan = any(fn.startswith('term_bank_') for fn in zfile.namelist()) or is_pitch_dict
+
     has_index = any(fn == 'index.json' for fn in zfile.namelist())
 
-    # Load frequency table
+    print("Importing dict")
     frequency_dict = getFrequencyList(lang_name)
-
-    # Create dictionary
-    dict_name = dict_name.replace(' ', '_')
-    table_name = 'l' + str(db.getLangId(lang_name)) + 'name' + dict_name
-
     term_header = json.dumps(['term', 'altterm', 'pronunciation'])
-
-    try:
-        db.addDict(dict_name, lang_name, term_header)
-    except Exception:
-        raise ValueError('Creating dictioanry failed. Make sure that no other dictionary with the same name exists. Several special characters are also no supported in dictionary names.')
-
-    # Load dict entries
+    
+    success, message, final_name = db.addDict(dict_name, lang_name, term_header)
+    
+    if not success:
+        raise ValueError(
+            f'Creating dictionary failed.\n'
+            f'Original name: {dict_name}\n'
+            f'Error: {message}'
+        )
+    
     dict_files = []
-
     for fn in zfile.namelist():
         if not fn.endswith('.json'):
             continue
         if is_yomichan and not fn.startswith('term_bank_'):
             continue
         dict_files.append(fn)
-
     dict_files = natural_sort(dict_files)
-
-    loadDict(zfile, dict_files, lang_name, dict_name, frequency_dict, not is_yomichan)
-
+    
+    loadDict(zfile, dict_files, lang_name, final_name, frequency_dict, not is_yomichan)
+     
 def natural_sort(l): 
     convert = lambda text: int(text) if text.isdigit() else text.lower() 
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)] 
     return sorted(l, key=alphanum_key)
 
-def loadDict(zfile, filenames, lang, dictName, frequencyDict, miDict = False):
+def loadDict(zfile, filenames, lang, dictName, frequencyDict, miDict=False):
     tableName = 'l' + str(mw.miDictDB.getLangId(lang)) + 'name' + dictName
     jsonDict = []
     for filename in filenames:
         with zfile.open(filename, 'r') as jsonDictFile:
             jsonDict += json.loads(jsonDictFile.read())
-    freq = False
     if frequencyDict:
-        freq = True
+        print("FreqDICT!")
         if miDict:
             jsonDict = organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang, True)
         else:
             jsonDict = organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang)
     for count, entry in enumerate(jsonDict):
-        if miDict:
-            handleMiDictEntry(jsonDict, count, entry, freq)
-        else: 
-            handleYomiDictEntry(jsonDict, count, entry, freq)
+        if isinstance(entry, list) and len(entry) == 3 and isinstance(entry[2], dict) and "pitches" in entry[2]:
+            handlePitchDictEntry(jsonDict, count, entry)
+        elif miDict:
+            handleMiDictEntry(jsonDict, count, entry, frequencyDict is not None)
+        else:
+            handleYomiDictEntry(jsonDict, count, entry, frequencyDict is not None)
     mw.miDictDB.importToDict(tableName, jsonDict)
     mw.miDictDB.commitChanges()
+
 
 def getAdjustedTerm(term):
     term = term.replace('\n', '')
@@ -525,40 +579,143 @@ def getAdjustedTerm(term):
 def getAdjustedPronunciation(pronunciation):
     return pronunciation.replace('\n', '')
 
+
 def getAdjustedDefinition(definition):
-    definition = definition.replace('<br>','◟')
+    definition = definition.replace('\n', '<br>')
+    definition = definition.replace('◟', '<br>')
     definition = definition.replace('<', '&lt;').replace('>', '&gt;')
-    definition = definition.replace('◟','<br>').replace('\n', '<br>')
-    return re.sub(r'<br>$', '', definition)
+    definition = re.sub(r'<br>$', '', definition)
+    return definition
 
-def handleMiDictEntry(jsonDict, count, entry, freq = False):
-    starCount = ''
-    frequency = ''
-    if freq:
-        starCount = entry['starCount']
-        frequency = entry['frequency']
-    reading = entry['pronunciation']
-    if reading == '':
-        reading = entry['term']
-    term = getAdjustedTerm(entry['term']) 
-    altTerm = getAdjustedTerm(entry['altterm'])
-    reading = getAdjustedPronunciation(reading)
-    definition = getAdjustedDefinition(entry['definition'])
-    jsonDict[count] = (term, altTerm, reading, entry['pos'], definition, '', '', frequency, starCount)
+def handlePitchDictEntry(jsonDict, count, entry):
+    # Initialize default values
+    term = ""
+    altterm = ""
+    reading = ""
+    pos = ""
+    definition = ""
+    examples = ""
+    audio = ""
+    frequency = ""
+    starCount = ""
+    pitch_accent = ""
 
-def handleYomiDictEntry(jsonDict, count, entry, freq = False):
-    starCount = ''
-    frequency = ''
-    if freq:
-        starCount = entry[9]
-        frequency = entry[8]
-    reading = entry[1]
-    if reading == '':
-        reading = entry[0]
-    term = getAdjustedTerm(entry[0])
-    reading = getAdjustedPronunciation(reading)
-    definition = getAdjustedDefinition(', '.join(entry[5]))
-    jsonDict[count] = (term, '', reading, entry[2], definition, '', '', frequency, starCount)
+    # Extract pitch dictionary data
+    term = entry[0]
+    reading = entry[2].get("reading", entry[0])
+    pitch_accent = entry[2]["pitches"][0].get("position") if entry[2]["pitches"] else None
+    # altterm = str(pitch_accent) if pitch_accent is not None else ""
+
+    # Create a 9-element tuple
+    jsonDict[count] = (
+        term,         # term
+        altterm,      # altterm (pitch accent position)
+        reading,      # pronunciation
+        pos,          # part of speech
+        definition,   # definition
+        examples,     # examples
+        audio,        # audio
+        frequency,    # frequency
+        starCount     # star count
+    )
+
+def handleYomiDictEntry(jsonDict, count, entry, freq=False):
+    def extract_definition(items):
+        """Extracts definition text from deeply nested dictionary structure."""
+
+        def recursive_extract(item):
+            if isinstance(item, str):
+                return item.strip()
+            elif isinstance(item, dict):
+                if "name" in item.get("data", {}) and item["data"]["name"] == "語釈":
+                    return recursive_extract(item.get("content", ""))
+                return recursive_extract(item.get("content", ""))
+            elif isinstance(item, list):
+                return " ".join(recursive_extract(x) for x in item if recursive_extract(x))
+            return ""
+
+        definitions = []
+        for item in items:
+            text = recursive_extract(item)
+            if text:
+                # Replace any newline characters with <br/> to preserve line breaks
+                text = text.replace("\n", "<br/>")
+                definitions.append(text)
+        return "<br/>".join(definitions)  # Join definitions with <br/>
+
+    def find_header_section(items):
+        """Find the header section in the content."""
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict):
+                    if item.get("type") == "structured-content":
+                        return find_header_section(item.get("content", []))
+                    if item.get("data", {}).get("name") == "見出部":
+                        return item.get("content", [])
+        return []
+
+    def extract_pitch(content):
+        """
+        Extract pitch accents from content by recursively searching through nested structures.
+        Returns a list of integer accent positions.
+        """
+        accents = []
+
+        def recursive_search(item):
+            if isinstance(item, dict) and 'data' in item:
+                name = item.get('data', {}).get('name', '')
+
+            if not isinstance(item, (dict, list)):
+                return
+
+            if isinstance(item, dict):
+                name = item.get("data", {}).get("name", "")
+                if name.startswith("accent"):
+                    try:
+                        accent_num = int(name.replace("accent", ""))
+                        accents.append(accent_num)
+                    except ValueError:
+                        pass
+
+                if "content" in item:
+                    recursive_search(item["content"])
+
+            elif isinstance(item, list):
+                for sub_item in item:
+                    recursive_search(sub_item)
+
+        accents.clear()
+        recursive_search(content)
+        accents.sort()
+        return accents
+
+    term = entry[0]
+    reading = entry[1] if entry[1] else term
+    pos = entry[2] if len(entry) > 2 else ""
+    frequency = entry[8] if freq and len(entry) > 8 else ""
+    starCount = entry[9] if freq and len(entry) > 9 else ""
+    definition = ""
+    pitch_accents = []
+
+    if len(entry) > 5 and isinstance(entry[5], list):
+        definition = extract_definition(entry[5])
+
+        header_section = find_header_section(entry[5])
+        if header_section:
+            pitch_accents = extract_pitch(header_section)
+
+    # Always create a 9-element tuple
+    jsonDict[count] = (
+        term,  # term
+        " ".join(str(p) for p in pitch_accents) if pitch_accents else "",  # altterm (pitch accent)
+        reading,  # pronunciation
+        pos,  # part of speech
+        definition,  # definition
+        "",  # examples
+        "",  # audio
+        frequency,  # frequency
+        starCount  # star count
+    )
 
 def kaner(to_translate, hiraganer = False):
         hiragana = u"がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ" \
@@ -581,57 +738,53 @@ def kaner(to_translate, hiraganer = False):
 def adjustReading(reading):
     return kaner(reading)
 
-def organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang, miDict = False):
-    readingHyouki = False
-    if frequencyDict['readingDictionaryType']:
-        readingHyouki = True
+def organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang, miDict=False):
+    readingHyouki = frequencyDict.get('readingDictionaryType', False)
+
     for idx, entry in enumerate(jsonDict):
-        if miDict:
+        if isinstance(entry, list):
+            term = entry[0] if len(entry) > 0 else ''
+            reading = entry[1] if len(entry) > 1 and isinstance(entry[1], str) else ''
+            details = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else None
+
             if readingHyouki:
-                reading = entry['pronunciation']
-                if reading == '':
-                    reading = entry['term']
+                if details:
+                    reading = details.get('reading', '') or reading or term
                 adjusted = adjustReading(reading)
-            if not readingHyouki and entry['term'] in frequencyDict:
-                jsonDict[idx]['frequency'] = frequencyDict[entry['term']]
-                jsonDict[idx]['starCount'] = getStarCount(jsonDict[idx]['frequency'])
-            elif readingHyouki and entry['term'] in frequencyDict and adjusted in frequencyDict[entry['term']]:
-                jsonDict[idx]['frequency'] = frequencyDict[entry['term']][adjusted]
-                jsonDict[idx]['starCount'] = getStarCount(jsonDict[idx]['frequency'])
             else:
-                jsonDict[idx]['frequency'] = 999999 
-                jsonDict[idx]['starCount'] = getStarCount(jsonDict[idx]['frequency'])
+                adjusted = None
+
+            frequency = 999999
+            starCount = ''
+
+            if miDict and details is not None:
+                if readingHyouki and term in frequencyDict:
+                    if adjusted in frequencyDict[term]:
+                        frequency = frequencyDict[term][adjusted]
+                elif not readingHyouki and term in frequencyDict:
+                    frequency = frequencyDict[term]
+                details['frequency'] = frequency
+                details['starCount'] = getStarCount(frequency)
+            else:
+                if readingHyouki and term in frequencyDict:
+                    if adjusted in frequencyDict[term]:
+                        frequency = frequencyDict[term][adjusted]
+                elif not readingHyouki and term in frequencyDict:
+                    frequency = frequencyDict[term]
+
+                if len(entry) <= 8:
+                    entry.extend([frequency, getStarCount(frequency)])
+                else:
+                    entry[8] = frequency
+                    entry[9] = getStarCount(frequency)
+
         else:
-            if readingHyouki:
-                reading = entry[1]
-                if reading == '':
-                    reading = entry[0]
-                adjusted = adjustReading(reading)
-            if not readingHyouki and entry[0] in frequencyDict:
-                if len(entry) > 8:
-                    jsonDict[idx][8] = frequencyDict[entry[0]]
-                    jsonDict[idx][9] = getStarCount(jsonDict[idx][8])
-                else: 
-                    jsonDict[idx].append(frequencyDict[entry[0]])
-                    jsonDict[idx].append(getStarCount(jsonDict[idx][8]))
-            elif readingHyouki and entry[0] in frequencyDict and adjusted in frequencyDict[entry[0]]:
-                if len(entry) > 8:
-                    jsonDict[idx][8] = frequencyDict[entry[0]][adjusted]
-                    jsonDict[idx][9] = getStarCount(jsonDict[idx][8])
-                else: 
-                    jsonDict[idx].append(frequencyDict[entry[0]][adjusted])
-                    jsonDict[idx].append(getStarCount(jsonDict[idx][8]))
-            else:
-                if len(entry) > 8:
-                    jsonDict[idx][8] = 999999
-                    jsonDict[idx][9] = ''
-                else: 
-                    jsonDict[idx].append(999999)
-                    jsonDict[idx].append('')
+            continue
+
     if miDict:
-        return sorted(jsonDict, key = lambda i: i['frequency'])
+        return sorted(jsonDict, key=lambda i: i[2].get('frequency', 999999) if isinstance(i[2], dict) else 999999)
     else:
-        return sorted(jsonDict, key=operator.itemgetter(8))
+        return sorted(jsonDict, key=lambda i: i[8] if len(i) > 8 else 999999)
 
 def getStarCount(freq):
     if freq < 1501:
@@ -654,10 +807,10 @@ def getFrequencyList(lang):
         frequencyList = json.load(open(filePath, 'r', encoding='utf-8-sig'))
         if isinstance(frequencyList[0], str):
             yomi = False
-            frequencyDict['readingDictionaryType'] = False 
+            frequencyDict['readingDictionaryType'] = False
         elif isinstance(frequencyList[0], list) and len(frequencyList[0]) == 2 and isinstance(frequencyList[0][0], str) and isinstance(frequencyList[0][1], str):
             yomi = True
-            frequencyDict['readingDictionaryType'] = True 
+            frequencyDict['readingDictionaryType'] = True
         else:
             return False
         for idx, f in enumerate(frequencyList):

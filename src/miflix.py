@@ -15,7 +15,7 @@ import os, uuid
 from aqt import mw
 from anki.collection import Collection
 from threading import Timer
-from anki.utils import isWin
+from anki.utils import is_win
 
 def getNextBatchOfCards(self, start, incrementor):
     return self.db.all("SELECT c.ivl, n.flds, c.ord, n.mid FROM cards AS c INNER JOIN notes AS n ON c.nid = n.id WHERE c.type != 0 ORDER BY c.ivl LIMIT %s, %s;"%(start, incrementor))
@@ -24,7 +24,7 @@ Collection.getNextBatchOfCards = getNextBatchOfCards
 
 
 
-class MigakuHTTPHandler(tornado.web.RequestHandler):
+class MisoHTTPHandler(tornado.web.RequestHandler):
 
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
@@ -39,7 +39,7 @@ class MigakuHTTPHandler(tornado.web.RequestHandler):
         self.addCondensedAudioInProgressMessage = self.application.addCondensedAudioInProgressMessage
         self.removeCondensedAudioInProgressMessage  = self.application.removeCondensedAudioInProgressMessage
         suffix = ''     
-        if isWin:   
+        if is_win:   
             suffix = '.exe' 
         self.ffmpeg = join(self.addonDirectory, 'user_files', 'ffmpeg', 'ffmpeg' + suffix)
 
@@ -51,7 +51,7 @@ class MigakuHTTPHandler(tornado.web.RequestHandler):
         return self.mw.addonManager.getConfig(__name__)
 
 
-class ImportHandler(MigakuHTTPHandler):
+class ImportHandler(MisoHTTPHandler):
 
     def get(self):
         self.finish("ImportHandler")
@@ -114,7 +114,7 @@ class ImportHandler(MigakuHTTPHandler):
             bulkExportWasCancelled = self.parseBoolean(self.get_body_argument("bulkExportWasCancelled", default=False))
             timestamp = self.get_body_argument("timestamp", default=0)
             if bulkExportWasCancelled:
-                if self.mw.MigakuBulkMediaExportWasCancelled and previousBulkTimeStamp == timestamp:
+                if self.mw.MisoBulkMediaExportWasCancelled and previousBulkTimeStamp == timestamp:
                     self.finish("yes")
                 else:
                     self.finish("no")
@@ -133,14 +133,14 @@ class ImportHandler(MigakuHTTPHandler):
                     return
 
             else:
-                if self.mw.MigakuBulkMediaExportWasCancelled and previousBulkTimeStamp == timestamp:
+                if self.mw.MisoBulkMediaExportWasCancelled and previousBulkTimeStamp == timestamp:
                     self.removeCondensedAudioInProgressMessage()
                     self.finish("Exporting was cancelled.")
                     return
                 if previousBulkTimeStamp != timestamp or not bulk:
                     self.application.settings["previousBulkTimeStamp"] = timestamp
                     self.removeCondensedAudioInProgressMessage()
-                    self.mw.MigakuBulkMediaExportWasCancelled = False
+                    self.mw.MisoBulkMediaExportWasCancelled = False
                 condensedAudio = self.parseBoolean(self.get_body_argument("condensedAudio", default=False))  
                 total = int(self.get_body_argument("totalToRecord", default=1))     
                 print("TOTAL")
@@ -148,8 +148,8 @@ class ImportHandler(MigakuHTTPHandler):
                 if condensedAudio:
                     mp3dir = config.get('condensedAudioDirectory', False)
                     if not mp3dir:
-                        self.alert("You must specify a Condensed Audio Save Location.\n\nYou can do this by:\n1. Navigating to Migaku->Dictionary Settings in Anki's menu bar.\n2. Clicking \"Choose Directory\" for the \"Condensed Audio Save Location\"  in the bottom right of the settings window.")
-                        self.mw.MigakuBulkMediaExportWasCancelled = True
+                        self.alert("You must specify a Condensed Audio Save Location.\n\nYou can do this by:\n1. Navigating to Miso->Dictionary Settings in Anki's menu bar.\n2. Clicking \"Choose Directory\" for the \"Condensed Audio Save Location\"  in the bottom right of the settings window.")
+                        self.mw.MisoBulkMediaExportWasCancelled = True
                         self.removeCondensedAudioInProgressMessage()
                         self.finish("Save location not set.")
                     elif self.ffmpegExists():
@@ -159,7 +159,7 @@ class ImportHandler(MigakuHTTPHandler):
                         self.finish("Exporting Condensed Audio")
                     else:
                         self.alert("The FFMPEG media encoder must be installed in order to export condensedAudio.\n\nIn order to install FFMPEG please enable MP3 Conversion in the Dictionary Settings window and click \"Apply\".\nFFMPEG will then be downloaded and installed automatically.")
-                        self.mw.MigakuBulkMediaExportWasCancelled = True
+                        self.mw.MisoBulkMediaExportWasCancelled = True
                         self.removeCondensedAudioInProgressMessage()
                         self.finish("FFMPEG not installed.")
                     return
@@ -214,7 +214,7 @@ class ImportHandler(MigakuHTTPHandler):
         fh = open(filePath, 'wb')
         fh.write(file['body'])
 
-class LearningStatusHandler(MigakuHTTPHandler):
+class LearningStatusHandler(MisoHTTPHandler):
 
     def get(self):
         self.finish("LearningStatusHandler")
@@ -304,7 +304,7 @@ class LearningStatusHandler(MigakuHTTPHandler):
             card[1] = re.sub(bracketPattern, "", card[1])
         return json.dumps(cards)
 
-class SearchHandler(MigakuHTTPHandler):
+class SearchHandler(MisoHTTPHandler):
 
     def get(self):
         self.finish("SearchHandler")
@@ -318,7 +318,7 @@ class SearchHandler(MigakuHTTPHandler):
                 return
         self.finish("Invalid Request")
 
-class MigakuHTTPServer(tornado.web.Application):
+class MisoHTTPServer(tornado.web.Application):
 
     PROTOCOL_VERSION = 2
 
@@ -333,8 +333,32 @@ class MigakuHTTPServer(tornado.web.Application):
         settings = {'mw' : mw}
         super().__init__(handlers, **settings)
 
-    def run(self, port=12345):
-        self.listen(port)
+    def run(self, start_port=12345, max_ports=10):
+        # Start port and counter for the number of ports tried
+        current_port = start_port
+        ports_tried = 0
+        max_tries = 3
+
+        while ports_tried < max_ports:
+            attempts = 0
+            while attempts < max_tries:
+                try:
+                    self.listen(current_port)
+                    print(f"Successfully started on port {current_port}")
+                    tornado.ioloop.IOLoop.instance().start()
+                    return  # Exit after successfully starting the server
+                except:
+                    attempts += 1
+                    print(f"Port {current_port} is busy. Attempt {attempts}/{max_tries}")
+
+            # After 3 failed attempts on the current port, try the next one
+            print(f"Giving up on port {current_port}. Trying next port.")
+            ports_tried += 1
+            current_port += 1
+
+        # After trying 10 ports, fall back to port 0
+        print("Tried 10 ports, now trying port 0...")
+        self.listen(0)
         tornado.ioloop.IOLoop.instance().start()
 
     def alert(self, message):
@@ -348,14 +372,14 @@ class MigakuHTTPServer(tornado.web.Application):
 
     def checkVersion(self, version):
         if version is False or version < self.PROTOCOL_VERSION:
-            self.alert("Your Migaku Dictionary Version is newer than and incompatible with your Immerse with Migaku Browser Extension installation. Please ensure you are using the latest version of the add-on and extension to resolve this issue.")
+            self.alert("Your miso Dictionary Version is newer than and incompatible with your Immerse with miso Browser Extension installation. Please ensure you are using the latest version of the add-on and extension to resolve this issue.")
             return False
         elif version > self.PROTOCOL_VERSION:
-            self.alert("Your Immerse with Migaku Browser Extension Version is newer than and incompatible with this Migaku Dictionary installation. Please ensure you are using the latest version of the add-on and extension to resolve this issue.")
+            self.alert("Your Immerse with miso Browser Extension Version is newer than and incompatible with this miso Dictionary installation. Please ensure you are using the latest version of the add-on and extension to resolve this issue.")
             return False
         return True
 
-class MigakuServerThread(QThread):
+class MisoServerThread(QThread):
 
     alertUser = pyqtSignal(str)
     exportingCondensed = pyqtSignal()
@@ -364,7 +388,7 @@ class MigakuServerThread(QThread):
     def __init__(self, mw):
         self.mw = mw
         QThread.__init__(self)
-        self.server = MigakuHTTPServer(self, mw)
+        self.server = MisoHTTPServer(self, mw)
         self.start()
 
     def run(self):
@@ -398,7 +422,7 @@ def removeCondensedAudioInProgressMessage():
 
 
 
-serverThread = MigakuServerThread(mw)
+serverThread = MisoServerThread(mw)
 serverThread.alertUser.connect(miInfo)
 serverThread.exportingCondensed.connect(addCondensedAudioInProgressMessage)
 serverThread.notExportingCondensed.connect(removeCondensedAudioInProgressMessage)

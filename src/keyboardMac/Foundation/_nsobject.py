@@ -1,8 +1,10 @@
 """
 Define a category on NSObject with some useful methods.
 """
-import objc
+
 import sys
+
+import objc
 
 if sys.version_info[0] == 2:
 
@@ -34,12 +36,9 @@ class NSObject(objc.Category(NSObject)):
     def _pyobjc_performOnThread_(self, callinfo):
         try:
             sel, arg = callinfo
-            # XXX: PyObjC's methodForSelector implementation doesn't work
-            # with Python methods, using getattr instead
-            # m = self.methodForSelector_(sel)
             m = getattr(self, _str(sel))
             m(arg)
-        except:
+        except:  # noqa: E722, B001
             import traceback
 
             traceback.print_exc(file=sys.stderr)
@@ -48,16 +47,17 @@ class NSObject(objc.Category(NSObject)):
     def _pyobjc_performOnThreadWithResult_(self, callinfo):
         try:
             sel, arg, result = callinfo
-            # m = self.methodForSelector_(sel)
             m = getattr(self, _str(sel))
             r = m(arg)
             result.append((True, r))
-        except:
+        except:  # noqa: E722, B001
             result.append((False, sys.exc_info()))
 
     if hasattr(NSObject, "performSelector_onThread_withObject_waitUntilDone_"):
 
-        @objc.namedSelector(b"pyobjc_performSelector:onThread:withObject:waitUntilDone:")
+        @objc.namedSelector(
+            b"pyobjc_performSelector:onThread:withObject:waitUntilDone:"
+        )
         def pyobjc_performSelector_onThread_withObject_waitUntilDone_(
             self, aSelector, thread, arg, wait
         ):
@@ -153,7 +153,9 @@ class NSObject(objc.Category(NSObject)):
     # And some a some versions that return results
 
     @objc.namedSelector(b"pyobjc_performSelectorOnMainThread:withObject:modes:")
-    def pyobjc_performSelectorOnMainThread_withObject_modes_(self, aSelector, arg, modes):
+    def pyobjc_performSelectorOnMainThread_withObject_modes_(
+        self, aSelector, arg, modes
+    ):
         """
         Simular to performSelectorOnMainThread:withObject:waitUntilDone:modes:,
         but:

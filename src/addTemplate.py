@@ -7,7 +7,7 @@ import math
 from anki.hooks import addHook
 from aqt.qt import *
 from aqt.utils import openLink, tooltip, showInfo, askUser
-from anki.utils import isMac, isWin, isLin
+from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
 import re
 import os
@@ -16,7 +16,7 @@ from .miutils import miInfo, miAsk
 
 class TemplateEditor(QDialog):
     def __init__(self, mw, parent = None, dictionaries = [], toEdit = False, tName = False):
-        super(TemplateEditor, self).__init__(parent, Qt.Window)
+        super(TemplateEditor, self).__init__(parent, Qt.WindowType.Window)
         self.setMinimumSize(QSize(400, 0))
         self.setWindowTitle("Add Export Template")
         self.settings = parent
@@ -155,18 +155,18 @@ class TemplateEditor(QDialog):
 
     def getDictFieldsTable(self):
         macLin = False
-        if isMac  or isLin:
+        if is_mac  or is_lin:
             macLin = True
         dictFields = QTableWidget()
         dictFields.setColumnCount(3)
         tableHeader = dictFields.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.Stretch)
-        tableHeader.setSectionResizeMode(2, QHeaderView.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         dictFields.setRowCount(0)
         dictFields.setSortingEnabled(False)
-        dictFields.setEditTriggers(QTableWidget.NoEditTriggers)
-        dictFields.setSelectionBehavior(QAbstractItemView.SelectRows)
+        dictFields.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        dictFields.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         dictFields.setColumnWidth(2, 40)
         tableHeader.hide()
         return dictFields

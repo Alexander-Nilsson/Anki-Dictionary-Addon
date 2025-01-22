@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -33,13 +33,14 @@ from ctypes import wintypes
 
 import pynput._util.win32_vks as VK
 
-from pynput._util import AbstractListener, NotifierMixin
+from pynput._util import AbstractListener
 from pynput._util.win32 import (
     INPUT,
     INPUT_union,
     KEYBDINPUT,
     KeyTranslator,
     ListenerMixin,
+    MapVirtualKey,
     SendInput,
     SystemHook,
     VkKeyScan)
@@ -47,6 +48,18 @@ from . import _base
 
 
 class KeyCode(_base.KeyCode):
+    _PLATFORM_EXTENSIONS = (
+        # Any extra flags.
+        '_flags',
+
+        #: The scan code.
+        '_scan',
+    )
+
+    # Be explicit about fields
+    _flags = None
+    _scan = None
+
     def _parameters(self, is_press):
         """The parameters to pass to ``SendInput`` to generate this key.
 
@@ -55,31 +68,52 @@ class KeyCode(_base.KeyCode):
         :return: all arguments to pass to ``SendInput`` for this key
 
         :rtype: dict
+
+        :raise ValueError: if this key is a unicode character that cannot be
+        represented by a single UTF-16 value
         """
         if self.vk:
             vk = self.vk
-            scan = 0
+            scan = self._scan \
+                or MapVirtualKey(vk, MapVirtualKey.MAPVK_VK_TO_VSC)
             flags = 0
+        elif ord(self.char) > 0xFFFF:
+            raise ValueError
         else:
             res = VkKeyScan(self.char)
             if (res >> 8) & 0xFF == 0:
                 vk = res & 0xFF
-                scan = 0
+                scan = self._scan \
+                    or MapVirtualKey(vk, MapVirtualKey.MAPVK_VK_TO_VSC)
                 flags = 0
             else:
                 vk = 0
                 scan = ord(self.char)
                 flags = KEYBDINPUT.UNICODE
+        state_flags = (KEYBDINPUT.KEYUP if not is_press else 0)
         return dict(
-            dwFlags=flags | (KEYBDINPUT.KEYUP if not is_press else 0),
+            dwFlags=(self._flags or 0) | flags | state_flags,
             wVk=vk,
             wScan=scan)
 
+    @classmethod
+    def _from_ext(cls, vk, **kwargs):
+        """Creates an extended key code.
 
+        :param vk: The virtual key code.
+
+        :param kwargs: Any other parameters to pass.
+
+        :return: a key code
+        """
+        return cls.from_vk(vk, _flags=KEYBDINPUT.EXTENDEDKEY, **kwargs)
+
+
+# pylint: disable=W0212
 class Key(enum.Enum):
     alt = KeyCode.from_vk(VK.MENU)
     alt_l = KeyCode.from_vk(VK.LMENU)
-    alt_r = KeyCode.from_vk(VK.RMENU)
+    alt_r = KeyCode._from_ext(VK.RMENU)
     alt_gr = KeyCode.from_vk(VK.RMENU)
     backspace = KeyCode.from_vk(VK.BACK)
     caps_lock = KeyCode.from_vk(VK.CAPITAL)
@@ -88,10 +122,10 @@ class Key(enum.Enum):
     cmd_r = KeyCode.from_vk(VK.RWIN)
     ctrl = KeyCode.from_vk(VK.CONTROL)
     ctrl_l = KeyCode.from_vk(VK.LCONTROL)
-    ctrl_r = KeyCode.from_vk(VK.RCONTROL)
-    delete = KeyCode.from_vk(VK.DELETE)
-    down = KeyCode.from_vk(VK.DOWN)
-    end = KeyCode.from_vk(VK.END)
+    ctrl_r = KeyCode._from_ext(VK.RCONTROL)
+    delete = KeyCode._from_ext(VK.DELETE)
+    down = KeyCode._from_ext(VK.DOWN)
+    end = KeyCode._from_ext(VK.END)
     enter = KeyCode.from_vk(VK.RETURN)
     esc = KeyCode.from_vk(VK.ESCAPE)
     f1 = KeyCode.from_vk(VK.F1)
@@ -114,24 +148,36 @@ class Key(enum.Enum):
     f18 = KeyCode.from_vk(VK.F18)
     f19 = KeyCode.from_vk(VK.F19)
     f20 = KeyCode.from_vk(VK.F20)
-    home = KeyCode.from_vk(VK.HOME)
-    left = KeyCode.from_vk(VK.LEFT)
-    page_down = KeyCode.from_vk(VK.NEXT)
-    page_up = KeyCode.from_vk(VK.PRIOR)
-    right = KeyCode.from_vk(VK.RIGHT)
+    f21 = KeyCode.from_vk(VK.F21)
+    f22 = KeyCode.from_vk(VK.F22)
+    f23 = KeyCode.from_vk(VK.F23)
+    f24 = KeyCode.from_vk(VK.F24)
+    home = KeyCode._from_ext(VK.HOME)
+    left = KeyCode._from_ext(VK.LEFT)
+    page_down = KeyCode._from_ext(VK.NEXT)
+    page_up = KeyCode._from_ext(VK.PRIOR)
+    right = KeyCode._from_ext(VK.RIGHT)
     shift = KeyCode.from_vk(VK.LSHIFT)
     shift_l = KeyCode.from_vk(VK.LSHIFT)
     shift_r = KeyCode.from_vk(VK.RSHIFT)
     space = KeyCode.from_vk(VK.SPACE, char=' ')
     tab = KeyCode.from_vk(VK.TAB)
-    up = KeyCode.from_vk(VK.UP)
+    up = KeyCode._from_ext(VK.UP)
 
-    insert = KeyCode.from_vk(VK.INSERT)
+    media_play_pause = KeyCode._from_ext(VK.MEDIA_PLAY_PAUSE)
+    media_volume_mute = KeyCode._from_ext(VK.VOLUME_MUTE)
+    media_volume_down = KeyCode._from_ext(VK.VOLUME_DOWN)
+    media_volume_up = KeyCode._from_ext(VK.VOLUME_UP)
+    media_previous = KeyCode._from_ext(VK.MEDIA_PREV_TRACK)
+    media_next = KeyCode._from_ext(VK.MEDIA_NEXT_TRACK)
+
+    insert = KeyCode._from_ext(VK.INSERT)
     menu = KeyCode.from_vk(VK.APPS)
-    num_lock = KeyCode.from_vk(VK.NUMLOCK)
+    num_lock = KeyCode._from_ext(VK.NUMLOCK)
     pause = KeyCode.from_vk(VK.PAUSE)
-    print_screen = KeyCode.from_vk(VK.SNAPSHOT)
+    print_screen = KeyCode._from_ext(VK.SNAPSHOT)
     scroll_lock = KeyCode.from_vk(VK.SCROLL)
+# pylint: enable=W0212
 
 
 class Controller(_base.Controller):
@@ -142,19 +188,44 @@ class Controller(_base.Controller):
         super(Controller, self).__init__(*args, **kwargs)
 
     def _handle(self, key, is_press):
-        SendInput(
-            1,
-            ctypes.byref(INPUT(
-                type=INPUT.KEYBOARD,
-                value=INPUT_union(
-                    ki=KEYBDINPUT(**key._parameters(is_press))))),
-            ctypes.sizeof(INPUT))
+        try:
+            SendInput(
+                1,
+                ctypes.byref(INPUT(
+                    type=INPUT.KEYBOARD,
+                    value=INPUT_union(
+                        ki=KEYBDINPUT(**key._parameters(is_press))))),
+                ctypes.sizeof(INPUT))
+        except ValueError:
+            # If key._parameters raises ValueError, the key is a unicode
+            # characters outsice of the range of a single UTF-16 value, and we
+            # must break it up into its surrogates
+            byte_data = bytearray(key.char.encode('utf-16le'))
+            surrogates = [
+                byte_data[i] | (byte_data[i + 1] << 8)
+                for i in range(0, len(byte_data), 2)]
+
+            state_flags = KEYBDINPUT.UNICODE \
+                | (KEYBDINPUT.KEYUP if not is_press else 0)
+
+            SendInput(
+                len(surrogates),
+                (INPUT * len(surrogates))(*(
+                    INPUT(
+                        INPUT.KEYBOARD,
+                        INPUT_union(
+                            ki=KEYBDINPUT(
+                                dwFlags=state_flags,
+                                wScan=scan)))
+                    for scan in surrogates)),
+                ctypes.sizeof(INPUT))
 
 
 class Listener(ListenerMixin, _base.Listener):
     #: The Windows hook ID for low level keyboard events, ``WH_KEYBOARD_LL``
     _EVENTS = 13
 
+    _WM_INPUTLANGCHANGE = 0x0051
     _WM_KEYDOWN = 0x0100
     _WM_KEYUP = 0x0101
     _WM_SYSKEYDOWN = 0x0104
@@ -172,6 +243,11 @@ class Listener(ListenerMixin, _base.Listener):
 
     #: The messages that correspond to a key release
     _RELEASE_MESSAGES = (_WM_KEYUP, _WM_SYSKEYUP)
+
+    #: Additional window messages to propagate to the subclass handler.
+    _WM_NOTIFICATIONS = (
+        _WM_INPUTLANGCHANGE,
+    )
 
     #: A mapping from keysym to special key
     _SPECIAL_KEYS = {
@@ -195,9 +271,8 @@ class Listener(ListenerMixin, _base.Listener):
     #: A pointer to a :class:`KBDLLHOOKSTRUCT`
     _LPKBDLLHOOKSTRUCT = ctypes.POINTER(_KBDLLHOOKSTRUCT)
 
-    def __init__(self, migaku = False, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(Listener, self).__init__(*args, **kwargs)
-        self.migaku = migaku
         self._translator = KeyTranslator()
         self._event_filter = self._options.get(
             'event_filter',
@@ -251,6 +326,12 @@ class Listener(ListenerMixin, _base.Listener):
         yield
     # pylint: enable=R0201
 
+    def _on_notification(self, code, wparam, lparam):
+        """Receives ``WM_INPUTLANGCHANGE`` and updates the cached layout.
+        """
+        if code == self._WM_INPUTLANGCHANGE:
+            self._translator.update_layout()
+
     def _event_to_key(self, msg, vk):
         """Converts an :class:`_KBDLLHOOKSTRUCT` to a :class:`KeyCode`.
 
@@ -262,17 +343,13 @@ class Listener(ListenerMixin, _base.Listener):
 
         :raises OSError: if the message and data could not be converted
         """
-        # We must always call self._translate to keep the keyboard state up to
-        # date
-        key = KeyCode(**self._translate(
-            vk,
-            msg in self._PRESS_MESSAGES))
-
         # If the virtual key code corresponds to a Key value, we prefer that
         if vk in self._SPECIAL_KEYS:
             return self._SPECIAL_KEYS[vk]
         else:
-            return key
+            return KeyCode(**self._translate(
+                vk,
+                msg in self._PRESS_MESSAGES))
 
     def _translate(self, vk, is_press):
         """Translates a virtual key code to a parameter list passable to
@@ -282,7 +359,18 @@ class Listener(ListenerMixin, _base.Listener):
 
         :param bool is_press: Whether this is a press event.
 
-        :return: a paramter list to the :class:`pynput.keyboard.KeyCode`
+        :return: a parameter list to the :class:`pynput.keyboard.KeyCode`
             constructor
         """
         return self._translator(vk, is_press)
+
+    def canonical(self, key):
+        # If the key has a scan code, and we can find the character for it,
+        # return that, otherwise call the super class
+        scan = getattr(key, '_scan', None)
+        if scan is not None:
+            char = self._translator.char_from_scan(scan)
+            if char is not None:
+                return KeyCode.from_char(char)
+
+        return super(Listener, self).canonical(key)

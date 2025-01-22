@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 
+#
 
 from aqt.utils import shortcut, saveGeom, saveSplitter, showInfo, askUser, ensureWidgetInScreenBoundaries
 import json
@@ -8,13 +8,14 @@ import math
 from anki.hooks import runHook
 from aqt.qt import *
 from aqt.utils import openLink, tooltip
-from anki.utils import isMac, isWin, isLin
+from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
 from aqt.webview import AnkiWebView
 import re
 from shutil import copyfile
 import os, shutil
 from os.path import join, exists, dirname
+
 from .history import HistoryBrowser, HistoryModel
 from aqt.editor import Editor
 from .cardExporter import CardExporter
@@ -33,9 +34,16 @@ from .forvodl import Forvo
 import ntpath
 from .miutils import miInfo
 
-class MIDict(AnkiWebView):
+try:
+    from PyQt6.QtSvgWidgets import QSvgWidget
+except ModuleNotFoundError:
+    from PyQt5.QtSvg import QSvgWidget
 
-    def __init__(self, dictInt, db, path, day, terms  = False):
+from .themeEditor import *
+from .themes import *
+
+class MIDict(AnkiWebView):
+    def __init__(self, dictInt, db, path, terms  = False):
         AnkiWebView.__init__(self)
         self._page.profile().setHttpUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
         self.terms = terms
@@ -110,7 +118,7 @@ class MIDict(AnkiWebView):
                     continue
             with open(filePath, "r", encoding="utf-8") as conjugationsFile:
                 conjugations[lang] = json.loads(conjugationsFile.read())
-        return conjugations          
+        return conjugations
 
     def cleanTerm(self, term):
         return term.replace("'", "\'").replace('%', '').replace('_', '').replace('「', '').replace('」', '')
@@ -124,7 +132,7 @@ class MIDict(AnkiWebView):
             return ' style="font-family:'+ group['font'] + ';" '
 
     def injectFont(self, font):
-        name = re.sub(r'\..*$', '' , font) 
+        name = re.sub(r'\..*$', '' , font)
         self.eval("addCustomFont('%s', '%s');"%(font, name))
 
     def getTabMode(self):
@@ -142,14 +150,14 @@ class MIDict(AnkiWebView):
         html = html.replace('\n', '')
         return html, cleaned, singleTab;
 
-          
+
     def addNewTab(self, term, selectedGroup):
         if selectedGroup['customFont'] and selectedGroup['font'] not in self.customFontsLoaded:
             self.customFontsLoaded.append(selectedGroup['font'])
             self.injectFont(selectedGroup['font'])
         html, cleaned, singleTab= self.getHTMLResult(term, selectedGroup)
         self.eval("addNewTab('%s', '%s', %s);"%(html.replace('\r', '<br>').replace('\n','<br>'), cleaned, singleTab))
-        
+
     def addResultWrappers(self, results):
         for idx, result in enumerate(results):
             if 'dictionaryTitleBlock' not in result:
@@ -161,12 +169,42 @@ class MIDict(AnkiWebView):
 
     def highlightTarget(self, text, term):
         if self.config['highlightTarget']:
-            return  re.sub(u'('+ self.escapePunctuation(term) + ')', r'<span class="targetTerm">\1</span>', text)
+            if not isinstance(text, str):
+                text = str(text) if text is not None else ""
+            try:
+                # Split text into HTML tags and content
+                parts = re.split(r'(<[^>]*>)', text)
+
+                # Only apply highlighting to non-tag parts
+                for i in range(0, len(parts), 2):  # Process only non-tag parts
+                    if parts[i]:  # Skip empty strings
+                        # For Japanese text, we don't need word boundaries
+                        if any('\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u309f' or '\u30a0' <= c <= '\u30ff' for c
+                               in term):
+                            pattern = '(' + self.escapePunctuation(term) + ')'
+                        else:
+                            # For non-Japanese text, keep word boundaries
+                            pattern = r'\b(' + self.escapePunctuation(term) + r')\b'
+
+                        parts[i] = re.sub(
+                            pattern,
+                            r'<span class="targetTerm">\1</span>',
+                            parts[i]
+                        )
+
+                return ''.join(parts)
+            except Exception as e:
+                print(f"Error during highlightTarget: {e}")
+                return text  # Fallback to the original text
         return text
 
     def highlightExamples(self, text):
         if self.config['highlightSentences']:
-            return re.sub(u'(「[^」]+」)', r'<span class="exampleSentence">\1</span>', text)
+            return re.sub(
+                r'「([^」]+)」(?![^<]*>)',
+                r'<span class="exampleSentence">「\1」</span>',
+                text
+            )
         return text
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
@@ -175,11 +213,11 @@ class MIDict(AnkiWebView):
         entryCount = 0
         for dictName, dictResults in results.items():
                 if dictName == 'Google Images' or dictName == 'Forvo':
-                    html += '<div data-index="' + str(dictCount)  +'" class="listTitle">'+ dictName + '</div><ol class="foundEntriesList"><li data-index="' + str(entryCount)  +'">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, term, term, term, True) +'</li></ol>' 
+                    html += '<div data-index="' + str(dictCount)  +'" class="listTitle">'+ dictName + '</div><ol class="foundEntriesList"><li data-index="' + str(entryCount)  +'">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, term, term, term, True) +'</li></ol>'
                     entryCount += 1
                     dictCount += 1
                     continue
-                html += '<div data-index="' + str(dictCount)  +'" class="listTitle">'+ dictName + '</div><ol class="foundEntriesList">' 
+                html += '<div data-index="' + str(dictCount)  +'" class="listTitle">'+ dictName + '</div><ol class="foundEntriesList">'
                 dictCount += 1
                 for idx, entry in enumerate(dictResults):
                     html += ('<li data-index="' + str(entryCount)  +'">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, entry['term'], entry['altterm'], entry['pronunciation'], True) +'</li>')
@@ -242,11 +280,11 @@ class MIDict(AnkiWebView):
                     html += '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div  ' + font +'  class="dictionaryTitle">' + dictName.replace('_', ' ') + '</div><div class="dictionarySettings">' + duplicateHeader + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
                     dictCount += 1
                     for idx, entry in enumerate(dictResults):
-                        html += ('<div data-index="' + str(entryCount)  +'" class="termPronunciation"><span ' + font +' class="tpCont">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, entry['term'], entry['altterm'], entry['pronunciation']) + 
+                        html += ('<div data-index="' + str(entryCount)  +'" class="termPronunciation"><span ' + font +' class="tpCont">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, entry['term'], entry['altterm'], entry['pronunciation']) +
                         ' <span class="starcount">' + entry['starCount']  +'</span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img '+ imgTooltip+' src="icons/anki.png"></div><div onclick="clipText(event)" '+ clipTooltip +' class="clipper">✂</div><div ' + sendTooltip +' onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div' + font +' class="definitionBlock">' + self.highlightTarget(self.highlightExamples(entry['definition']), term)
                              + '</div>')
                         entryCount += 1
-            
+
         else:
             html = '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="icons/searchzero.svg" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "' + term + '".</h3> </div></div>'
         return html.replace("'", "\\'")
@@ -274,7 +312,7 @@ class MIDict(AnkiWebView):
         idName = 'fcon' + str(time.time())
         self.attemptFetchForvo(term, idName)
         html = '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div class="dictionaryTitle">'+ dictName +'</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-        html += ('<div  data-index="' + str(entryCount)  +'"  class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +  
+        html += ('<div  data-index="' + str(entryCount)  +'"  class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +
                         self.highlightTarget(term, term) +
                         '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img src="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div id="' + idName + '" class="definitionBlock">' )
         html += 'Loading...'
@@ -287,13 +325,13 @@ class MIDict(AnkiWebView):
         select = self.getFieldChecks( dictName)
         idName = 'gcon' + str(time.time())
         html = '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div class="dictionaryTitle">Google Images</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-        html += ('<div  data-index="' + str(entryCount)  +'" class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +  
+        html += ('<div  data-index="' + str(entryCount)  +'" class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +
                         self.highlightTarget(term, term) +
                         '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img src="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName +'">' + self.getGoogleImages(term, idName)
                          + '</div></div>')
-        return html           
+        return html
 
-    def getGoogleImages(self, term, idName):  
+    def getGoogleImages(self, term, idName):
         imager = googleimages.Google()
         imager.setTermIdName(term, idName)
         imager.setSearchRegion(self.config['googleSearchRegion'])
@@ -302,9 +340,9 @@ class MIDict(AnkiWebView):
         imager.signals.noResults.connect(self.showGoogleForvoMessage)
         self.threadpool.start(imager)
 
-        
+
         return 'Loading...'
-        
+
 
     def getCleanedUrls(self, urls):
         return [x.replace('\\', '\\\\') for x in urls]
@@ -328,7 +366,7 @@ class MIDict(AnkiWebView):
             self.terms = False
 
     def handleDictAction(self, dAct):
-        if dAct.startswith("MigakuDictionaryLoaded"):
+        if dAct.startswith("MisoDictionaryLoaded"):
             self.maybeSearchTerms(dAct)
         elif dAct.startswith('forvo:'):
             urls = json.loads(dAct[6:])
@@ -377,11 +415,11 @@ class MIDict(AnkiWebView):
             self.addDefToExportWindow(dictName, word, text)
         elif dAct.startswith('audioExport:'):
             word, urls = dAct[12:].split('◳◴')
-            self.addAudioToExportWindow( word, urls)    
+            self.addAudioToExportWindow( word, urls)
         elif dAct.startswith('imgExport:'):
             word, urls = dAct[10:].split('◳◴')
             self.addImgsToExportWindow( word, json.loads(urls))
-    
+
     def addImgsToExportWindow(self, word, urls):
         self.initCardExporterIfNeeded()
         imgSeparator = ''
@@ -399,13 +437,13 @@ class MIDict(AnkiWebView):
                 continue
         if len(imgs) > 0:
             self.addWindow.addImgs(word, imgSeparator.join(imgs), self.getThumbs(rawPaths))
-    
+
     def saveQImage(self, url, filename):
         req = Request(url , headers={'User-Agent':  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
         file = urlopen(req).read()
         image = QImage()
         image.loadFromData(file)
-        image = image.scaled(QSize(self.maxW,self.maxH), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        image = image.scaled(QSize(self.maxW,self.maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         image.save(filename)
 
     def getThumbs(self, paths):
@@ -418,7 +456,7 @@ class MIDict(AnkiWebView):
         vLayout.addLayout(hLayout)
         for idx, path in enumerate(paths):
             image = QPixmap(path)
-            image = image.scaled(QSize(50,50), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            image = image.scaled(QSize(50,50), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             label = QLabel('')
             label.setPixmap(image)
             label.setFixedSize(40,40)
@@ -426,7 +464,7 @@ class MIDict(AnkiWebView):
             if idx > 0 and idx % 4 == 0:
                 hLayout = QHBoxLayout()
                 hLayout.setContentsMargins(0,0,0,0)
-                vLayout.addLayout(hLayout)       
+                vLayout.addLayout(hLayout)
         thumbCase.setLayout(vLayout)
         return thumbCase
 
@@ -440,7 +478,7 @@ class MIDict(AnkiWebView):
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
         self.addWindow.exportImage(path, name)
-    
+
 
     def initCardExporterIfNeeded(self):
         if not self.addWindow:
@@ -457,7 +495,7 @@ class MIDict(AnkiWebView):
     def cancelBulkMediaExport(self):
         if self.addWindow:
             self.addWindow.bulkMediaExportCancelledByBrowserRefresh()
-    
+
 
     def exportAudio(self, audioList):
         self.dictInt.ensureVisible()
@@ -477,7 +515,7 @@ class MIDict(AnkiWebView):
         self.dictInt.ensureVisible()
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
-        self.addWindow.exportWord(word) 
+        self.addWindow.exportWord(word)
 
     def attemptAutoAdd(self, bulkExport):
         self.addWindow.attemptAutoAdd(bulkExport)
@@ -520,7 +558,7 @@ class MIDict(AnkiWebView):
                 filename = str(time.time()) + '.mp3'
                 open(join(self.dictInt.mw.col.media.dir(), filename), 'wb').write(file)
                 tags.append('[sound:' + filename + ']')
-            except: 
+            except:
                 continue
         return tags
 
@@ -539,10 +577,9 @@ class MIDict(AnkiWebView):
                     continue
             if len(urlsList) > 0 :
                 self.sendToField('Google Images', imgSeparator.join(urlsList))
- 
+
     def sendToField(self, name, definition):
         if self.reviewer and self.reviewer.card:
-
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']
                 addType =  self.config['GoogleImageAddType']
@@ -566,15 +603,16 @@ class MIDict(AnkiWebView):
                             note[field['name']] =  newField
             if not changed:
                 return
-            note.flush()
-            self.dictInt.mw.col.save()
-            self.reviewer.card.load()
+            # note.flush()
+            self.dictInt.mw.col.update_note(note, skip_undo_entry=True);
+            # self.reviewer.card.load()
+            # self.reviewer.
             if self.reviewer.state == 'answer':
                 self.reviewer._showAnswer()
             elif self.reviewer.state == 'question':
                 self.reviewer._showQuestion()
-            if hasattr(self.dictInt.mw, "migakuReloadEditorAndBrowser"):
-                    self.dictInt.mw.migakuReloadEditorAndBrowser(note)
+            if hasattr(self.dictInt.mw, "MisoReloadEditorAndBrowser"):
+                    self.dictInt.mw.misoReloadEditorAndBrowser(note)
         if self.currentEditor and self.currentEditor.note:
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']
@@ -590,10 +628,16 @@ class MIDict(AnkiWebView):
             for idx, item in enumerate(items):
                 noteField = item[0]
                 if noteField in tFields:
-                    if self.jSend:
-                        self.currentEditor.web.eval(self.dictInt.insertHTMLJS % (self.dictInt.jHandler.attemptFieldGenerate(definition, noteField, note.model()['name'], note).replace('"', '\\"'), str(idx), addType))
-                    else:
-                        self.currentEditor.web.eval(self.dictInt.insertHTMLJS % (definition.replace('"', '\\"'), str(idx), addType))
+                    # Get the current note ID
+                    currentNoteId = note.id  # Assuming `note` is the current note object
+                    self.currentEditor.web.eval(
+                        self.dictInt.insertHTMLJS % (
+                            definition.replace('"', '\\"'),
+                            str(idx),  # Field index
+                            addType,  # Action type
+                            currentNoteId  # Pass the note ID to JavaScript
+                        )
+                    )
 
     def getOverwriteChecks(self, dictCount,dictName):
         if dictName == 'Google Images':
@@ -624,13 +668,13 @@ class MIDict(AnkiWebView):
         checked = ''
         if addType == 'overwrite' :
             checked = ' checked'
-        overwrite ='<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' +  count +  dictName + '" value="overwrite"/>Overwrite</label>' 
+        overwrite ='<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' +  count +  dictName + '" value="overwrite"/>Overwrite</label>'
         checked = ''
         if addType == 'no' :
             checked = ' checked'
         ifempty = '<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' +  count +  dictName + '" value="no"/>If Empty</label>'
-        checks = ('<div class="overwriteCheckboxes" data-dictname="' + dictName + '">'+ 
-        add + overwrite + ifempty + 
+        checks = ('<div class="overwriteCheckboxes" data-dictname="' + dictName + '">'+
+        add + overwrite + ifempty +
         '</div>')
         self.radioCount += 1
         return checks
@@ -639,14 +683,14 @@ class MIDict(AnkiWebView):
         if dictName == 'Google Images':
             selF = self.config['GoogleImageFields']
         elif dictName == 'Forvo':
-            selF = self.config['ForvoFields'] 
+            selF = self.config['ForvoFields']
         else:
             selF = self.db.getFieldsSetting(dictName);
         tooltip = ''
         if self.config['tooltips']:
             tooltip = ' title="Select this dictionary\'s target fields for when sending a definition(or a Google Image) to a card. If a field does not exist in the target card, then it is ignored, otherwise the definition is added to all fields that exist within the target card."'
         title = '&nbsp;Select Fields ▾'
-        length =  len(selF) 
+        length =  len(selF)
         if length > 0:
             title = '&nbsp;' + str(length) + ' Selected'
         select = ('<div class="fieldSelectCont"><div class="fieldSelect" '+ tooltip +' onclick="showCheckboxes(event)">'+ title +'</div>'+
@@ -671,7 +715,7 @@ class MIDict(AnkiWebView):
             for fld in model['flds']:
                 if fld['name'] not in fields:
                     fields.append(fld['name'])
-        fields.sort()           
+        fields.sort()
         return fields
 
     def setCurrentEditor(self, editor, target = ''):
@@ -679,7 +723,7 @@ class MIDict(AnkiWebView):
             self.currentEditor = editor
             self.reviewer = False
             self.dictInt.currentTarget.setText(target)
-        
+
     def setReviewer(self, reviewer):
         self.reviewer = reviewer
         self.currentEditor = False
@@ -693,7 +737,7 @@ class MIDict(AnkiWebView):
         self.reviewer = False
         self.currentEditor = False
         self.dictInt.currentTarget.setText('')
-    
+
 class HoverButton(QPushButton):
     mouseHover = pyqtSignal(bool)
     mouseOut =  pyqtSignal(bool)
@@ -718,7 +762,7 @@ def imageResizer(img):
     return img.resize((width, height) , Image.ANTIALIAS)
 
 class ClipThread(QObject):
-    
+
     sentence = pyqtSignal(str)
     search = pyqtSignal(str)
     colSearch  = pyqtSignal(str)
@@ -733,56 +777,56 @@ class ClipThread(QObject):
     bulkMediaExport = pyqtSignal(dict)
     pageRefreshDuringBulkMediaImport = pyqtSignal()
 
-    def __init__(self, mw, path):   
-        if isMac:   
-            import ssl  
-            ssl._create_default_https_context = ssl._create_unverified_context  
-            sys.path.insert(0, join(dirname(__file__), 'keyboardMac'))  
-            from Quartz import CGEventGetIntegerValueField, kCGKeyboardEventKeycode 
-            self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode  
-            self.CGEventGetIntegerValueField = CGEventGetIntegerValueField  
-        elif isLin: 
-            sys.path.insert(0, join(dirname(__file__), 'linux'))    
-        sys.path.insert(0, join(dirname(__file__))) 
-        from pynput import keyboard 
-        super(ClipThread, self).__init__(mw)    
-        self.keyboard = keyboard    
-        self.addonPath = path   
-        self.mw = mw    
-        self.config = self.mw.addonManager.getConfig(__name__)  
-        
-    def on_press(self,key): 
-        self.test.emit([key])   
-        
-    def on_release(self, key):  
-        self.release.emit([key])    
-        return True 
+    def __init__(self, mw, path):
+        if is_mac:
+            import ssl
+            ssl._create_default_https_context = ssl._create_unverified_context
+            sys.path.insert(0, join(dirname(__file__), 'keyboardMac'))
+            from Quartz import CGEventGetIntegerValueField, kCGKeyboardEventKeycode
+            self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
+            self.CGEventGetIntegerValueField = CGEventGetIntegerValueField
+        elif is_lin:
+            sys.path.insert(0, join(dirname(__file__), 'linux'))
+        sys.path.insert(0, join(dirname(__file__)))
+        from pynput import keyboard
+        super(ClipThread, self).__init__(mw)
+        self.keyboard = keyboard
+        self.addonPath = path
+        self.mw = mw
+        self.config = self.mw.addonManager.getConfig(__name__)
 
-    def darwinIntercept(self, event_type, event):   
-        keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode) 
-        if ('Key.cmd' in self.mw.currentlyPressed or 'Key.cmd_r' in self.mw.currentlyPressed)  and "'c'" in self.mw.currentlyPressed and keycode == 1:  
-            self.handleSystemSearch()   
-            self.mw.currentlyPressed = []   
-            return None 
-        return event    
+    def on_press(self,key):
+        self.test.emit([key])
 
-    def run(self):  
-        if isWin:   
-            self.listener = self.keyboard.Listener( 
-                on_press =self.on_press, on_release= self.on_release, migaku = self.mw, suppress= True) 
-        elif isMac: 
-            self.listener = self.keyboard.Listener( 
-                on_press =self.on_press, on_release= self.on_release, migaku = self.mw, darwin_intercept= self.darwinIntercept) 
-        else:   
-            self.listener = self.keyboard.Listener( 
-                on_press =self.on_press, on_release= self.on_release)   
+    def on_release(self, key):
+        self.release.emit([key])
+        return True
+
+    def darwinIntercept(self, event_type, event):
+        keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode)
+        if ('Key.cmd' in self.mw.currentlyPressed or 'Key.cmd_r' in self.mw.currentlyPressed)  and "'c'" in self.mw.currentlyPressed and keycode == 1:
+            self.handleSystemSearch()
+            self.mw.currentlyPressed = []
+            return None
+        return event
+
+    def run(self):
+        if is_win:
+            self.listener = self.keyboard.Listener(
+                on_press =self.on_press, on_release= self.on_release, miso = self.mw, suppress= True)
+        elif is_mac:
+            self.listener = self.keyboard.Listener(
+                on_press =self.on_press, on_release= self.on_release, miso = self.mw, darwin_intercept= self.darwinIntercept)
+        else:
+            self.listener = self.keyboard.Listener(
+                on_press =self.on_press, on_release= self.on_release)
         self.listener.start()
 
     def attemptAddCard(self):
-        self.add.emit('add') 
+        self.add.emit('add')
 
     def checkDict(self):
-        if not self.mw.migakuDictionary or not self.mw.migakuDictionary.isVisible():
+        if not self.mw.misoDictionary or not self.mw.misoDictionary.isVisible():
             return False
         return True
 
@@ -802,7 +846,7 @@ class ClipThread(QObject):
     def handleBulkTextExport(self, cards):
         self.bulkTextExport.emit(cards)
 
-    def handleExtensionCardExport(self, card): 
+    def handleExtensionCardExport(self, card):
         config = self.getConfig()
         audioFileName = card["audio"]
         imageFileName = card["image"]
@@ -813,16 +857,16 @@ class ClipThread(QObject):
                 self.extensionFileNotFound.emit()
                 return
             if config['mp3Convert']:
-                audioFileName = audioFileName.replace('.wav', '.mp3') 
-                self.moveExtensionMp3ToMediaFolder(audioTempPath, audioFileName)   
+                audioFileName = audioFileName.replace('.wav', '.mp3')
+                self.moveExtensionMp3ToMediaFolder(audioTempPath, audioFileName)
                 card["audio"] = audioFileName
             else:
-                self.moveExtensionFileToMediaFolder(audioTempPath, audioFileName) 
-            self.removeFile(audioTempPath)    
+                self.moveExtensionFileToMediaFolder(audioTempPath, audioFileName)
+            self.removeFile(audioTempPath)
         if imageFileName:
             imageTempPath = join(dirname(__file__), 'temp', imageFileName)
             if self.checkFileExists(imageTempPath):
-                self.saveScaledImage(imageTempPath, imageFileName) 
+                self.saveScaledImage(imageTempPath, imageFileName)
                 self.removeFile(imageTempPath)
         if bulk:
             self.bulkMediaExport.emit(card)
@@ -831,37 +875,37 @@ class ClipThread(QObject):
 
 
     def saveScaledImage(self,imageTempPath, imageFileName):
-        maxW = self.mw.MigakuDictConfig['maxWidth']
-        maxH = self.mw.MigakuDictConfig['maxHeight']
-        path = join(self.mw.col.media.dir(), imageFileName)  
+        maxW = self.mw.MisoDictConfig['maxWidth']
+        maxH = self.mw.MisoDictConfig['maxHeight']
+        path = join(self.mw.col.media.dir(), imageFileName)
         image = QImage(imageTempPath)
-        image = image.scaled(QSize(maxW, maxH), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         image.save(path)
 
     def removeFile(self, file):
         os.remove(file)
 
     def checkFileExists(self, source):
-        now = time.time()  
-        while True:     
-            if exists(source):  
+        now = time.time()
+        while True:
+            if exists(source):
                 return True
             if time.time() - now > 15:
                 return False
 
-    def moveExtensionFileToMediaFolder(self, source, filename):   
-        if exists(source):  
-            path = join(self.mw.col.media.dir(), filename)  
-            if not exists(path):    
-                copyfile(source, path) 
-                return True 
+    def moveExtensionFileToMediaFolder(self, source, filename):
+        if exists(source):
+            path = join(self.mw.col.media.dir(), filename)
+            if not exists(path):
+                copyfile(source, path)
+                return True
 
     def moveExtensionMp3ToMediaFolder(self, source, filename):
-        suffix = ''     
-        if isWin:   
-            suffix = '.exe' 
+        suffix = ''
+        if is_win:
+            suffix = '.exe'
         ffmpeg = join(dirname(__file__), 'user_files', 'ffmpeg', 'ffmpeg' + suffix)
-        path = join(self.mw.col.media.dir(), filename) 
+        path = join(self.mw.col.media.dir(), filename)
         import subprocess
         subprocess.call([ffmpeg, '-i', source, path])
 
@@ -872,74 +916,147 @@ class ClipThread(QObject):
         if self.checkDict():
             mime = self.mw.app.clipboard().mimeData()
             clip = self.mw.app.clipboard().text()
-            
+
             if not clip.endswith('.mp3') and mime.hasImage():
                 image = mime.imageData()
                 filename = str(time.time()) + '.png'
                 fullpath = join(self.addonPath, 'temp', filename)
                 maxW = max(self.config['maxWidth'], image.width())
                 maxH = max(self.config['maxHeight'], image.height())
-                image = image.scaled(QSize(maxW, maxH), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 image.save(fullpath)
-                self.image.emit([fullpath, filename]) 
+                self.image.emit([fullpath, filename])
             elif clip.endswith('.mp3'):
-                if not isLin:
-                    if isMac:
+                if not is_lin:
+                    if is_mac:
                         try:
                             clip = str(self.mw.app.clipboard().mimeData().urls()[0].url())
                         except:
                             return
                     if clip.startswith('file:///') and clip.endswith('.mp3'):
                         try:
-                            if isMac:
+                            if is_mac:
                                 path = clip.replace('file://', '', 1)
                             else:
                                 path = clip.replace('file:///', '', 1)
                             temp, mp3 = self.moveAudioToTempFolder(path)
                             if mp3:
-                                self.image.emit([temp, '[sound:' + mp3 + ']', mp3]) 
+                                self.image.emit([temp, '[sound:' + mp3 + ']', mp3])
                         except:
                             return
-                    
+
     def moveAudioToTempFolder(self, path):
         try:
-            if exists(path): 
+            if exists(path):
                 filename = str(time.time()).replace('.', '') + '.mp3'
                 destpath = join(self.addonPath, 'temp', filename)
-                if not exists(destpath): 
+                if not exists(destpath):
                     copyfile(path, destpath)
                     return destpath, filename;
-            return False, False;
-        except: 
-            return False, False;
+            return False, False
+        except:
+            return False, False
 
     def handleSentenceExport(self):
         if self.checkDict():
             self.sentence.emit(self.mw.app.clipboard().text())
 
 class DictInterface(QWidget):
-
-    def __init__(self, dictdb, mw, path, welcome, parent=None, terms = False):
+    def __init__(self, dictdb, mw, path, welcome, parent=None, terms=False):
         super(DictInterface, self).__init__()
         self.db = dictdb
         self.verticalBar = False
         self.jHandler = miJHandler(mw)
         self.addonPath = path
         self.welcome = welcome
-        self.setAutoFillBackground(True);
-        self.ogPalette = self.getPalette(QColor('#F0F0F0'))
-        self.nightPalette = self.getPalette(QColor('#272828'))
-        self.blackBase = self.getFontColor(Qt.black)
-        self.blackBase = self.getFontColor(Qt.white)
+        self.setAutoFillBackground(True)
         self.mw = mw
         self.parent = parent
         self.iconpath = join(path, 'icons')
+
+        self.active_theme_file = join(self.addonPath, "user_files/themes", "active.json")
+        self.theme_manager = ThemeManager(self.addonPath)
+        self.theme_editor = ThemeEditorDialog(self.theme_manager, mw, path, self)
+        self.theme_editor.applied.connect(self.refresh_application_theme)
+
         self.startUp(terms)
         self.setHotkeys()
         ensureWidgetInScreenBoundaries(self)
 
-    
-    def setHotkeys(self):     
+
+    def load_theme_color(self, color_key):
+        """
+        Load a specific color from the active theme file.
+        """
+        try:
+            with open(self.active_theme_file, "r") as f:
+                theme = json.load(f)
+                if color_key in theme:
+                    return QColor(theme[color_key])  # Ensure this returns a QColor
+        except Exception as e:
+            print(f"Error loading active theme color: {e}")
+        return QColor("#ffffff")  # Default color if anything fails
+
+    def refresh_widget(self, widget):
+        """
+        Recursively refresh a widget and its children.
+        """
+        widget.update()
+        widget.repaint()
+        for child in widget.findChildren(QWidget):
+            self.refresh_widget(child)
+
+
+    def refresh_application_theme(self):
+        """
+        Refresh the application theme by updating styles and re-rendering components.
+        """
+        # Load the active theme
+        active_theme_path = os.path.join(self.addonPath, "user_files/themes", "active.json")
+        try:
+            with open(active_theme_path, "r") as f:
+                active_theme = json.load(f)
+        except Exception as e:
+            print(f"Error loading active theme: {e}")
+            return
+
+        # Update the stylesheet for the entire widget
+        self.setStyleSheet(self.theme_manager.get_qt_styles())
+
+        # Update the stylesheet for child widgets (e.g., combo boxes, buttons, etc.)
+        self.update_child_widget_styles()
+
+        # Re-render the dictionary interface
+        self.reload_dictionary_interface()
+
+    def update_child_widget_styles(self):
+        """
+        Update the styles of child widgets to reflect the new theme.
+        """
+        # Example: Update the combo box styles
+        self.dictGroups.setStyleSheet(self.theme_manager.get_combo_style())
+        self.sType.setStyleSheet(self.theme_manager.get_combo_style())
+
+        # Update button styles
+        for button in self.findChildren(QPushButton):
+            button.setStyleSheet(self.theme_manager.get_qt_styles())
+
+    def reload_dictionary_interface(self):
+        """
+        Re-render the dictionary interface to apply the new theme.
+        """
+        # Generate the HTML with the updated theme
+        html, url = self.getHTMLURL(False)
+
+        # Reload the content in the web view
+        self.dict.setHtml(html, url)
+
+    def getPalette(self, color):
+        pal = QPalette()
+        pal.setColor(QPalette.ColorRole.Window, color)
+        return pal
+
+    def setHotkeys(self):
         self.hotkeyEsc = QShortcut(QKeySequence("Esc"), self)
         self.hotkeyEsc.activated.connect(self.hide)
         self.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self)
@@ -951,12 +1068,7 @@ class DictInterface(QWidget):
 
     def getFontColor(self, color):
         pal = QPalette()
-        pal.setColor(QPalette.Base, color)
-        return pal
-
-    def getPalette(self, color):
-        pal = QPalette()
-        pal.setColor(QPalette.Background, color)
+        pal.setColor(QPalette.ColorRole.Base, color)
         return pal
 
     def getStretchLay(self):
@@ -967,10 +1079,10 @@ class DictInterface(QWidget):
 
     def setAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
             self.show()
         else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint);
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
             self.show()
 
     def reloadConfig(self, config):
@@ -987,11 +1099,12 @@ class DictInterface(QWidget):
         self.defaultGroups = self.db.getDefaultGroups()
         self.userGroups = self.getUserGroups()
         self.searchOptions = ['Forward', 'Backward', 'Exact', 'Anywhere', 'Definition', 'Example', 'Pronunciation']
-        self.setWindowTitle("Migaku Dictionary")
+        self.setWindowTitle("Miso Dictionary")
         self.dictGroups = self.setupDictGroups()
-        self.nightModeToggler = self.setupNightModeToggle()
-        self.setSvg(self.nightModeToggler, 'theme')
-        self.dict = MIDict(self, self.db, self.addonPath, self.nightModeToggler.day, terms)
+        # self.nightModeToggler = self.setupNightModeToggle()
+        self.themeSettings = self.setupThemes()
+        # self.setSvg(self.nightModeToggler, 'theme')
+        self.dict = MIDict(self, self.db, self.addonPath, terms)
         self.conjToggler = self.setupConjugationMode()
         self.minusB = self.setupMinus()
         self.plusB = self.setupPlus()
@@ -1000,7 +1113,7 @@ class DictInterface(QWidget):
         self.setB = self.setupOpenSettings()
         self.searchButton = self.setupSearchButton()
         self.insertHTMLJS = self.getInsertHTMLJS()
-        self.search = self.setupSearch() 
+        self.search = self.setupSearch()
         self.sType = self.setupSearchType()
         self.openSB = self.setupOpenSB()
         self.openSB.opened = False
@@ -1012,30 +1125,31 @@ class DictInterface(QWidget):
         self.mainHLay = QHBoxLayout()
         self.mainLayout = self.setupView()
         self.dict.setSType(self.sType)
-        self.setLayout(self.mainLayout) 
+        self.setLayout(self.mainLayout)
         self.resize(800,600)
         self.setMinimumSize(350,350)
         self.sbOpened = False
         self.historyModel = HistoryModel(self.getHistory(), self)
         self.historyBrowser = HistoryBrowser(self.historyModel, self)
-        self.setWindowIcon(QIcon(join(self.iconpath, 'migaku.png'))) 
+        self.setWindowIcon(QIcon(join(self.iconpath, 'miso.png')))
         self.readyToSearch = False
         self.restoreSizePos()
         self.initTooltips()
         self.show()
         self.search.setFocus()
-        if self.nightModeToggler.day:
-            self.loadDay()
-        else:
-            self.loadNight()
-        html, url = self.getHTMLURL(willSearch, self.nightModeToggler.day, self.dict)
+        self.refresh_application_theme()
+        # if self.nightModeToggler.day:
+        #     self.refresh_application_theme()
+        # else:
+        #     self.refresh_application_theme()
+        html, url = self.getHTMLURL(willSearch)
         self.dict.loadHTMLURL(html, url)
         self.alwaysOnTop = self.config['dictAlwaysOnTop']
         self.maybeSetToAlwaysOnTop()
 
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+            self.setWindowFlags(self.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
             self.show()
 
     def initTooltips(self):
@@ -1048,7 +1162,7 @@ class DictInterface(QWidget):
             self.tabB.setToolTip('Switch between single and multi-tab modes.')
             self.histB.setToolTip('Open the history viewer.')
             self.conjToggler.setToolTip('Turn deinflection mode on/off.')
-            self.nightModeToggler.setToolTip('Enable/Disable night-mode.')
+            # self.nightModeToggler.setToolTip('Enable/Disable night-mode.')
             self.setB.setToolTip('Open the dictionary settings.')
 
 
@@ -1071,24 +1185,151 @@ class DictInterface(QWidget):
                 return validTerms
         return False
 
-    def getHTMLURL(self, willSearch, day, dictObj):
-        nightStyle =  '<style id="nightModeCss">body, .definitionSideBar, .defTools{color: white !important;background: black !important;} .termPronunciation{background: black !important;border-top:1px solid white !important;border-bottom:1px solid white !important;} .overwriteSelect, .fieldSelect, .overwriteCheckboxes, .fieldCheckboxes{background: black !important;} .fieldCheckboxes label:hover, .overwriteCheckboxes label:hover {background-color:   #282828 !important;} #tabs{background:black !important; color: white !important;} .tablinks:hover{background:gray !important;} .tablinks{color: white !important;} .active{background-image: linear-gradient(#272828, black); border-left: 1px solid white !important;border-right: 1px solid white !important;} .dictionaryTitleBlock{border-top: 2px solid white;border-bottom: 1px solid white;} .imageLoader, .forvoLoader{background-image: linear-gradient(#272828, black); color: white; border: 1px solid gray;}.definitionSideBar{border: 2px solid white;}</style>'
-        htmlPath = join(self.addonPath, 'dictionaryInit.html')
-        with open(htmlPath,'r', encoding="utf-8") as fh:
-            html = fh.read()
-            fontSizes = self.config['fontSizes']
-            f1 = str(fontSizes[0])
-            f2 = str(fontSizes[1])
-            html = html.replace('var fefs = 12, dbfs = 22;', 'var fefs = '+ f1 + ', dbfs = '+ f2 + ';')
-            html = html.replace('<style id="fontSpecs">.foundEntriesList{font-size: 12px;}.termPronunciation,.definitionBlock{font-size: 20px;}</style>', '<style id="fontSpecs">.foundEntriesList{font-size: ' + f1 +'px;}.termPronunciation,.definitionBlock{font-size: ' + f2 + 'px;}.ankiExportButton img{height:' + f2 +'px; width:' + f2 + 'px;}</style>')
-            if not day:
-                html = html.replace('<style id="nightModeCss"></style>', nightStyle)
-                html = html.replace('var nightMode = false;', 'var nightMode = true;')
-            if not willSearch:
-                html = html.replace('<script id="initialValue"></script>','<script id="initialValue">addNewTab(\'' + self.welcome +'\'); document.getElementsByClassName(\'tablinks\')[0].classList.add(\'active\');</script>')
-            url = QUrl.fromLocalFile(htmlPath)
-        return html, url;
+    def getHTMLURL(self, willSearch):
+        # Load the active theme colors
+        active_theme_path = join(self.addonPath, "user_files/themes", "active.json")
+        try:
+            with open(active_theme_path, "r", encoding="utf-8") as f:
+                active_theme = json.load(f)
+        except Exception as e:
+            print(f"Error loading active theme: {e}")
+            # Fallback to default light theme if active.json is missing or invalid
+            active_theme = {
+                "background": "#FFFFFF",
+                "background_secondary": "#F0F0F0",
+                "text": "#000000",
+                "text_secondary": "#444444",
+                "border": "#000000",
+                "border_hover": "#444444",
+                "button_bg": "#F0F0F0",
+                "button_bg_hover": "#E0E0E0",
+                "button_text": "#000000",
+                "input_bg": "#FFFFFF",
+                "input_text": "#000000",
+                "sidebar_bg": "#F0F0F0",
+                "tab_active_bg": "#FFFFFF",
+                "tab_hover_bg": "#E0E0E0",
+                "button_gradient_start": "#FFFFFF",
+                "button_gradient_end": "#C0C0C0",
+                "accent_primary": "#000000",
+                "accent_secondary": "#444444",
+                "definitionBlock_color": "#FFFFFF",
+                "definitionBlock_bg": "#FFFFFF",
+                "listTerm_bg": "#FFFFFF",
+                "altterm_color": "#FFFFFF",
+                "pronunciation_color": "#FFFFFF",
+                "tabs_bg": "#FFFFFF",
+            },
 
+
+        # Generate the custom theme CSS dynamically
+        custom_theme_css = f"""
+            <style id="customThemeCss">
+                /* Base styles */
+                body {{
+                    background-color: {active_theme['header_background']};
+                    color: {active_theme['header_text']};
+                }}
+                .definitionSideBar, .defTools {{
+                    background-color: {active_theme['header_background']};
+                    color: {active_theme['header_text']};
+                }}
+                .termPronunciation {{
+                    background-color: {active_theme['header_background']};
+                    border-top: 1px solid {active_theme['border']};
+                    border-bottom: 1px solid {active_theme['border']};
+                }}
+                .overwriteSelect, .fieldSelect, .overwriteCheckboxes, .fieldCheckboxes {{
+                    background-color: {active_theme['selector']};
+                }}
+                #tabs {{
+                    background-color: {active_theme['header_background']};
+                    color: {active_theme['header_text']};
+                }}
+                .tablinks:hover {{
+                    background-color: {active_theme['tab_hover']};
+                }}
+                .tablinks {{
+                    color: {active_theme['header_text']};
+                }}
+                .active {{
+                    background-image: linear-gradient({active_theme['current_tab_gradient_top']}, {active_theme['current_tab_gradient_bottom']});
+                    border-left: 1px solid {active_theme['border']};
+                    border-right: 1px solid {active_theme['border']};
+                }}
+                .dictionaryTitleBlock {{
+                    border-top: 2px solid {active_theme['border']};
+                    border-bottom: 1px solid {active_theme['border']};
+                }}
+                .imageLoader, .forvoLoader {{
+                    background-image: linear-gradient({active_theme['current_tab_gradient_top']}, {active_theme['current_tab_gradient_bottom']});
+                    color: {active_theme['header_text']};
+                    border: 1px solid {active_theme['border']};
+                }}
+                .definitionSideBar {{
+                    border: 2px solid {active_theme['border']};
+                }} 
+                .targetTerm {{
+                    color: {active_theme['search_term']};
+                }}
+                .defBox {{
+                    color: {active_theme['header_text']};
+                }}
+                .fieldSelectCont, .overwriteSelectCont {{
+                    background-color: {active_theme['selector']};
+                }}
+                .fieldSelect, .overwriteSelect {{
+                    border: 1px solid {active_theme['border']};
+                }}
+                .fieldCheckboxes, .overwriteCheckboxes {{
+                    border: 1px solid {active_theme['border']};
+                    background-color: {active_theme['selector']};
+                }}
+                .clipper:hover, .sendToField:hover, .prevDef:hover, .nextDef:hover, .nextDict:hover, .prevDict:hover {{
+                    color: {active_theme['search_term']};
+                }}
+                .ankiExportButton img {{
+                    background-color: {active_theme['anki_button_background']};
+                }}
+                .accent-secondary {{
+                    color: {active_theme['example_highlight']};
+                }}
+                .exampleSentence {{
+                    background-color: {active_theme['example_highlight']};
+                }}
+
+                /* New CSS rules */
+                .definitionBlock {{
+                    color: {active_theme['definition_text']};
+                    background-color: {active_theme['definition_background']};
+                }}
+
+                .altterm {{
+                    color: {active_theme['pitch_accent_color']};
+                }}
+            </style>
+        """
+
+        html_path = join(self.addonPath, 'dictionaryInit.html')
+        with open(html_path, 'r', encoding="utf-8") as fh:
+            html = fh.read()
+            font_sizes = self.config['fontSizes']
+            f1 = str(font_sizes[0])
+            f2 = str(font_sizes[1])
+            html = html.replace('var fefs = 12, dbfs = 22;', f'var fefs = {f1}, dbfs = {f2};')
+            html = html.replace(
+                '<style id="fontSpecs">.foundEntriesList{font-size: 12px;}.termPronunciation,.definitionBlock{font-size: 20px;}</style>',
+                f'<style id="fontSpecs">.foundEntriesList{{font-size: {f1}px;}}.termPronunciation,.definitionBlock{{font-size: {f2}px;}}.ankiExportButton img{{height:{f2}px; width:{f2}px;}}</style>'
+            )
+            # Inject the custom theme CSS
+            html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
+            if not willSearch:
+                html = html.replace(
+                    '<script id="initialValue"></script>',
+                    f'<script id="initialValue">addNewTab(\'{self.welcome}\'); document.getElementsByClassName(\'tablinks\')[0].classList.add(\'active\');</script>'
+                )
+            url = QUrl.fromLocalFile(html_path)
+        return html, url
 
 
     def getAllGroups(self):
@@ -1101,12 +1342,12 @@ class DictInterface(QWidget):
     def getInsertHTMLJS(self):
         insertHTML = join(self.addonPath, "js", "insertHTML.js")
         with open(insertHTML, "r", encoding="utf-8") as insertHTMLFile:
-            return insertHTMLFile.read() 
+            return insertHTMLFile.read()
 
-    def focusWindow():
+    def focusWindow(self):
         self.show()
-        if self.windowState() == Qt.WindowMinimized:
-            self.setWindowState(Qt.WindowNoState)
+        if self.windowState() == Qt.WindowState.WindowMinimized:
+            self.setWindowState(Qt.WindowState.WindowNoState)
         self.setFocus()
         self.activateWindow()
 
@@ -1116,7 +1357,7 @@ class DictInterface(QWidget):
     def hideEvent(self, event):
         self.saveSizeAndPos()
         shortcut = '(Ctrl+W)'
-        if isMac:
+        if is_mac:
             shortcut = '⌘W'
         self.mw.openMiDict.setText("Open Dictionary " + shortcut)
         event.accept()
@@ -1150,26 +1391,26 @@ class DictInterface(QWidget):
             self.currentTarget.show()
         if self.config['tooltips']:
             self.dictGroups.setToolTip('Select the dictionary group.')
-        if not isWin:
+        if not is_win:
             self.dictGroups.setFixedSize(108,38)
-        else: 
-            self.dictGroups.setFixedSize(110,38)
-        if self.nightModeToggler.day:
-            if not isWin:
-                self.dictGroups.setStyleSheet(self.getMacComboStyle())
-            else:
-                self.dictGroups.setStyleSheet('')
         else:
-            if not isWin:
-                self.dictGroups.setStyleSheet(self.getMacNightComboStyle())
-            else:   
-                self.dictGroups.setStyleSheet(self.getComboStyle())
+            self.dictGroups.setFixedSize(110,38)
+        # if self.nightModeToggler.day:
+        #     if not is_win:
+        #         self.dictGroups.setStyleSheet(self.getMacComboStyle())
+        #     else:
+        #         self.dictGroups.setStyleSheet('')
+        # else:
+        #     if not is_win:
+        #         self.dictGroups.setStyleSheet(self.getMacNightComboStyle())
+        #     else:
+        #         self.dictGroups.setStyleSheet(self.getComboStyle())
         self.resetDict(willSearch, terms)
-        
+
     def resetDict(self, willSearch, terms):
-        newDict = MIDict(self, self.db, self.addonPath, self.nightModeToggler.day, terms)
+        newDict = MIDict(self, self.db, self.addonPath, terms)
         newDict.setSType(self.sType)
-        html, url = self.getHTMLURL(willSearch, self.nightModeToggler.day, newDict)
+        html, url = self.getHTMLURL(willSearch)
         newDict.loadHTMLURL(html, url)
         newDict.setSType(self.sType)
         if self.dict.addWindow and self.dict.addWindow.scrollArea.isVisible():
@@ -1217,17 +1458,17 @@ class DictInterface(QWidget):
         layoutH = QHBoxLayout()
         self.toolbarTopLayout = layoutH
         layoutH.addWidget(self.dictGroups)
-        
+
         layoutH.addWidget(self.sType)
-        
+
         layoutH.addWidget(self.search)
         layoutH.addWidget(self.searchButton)
-        if not isWin:
+        if not is_win:
             self.dictGroups.setFixedSize(108,38)
             self.search.setFixedSize(104, 38)
             self.sType.setFixedSize(92,38)
 
-        else: 
+        else:
             self.sType.setFixedHeight(38)
             self.dictGroups.setFixedSize(110,38)
             self.search.setFixedSize(114, 38)
@@ -1235,13 +1476,15 @@ class DictInterface(QWidget):
         layoutH.setContentsMargins(1,1,0,0)
         layoutH.setSpacing(1)
         self.layoutH2.addWidget(self.openSB)
-        
+
         self.layoutH2.addWidget(self.minusB)
         self.layoutH2.addWidget(self.plusB)
         self.layoutH2.addWidget(self.tabB)
         self.layoutH2.addWidget(self.histB)
         self.layoutH2.addWidget(self.conjToggler)
-        self.layoutH2.addWidget(self.nightModeToggler)
+        # self.layoutH2.addWidget(self.nightModeToggler)
+        self.layoutH2.addWidget(self.themeSettings)
+
         self.layoutH2.addWidget(self.setB)
         self.targetLabel.setFixedHeight(38)
         self.layoutH2.addWidget(self.targetLabel)
@@ -1254,10 +1497,10 @@ class DictInterface(QWidget):
         self.layoutH2.setContentsMargins(0,1,0,0)
         self.layoutH2.setSpacing(1)
         self.mainHLay.setContentsMargins(0,0,0,0)
-        self.mainHLay.addLayout(layoutH) 
-        self.mainHLay.addLayout(self.layoutH2) 
+        self.mainHLay.addLayout(layoutH)
+        self.mainHLay.addLayout(self.layoutH2)
         self.mainHLay.addStretch()
-        layoutV.addLayout(self.mainHLay) 
+        layoutV.addLayout(self.mainHLay)
         layoutV.addWidget(self.dict)
         layoutV.setContentsMargins(0,0,0,0)
         layoutV.setSpacing(1)
@@ -1304,9 +1547,9 @@ class DictInterface(QWidget):
             self.openSB.opened = False
             self.setSvg(self.openSB, 'sidebaropen')
         self.dict.eval('openSidebar()')
-    
+
     def setupTabMode(self):
-        TabMode = SVGPushButton(34,34)
+        TabMode = SVGPushButton(40,40)
         if self.config['onetab']:
             TabMode.singleTab = True
             icon = 'onetab'
@@ -1326,7 +1569,7 @@ class DictInterface(QWidget):
             self.tabB.singleTab = True
             self.setSvg(self.tabB, 'onetab')
             self.writeConfig('onetab', True)
-       
+
     def setupConjugationMode(self):
         conjugationMode = SVGPushButton(40,40)
         if self.config['deinflect']:
@@ -1348,7 +1591,7 @@ class DictInterface(QWidget):
     def openHistory(self):
         if not self.historyBrowser.isVisible():
             self.historyBrowser.show()
-    
+
     def toggleConjugationMode(self):
         if not self.dict.deinflect:
             self.setSvg(self.conjToggler, 'conjugation')
@@ -1360,59 +1603,67 @@ class DictInterface(QWidget):
             self.dict.deinflect = False
             self.writeConfig('deinflect', False)
 
-    def loadDay(self):
-        self.setPalette(self.ogPalette)
-        if not isWin:
-            self.setStyleSheet(self.getMacOtherStyles())
-            self.dictGroups.setStyleSheet(self.getMacComboStyle())
-            self.sType.setStyleSheet(self.getMacComboStyle())
-            self.setAllIcons()
-            
-        else:
-            self.setStyleSheet("")
-            self.dictGroups.setStyleSheet('')
-            self.sType.setStyleSheet('')
-            self.setAllIcons()
-        if self.historyBrowser:
-            self.historyBrowser.setColors()
-        if self.dict.addWindow:
-            self.dict.addWindow.setColors()
+    # def refresh_application_theme(self):
+    #     self.setPalette(self.ogPalette)
+    #     if not is_win:
+    #         self.setStyleSheet(self.getMacOtherStyles())
+    #         self.dictGroups.setStyleSheet(self.getMacComboStyle())
+    #         self.sType.setStyleSheet(self.getMacComboStyle())
+    #         self.setAllIcons()
+    #
+    #     else:
+    #         self.setStyleSheet("")
+    #         self.dictGroups.setStyleSheet('')
+    #         self.sType.setStyleSheet('')
+    #         self.setAllIcons()
+    #     if self.historyBrowser:
+    #         self.historyBrowser.setColors()
+    #     if self.dict.addWindow:
+    #         self.dict.addWindow.setColors()
+    #
+    #
+    # def refresh_application_theme(self):
+    #     if not is_win:
+    #         self.setStyleSheet(self.getMacNightStyles())
+    #         self.dictGroups.setStyleSheet(self.getMacNightComboStyle())
+    #         self.sType.setStyleSheet(self.getMacNightComboStyle())
+    #     else:
+    #         self.setStyleSheet(self.getOtherStyles())
+    #         self.dictGroups.setStyleSheet(self.getComboStyle())
+    #         self.sType.setStyleSheet(self.getComboStyle())
+    #     self.setPalette(self.nightPalette)
+    #     self.setAllIcons()
+    #     if self.dict.addWindow:
+    #         self.dict.addWindow.setColors()
+    #     if self.historyBrowser:
+    #         self.historyBrowser.setColors()
 
+    # def toggleNightMode(self):
+    #     if not self.nightModeToggler.day:
+    #         self.nightModeToggler.day = True
+    #         self.writeConfig('day', True)
+    #         self.dict.eval('nightModeToggle(false)')
+    #         self.setSvg(self.nightModeToggler, 'theme')
+    #         self.refresh_application_theme()
+    #     else:
+    #         self.nightModeToggler.day = False
+    #         self.dict.eval('nightModeToggle(true)')
+    #         self.setSvg(self.nightModeToggler, 'theme')
+    #         self.writeConfig('day', False)
+    #         self.refresh_application_theme()
 
-    def loadNight(self):
-        if not isWin:
-            self.setStyleSheet(self.getMacNightStyles())
-            self.dictGroups.setStyleSheet(self.getMacNightComboStyle())
-            self.sType.setStyleSheet(self.getMacNightComboStyle())
-        else:   
-            self.setStyleSheet(self.getOtherStyles())
-            self.dictGroups.setStyleSheet(self.getComboStyle())
-            self.sType.setStyleSheet(self.getComboStyle())
-        self.setPalette(self.nightPalette)
-        self.setAllIcons()
-        if self.dict.addWindow:
-            self.dict.addWindow.setColors()
-        if self.historyBrowser:
-            self.historyBrowser.setColors()
+    def setTheme(self):
+        theme_manager = ThemeManager(self.addonPath)
+        self.theme_editor = ThemeEditorDialog(theme_manager, self.mw, self.addonPath, self)
+        self.theme_editor.exec()
+        self.refresh_application_theme()
 
-    def toggleNightMode(self):
-        if not self.nightModeToggler.day:
-            self.nightModeToggler.day = True
-            self.writeConfig('day', True)
-            self.dict.eval('nightModeToggle(false)')
-            self.setSvg(self.nightModeToggler, 'theme')
-            self.loadDay() 
-        else:
-            self.nightModeToggler.day = False
-            self.dict.eval('nightModeToggle(true)')
-            self.setSvg(self.nightModeToggler, 'theme')
-            self.writeConfig('day', False)
-            self.loadNight()
-     
     def setSvg(self, widget, name):
-        if self.nightModeToggler.day:
-            return widget.setSvg(join(self.iconpath, 'dictsvgs', name + '.svg'))
-        return widget.setSvg(join(self.iconpath, 'dictsvgs', name + 'night.svg'))
+        # if self.nightModeToggler.day:
+        #     return widget.setSvg(join(self.iconpath, 'dictsvgs', name + 'day.svg'))
+        # return widget.setSvg(join(self.iconpath, 'dictsvgs', name + 'night.svg'))
+        return widget.setSvg(join(self.iconpath, 'dictsvgs', name + '.svg'))
+
 
     def setAllIcons(self):
         self.setSvg( self.setB, 'settings')
@@ -1420,6 +1671,7 @@ class DictInterface(QWidget):
         self.setSvg( self.minusB, 'minus')
         self.setSvg( self.histB, 'history')
         self.setSvg( self.searchButton, 'search')
+        self.setSvg( self.themeSettings, 'themesettings')
         self.setSvg( self.tabB, self.getTabStatus())
         self.setSvg( self.openSB, self.getSBStatus())
         self.setSvg( self.conjToggler, self.getConjStatus())
@@ -1438,12 +1690,21 @@ class DictInterface(QWidget):
         if self.tabB.singleTab:
             return 'onetab'
         return 'tabs'
-   
-    def setupNightModeToggle(self):
-        nightToggle = SVGPushButton(40,40)
-        nightToggle.day = self.config['day']
-        nightToggle.clicked.connect(self.toggleNightMode)
-        return nightToggle
+
+    # def setupNightModeToggle(self):
+    #     nightToggle = SVGPushButton(40,40)
+    #     nightToggle.day = self.config['day']
+    #     nightToggle.clicked.connect(self.toggleNightMode)
+    #     return nightToggle
+
+    def setupThemes(self):
+        themeButton = SVGPushButton(40,40)
+        # nightToggle.day = self.config['day']
+        # themeButton.applied.connect(self.refresh_application_theme)
+        self.setSvg(themeButton, 'themesettings')
+        themeButton.clicked.connect(self.setTheme)
+        themeButton.clicked.connect(self.refresh_application_theme)
+        return themeButton
 
     def setupOpenSettings(self):
         settings = SVGPushButton(40,40)
@@ -1455,12 +1716,12 @@ class DictInterface(QWidget):
         if not self.mw.dictSettings:
             self.mw.dictSettings = SettingsGui(self.mw, self.addonPath, self.openDictionarySettings)
         self.mw.dictSettings.show()
-        if self.mw.dictSettings.windowState() == Qt.WindowMinimized:
+        if self.mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:
                 # Window is minimised. Restore it.
-               self.mw.dictSettings.setWindowState(Qt.WindowNoState)
+               self.mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
         self.mw.dictSettings.setFocus()
         self.mw.dictSettings.activateWindow()
-   
+
     def setupPlus(self):
         plusB = SVGPushButton(40,40)
         self.setSvg(plusB, 'plus')
@@ -1481,7 +1742,7 @@ class DictInterface(QWidget):
 
     def alignCenter(self, dictGroups):
         for i in range(0, dictGroups.count()):
-            dictGroups.model().item(i).setTextAlignment(Qt.AlignCenter)
+            dictGroups.model().item(i).setTextAlignment(Qt.AlignmentFlag.alignCenter)
 
     def setupDictGroups(self, dictGroups = False):
         if not dictGroups:
@@ -1493,12 +1754,12 @@ class DictInterface(QWidget):
         dictGroups.addItems(ug)
         dictGroups.addItem('──────')
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
-        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(Qt.AlignCenter)
+        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         defaults = ['All', 'Google Images', 'Forvo']
         dictGroups.addItems(defaults)
         dictGroups.addItem('──────')
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
-        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(Qt.AlignCenter)
+        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         dg = sorted(list(self.defaultGroups.keys()))
         dictGroups.addItems(dg)
         current = self.config['currentGroup']
@@ -1524,7 +1785,7 @@ class DictInterface(QWidget):
         newConfig[attribute] = value
         self.mw.addonManager.writeConfig(__name__, newConfig)
         self.reloadConfig(newConfig)
-    
+
     def getSelectedDictGroup(self):
         cur = self.dictGroups.currentText()
         if cur in self.userGroups:
@@ -1537,19 +1798,19 @@ class DictInterface(QWidget):
             return {'dictionaries' : [{'dict' : 'Forvo', 'lang' : ''}], 'customFont': False, 'font' : False}
         if cur in self.defaultGroups:
             return self.defaultGroups[cur]
-        
+
     def ensureVisible(self):
         if not self.isVisible():
             self.show()
-        if self.windowState() == Qt.WindowMinimized:
-            self.setWindowState(Qt.WindowNoState)
+        if self.windowState() == Qt.WindowState.WindowMinimized:
+            self.setWindowState(Qt.WindowState.WindowNoState)
         self.setFocus()
         self.activateWindow()
 
     def cleanTermBrackets(self, term):
         return re.sub(r'(?:\[.*\])|(?:\(.*\))|(?:《.*》)|(?:（.*）)|\(|\)|\[|\]|《|》|（|）', '', term)[:30]
 
-    def initSearch(self, term = False): 
+    def initSearch(self, term = False):
         self.ensureVisible()
         selectedGroup = self.getSelectedDictGroup()
         if term == False:
@@ -1563,7 +1824,7 @@ class DictInterface(QWidget):
         self.addToHistory(term)
         self.dict.addNewTab(term, selectedGroup)
         self.search.setFocus()
-        
+
 
 
     def addToHistory(self, term):
@@ -1574,7 +1835,7 @@ class DictInterface(QWidget):
     def saveHistory(self):
         path = join(self.mw.col.media.dir(), '_searchHistory.json')
         with codecs.open(path, "w","utf-8") as outfile:
-            json.dump(self.historyModel.history, outfile, ensure_ascii=False) 
+            json.dump(self.historyModel.history, outfile, ensure_ascii=False)
         return
 
     def getHistory(self):
@@ -1608,13 +1869,13 @@ class DictInterface(QWidget):
             QPushButton {border: 1px solid black; border-radius: 5px; color: black; background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 white, stop: 1 silver);} 
             QPushButton:hover{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 white, stop: 1 silver); border-right: 2px solid black; border-bottom: 2px solid black;}"
             '''
-    def getMacNightStyles(self):
-        return '''
-            QLabel {color: white;}
-            QLineEdit {color: black;} 
-            QPushButton {border: 1px solid gray; border-radius: 5px; color: white; background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);} 
-            QPushButton:hover{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black); border: 1px solid white;}"
-            '''
+    # def getMacNightStyles(self):
+    #     return '''
+    #         QLabel {color: white;}
+    #         QLineEdit {color: black;}
+    #         QPushButton {border: 1px solid gray; border-radius: 5px; color: white; background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);}
+    #         QPushButton:hover{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black); border: 1px solid white;}"
+    #         '''
 
     def getOtherStyles(self):
         return '''
@@ -1822,86 +2083,82 @@ QScrollBar:vertical {
 
         '''
 
-    def getMacNightComboStyle(self):
-        return  '''
-QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
-QComboBox:hover {border: 1px solid white;}
-QComboBox:editable {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-}
+#     def getMacNightComboStyle(self):
+#         return  '''
+# QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
+# QComboBox:hover {border: 1px solid white;}
+# QComboBox:editable {
+#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+# }
+#
+# QComboBox:!editable, QComboBox::drop-down:editable {
+#      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+# }
+# QComboBox:!editable:on, QComboBox::drop-down:editable:on {
+#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+# }
+# QComboBox:on {
+#     padding-top: 3px;
+#     padding-left: 4px;
+# }
+#
+# QComboBox::drop-down {
+#     subcontrol-origin: padding;
+#     subcontrol-position: top right;
+#     width: 15px;
+#     border-top-right-radius: 3px;
+#     border-bottom-right-radius: 3px;
+# }
+#
+# QCombobox:selected{
+#     background: gray;
+# }
+#
+# QComboBox QAbstractItemView
+#     {
+#     min-width: 130px;
+#     }
+#
+# QComboBox::down-arrow {
+#     image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') +  ''');
+# }
+#
+# QComboBox::down-arrow:on {
+#     top: 1px;
+#     left: 1px;
+# }
+#
+# QComboBox QAbstractItemView{background: #272828; border: 0px;color:white; selection-background-color: gray;}
+#
+# QAbstractItemView:selected {
+# background:gray;}
+#
+# QScrollBar:vertical {
+#         border: 1px solid white;
+#         background:white;
+#         width:17px;
+#         margin: 0px 0px 0px 0px;
+#     }
+#     QScrollBar::handle:vertical {
+#         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+#
+#     }
+#     QScrollBar::add-line:vertical {
+#         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+#
+#         height: 0px;
+#         subcontrol-position: bottom;
+#         subcontrol-origin: margin;
+#     }
+#     QScrollBar::sub-line:vertical {
+#         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+#
+#         height: 0 px;
+#         subcontrol-position: top;
+#         subcontrol-origin: margin;
+#     }'''
 
-QComboBox:!editable, QComboBox::drop-down:editable {
-     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-
-}
-
-QComboBox:!editable:on, QComboBox::drop-down:editable:on {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-}
-
-QComboBox:on { 
-    padding-top: 3px;
-    padding-left: 4px;
-}
-
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: top right;
-    width: 15px;
-    border-top-right-radius: 3px; 
-    border-bottom-right-radius: 3px;
-}
-
-QCombobox:selected{
-    background: gray;
-}
-
-QComboBox QAbstractItemView 
-    {
-    min-width: 130px;
-    }
-
-QComboBox::down-arrow {
-    image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') +  ''');
-}
-
-QComboBox::down-arrow:on { 
-    top: 1px;
-    left: 1px;
-}
-
-QComboBox QAbstractItemView{background: #272828; border: 0px;color:white; selection-background-color: gray;}
-
-QAbstractItemView:selected {
-background:gray;}
-
-QScrollBar:vertical {              
-        border: 1px solid white;
-        background:white;
-        width:17px;    
-        margin: 0px 0px 0px 0px;
-    }
-    QScrollBar::handle:vertical {
-        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-    }
-    QScrollBar::add-line:vertical {
-        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-        height: 0px;
-        subcontrol-position: bottom;
-        subcontrol-origin: margin;
-    }
-    QScrollBar::sub-line:vertical {
-        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-        height: 0 px;
-        subcontrol-position: top;
-        subcontrol-origin: margin;
-    }'''
-
-class MigakuSVG(QSvgWidget):
+class MisoSVG(QSvgWidget):
     clicked=pyqtSignal()
     def __init__(self, parent=None):
         QSvgWidget.__init__(self, parent)
@@ -1911,22 +2168,21 @@ class MigakuSVG(QSvgWidget):
 
 class SVGPushButton(QPushButton):
     def __init__(self, width, height):
-        QPushButton.__init__(self)
-        # self.setSizePolicy( QSizePolicy.Preferred, QSizePolicy.Preferred )
-        self.setFixedHeight(40)
-        self.setFixedWidth(43)
-        self.svgWidth = width
-        self.svgHeight = height
-        self.layout = QHBoxLayout()
-        self.layout.setContentsMargins(0,0,0,0)
-        self.setContentsMargins(0,0,0,0)
-        self.setLayout(self.layout)
+        super().__init__()
+        self.setFixedSize(width, height)  # Set the fixed size of the button
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+        self.svgWidget = None  # Placeholder for the SVG widget
 
     def setSvg(self, svgPath):
-        for i in reversed(range(self.layout.count())): 
-            self.layout.itemAt(i).widget().setParent(None)
-        svg = QSvgWidget(svgPath)
-        svg.setFixedSize(self.svgWidth, self.svgHeight)
-        self.layout.addWidget(svg)
+        # Remove the existing SVG widget if it exists
+        if self.svgWidget:
+            self.layout.removeWidget(self.svgWidget)
+            self.svgWidget.deleteLater()
 
+        # Create a new SVG widget and add it to the layout
+        self.svgWidget = QSvgWidget(svgPath)
+        self.svgWidget.setFixedSize(self.width(), self.height())  # Match the button's size
+        self.layout.addWidget(self.svgWidget)
 

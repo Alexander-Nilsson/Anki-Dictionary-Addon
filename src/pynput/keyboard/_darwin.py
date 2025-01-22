@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
-The keyboard implementation for *OSX*.
+The keyboard implementation for *macOS*.
 """
 
 # pylint: disable=C0111
@@ -26,16 +26,82 @@ The keyboard implementation for *OSX*.
 
 import enum
 
-import Quartz
+from Quartz import (
+    CGEventCreateKeyboardEvent,
+    CGEventGetFlags,
+    CGEventGetIntegerValueField,
+    CGEventGetType,
+    CGEventKeyboardGetUnicodeString,
+    CGEventKeyboardSetUnicodeString,
+    CGEventMaskBit,
+    CGEventPost,
+    CGEventSetFlags,
+    kCGEventFlagMaskAlternate,
+    kCGEventFlagMaskCommand,
+    kCGEventFlagMaskControl,
+    kCGEventFlagMaskShift,
+    kCGEventFlagsChanged,
+    kCGEventKeyDown,
+    kCGEventKeyUp,
+    kCGHIDEventTap,
+    kCGKeyboardEventKeycode,
+    NSEvent,
+    NSSystemDefined)
 
 from pynput._util.darwin import (
     get_unicode_to_keycode_map,
     keycode_context,
     ListenerMixin)
+from pynput._util.darwin_vks import SYMBOLS
 from . import _base
 
 
+# From hidsystem/ev_keymap.h
+NX_KEYTYPE_PLAY = 16
+NX_KEYTYPE_MUTE = 7
+NX_KEYTYPE_SOUND_DOWN = 1
+NX_KEYTYPE_SOUND_UP = 0
+NX_KEYTYPE_NEXT = 17
+NX_KEYTYPE_PREVIOUS = 18
+
+# pylint: disable=C0103; We want to use the names from the C API
+# This is undocumented, but still widely known
+kSystemDefinedEventMediaKeysSubtype = 8
+
+# We extract this here since the name is very long
+otherEventWithType = getattr(
+        NSEvent,
+        'otherEventWithType_'
+        'location_'
+        'modifierFlags_'
+        'timestamp_'
+        'windowNumber_'
+        'context_'
+        'subtype_'
+        'data1_'
+        'data2_')
+# pylint: enable=C0103
+
+
 class KeyCode(_base.KeyCode):
+    _PLATFORM_EXTENSIONS = (
+        # Whether this is a media key
+        '_is_media',
+    )
+
+    # Be explicit about fields
+    _is_media = None
+
+    @classmethod
+    def _from_media(cls, vk, **kwargs):
+        """Creates a media key from a key code.
+
+        :param int vk: The key code.
+
+        :return: a key code
+        """
+        return cls.from_vk(vk, _is_media=True, **kwargs)
+
     def _event(self, modifiers, mapping, is_pressed):
         """This key as a *Quartz* event.
 
@@ -48,31 +114,44 @@ class KeyCode(_base.KeyCode):
         :return: a *Quartz* event
         """
         vk = self.vk or mapping.get(self.char)
-        result = Quartz.CGEventCreateKeyboardEvent(
+        if self._is_media:
+            result = otherEventWithType(
+                NSSystemDefined,
+                (0, 0),
+                0xa00 if is_pressed else 0xb00,
+                0,
+                0,
+                0,
+                8,
+                (self.vk << 16) | ((0xa if is_pressed else 0xb) << 8),
+                -1).CGEvent()
+        else:
+            result = CGEventCreateKeyboardEvent(
                 None, 0 if vk is None else vk, is_pressed)
 
-        Quartz.CGEventSetFlags(
+        CGEventSetFlags(
             result,
             0
-            | (Quartz.kCGEventFlagMaskAlternate
+            | (kCGEventFlagMaskAlternate
                if Key.alt in modifiers else 0)
 
-            | (Quartz.kCGEventFlagMaskCommand
+            | (kCGEventFlagMaskCommand
                if Key.cmd in modifiers else 0)
 
-            | (Quartz.kCGEventFlagMaskControl
+            | (kCGEventFlagMaskControl
                if Key.ctrl in modifiers else 0)
 
-            | (Quartz.kCGEventFlagMaskShift
+            | (kCGEventFlagMaskShift
                if Key.shift in modifiers else 0))
 
         if vk is None and self.char is not None:
-            Quartz.CGEventKeyboardSetUnicodeString(
+            CGEventKeyboardSetUnicodeString(
                 result, len(self.char), self.char)
 
         return result
 
 
+# pylint: disable=W0212
 class Key(enum.Enum):
     # Default keys
     alt = KeyCode.from_vk(0x3A)
@@ -124,6 +203,14 @@ class Key(enum.Enum):
     tab = KeyCode.from_vk(0x30)
     up = KeyCode.from_vk(0x7E)
 
+    media_play_pause = KeyCode._from_media(NX_KEYTYPE_PLAY)
+    media_volume_mute = KeyCode._from_media(NX_KEYTYPE_MUTE)
+    media_volume_down = KeyCode._from_media(NX_KEYTYPE_SOUND_DOWN)
+    media_volume_up = KeyCode._from_media(NX_KEYTYPE_SOUND_UP)
+    media_previous = KeyCode._from_media(NX_KEYTYPE_PREVIOUS)
+    media_next = KeyCode._from_media(NX_KEYTYPE_NEXT)
+# pylint: enable=W0212
+
 
 class Controller(_base.Controller):
     _KeyCode = KeyCode
@@ -135,38 +222,42 @@ class Controller(_base.Controller):
 
     def _handle(self, key, is_press):
         with self.modifiers as modifiers:
-            Quartz.CGEventPost(
-                Quartz.kCGHIDEventTap,
-                (key if key not in Key else key.value)._event(
+            CGEventPost(
+                kCGHIDEventTap,
+                (key if key not in (k for k in Key) else key.value)._event(
                     modifiers, self._mapping, is_press))
 
 
 class Listener(ListenerMixin, _base.Listener):
     #: The events that we listen to
     _EVENTS = (
-        Quartz.CGEventMaskBit(Quartz.kCGEventKeyDown) |
-        Quartz.CGEventMaskBit(Quartz.kCGEventKeyUp) |
-        Quartz.CGEventMaskBit(Quartz.kCGEventFlagsChanged))
+        CGEventMaskBit(kCGEventKeyDown) |
+        CGEventMaskBit(kCGEventKeyUp) |
+        CGEventMaskBit(kCGEventFlagsChanged) |
+        CGEventMaskBit(NSSystemDefined)
+    )
 
+    # pylint: disable=W0212
     #: A mapping from keysym to special key
     _SPECIAL_KEYS = {
-        key.value.vk: key
+        (key.value.vk, key.value._is_media): key
         for key in Key}
+    # pylint: enable=W0212
 
     #: The event flags set for the various modifier keys
     _MODIFIER_FLAGS = {
-        Key.alt: Quartz.kCGEventFlagMaskAlternate,
-        Key.alt_l: Quartz.kCGEventFlagMaskAlternate,
-        Key.alt_r: Quartz.kCGEventFlagMaskAlternate,
-        Key.cmd: Quartz.kCGEventFlagMaskCommand,
-        Key.cmd_l: Quartz.kCGEventFlagMaskCommand,
-        Key.cmd_r: Quartz.kCGEventFlagMaskCommand,
-        Key.ctrl: Quartz.kCGEventFlagMaskControl,
-        Key.ctrl_l: Quartz.kCGEventFlagMaskControl,
-        Key.ctrl_r: Quartz.kCGEventFlagMaskControl,
-        Key.shift: Quartz.kCGEventFlagMaskShift,
-        Key.shift_l: Quartz.kCGEventFlagMaskShift,
-        Key.shift_r: Quartz.kCGEventFlagMaskShift}
+        Key.alt: kCGEventFlagMaskAlternate,
+        Key.alt_l: kCGEventFlagMaskAlternate,
+        Key.alt_r: kCGEventFlagMaskAlternate,
+        Key.cmd: kCGEventFlagMaskCommand,
+        Key.cmd_l: kCGEventFlagMaskCommand,
+        Key.cmd_r: kCGEventFlagMaskCommand,
+        Key.ctrl: kCGEventFlagMaskControl,
+        Key.ctrl_l: kCGEventFlagMaskControl,
+        Key.ctrl_r: kCGEventFlagMaskControl,
+        Key.shift: kCGEventFlagMaskShift,
+        Key.shift_l: kCGEventFlagMaskShift,
+        Key.shift_r: kCGEventFlagMaskShift}
 
     def __init__(self, *args, **kwargs):
         super(Listener, self).__init__(*args, **kwargs)
@@ -184,7 +275,7 @@ class Listener(ListenerMixin, _base.Listener):
             finally:
                 self._context = None
 
-    def _handle(self, dummy_proxy, event_type, event, dummy_refcon):
+    def _handle(self, _proxy, event_type, event, _refcon):
         # Convert the event to a KeyCode; this may fail, and in that case we
         # pass None
         try:
@@ -193,11 +284,11 @@ class Listener(ListenerMixin, _base.Listener):
             key = None
 
         try:
-            if event_type == Quartz.kCGEventKeyDown:
+            if event_type == kCGEventKeyDown:
                 # This is a normal key press
                 self.on_press(key)
 
-            elif event_type == Quartz.kCGEventKeyUp:
+            elif event_type == kCGEventKeyUp:
                 # This is a normal key release
                 self.on_release(key)
 
@@ -207,11 +298,25 @@ class Listener(ListenerMixin, _base.Listener):
                 self.on_press(key)
                 self.on_release(key)
 
+            elif event_type == NSSystemDefined:
+                sys_event = NSEvent.eventWithCGEvent_(event)
+                if sys_event.subtype() == kSystemDefinedEventMediaKeysSubtype:
+                    # The key in the special key dict; True since it is a media
+                    # key
+                    key = ((sys_event.data1() & 0xffff0000) >> 16, True)
+                    if key in self._SPECIAL_KEYS:
+                        flags = sys_event.data1() & 0x0000ffff
+                        is_press = ((flags & 0xff00) >> 8) == 0x0a
+                        if is_press:
+                            self.on_press(self._SPECIAL_KEYS[key])
+                        else:
+                            self.on_release(self._SPECIAL_KEYS[key])
+
             else:
                 # This is a modifier event---excluding caps lock---for which we
                 # must check the current modifier state to determine whether
                 # the key was pressed or released
-                flags = Quartz.CGEventGetFlags(event)
+                flags = CGEventGetFlags(event)
                 is_press = flags & self._MODIFIER_FLAGS.get(key, 0)
                 if is_press:
                     self.on_press(key)
@@ -221,7 +326,7 @@ class Listener(ListenerMixin, _base.Listener):
         finally:
             # Store the current flag mask to be able to detect modifier state
             # changes
-            self._flags = Quartz.CGEventGetFlags(event)
+            self._flags = CGEventGetFlags(event)
 
     def _event_to_key(self, event):
         """Converts a *Quartz* event to a :class:`KeyCode`.
@@ -232,17 +337,28 @@ class Listener(ListenerMixin, _base.Listener):
 
         :raises IndexError: if the key code is invalid
         """
-        vk = Quartz.CGEventGetIntegerValueField(
-            event, Quartz.kCGKeyboardEventKeycode)
+        vk = CGEventGetIntegerValueField(
+            event, kCGKeyboardEventKeycode)
+        event_type = CGEventGetType(event)
+        is_media = True if event_type == NSSystemDefined else None
 
         # First try special keys...
-        if vk in self._SPECIAL_KEYS:
-            return self._SPECIAL_KEYS[vk]
+        key = (vk, is_media)
+        if key in self._SPECIAL_KEYS:
+            return self._SPECIAL_KEYS[key]
 
         # ...then try characters...
-        length, chars = Quartz.CGEventKeyboardGetUnicodeString(
+        length, chars = CGEventKeyboardGetUnicodeString(
             event, 100, None, None)
-        if length > 0:
+        try:
+            printable = chars.isprintable()
+        except AttributeError:
+            printable = chars.isalnum()
+        if not printable and vk in SYMBOLS \
+                and CGEventGetFlags(event) \
+                & kCGEventFlagMaskControl:
+            return KeyCode.from_char(SYMBOLS[vk], vk=vk)
+        elif length > 0:
             return KeyCode.from_char(chars, vk=vk)
 
         # ...and fall back on a virtual key code

@@ -4,11 +4,13 @@ Support for NSDecimalNumber.
 The actual class is defined in Foundation, but having the wrapper
 here is much more convenient.
 """
+
 __all__ = ()
-from objc._convenience import addConvenienceForClass
-from objc._objc import lookUpClass, NSDecimal
-import sys
 import operator
+
+from objc._convenience import addConvenienceForClass
+from objc._objc import NSDecimal, lookUpClass
+from ._new import NEW_MAP
 
 NSDecimalNumber = lookUpClass("NSDecimalNumber")
 
@@ -29,7 +31,7 @@ def decimal_new(cls, value=None):
             return cls.decimalNumberWithDecimal_(value)
         else:
             # The value is either an integer, or
-            # invalid (and numberWithLongLong_ wil raise
+            # invalid (and numberWithLongLong_ will raise
             # TypeError)
             try:
                 return cls.numberWithLongLong_(value)
@@ -38,10 +40,11 @@ def decimal_new(cls, value=None):
                 raise TypeError("Value is not a number")
 
 
+NEW_MAP.setdefault("NSDecimalNumber", {})[()] = decimal_new
+
 addConvenienceForClass(
     "NSDecimalNumber",
     (
-        ("__new__", staticmethod(decimal_new)),
         (
             "__add__",
             lambda self, other: NSDecimalNumber(operator.add(NSDecimal(self), other)),
@@ -68,11 +71,15 @@ addConvenienceForClass(
         ),
         (
             "__truediv__",
-            lambda self, other: NSDecimalNumber(operator.truediv(NSDecimal(self), other)),
+            lambda self, other: NSDecimalNumber(
+                operator.truediv(NSDecimal(self), other)
+            ),
         ),
         (
             "__rtruediv__",
-            lambda self, other: NSDecimalNumber(operator.truediv(other, NSDecimal(self))),
+            lambda self, other: NSDecimalNumber(
+                operator.truediv(other, NSDecimal(self))
+            ),
         ),
         (
             "__floordiv__",

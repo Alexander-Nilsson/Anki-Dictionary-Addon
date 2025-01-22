@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -26,12 +26,79 @@ General utility functions and classes.
 
 import contextlib
 import functools
+import importlib
+import os
 import sys
 import threading
+import time
 
 import six
 
 from six.moves import queue
+
+
+#: Possible resolutions for import related errors.
+RESOLUTIONS = {
+    'darwin': 'Please make sure that you have Python bindings for the '
+        'system frameworks installed',
+    'uinput': 'Please make sure that you are running as root, and that '
+        'the utility dumpkeys is installed',
+    'xorg': 'Please make sure that you have an X server running, and that '
+        'the DISPLAY environment variable is set correctly'}
+
+
+def backend(package):
+    """Returns the backend module for a package.
+
+    :param str package: The package for which to load a backend.
+    """
+    backend_name = os.environ.get(
+        'PYNPUT_BACKEND_{}'.format(package.rsplit('.')[-1].upper()),
+        os.environ.get('PYNPUT_BACKEND', None))
+    if backend_name:
+        modules = [backend_name]
+    elif sys.platform == 'darwin':
+        modules = ['darwin']
+    elif sys.platform == 'win32':
+        modules = ['win32']
+    else:
+        modules = ['xorg']
+
+    errors = []
+    resolutions = []
+    for module in modules:
+        try:
+            return importlib.import_module('._' + module, package)
+        except ImportError as e:
+            errors.append(e)
+            if module in RESOLUTIONS:
+                resolutions.append(RESOLUTIONS[module])
+
+    raise ImportError('this platform is not supported: {}'.format(
+        '; '.join(str(e) for e in errors)) + ('\n\n'
+            'Try one of the following resolutions:\n\n'
+            + '\n\n'.join(
+                ' * {}'.format(s)
+                for s in resolutions))
+            if resolutions else '')
+
+
+def prefix(base, cls):
+    """Calculates the prefix to use for platform specific options for a
+    specific class.
+
+    The prefix if the name of the module containing the class that is an
+    immediate subclass of ``base`` among the super classes of ``cls``.
+    """
+    for super_cls in filter(
+            lambda cls: issubclass(cls, base),
+            cls.__mro__[1:]):
+        if super_cls is base:
+            return cls.__module__.rsplit('.', 1)[-1][1:] + '_'
+        else:
+            result = prefix(base, super_cls)
+            if result is not None:
+                return result
 
 
 class AbstractListener(threading.Thread):
@@ -66,8 +133,8 @@ class AbstractListener(threading.Thread):
         """
         pass
 
-    #: Exceptions that are handled outside of the emitter and should thus not be
-    #: passed through the queue
+    #: Exceptions that are handled outside of the emitter and should thus not
+    #: be passed through the queue
     _HANDLED_EXCEPTIONS = tuple()
 
     def __init__(self, suppress=False, **kwargs):
@@ -199,15 +266,112 @@ class AbstractListener(threading.Thread):
         """
         raise NotImplementedError()
 
-    def join(self, *args):
-        super(AbstractListener, self).join(*args)
+    def join(self, timeout=None, *args):
+        start = time.time()
+        super(AbstractListener, self).join(timeout, *args)
+        timeout = max(0.0, timeout - (time.time() - start)) \
+            if timeout is not None \
+            else None
 
-        # Reraise any exceptions
+        # Reraise any exceptions; make sure not to block if a timeout was
+        # provided
         try:
-            exc_type, exc_value, exc_traceback = self._queue.get()
+            exc_type, exc_value, exc_traceback = self._queue.get(
+                timeout=timeout)
+            six.reraise(exc_type, exc_value, exc_traceback)
+        except queue.Empty:
+            pass
         except TypeError:
             return
-        six.reraise(exc_type, exc_value, exc_traceback)
+
+
+class Events(object):
+    """A base class to enable iterating over events.
+    """
+    #: The listener class providing events.
+    _Listener = None
+
+    class Event(object):
+        def __str__(self):
+            return '{}({})'.format(
+                self.__class__.__name__,
+                ', '.join(
+                    '{}={}'.format(k, v)
+                    for (k, v) in vars(self).items()))
+
+        def __eq__(self, other):
+            return self.__class__ == other.__class__ \
+                and dir(self) == dir(other) \
+                and all(
+                    getattr(self, k) == getattr(other, k)
+                    for k in dir(self))
+
+    def __init__(self, *args, **kwargs):
+        super(Events, self).__init__()
+        self._event_queue = queue.Queue()
+        self._sentinel = object()
+        self._listener = self._Listener(*args, **{
+            key: self._event_mapper(value)
+            for (key, value) in kwargs.items()})
+        self.start = self._listener.start
+
+    def __enter__(self):
+        self._listener.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        self._listener.__exit__(*args)
+
+        # Drain the queue to ensure that the put does not block
+        while True:
+            try:
+                self._event_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        self._event_queue.put(self._sentinel)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        event = self.get()
+        if event is not None:
+            return event
+        else:
+            raise StopIteration()
+
+    def get(self, timeout=None):
+        """Attempts to read the next event.
+
+        :param int timeout: An optional timeout. If this is not provided, this
+            method may block infinitely.
+
+        :return: the next event, or ``None`` if the source has been stopped or
+            no events were received
+        """
+        try:
+            event = self._event_queue.get(timeout=timeout)
+            return event if event is not self._sentinel else None
+        except queue.Empty:
+            return None
+
+    def _event_mapper(self, event):
+        """Generates an event callback to transforms the callback arguments to
+        an event and then publishes it.
+
+        :param callback event: A function generating an event object.
+
+        :return: a callback
+        """
+        @functools.wraps(event)
+        def inner(*args):
+            try:
+                self._event_queue.put(event(*args), block=False)
+            except queue.Full:
+                pass
+
+        return inner
 
 
 class NotifierMixin(object):

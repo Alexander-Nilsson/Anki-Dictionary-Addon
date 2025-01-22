@@ -2,8 +2,13 @@
 # 
 from os.path import dirname, join, basename, exists, join
 import sys, os, platform, re, subprocess, aqt.utils
-from anki.utils import stripHTML, isWin, isMac, isLin
+from anki.utils import strip_html, is_win, is_mac, is_lin
+
+# from anki.utils import strip_html, is_win, is_mac, is_lin
+
 from .midict import DictInterface, ClipThread
+from .themes import *
+from .themeEditor import *
 import re
 import unicodedata
 import urllib.parse
@@ -34,8 +39,8 @@ import time
 import os
 
 
-mw.MigakuDictConfig = mw.addonManager.getConfig(__name__)
-mw.MigakuExportingDefinitions = False
+mw.MisoDictConfig = mw.addonManager.getConfig(__name__)
+mw.MisoExportingDefinitions = False
 mw.dictSettings = False
 mw.miDictDB = dictdb.DictDB()
 progressBar = False
@@ -45,17 +50,17 @@ currentField = False
 currentKey = False
 wrapperDict = False
 tmpdir = join(addon_path, 'temp')
-mw.migakuEditorLoadedAfterDictionary = False
-mw.MigakuBulkMediaExportWasCancelled = False
+mw.misoEditorLoadedAfterDictionary = False
+mw.MisoBulkMediaExportWasCancelled = False
 
 
-def refreshMigakuDictConfig(config = False):
+def refreshMisoDictConfig(config = False):
     if config:
-        mw.MigakuDictConfig = config
+        mw.MisoDictConfig = config
         return
-    mw.MigakuDictConfig = mw.addonManager.getConfig(__name__)
+    mw.MisoDictConfig = mw.addonManager.getConfig(__name__)
 
-mw.refreshMigakuDictConfig = refreshMigakuDictConfig
+mw.refreshMisoDictConfig = refreshMisoDictConfig
 
 def removeTempFiles():
     filelist = [ f for f in os.listdir(tmpdir)]
@@ -72,8 +77,8 @@ def removeTempFiles():
 
 removeTempFiles()
 
-def migaku(text):
-    showInfo(text ,False,"", "info", "Migaku Dictionary Add-on")
+def miso(text):
+    showInfo(text ,False,"", "info", "Miso Dictionary Add-on")
 
 def showA(ar):
     showInfo(json.dumps(ar, ensure_ascii=False))
@@ -102,13 +107,13 @@ def performColSearch(text):
             browser.form.searchEdit.lineEdit().setText(text)
             browser.onSearchActivated()
             browser.activateWindow()
-            if not isWin:
-                browser.setWindowState(browser.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
+            if not is_win:
+                browser.setWindowState(browser.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
                 browser.raise_()  
             else:
-                browser.setWindowFlags(browser.windowFlags() | Qt.WindowStaysOnTopHint)
+                browser.setWindowFlags(browser.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
                 browser.show()
-                browser.setWindowFlags(browser.windowFlags() & ~Qt.WindowStaysOnTopHint)
+                browser.setWindowFlags(browser.windowFlags() & ~Qt.WindowState.WindowStaysOnTopHint)
                 browser.show()
 
 
@@ -119,7 +124,7 @@ def captureKey(keyList):
     char = str(key)
     if char not in mw.currentlyPressed:
             mw.currentlyPressed.append(char)
-    if isWin:
+    if is_win:
         if 'Key.ctrl_l' in mw.currentlyPressed and "'c'" in mw.currentlyPressed and'Key.space'  in mw.currentlyPressed:
             mw.hkThread.handleSystemSearch()
             mw.currentlyPressed = []
@@ -135,7 +140,7 @@ def captureKey(keyList):
         elif 'Key.ctrl_l' in mw.currentlyPressed and 'Key.shift' in mw.currentlyPressed and "'v'" in mw.currentlyPressed:
             mw.hkThread.handleImageExport()
             mw.currentlyPressed = []
-    elif isLin:
+    elif is_lin:
         if 'Key.ctrl' in mw.currentlyPressed and "'c'" in mw.currentlyPressed and'Key.space'  in mw.currentlyPressed:
             mw.hkThread.handleSystemSearch()
             mw.currentlyPressed = []
@@ -172,33 +177,34 @@ def releaseKey(keyList):
     
 
 def exportSentence(sentence):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
-        mw.migakuDictionary.dict.exportSentence(sentence)
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
+        mw.misoDictionary.dict.exportSentence(sentence)
         showCardExporterWindow()
 
 def exportImage(img):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
+    print("exportImage")
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
         if img[1].startswith('[sound:'):
-            mw.migakuDictionary.dict.exportAudio(img)
+            mw.misoDictionary.dict.exportAudio(img)
         else:
-            mw.migakuDictionary.dict.exportImage(img)
+            mw.misoDictionary.dict.exportImage(img)
         showCardExporterWindow()
 
 def extensionBulkTextExport(cards):
-    if not mw.migakuDictionary or not mw.migakuDictionary.isVisible(): 
+    if not mw.misoDictionary or not mw.misoDictionary.isVisible(): 
         mw.dictionaryInit()
-    mw.migakuDictionary.dict.bulkTextExport(cards)
+    mw.misoDictionary.dict.bulkTextExport(cards)
 
 
 def extensionBulkMediaExport(card):
-    if not mw.migakuDictionary or not mw.migakuDictionary.isVisible(): 
+    if not mw.misoDictionary or not mw.misoDictionary.isVisible(): 
         mw.dictionaryInit()
-    mw.migakuDictionary.dict.bulkMediaExport(card)
+    mw.misoDictionary.dict.bulkMediaExport(card)
 
 
 def cancelBulkMediaExport():
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible(): 
-        mw.migakuDictionary.dict.cancelBulkMediaExport()
+    if mw.misoDictionary and mw.misoDictionary.isVisible(): 
+        mw.misoDictionary.dict.cancelBulkMediaExport()
 
 
 def extensionCardExport(card):
@@ -206,73 +212,73 @@ def extensionCardExport(card):
     secondary = card["secondary"]
     image = card["image"]
     audio = card["audio"]
-    unknownsToSearch = mw.MigakuDictConfig.get("unknownsToSearch", 3)
-    autoExportCards = mw.MigakuDictConfig.get("autoAddCards", False)
+    unknownsToSearch = mw.MisoDictConfig.get("unknownsToSearch", 3)
+    autoExportCards = mw.MisoDictConfig.get("autoAddCards", False)
     unknownWords = card["unknownWords"][:unknownsToSearch]
     if len(unknownWords) > 0:
         if not autoExportCards:
             searchTermList(unknownWords)
-        elif not mw.migakuDictionary or not mw.migakuDictionary.isVisible(): 
+        elif not mw.misoDictionary or not mw.misoDictionary.isVisible(): 
             mw.dictionaryInit()
-        mw.migakuDictionary.dict.exportWord(unknownWords[0])
+        mw.misoDictionary.dict.exportWord(unknownWords[0])
     else:
-        if not mw.migakuDictionary or not mw.migakuDictionary.isVisible(): 
+        if not mw.misoDictionary or not mw.misoDictionary.isVisible(): 
                 mw.dictionaryInit()
-        mw.migakuDictionary.dict.exportWord('')
+        mw.misoDictionary.dict.exportWord('')
     if audio:
-        mw.migakuDictionary.dict.exportAudio([join(mw.col.media.dir(), audio), '[sound:' + audio +']', audio]) 
+        mw.misoDictionary.dict.exportAudio([join(mw.col.media.dir(), audio), '[sound:' + audio +']', audio]) 
     if image:
-        mw.migakuDictionary.dict.exportImage([join(mw.col.media.dir(), image), image]) 
-    mw.migakuDictionary.dict.exportSentence(primary, secondary)
-    mw.migakuDictionary.dict.addWindow.focusWindow()
-    mw.migakuDictionary.dict.attemptAutoAdd(False)
+        mw.misoDictionary.dict.exportImage([join(mw.col.media.dir(), image), image]) 
+    mw.misoDictionary.dict.exportSentence(primary, secondary)
+    mw.misoDictionary.dict.addWindow.focusWindow()
+    mw.misoDictionary.dict.attemptAutoAdd(False)
     showCardExporterWindow()
       
 def showCardExporterWindow():
-    adder = mw.migakuDictionary.dict.addWindow
+    adder = mw.misoDictionary.dict.addWindow
     cardWindow = adder.scrollArea
-    if not isWin:
-        cardWindow.setWindowState(cardWindow.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
+    if not is_win:
+        cardWindow.setWindowState(cardWindow.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
         cardWindow.raise_()  
     else:
-        cardWindow.setWindowFlags(cardWindow.windowFlags() | Qt.WindowStaysOnTopHint)
+        cardWindow.setWindowFlags(cardWindow.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
         cardWindow.show()
         if not adder.alwaysOnTop:
-            cardWindow.setWindowFlags(cardWindow.windowFlags() & ~Qt.WindowStaysOnTopHint)
+            cardWindow.setWindowFlags(cardWindow.windowFlags() & ~Qt.WindowState.WindowStaysOnTopHint)
             cardWindow.show()
 
 def trySearch(term):    
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible(): 
-        mw.migakuDictionary.initSearch(term)    
+    if mw.misoDictionary and mw.misoDictionary.isVisible(): 
+        mw.misoDictionary.initSearch(term)    
         showAfterGlobalSearch() 
-    elif mw.MigakuDictConfig['openOnGlobal'] and (not mw.migakuDictionary or not mw.migakuDictionary.isVisible()):  
+    elif mw.MisoDictConfig['openOnGlobal'] and (not mw.misoDictionary or not mw.misoDictionary.isVisible()):  
         mw.dictionaryInit([term])   
 
 
 def showAfterGlobalSearch():
-    mw.migakuDictionary.activateWindow()
-    if not isWin:
-        mw.migakuDictionary.setWindowState(mw.migakuDictionary.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
-        mw.migakuDictionary.raise_()  
+    mw.misoDictionary.activateWindow()
+    if not is_win:
+        mw.misoDictionary.setWindowState(mw.misoDictionary.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+        mw.misoDictionary.raise_()  
     else:
-        mw.migakuDictionary.setWindowFlags(mw.migakuDictionary.windowFlags() | Qt.WindowStaysOnTopHint)
-        mw.migakuDictionary.show()
-        if not mw.migakuDictionary.alwaysOnTop:
-            mw.migakuDictionary.setWindowFlags(mw.migakuDictionary.windowFlags() & ~Qt.WindowStaysOnTopHint)
-            mw.migakuDictionary.show()
+        mw.misoDictionary.setWindowFlags(mw.misoDictionary.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+        mw.misoDictionary.show()
+        if not mw.misoDictionary.alwaysOnTop:
+            mw.misoDictionary.setWindowFlags(mw.misoDictionary.windowFlags() & ~Qt.WindowState.WindowStaysOnTopHint)
+            mw.misoDictionary.show()
 
 def attemptAddCard(add):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible() and mw.migakuDictionary.dict.addWindow and mw.migakuDictionary.dict.addWindow.scrollArea.isVisible():
+    if mw.misoDictionary and mw.misoDictionary.isVisible() and mw.misoDictionary.dict.addWindow and mw.misoDictionary.dict.addWindow.scrollArea.isVisible():
         time.sleep(.3)
-        mw.migakuDictionary.dict.addWindow.addCard()
+        mw.misoDictionary.dict.addWindow.addCard()
 
 
 def openDictionarySettings():
     if not mw.dictSettings:
         mw.dictSettings = SettingsGui(mw, addon_path, openDictionarySettings)
     mw.dictSettings.show()
-    if mw.dictSettings.windowState() == Qt.WindowMinimized:
-           mw.dictSettings.setWindowState(Qt.WindowNoState)
+    if mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:
+           mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
     mw.dictSettings.setFocus()
     mw.dictSettings.activateWindow()
 
@@ -289,7 +295,7 @@ def getMacWelcomeScreen():
         file =  fh.read()
     return file
 
-if isMac:
+if is_mac:
     welcomeScreen = getMacWelcomeScreen()
 else:
     welcomeScreen = getWelcomeScreen()
@@ -298,62 +304,62 @@ def dictionaryInit(terms = False):
     if terms and isinstance(terms, str):
         terms = [terms]
     shortcut = '(Ctrl+W)'
-    if isMac:
+    if is_mac:
         shortcut = '⌘W'
-    if not mw.migakuDictionary:
-        mw.migakuDictionary = DictInterface(mw.miDictDB, mw, addon_path, welcomeScreen, terms = terms)
+    if not mw.misoDictionary:
+        mw.misoDictionary = DictInterface(mw.miDictDB, mw, addon_path, welcomeScreen, terms = terms)
         mw.openMiDict.setText("Close Dictionary " + shortcut)
         showAfterGlobalSearch()
-    elif not mw.migakuDictionary.isVisible():
-        mw.migakuDictionary.show()
-        mw.migakuDictionary.resetConfiguration(terms)
+    elif not mw.misoDictionary.isVisible():
+        mw.misoDictionary.show()
+        mw.misoDictionary.resetConfiguration(terms)
         mw.openMiDict.setText("Close Dictionary " + shortcut)
         showAfterGlobalSearch()
     else:
-        mw.migakuDictionary.hide()
+        mw.misoDictionary.hide()
 
 mw.dictionaryInit = dictionaryInit
 
 def setupGuiMenu():
     addMenu = False
-    if not hasattr(mw, 'MigakuMainMenu'):
-        mw.MigakuMainMenu = QMenu('Migaku',  mw)
+    if not hasattr(mw, 'MisoMainMenu'):
+        mw.MisoMainMenu = QMenu('Miso',  mw)
         addMenu = True
-    if not hasattr(mw, 'MigakuMenuSettings'):
-        mw.MigakuMenuSettings = []
-    if not hasattr(mw, 'MigakuMenuActions'):
-        mw.MigakuMenuActions = []
+    if not hasattr(mw, 'MisoMenuSettings'):
+        mw.MisoMenuSettings = []
+    if not hasattr(mw, 'MisoMenuActions'):
+        mw.MisoMenuActions = []
 
     setting = QAction("Dictionary Settings", mw)
     setting.triggered.connect(openDictionarySettings)
-    mw.MigakuMenuSettings.append(setting)
+    mw.MisoMenuSettings.append(setting)
 
     mw.openMiDict = QAction("Open Dictionary (Ctrl+W)", mw)
     mw.openMiDict.triggered.connect(dictionaryInit)
-    mw.MigakuMenuActions.append(mw.openMiDict)
+    mw.MisoMenuActions.append(mw.openMiDict)
 
-    mw.MigakuMainMenu.clear()
-    for act in mw.MigakuMenuSettings:
-        mw.MigakuMainMenu.addAction(act)
-    mw.MigakuMainMenu.addSeparator()
-    for act in mw.MigakuMenuActions:
-        mw.MigakuMainMenu.addAction(act)
+    mw.MisoMainMenu.clear()
+    for act in mw.MisoMenuSettings:
+        mw.MisoMainMenu.addAction(act)
+    mw.MisoMainMenu.addSeparator()
+    for act in mw.MisoMenuActions:
+        mw.MisoMainMenu.addAction(act)
 
     if addMenu:
-        mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.MigakuMainMenu)  
+        mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.MisoMainMenu)  
 
 setupGuiMenu()
 
-mw.migakuDictionary = False
+mw.misoDictionary = False
 
 def searchTermList(terms):
-    limit = mw.MigakuDictConfig.get("unknownsToSearch", 3)
+    limit = mw.MisoDictConfig.get("unknownsToSearch", 3)
     terms = terms[:limit]
-    if not mw.migakuDictionary or not mw.migakuDictionary.isVisible():
+    if not mw.misoDictionary or not mw.misoDictionary.isVisible():
         mw.dictionaryInit(terms)
     else:
         for term in terms:
-            mw.migakuDictionary.initSearch(term)
+            mw.misoDictionary.initSearch(term)
         showAfterGlobalSearch()
 
 def extensionFileNotFound():
@@ -395,16 +401,16 @@ def searchTerm(self):
     if text:
         text = re.sub(r'\[[^\]]+?\]', '', text)
         text = text.strip()
-        if not mw.migakuDictionary or not mw.migakuDictionary.isVisible():
+        if not mw.misoDictionary or not mw.misoDictionary.isVisible():
             dictionaryInit([text])
-        mw.migakuDictionary.ensureVisible()
-        mw.migakuDictionary.initSearch(text)
+        mw.misoDictionary.ensureVisible()
+        mw.misoDictionary.initSearch(text)
         if self.title == 'main webview':
             if mw.state == 'review':
-                mw.migakuDictionary.dict.setReviewer(mw.reviewer)
+                mw.misoDictionary.dict.setReviewer(mw.reviewer)
         elif self.title == 'editor':
             target = getTarget(type(self.parentEditor.parentWindow).__name__)
-            mw.migakuDictionary.dict.setCurrentEditor(self.parentEditor, target)
+            mw.misoDictionary.dict.setCurrentEditor(self.parentEditor, target)
         showAfterGlobalSearch()
 
 
@@ -433,7 +439,7 @@ def exportDefinitionsWidget(browser):
     notes = browser.selectedNotes()
     if notes:
         fields = anki.find.fieldNamesForNotes(mw.col, notes)
-        generateWidget = QDialog(None, Qt.Window)
+        generateWidget = QDialog(None, Qt.WindowType.Window)
         layout = QHBoxLayout()
         origin = QComboBox()
         origin.addItems(fields)
@@ -506,9 +512,9 @@ def exportDefinitionsWidget(browser):
         layout.addLayout(bLayout)
         layout.addWidget(ex)
         layout.setContentsMargins(10,6, 10, 6)
-        generateWidget.setWindowFlags(generateWidget.windowFlags() | Qt.MSWindowsFixedSizeDialogHint)
-        generateWidget.setWindowTitle("Migaku Dictionary: Export Definitions")
-        generateWidget.setWindowIcon(QIcon(join(addon_path, 'icons', 'migaku.png')))
+        generateWidget.setWindowFlags(generateWidget.windowFlags() | Qt.WindowType.MSWindowsFixedSizeDialogHint)
+        generateWidget.setWindowTitle("Miso Dictionary: Export Definitions")
+        generateWidget.setWindowIcon(QIcon(join(addon_path, 'icons', 'miso.png')))
         generateWidget.setLayout(layout)
         config = mw.addonManager.getConfig(__name__)
         savedPreferences = config.get("massGenerationPreferences", False)
@@ -525,7 +531,7 @@ def exportDefinitionsWidget(browser):
                 destination.setCurrentText(savedPreferences["destination"])
             addType.setCurrentText(savedPreferences["addType"])
             howMany.setValue(savedPreferences["limit"])
-        generateWidget.exec_()
+        generateWidget.exec()
     else:
         miInfo('Please select some cards before attempting to export definitions.', level='not')
 
@@ -533,17 +539,17 @@ def getProgressWidgetDefs():
     progressWidget = QWidget(None)
     layout = QVBoxLayout()
     progressWidget.setFixedSize(400, 70)
-    progressWidget.setWindowIcon(QIcon(join(addon_path, 'icons', 'migaku.png')))
+    progressWidget.setWindowIcon(QIcon(join(addon_path, 'icons', 'miso.png')))
     progressWidget.setWindowTitle("Generating Definitions...")
-    progressWidget.setWindowModality(Qt.ApplicationModal)
+    progressWidget.setWindowModality(Qt.WindowModality.ApplicationModal)
     bar = QProgressBar(progressWidget)
-    if isMac:
+    if is_mac:
         bar.setFixedSize(380, 50)
     else:
         bar.setFixedSize(390, 50)
     bar.move(10,10)
     per = QLabel(bar)
-    per.setAlignment(Qt.AlignCenter)
+    per.setAlignment(Qt.AlignmentFlag.AlignCenter)
     progressWidget.show()
     return progressWidget, bar;
 
@@ -628,7 +634,7 @@ def downloadImage(url, maxW, maxH):
         file = urlopen(req).read()
         image = QImage()
         image.loadFromData(file)
-        image = image.scaled(QSize(maxW,maxH), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        image = image.scaled(QSize(maxW,maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         image.save(filename)
         return '<img src="' + filename + '">'
     except:
@@ -706,7 +712,7 @@ def downloadForvoAudio( urls, howMany):
 
 
 def closeBar(event):
-    mw.MigakuExportingDefinitions = False
+    mw.MisoExportingDefinitions = False
     event.accept()
 
 
@@ -715,7 +721,7 @@ def addDefinitionsToCardExporterNote(note, term, dictionaryConfigurations):
     fb = config['frontBracket']
     bb = config['backBracket']
     lang = config['ForvoLanguage']
-    fields = mw.col.models.fieldNames(note.model())
+    fields = mw.col.models.field_names(note.note_type())
     for dictionary in dictionaryConfigurations:
         tableName = dictionary["tableName"]
         dictName  = dictionary["dictName"]
@@ -756,7 +762,7 @@ def exportDefinitions(og, dest, addType, dictNs, howMany, notes, generateWidget,
         "limit" : howMany
     }
     mw.addonManager.writeConfig(__name__, config)
-    mw.checkpoint('Definition Export')
+    # mw.checkpoint('Definition Export')
     if not miAsk('Are you sure you want to export definitions for the "'+ og + '" field into the "' + dest +'" field?'):
         return
     progWid, bar = getProgressWidgetDefs()   
@@ -767,12 +773,13 @@ def exportDefinitions(og, dest, addType, dictNs, howMany, notes, generateWidget,
     fb = config['frontBracket']
     bb = config['backBracket']
     lang = config['ForvoLanguage']
-    mw.MigakuExportingDefinitions = True
+    mw.progress.start()
+    mw.MisoExportingDefinitions = True
     for nid in notes:
-        if not mw.MigakuExportingDefinitions:
+        if not mw.MisoExportingDefinitions:
             break
         note = mw.col.getNote(nid)
-        fields = mw.col.models.fieldNames(note.model())
+        fields = mw.col.models.field_names(note.model())
         if og in fields and dest in fields:
             term = re.sub(r'<[^>]+>', '', note[og]) 
             term = re.sub(r'\[[^\]]+?\]', '', term)
@@ -800,11 +807,16 @@ def exportDefinitions(og, dest, addType, dictNs, howMany, notes, generateWidget,
                     note[dest] += '<br><br>' + results
             else:
                 note[dest] = results
-            note.flush()
+            # note.flush()
+            mw.col.update_note(note, skip_undo_entry=True);
         val+=1;
         bar.setValue(val)
         mw.app.processEvents()
-    mw.progress.finish()
+    # mw.progress.finish()
+    try:
+        mw.progress.finish()
+    except AttributeError as e:
+        print("Progress finish error:", e)
     mw.reset()
     generateWidget.hide()
     generateWidget.deleteLater()
@@ -820,9 +832,9 @@ def setupMenu(browser):
     browser.form.menuEdit.addAction(a)
 
 def closeDictionary():
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
-        mw.migakuDictionary.saveSizeAndPos()
-        mw.migakuDictionary.hide()
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
+        mw.misoDictionary.saveSizeAndPos()
+        mw.misoDictionary.hide()
         mw.openMiDict.setText("Open Dictionary (Ctrl+W)")
 
 
@@ -836,48 +848,56 @@ addHook("browser.setupMenus", setupMenu)
 
 def bridgeReroute(self, cmd):
     if cmd == "bodyClick":
-        if mw.migakuDictionary and mw.migakuDictionary.isVisible() and self.note:
+        if mw.misoDictionary and mw.misoDictionary.isVisible() and self.note:
             widget = type(self.widget.parentWidget()).__name__
             if widget == 'QWidget':
                 widget = 'Browser'
             target = getTarget(widget)
-            mw.migakuDictionary.dict.setCurrentEditor(self, target)
-        if hasattr(mw, "migakuEditorLoaded"):
+            mw.misoDictionary.dict.setCurrentEditor(self, target)
+        if hasattr(mw, "MisoEditorLoaded"):
                 ogReroute(self, cmd)
     else:
         if cmd.startswith("focus"):
             
-            if mw.migakuDictionary and mw.migakuDictionary.isVisible() and self.note:
+            if mw.misoDictionary and mw.misoDictionary.isVisible() and self.note:
                 widget = type(self.widget.parentWidget()).__name__
                 if widget == 'QWidget':
                     widget = 'Browser'
                 target = getTarget(widget)
-                mw.migakuDictionary.dict.setCurrentEditor(self, target)
+                mw.misoDictionary.dict.setCurrentEditor(self, target)
         ogReroute(self, cmd)
     
 ogReroute = aqt.editor.Editor.onBridgeCmd 
 aqt.editor.Editor.onBridgeCmd = bridgeReroute
 
-def setBrowserEditor(browser, c , p):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
+# def setBrowserEditor(browser, c , p):
+#     if mw.misoDictionary and mw.misoDictionary.isVisible():
+#         if browser.editor.note:
+#             mw.misoDictionary.dict.setCurrentEditor(browser.editor, 'Browser')
+#         else:
+#             mw.misoDictionary.dict.closeEditor()
+
+def setBrowserEditor(browser):
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
         if browser.editor.note:
-            mw.migakuDictionary.dict.setCurrentEditor(browser.editor, 'Browser')
+            mw.misoDictionary.dict.setCurrentEditor(browser.editor, 'Browser')
         else:
-            mw.migakuDictionary.dict.closeEditor()
+            mw.misoDictionary.dict.closeEditor()
 
 def checkCurrentEditor(self):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
-        mw.migakuDictionary.dict.checkEditorClose(self.editor)
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
+        mw.misoDictionary.dict.checkEditorClose(self.editor)
 
-Browser._onRowChanged = wrap(Browser._onRowChanged, setBrowserEditor)
+Browser.on_current_row_changed = wrap(Browser.on_current_row_changed, setBrowserEditor)
 
-AddCards._reject = wrap(AddCards._reject, checkCurrentEditor)
+AddCards._close = wrap(AddCards._close, checkCurrentEditor)
+
 EditCurrent._saveAndClose = wrap(EditCurrent._saveAndClose, checkCurrentEditor)
 Browser._closeWindow = wrap(Browser._closeWindow, checkCurrentEditor)
 
 def addEditActivated(self, event = False):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
-        mw.migakuDictionary.dict.setCurrentEditor(self.editor, getTarget(type(self).__name__))
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
+        mw.misoDictionary.dict.setCurrentEditor(self.editor, getTarget(type(self).__name__))
 
 bodyClick = '''document.addEventListener("click", function (ev) {
         pycmd("bodyClick")
@@ -924,13 +944,13 @@ def gt(obj):
 def getTarget(name):
     if name == 'AddCards':
         return 'Add'
-    elif name == "EditCurrent" or name == "MigakuEditCurrent":
+    elif name == "EditCurrent" or name == "MisoEditCurrent":
         return 'Edit'
     elif name == 'Browser':
         return name
 
 def announceParent(self, event = False):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
         parent = self.parentWidget().parentWidget().parentWidget()
         pName = gt(parent)
         if gt(parent) not in ['AddCards', 'EditCurrent']:
@@ -938,7 +958,7 @@ def announceParent(self, event = False):
             pName = 'Browser'
             if not parent:
                 return
-        mw.migakuDictionary.dict.setCurrentEditor(parent.editor, getTarget(pName))
+        mw.misoDictionary.dict.setCurrentEditor(parent.editor, getTarget(pName))
             
 def addClickToTags(self):
     self.tags.clicked.connect(lambda: announceParent(self))
@@ -949,8 +969,8 @@ AddCards.mousePressEvent = addEditActivated
 EditCurrent.mousePressEvent = addEditActivated
 
 def miLinks(self, cmd):
-    if mw.migakuDictionary and mw.migakuDictionary.isVisible():
-        mw.migakuDictionary.dict.setReviewer(self)
+    if mw.misoDictionary and mw.misoDictionary.isVisible():
+        mw.misoDictionary.dict.setReviewer(self)
     return ogLinks(self, cmd)
 
 ogLinks = Reviewer._linkHandler

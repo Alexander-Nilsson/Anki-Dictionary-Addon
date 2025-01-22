@@ -7,6 +7,8 @@ from aqt.qt import *
 from aqt.utils import askUser, showInfo
 import datetime
 from .miutils import miInfo, miAsk
+from anki.utils import strip_html, is_win, is_mac, is_lin
+
 
 class HistoryModel(QAbstractTableModel):
 
@@ -15,34 +17,35 @@ class HistoryModel(QAbstractTableModel):
         self.history = history
         self.dictInt = parent
         self.justTerms = [item[0] for item in history]
-        
+
     def rowCount(self, index=QModelIndex()):
         return len(self.history)
 
     def columnCount(self, index=QModelIndex()):
         return 2
 
-    def data(self, index, role=Qt.DisplayRole):
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
 
         if not 0 <= index.row() < len(self.history):
             return None
-        if role == Qt.DisplayRole or role == Qt.EditRole:
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
             term = self.history[index.row()][0]
             date = self.history[index.row()][1]
-            
+
             if index.column() == 0:
                 return term
             elif index.column() == 1:
                 return date
         return None
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role != Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role != Qt.ItemDataRole.DisplayRole:
             return None
-        if orientation == Qt.Vertical:
-            return section + 1;
+        if orientation == Qt.Orientation.Vertical:
+            return section + 1
         return None
 
     def insertRows(self, position= False, rows=1, index=QModelIndex(), term = False, date = False):
@@ -68,9 +71,11 @@ class HistoryModel(QAbstractTableModel):
         self.dictInt.saveHistory()
         return True
 
+
 class HistoryBrowser(QWidget):
     def __init__(self, historyModel, parent):
-        super(HistoryBrowser, self).__init__(parent, Qt.Window)
+        super(HistoryBrowser, self).__init__(parent, Qt.WindowType.Window)
+        self.history_model = None
         self.setAutoFillBackground(True)
         self.resize(300, 200)
         self.tableView = QTableView()
@@ -84,37 +89,62 @@ class HistoryBrowser(QWidget):
         self.layout = self.getLayout()
         self.setLayout(self.layout)
         self.setColors()
+        self.history_model = self.history_model
+        self.dictInt = self.dictInt
+        self.setup_ui()  # Call the setup_ui method
         self.hotkeyEsc = QShortcut(QKeySequence("Esc"), self)
         self.hotkeyEsc.activated.connect(self.hide)
 
+    def setup_ui(self):
+        """
+        Set up the user interface components for the history browser.
+        """
+        # Ensure the table view is properly set up
+        self.setupTable()
+
+        # Set up the layout
+        self.layout = self.getLayout()
+        self.setLayout(self.layout)
+
+        # Set the colors based on the active theme
+        self.setColors()
+
     def setupTable(self):
         tableHeader = self.tableView.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.Stretch)
-        self.tableView.setSelectionBehavior(QAbstractItemView.SelectRows)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tableView.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tableView.horizontalHeader().hide()
 
-    def searchAgain(self): 
+    def searchAgain(self):
         date = str(datetime.date.today())
-        term = self.model.index(self.tableView.selectionModel().currentIndex().row(),0).data()
-        self.model.insertRows(term = term, date = date)
+        term = self.model.index(self.tableView.selectionModel().currentIndex().row(), 0).data()
+        self.model.insertRows(term=term, date=date)
         self.dictInt.initSearch(term)
 
     def setColors(self):
-        if self.dictInt.nightModeToggler.day:
-            if isMac:
-                self.tableView.setStyleSheet(self.dictInt.getMacTableStyle())
-            else:
-                self.tableView.setStyleSheet('')
-            self.setPalette(self.dictInt.ogPalette)
-        else:
-            self.setPalette(self.dictInt.nightPalette)
-            self.tableView.setStyleSheet(self.dictInt.getTableStyle())
+        """
+        Set the colors for the history browser based on the active theme.
+        """
+        # Load the background color from the active theme
+        background_color = self.dictInt.load_theme_color("background")
+        print(f"Background color: {background_color}, Type: {type(background_color)}")  # Debug statement
+
+        # Create a QPalette object and set the background color
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, background_color)
+
+        # Apply the palette to the history browser
+        self.setPalette(palette)
+        self.setStyleSheet(self.dictInt.theme_manager.get_qt_styles(is_mac=is_mac))  # Reapply stylesheet
+        self.update()  # Force the widget to repaint
+
+        print("History browser colors updated.")  # Debug statement
 
     def deleteHistory(self):
         if miAsk('Clearing your history cannot be undone. Would you like to proceed?', self):
             self.model.removeRows(0, len(self.model.history))
-            
+
     def getLayout(self):
         vbox = QVBoxLayout()
         vbox.addWidget(self.tableView)
@@ -125,5 +155,3 @@ class HistoryBrowser(QWidget):
         vbox.addLayout(hbox)
         vbox.setContentsMargins(2, 2, 2, 2)
         return vbox
-
-   

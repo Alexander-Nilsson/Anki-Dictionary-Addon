@@ -7,7 +7,7 @@ import math
 from anki.hooks import addHook, wrap
 from aqt.qt import *
 from aqt.utils import openLink, tooltip, showInfo, askUser
-from anki.utils import isMac, isWin, isLin
+from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
 from aqt.webview import AnkiWebView
 import re
@@ -19,9 +19,13 @@ from .addTemplate import TemplateEditor
 from .miutils import miInfo, miAsk
 from . dictionaryManager import DictionaryManagerWidget
 from .ffmpegInstaller import FFMPEGInstaller
+try:
+    from PyQt5.QtSvg import QSvgWidget
+except ModuleNotFoundError:
+    from PyQt6.QtSvgWidgets import QSvgWidget
 
-verNumber = "1.3.8"
 
+verNumber = "0.1"
 
 def attemptOpenLink(cmd):
     if cmd.startswith('openLink:'):
@@ -29,7 +33,7 @@ def attemptOpenLink(cmd):
 
 
 
-class MigakuSVG(QSvgWidget):
+class MisoSVG(QSvgWidget):
     clicked=pyqtSignal()
     def __init__(self, parent=None):
         QSvgWidget.__init__(self, parent)
@@ -37,7 +41,7 @@ class MigakuSVG(QSvgWidget):
     def mousePressEvent(self, ev):
         self.clicked.emit()
 
-class MigakuLabel(QLabel):
+class MisoLabel(QLabel):
     clicked=pyqtSignal()
     def __init__(self, parent=None):
         QLabel.__init__(self, parent)
@@ -54,14 +58,14 @@ class SettingsGui(QTabWidget):
         self.googleCountries = ["Afghanistan" ,"Albania","Algeria","American Samoa","Andorra","Angola","Anguilla","Antarctica","Antigua and Barbuda","Argentina","Armenia","Aruba","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bermuda","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Bouvet Island","Brazil","British Indian Ocean Territory","Brunei Darussalam","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Cape Verde","Cayman Islands","Central African Republic","Chad","Chile","China","Christmas Island","Cocos (Keeling) Islands","Colombia","Comoros","Congo","Congo, the Democratic Republic of the","Cook Islands","Costa Rica","Cote D'ivoire","Croatia (Hrvatska)","Cuba","Cyprus","Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic","East Timor","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Ethiopia","European Union","Falkland Islands (Malvinas)","Faroe Islands","Fiji","Finland","France","France, Metropolitan","French Guiana","French Polynesia","French Southern Territories","Gabon","Gambia","Georgia","Germany","Ghana","Gibraltar","Greece","Greenland","Grenada","Guadeloupe","Guam","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Heard Island and Mcdonald Islands","Holy See (Vatican City State)","Honduras","Hong Kong","Hungary","Iceland","India","Indonesia","Iran, Islamic Republic of","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Korea, Democratic People's Republic of","Korea, Republic of","Kuwait","Kyrgyzstan","Lao People's Democratic Republic","Latvia","Lebanon","Lesotho","Liberia","Libyan Arab Jamahiriya","Liechtenstein","Lithuania","Luxembourg","Macao","Macedonia, the Former Yugosalv Republic of","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Martinique","Mauritania","Mauritius","Mayotte","Mexico","Micronesia, Federated States of","Moldova, Republic of","Monaco","Mongolia","Montserrat","Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","Netherlands Antilles","New Caledonia","New Zealand","Nicaragua","Niger","Nigeria","Niue","Norfolk Island","Northern Mariana Islands","Norway","Oman","Pakistan","Palau","Palestinian Territory","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Pitcairn","Poland","Portugal","Puerto Rico","Qatar","Reunion","Romania","Russian Federation","Rwanda","Saint Helena","Saint Kitts and Nevis","Saint Lucia","Saint Pierre and Miquelon","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia and Montenegro","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Georgia and the South Sandwich Islands","Spain","Sri Lanka","Sudan","Suriname","Svalbard and Jan Mayen","Swaziland","Sweden","Switzerland","Syrian Arab Republic","Taiwan","Tajikistan","Tanzania, United Republic of","Thailand","Togo","Tokelau","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Turks and Caicos Islands","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","United States Minor Outlying Islands","Uruguay","Uzbekistan","Vanuatu","Venezuela","Vietnam","Virgin Islands, British","Virgin Islands, U.S.","Wallis and Futuna","Western Sahara","Yemen","Yugoslavia","Zambia","Zimbabwe"]
         self.forvoLanguages = ["Afrikaans", "Ancient Greek", "Arabic", "Armenian", "Azerbaijani", "Bashkir", "Basque", "Belarusian", "Bengali", "Bulgarian", "Cantonese", "Catalan", "Chuvash", "Croatian", "Czech", "Danish", "Dutch", "English", "Esperanto", "Estonian", "Finnish", "French", "Galician","German", "Greek", "Hakka", "Hebrew", "Hindi", "Hungarian", "Icelandic", "Indonesian", "Interlingua", "Irish", "Italian", "Japanese", "Kabardian", "Korean", "Kurdish", "Latin", "Latvian", "Lithuanian", "Low German", "Luxembourgish", "Mandarin Chinese", "Mari", "Min Nan", "Northern Sami", "Norwegian Bokmål", "Persian", "Polish", "Portuguese", "Punjabi", "Romanian", "Russian", "Serbian", "Slovak", "Slovenian", "Spanish", "Swedish", "Tagalog", "Tatar", "Thai", "Turkish", "Ukrainian", "Urdu", "Uyghur", "Venetian", "Vietnamese", "Welsh", "Wu Chinese", "Yiddish"]
         self.setMinimumSize(850, 550)
-        if not isWin:
+        if not is_win:
             self.resize(1034, 550)
         else:
             self.resize(920, 550)
-        self.setContextMenuPolicy(Qt.NoContextMenu)
-        self.setWindowTitle("Migaku Dictionary Settings (Ver. " + verNumber + ")")
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+        self.setWindowTitle("Miso Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
-        self.setWindowIcon(QIcon(join(self.addonPath, 'icons', 'migaku.png')))
+        self.setWindowIcon(QIcon(join(self.addonPath, 'icons', 'miso.png')))
         self.addDictGroup = QPushButton('Add Dictionary Group')
         self.addExportTemplate = QPushButton('Add Export Template')
         self.dictGroups = self.getGroupTemplateTable()
@@ -101,12 +105,12 @@ class SettingsGui(QTabWidget):
         self.applyButton = QPushButton('Apply')
         self.layout = QVBoxLayout()
         self.settingsTab = QWidget(self)
-        self.userGuideTab = self.getUserGuideTab()
+        # self.userGuideTab = self.getUserGuideTab()
         self.setupLayout()
         self.addTab(self.settingsTab, "Settings")
         self.addTab(DictionaryManagerWidget(), "Dictionaries")
-        self.addTab(self.userGuideTab, "User Guide")
-        self.addTab(self.getAboutTab(), "About")
+        # self.addTab(self.userGuideTab, "User Guide")
+        # self.addTab(self.getAboutTab(), "About")
         self.loadTemplateTable()
         self.loadGroupTable()
         self.initHandlers()
@@ -119,14 +123,14 @@ class SettingsGui(QTabWidget):
 
     def hideEvent(self, event):
         self.mw.dictSettings = None
-        self.userGuideTab.close()
-        self.userGuideTab.deleteLater()
+        # self.userGuideTab.close()
+        # self.userGuideTab.deleteLater()
         event.accept()
 
     def closeEvent(self, event):
         self.mw.dictSettings = None
-        self.userGuideTab.close()
-        self.userGuideTab.deleteLater()
+        # self.userGuideTab.close()
+        # self.userGuideTab.deleteLater()
         event.accept()
 
     def initTooltips(self):
@@ -140,13 +144,13 @@ class SettingsGui(QTabWidget):
         self.showTarget.setToolTip('Show/Hide the Target Identifier from the dictionary window. The Target Identifier\nlets you know which window is currently selected and will be used when sending\ndefinitions to a target field.')
         self.totalDefs.setToolTip('This is the total maximum number of definitions which the dictionary will output.')
         self.dictDefs.setToolTip('This is the maximum number of definitions which the dictionary will output for any given dictionary.')
-        self.genJSExport.setToolTip('If this is enabled and you have Migaku Japanese installed in Anki,\nthen when a card is exported, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your Migaku Japanese Sentence Button (文) settings.')
-        self.genJSEdit.setToolTip('If this is enabled and you have Migaku Japanese installed in Anki,\nthen when a definition is sent to a field, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your Migaku Japanese Sentence Button (文) settings.')
+        self.genJSExport.setToolTip('If this is enabled and you have Miso Japanese installed in Anki,\nthen when a card is exported, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your miso Japanese Sentence Button (文) settings.')
+        self.genJSEdit.setToolTip('If this is enabled and you have Miso Japanese installed in Anki,\nthen when a definition is sent to a field, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your miso Japanese Sentence Button (文) settings.')
         self.frontBracket.setToolTip('This is the text that will be placed in front of each term\n in the dictionary.')
         self.backBracket.setToolTip('This is the text that will be placed after each term\nin the dictionary.')
         self.highlightTarget.setToolTip('The dictionary will highlight the searched term in\nthe search results.')
         self.highlightSentence.setToolTip('The dictionary will highlight example sentences in\nthe search results. This feature is experimental and currently only\nfunctions on Japanese monolingual dictionaries.')
-        self.openOnStart.setToolTip('Enable/Disable launching the Migaku Dictionary on profile load.')
+        self.openOnStart.setToolTip('Enable/Disable launching the Miso Dictionary on profile load.')
         linNote = ''
         self.globalHotkeys.setToolTip('Enable/Disable global hotkeys.' + linNote)
         self.globalOpen.setToolTip('If enabled the dictionary will be opened on a global search.')
@@ -214,10 +218,10 @@ class SettingsGui(QTabWidget):
             nc ['condensedAudioDirectory'] = False
         self.mw.addonManager.writeConfig(__name__, nc)
         self.hide()
-        self.mw.refreshMigakuDictConfig()
+        self.mw.refreshMisoDictConfig()
         if nc['mp3Convert']:
             self.ffmpegInstaller.installFFMPEG()
-        if self.mw.migakuDictionary and self.mw.migakuDictionary.isVisible():
+        if self.mw.misoDictionary and self.mw.misoDictionary.isVisible():
             miInfo('Please be aware that the dictionary window will not reflect any setting changes until it is closed and reopened.', level='not')
 
     def updateAudioDirectory(self):
@@ -229,18 +233,18 @@ class SettingsGui(QTabWidget):
 
     def getGroupTemplateTable(self):
         macLin = False
-        if isMac  or isLin:
+        if is_mac  or is_lin:
             macLin = True
         groupTemplates = QTableWidget()
         groupTemplates.setColumnCount(3)
         tableHeader = groupTemplates.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.Fixed)
-        tableHeader.setSectionResizeMode(2, QHeaderView.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         groupTemplates.setRowCount(0)
         groupTemplates.setSortingEnabled(False)
-        groupTemplates.setEditTriggers(QTableWidget.NoEditTriggers)
-        groupTemplates.setSelectionBehavior(QAbstractItemView.SelectRows)
+        groupTemplates.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        groupTemplates.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         if macLin:
             groupTemplates.setColumnWidth(1, 50)
             groupTemplates.setColumnWidth(2, 40)
@@ -258,7 +262,7 @@ class SettingsGui(QTabWidget):
             self.dictGroups.setRowCount(rc + 1)
             self.dictGroups.setItem(rc, 0, QTableWidgetItem(groupName))
             editButton =  QPushButton("Edit");
-            if isWin:
+            if is_win:
                 editButton.setFixedWidth(40)
             else:
                 editButton.setFixedWidth(50)
@@ -266,7 +270,7 @@ class SettingsGui(QTabWidget):
             editButton.clicked.connect(self.editGroupRow(rc))
             self.dictGroups.setCellWidget(rc, 1, editButton)   
             deleteButton =  QPushButton("X");
-            if isWin:
+            if is_win:
                 deleteButton.setFixedWidth(40)
             else:
                 deleteButton.setFixedWidth(40)
@@ -286,7 +290,9 @@ class SettingsGui(QTabWidget):
         if groupName in dictGroups:
             group = dictGroups[groupName]  
             dictEditor = DictGroupEditor(self.mw, self, self.getDictionaryNames(), group, groupName)
-            dictEditor.exec_()
+            dictEditor.exec()
+
+            # dictEditor.exec()
 
     def removeGroup(self, row ):
         if miAsk('Are you sure you would like to remove this dictionary group? This action will happen immediately and is not un-doable.', self):
@@ -306,7 +312,7 @@ class SettingsGui(QTabWidget):
             self.exportTemplates.setRowCount(rc + 1)
             self.exportTemplates.setItem(rc, 0, QTableWidgetItem(template))
             editButton =  QPushButton("Edit");
-            if isWin:
+            if is_win:
                 editButton.setFixedWidth(40)
             else:
                 editButton.setFixedWidth(50)
@@ -314,7 +320,7 @@ class SettingsGui(QTabWidget):
             editButton.clicked.connect(self.editTempRow(rc))
             self.exportTemplates.setCellWidget(rc, 1, editButton)   
             deleteButton =  QPushButton("X");
-            if isWin:
+            if is_win:
                 deleteButton.setFixedWidth(40)
             else:
                 deleteButton.setFixedWidth(40)
@@ -345,7 +351,7 @@ class SettingsGui(QTabWidget):
             template = exportTemplates[templateName]  
             templateEditor = TemplateEditor(self.mw, self, self.getDictionaryNames(), template, templateName)
             templateEditor.loadTemplateEditor(template, templateName)
-            templateEditor.exec_()
+            templateEditor.exec()
 
     def getDictionaryNames(self):
         dictList = self.mw.miDictDB.getAllDictsWithLang()
@@ -371,19 +377,19 @@ class SettingsGui(QTabWidget):
         if miAsk('This will remove any export templates and dictionary groups you have created, and is not undoable. Are you sure you would like to restore the default settings?'):
             conf = self.mw.addonManager.addonConfigDefaults(dirname(__file__))
             self.mw.addonManager.writeConfig(__name__, conf)
-            self.userGuideTab.close()
-            self.userGuideTab.deleteLater()
+            # self.userGuideTab.close()
+            # self.userGuideTab.deleteLater()
             self.close()
             self.reboot()
 
     def addGroup(self):
         dictEditor = DictGroupEditor(self.mw, self, self.getDictionaryNames())
         dictEditor.clearGroupEditor(True)
-        dictEditor.exec_()
+        dictEditor.exec()
 
     def addTemplate(self):
         templateEditor = TemplateEditor(self.mw, self, self.getDictionaryNames())
-        templateEditor.exec_()
+        templateEditor.exec()
 
     def miQLabel(self, text, width):
         label = QLabel(text)
@@ -393,8 +399,8 @@ class SettingsGui(QTabWidget):
 
     def getLineSeparator(self):
         line = QFrame();
-        line.setFrameShape(QFrame.VLine)
-        line.setFrameShadow(QFrame.Plain)
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Plain)
         line.setStyleSheet('QFrame[frameShape="5"]{color: #D5DFE5;}')
         return line
 
@@ -569,7 +575,7 @@ class SettingsGui(QTabWidget):
         return re.sub(r'l\d+name', '', name)
 
     def getSVGWidget(self,  name):
-        widget = MigakuSVG(join(self.addonPath, 'icons', name))
+        widget = MisoSVG(join(self.addonPath, 'icons', name))
         widget.setFixedSize(27,27)
         return widget
 
@@ -580,90 +586,90 @@ class SettingsGui(QTabWidget):
             html = fh.read()
         return html, url
 
-    def getUserGuideTab(self):
-        guide = AnkiWebView()
-        guide._page.profile().setHttpUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
-        guide._page._bridge.onCmd = attemptOpenLink
-        html, url = self.getHTML()
-        guide._page.setHtml(html, url)
-        guide.setObjectName("tab_4")
-        return guide
+    # def getUserGuideTab(self):
+    #     guide = AnkiWebView()
+    #     guide._page.profile().setHttpUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
+    #     guide._page._bridge.onCmd = attemptOpenLink
+    #     html, url = self.getHTML()
+    #     guide._page.setHtml(html, url)
+    #     guide.setObjectName("tab_4")
+    #     return guide
 
-    def getAboutTab(self):
-        tab_4 = QWidget()
-        tab_4.setObjectName("tab_4")
-        tab4vl = QVBoxLayout()
-        migakuAbout = QGroupBox()
-        migakuAbout.setTitle('Migaku')
-        migakuAboutVL = QVBoxLayout()
-
-        migakuAbout.setStyleSheet("QGroupBox { font-weight: bold; } ")
-        migakuAboutText = QLabel("This an original Migaku add-on. Migaku seeks to be a comprehensive platform for acquiring foreign languages. The official Migaku website will be published soon!")
-        migakuAboutText.setWordWrap(True);
-        migakuAboutText.setOpenExternalLinks(True);
-        migakuAbout.setLayout(migakuAboutVL)
-        migakuAboutLinksTitle = QLabel("<b>Links<b>")
- 
-        migakuAboutLinksHL3 = QHBoxLayout()
-
-
-        migakuInfo = QLabel("Migaku:")
-        migakuInfoSite = self.getSVGWidget('migaku.svg')
-        migakuInfoSite.setCursor(QCursor(Qt.PointingHandCursor))
-
-        migakuInfoYT = self.getSVGWidget('Youtube.svg')
-        migakuInfoYT.setCursor(QCursor(Qt.PointingHandCursor))
-
-        migakuInfoTW = self.getSVGWidget('Twitter.svg')
-        migakuInfoTW.setCursor(QCursor(Qt.PointingHandCursor))
-
-
-        migakuPatreonIcon = self.getSVGWidget('Patreon.svg')
-        migakuPatreonIcon.setCursor(QCursor(Qt.PointingHandCursor))
-        migakuAboutLinksHL3.addWidget(migakuInfo)
-        migakuAboutLinksHL3.addWidget(migakuInfoSite)
-        migakuAboutLinksHL3.addWidget(migakuInfoYT)
-        migakuAboutLinksHL3.addWidget(migakuInfoTW)
-        migakuAboutLinksHL3.addWidget(migakuPatreonIcon)
-        migakuAboutLinksHL3.addStretch()
-
-        migakuAboutVL.addWidget(migakuAboutText)
-        migakuAboutVL.addWidget(migakuAboutLinksTitle)
-        migakuAboutVL.addLayout(migakuAboutLinksHL3)
-        
-        migakuContact = QGroupBox()
-        migakuContact.setTitle('Contact Us')
-        migakuContactVL = QVBoxLayout()
-        migakuContact.setStyleSheet("QGroupBox { font-weight: bold; } ")
-        migakuContactText = QLabel("If you would like to report a bug or contribute to the add-on, the best way to do so is by starting a ticket or pull request on GitHub. If you are looking for personal assistance using the add-on, check out the Migaku Patreon Discord Server.")
-        migakuContactText.setWordWrap(True)
-
-        gitHubIcon = self.getSVGWidget('Github.svg')
-        gitHubIcon.setCursor(QCursor(Qt.PointingHandCursor))
-        
-        migakuThanks = QGroupBox()
-        migakuThanks.setTitle('A Word of Thanks')
-        migakuThanksVL = QVBoxLayout()
-        migakuThanks.setStyleSheet("QGroupBox { font-weight: bold; } ")
-        migakuThanksText = QLabel("Thanks so much to all Migaku supporters! We would not have been able to develop this add-on or any other Migaku project without your support!")
-        migakuThanksText.setOpenExternalLinks(True);
-        migakuThanksText.setWordWrap(True);
-        migakuThanksVL.addWidget(migakuThanksText)
-
-        migakuContactVL.addWidget(migakuContactText)
-        migakuContactVL.addWidget(gitHubIcon)
-        migakuContact.setLayout(migakuContactVL)
-        migakuThanks.setLayout(migakuThanksVL)
-        tab4vl.addWidget(migakuAbout)
-        tab4vl.addWidget(migakuContact)
-        tab4vl.addWidget(migakuThanks)
-        tab4vl.addStretch()
-        tab_4.setLayout(tab4vl)
-
-        migakuInfoSite.clicked.connect(lambda: openLink('https://migaku.io'))
-        migakuPatreonIcon.clicked.connect(lambda: openLink('https://www.patreon.com/Migaku'))
-        migakuInfoYT.clicked.connect(lambda: openLink('https://www.youtube.com/channel/UCQFe3x4WAgm7joN5daMm5Ew'))
-        migakuInfoTW.clicked.connect(lambda: openLink('https://twitter.com/Migaku_Yoga'))
-        gitHubIcon.clicked.connect(lambda: openLink('https://github.com/migaku-official/Migaku-Dictionary-Addon'))
-        return tab_4
+    # def getAboutTab(self):
+    #     tab_4 = QWidget()
+    #     tab_4.setObjectName("tab_4")
+    #     tab4vl = QVBoxLayout()
+    #     misoAbout = QGroupBox()
+    #     misoAbout.setTitle('Miso')
+    #     misoAboutVL = QVBoxLayout()
+    #
+    #     misoAbout.setStyleSheet("QGroupBox { font-weight: bold; } ")
+    #     misoAboutText = QLabel("This an original miso add-on. miso seeks to be a comprehensive platform for acquiring foreign languages. The official miso website will be published soon!")
+    #     misoAboutText.setWordWrap(True)
+    #     misoAboutText.setOpenExternalLinks(True)
+    #     misoAbout.setLayout(misoAboutVL)
+    #     misoAboutLinksTitle = QLabel("<b>Links<b>")
+    #
+    #     misoAboutLinksHL3 = QHBoxLayout()
+    #
+    #
+    #     misoInfo = QLabel("Miso:")
+    #     misoInfoSite = self.getSVGWidget('miso.svg')
+    #     misoInfoSite.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+    #
+    #     misoInfoYT = self.getSVGWidget('Youtube.svg')
+    #     misoInfoYT.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+    #
+    #     misoInfoTW = self.getSVGWidget('Twitter.svg')
+    #     misoInfoTW.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+    #
+    #
+    #     misoPatreonIcon = self.getSVGWidget('Patreon.svg')
+    #     misoPatreonIcon.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+    #     misoAboutLinksHL3.addWidget(misoInfo)
+    #     misoAboutLinksHL3.addWidget(misoInfoSite)
+    #     misoAboutLinksHL3.addWidget(misoInfoYT)
+    #     misoAboutLinksHL3.addWidget(misoInfoTW)
+    #     misoAboutLinksHL3.addWidget(misoPatreonIcon)
+    #     misoAboutLinksHL3.addStretch()
+    #
+    #     misoAboutVL.addWidget(misoAboutText)
+    #     misoAboutVL.addWidget(misoAboutLinksTitle)
+    #     misoAboutVL.addLayout(misoAboutLinksHL3)
+    #
+    #     misoContact = QGroupBox()
+    #     misoContact.setTitle('Contact Us')
+    #     misoContactVL = QVBoxLayout()
+    #     misoContact.setStyleSheet("QGroupBox { font-weight: bold; } ")
+    #     misoContactText = QLabel("If you would like to report a bug or contribute to the add-on, the best way to do so is by starting a ticket or pull request on GitHub. If you are looking for personal assistance using the add-on, check out the miso Patreon Discord Server.")
+    #     misoContactText.setWordWrap(True)
+    #
+    #     gitHubIcon = self.getSVGWidget('Github.svg')
+    #     gitHubIcon.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+    #
+    #     misoThanks = QGroupBox()
+    #     misoThanks.setTitle('A Word of Thanks')
+    #     misoThanksVL = QVBoxLayout()
+    #     misoThanks.setStyleSheet("QGroupBox { font-weight: bold; } ")
+    #     misoThanksText = QLabel("Thanks so much to all miso supporters! We would not have been able to develop this add-on or any other miso project without your support!")
+    #     misoThanksText.setOpenExternalLinks(True);
+    #     misoThanksText.setWordWrap(True);
+    #     misoThanksVL.addWidget(misoThanksText)
+    #
+    #     misoContactVL.addWidget(misoContactText)
+    #     misoContactVL.addWidget(gitHubIcon)
+    #     misoContact.setLayout(misoContactVL)
+    #     misoThanks.setLayout(misoThanksVL)
+    #     tab4vl.addWidget(misoAbout)
+    #     tab4vl.addWidget(misoContact)
+    #     tab4vl.addWidget(misoThanks)
+    #     tab4vl.addStretch()
+    #     tab_4.setLayout(tab4vl)
+    #
+    #     misoInfoSite.clicked.connect(lambda: openLink('https://migaku.io'))
+    #     misoPatreonIcon.clicked.connect(lambda: openLink('https://www.patreon.com/Miso'))
+    #     misoInfoYT.clicked.connect(lambda: openLink('https://www.youtube.com/channel/UCQFe3x4WAgm7joN5daMm5Ew'))
+    #     misoInfoTW.clicked.connect(lambda: openLink('https://twitter.com/Miso_Yoga'))
+    #     gitHubIcon.clicked.connect(lambda: openLink('https://github.com/miso-official/Miso-Dictionary-Addon'))
+    #     return tab_4
 

@@ -23,8 +23,8 @@ class FreqConjWebWindow(QDialog):
         self.mode = mode
         self.mode_str = 'frequency' if self.mode == self.Mode.Freq else 'conjugation'
 
-        self.setWindowTitle('Migaku Dictionary - Web Installer')
-        self.setWindowIcon(QIcon(os.path.join(addon_path, 'icons', 'migaku.png')))
+        self.setWindowTitle('Miso Dictionary - Web Installer')
+        self.setWindowIcon(QIcon(os.path.join(addon_path, 'icons', 'miso.png')))
 
         lyt = QVBoxLayout()
         self.setLayout(lyt)
@@ -46,7 +46,7 @@ class FreqConjWebWindow(QDialog):
             if 'name_native' in lang:
                 lang_str += ' (' + lang['name_native'] + ')'
             itm = QListWidgetItem(lang_str)
-            itm.setData(Qt.UserRole, url)
+            itm.setData(Qt.ItemDataRole.UserRole, url)
             self.lst.addItem(itm)
 
         btn = QPushButton('Download')
@@ -61,7 +61,7 @@ class FreqConjWebWindow(QDialog):
         if not idx.isValid():
             QMessageBox.show(self, self.windowTitle(), 'Please select a language.')
             return
-        url = idx.data(Qt.UserRole)
+        url = idx.data(Qt.ItemDataRole.UserRole)
 
         client = HttpClient()
         resp = client.get(url)
@@ -98,9 +98,9 @@ class FreqConjWebWindow(QDialog):
         index_data = webConfig.download_index()
         if index_data is None:
             QMessageBox.information(None,
-                                    'Migaku Dictioanry',
+                                    'Miso Dictionary',
                                     'The dictionary server is not reachable at the moment.\n\n'\
                                     'Please try again later.')
             return QDialog.Rejected
         window = cls(dst_lang, index_data, mode)
-        return window.exec_()
+        return window.exec()

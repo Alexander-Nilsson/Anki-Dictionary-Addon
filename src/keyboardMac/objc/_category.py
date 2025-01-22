@@ -1,8 +1,8 @@
 __all__ = ["classAddMethod", "Category"]
 
-from objc._objc import selector, classAddMethods, objc_class, ivar
-
 from types import FunctionType, MethodType
+
+from objc._objc import classAddMethods, ivar, objc_class, selector
 
 
 def classAddMethod(cls, name, method):
@@ -10,6 +10,9 @@ def classAddMethod(cls, name, method):
     Add a single method to a class. 'name' is the ObjC selector
     """
     if isinstance(method, selector):
+        if not hasattr(method, "callable"):
+            raise ValueError("Cannot add native selector to class") from None
+
         sel = selector(
             method.callable,
             selector=name,
@@ -49,24 +52,24 @@ class _CategoryMeta(type):
         if c.__name__ != name:
             raise TypeError("Category name must be same as class name")
 
-        m = [
+        callables = [
             x[1]
             for x in methods.items()
             if x[0] not in cls._IGNORENAMES
             and isinstance(x[1], (FunctionType, MethodType, selector, classmethod))
         ]
-        vars = [
+        variables = [
             x
             for x in methods.items()
             if x[0] not in cls._IGNORENAMES
             and not isinstance(x[1], (FunctionType, MethodType, selector, classmethod))
         ]
-        for k, v in vars:
+        for _k, v in variables:
             if isinstance(v, ivar):
                 raise TypeError("Cannot add instance variables in a Category")
 
-        classAddMethods(c, m)
-        for k, v in vars:
+        classAddMethods(c, callables)
+        for k, v in variables:
             setattr(c, k, v)
         return c
 
@@ -86,5 +89,5 @@ def Category(cls):
     """
     if not isinstance(cls, objc_class):
         raise TypeError("Category can only be used on Objective-C classes")
-    retval = _CategoryMeta._newSubclass("Category", (), dict(real_class=cls))
+    retval = _CategoryMeta._newSubclass("Category", (), {"real_class": cls})
     return retval

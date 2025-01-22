@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -31,7 +31,7 @@ import unicodedata
 
 import six
 
-from pynput._util import AbstractListener
+from pynput._util import AbstractListener, prefix
 from pynput import _logger
 
 
@@ -40,18 +40,31 @@ class KeyCode(object):
     A :class:`KeyCode` represents the description of a key code used by the
     operating system.
     """
-    def __init__(self, vk=None, char=None, is_dead=False):
+    #: The names of attributes used as platform extensions.
+    _PLATFORM_EXTENSIONS = []
+
+    def __init__(self, vk=None, char=None, is_dead=False, **kwargs):
         self.vk = vk
         self.char = six.text_type(char) if char is not None else None
         self.is_dead = is_dead
 
         if self.is_dead:
-            self.combining = unicodedata.lookup(
-                'COMBINING ' + unicodedata.name(self.char))
-            if not self.combining:
+            try:
+                self.combining = unicodedata.lookup(
+                    'COMBINING ' + unicodedata.name(self.char))
+            except KeyError:
+                self.is_dead = False
+                self.combining = None
+            if self.is_dead and not self.combining:
                 raise KeyError(char)
         else:
             self.combining = None
+
+        for key in self._PLATFORM_EXTENSIONS:
+            setattr(self, key, kwargs.pop(key, None))
+        if kwargs:
+            raise ValueError(kwargs)
+
 
     def __repr__(self):
         if self.is_dead:
@@ -70,7 +83,9 @@ class KeyCode(object):
         if self.char is not None and other.char is not None:
             return self.char == other.char and self.is_dead == other.is_dead
         else:
-            return self.vk == other.vk
+            return self.vk == other.vk and all(
+                getattr(self, f) == getattr(other, f)
+                for f in self._PLATFORM_EXTENSIONS)
 
     def __hash__(self):
         return hash(repr(self))
@@ -153,134 +168,152 @@ class Key(enum.Enum):
     everywhere.
     """
     #: A generic Alt key. This is a modifier.
-    alt = 0
+    alt = KeyCode.from_vk(0)
 
     #: The left Alt key. This is a modifier.
-    alt_l = 0
+    alt_l = KeyCode.from_vk(0)
 
     #: The right Alt key. This is a modifier.
-    alt_r = 0
+    alt_r = KeyCode.from_vk(0)
 
     #: The AltGr key. This is a modifier.
-    alt_gr = 0
+    alt_gr = KeyCode.from_vk(0)
 
     #: The Backspace key.
-    backspace = 0
+    backspace = KeyCode.from_vk(0)
 
     #: The CapsLock key.
-    caps_lock = 0
+    caps_lock = KeyCode.from_vk(0)
 
     #: A generic command button. On *PC* platforms, this corresponds to the
     #: Super key or Windows key, and on *Mac* it corresponds to the Command
     #: key. This may be a modifier.
-    cmd = 0
+    cmd = KeyCode.from_vk(0)
 
     #: The left command button. On *PC* platforms, this corresponds to the
     #: Super key or Windows key, and on *Mac* it corresponds to the Command
     #: key. This may be a modifier.
-    cmd_l = 0
+    cmd_l = KeyCode.from_vk(0)
 
     #: The right command button. On *PC* platforms, this corresponds to the
     #: Super key or Windows key, and on *Mac* it corresponds to the Command
     #: key. This may be a modifier.
-    cmd_r = 0
+    cmd_r = KeyCode.from_vk(0)
 
     #: A generic Ctrl key. This is a modifier.
-    ctrl = 0
+    ctrl = KeyCode.from_vk(0)
 
     #: The left Ctrl key. This is a modifier.
-    ctrl_l = 0
+    ctrl_l = KeyCode.from_vk(0)
 
     #: The right Ctrl key. This is a modifier.
-    ctrl_r = 0
+    ctrl_r = KeyCode.from_vk(0)
 
     #: The Delete key.
-    delete = 0
+    delete = KeyCode.from_vk(0)
 
     #: A down arrow key.
-    down = 0
+    down = KeyCode.from_vk(0)
 
     #: The End key.
-    end = 0
+    end = KeyCode.from_vk(0)
 
     #: The Enter or Return key.
-    enter = 0
+    enter = KeyCode.from_vk(0)
 
     #: The Esc key.
-    esc = 0
+    esc = KeyCode.from_vk(0)
 
     #: The function keys. F1 to F20 are defined.
-    f1 = 0
-    f2 = 0
-    f3 = 0
-    f4 = 0
-    f5 = 0
-    f6 = 0
-    f7 = 0
-    f8 = 0
-    f9 = 0
-    f10 = 0
-    f11 = 0
-    f12 = 0
-    f13 = 0
-    f14 = 0
-    f15 = 0
-    f16 = 0
-    f17 = 0
-    f18 = 0
-    f19 = 0
-    f20 = 0
+    f1 = KeyCode.from_vk(0)
+    f2 = KeyCode.from_vk(0)
+    f3 = KeyCode.from_vk(0)
+    f4 = KeyCode.from_vk(0)
+    f5 = KeyCode.from_vk(0)
+    f6 = KeyCode.from_vk(0)
+    f7 = KeyCode.from_vk(0)
+    f8 = KeyCode.from_vk(0)
+    f9 = KeyCode.from_vk(0)
+    f10 = KeyCode.from_vk(0)
+    f11 = KeyCode.from_vk(0)
+    f12 = KeyCode.from_vk(0)
+    f13 = KeyCode.from_vk(0)
+    f14 = KeyCode.from_vk(0)
+    f15 = KeyCode.from_vk(0)
+    f16 = KeyCode.from_vk(0)
+    f17 = KeyCode.from_vk(0)
+    f18 = KeyCode.from_vk(0)
+    f19 = KeyCode.from_vk(0)
+    f20 = KeyCode.from_vk(0)
 
     #: The Home key.
-    home = 0
+    home = KeyCode.from_vk(0)
 
     #: A left arrow key.
-    left = 0
+    left = KeyCode.from_vk(0)
 
     #: The PageDown key.
-    page_down = 0
+    page_down = KeyCode.from_vk(0)
 
     #: The PageUp key.
-    page_up = 0
+    page_up = KeyCode.from_vk(0)
 
     #: A right arrow key.
-    right = 0
+    right = KeyCode.from_vk(0)
 
     #: A generic Shift key. This is a modifier.
-    shift = 0
+    shift = KeyCode.from_vk(0)
 
     #: The left Shift key. This is a modifier.
-    shift_l = 0
+    shift_l = KeyCode.from_vk(0)
 
     #: The right Shift key. This is a modifier.
-    shift_r = 0
+    shift_r = KeyCode.from_vk(0)
 
     #: The Space key.
-    space = 0
+    space = KeyCode.from_vk(0)
 
     #: The Tab key.
-    tab = 0
+    tab = KeyCode.from_vk(0)
 
     #: An up arrow key.
-    up = 0
+    up = KeyCode.from_vk(0)
+
+    #: The play/pause toggle.
+    media_play_pause = KeyCode.from_vk(0)
+
+    #: The volume mute button.
+    media_volume_mute = KeyCode.from_vk(0)
+
+    #: The volume down button.
+    media_volume_down = KeyCode.from_vk(0)
+
+    #: The volume up button.
+    media_volume_up = KeyCode.from_vk(0)
+
+    #: The previous track button.
+    media_previous = KeyCode.from_vk(0)
+
+    #: The next track button.
+    media_next = KeyCode.from_vk(0)
 
     #: The Insert key. This may be undefined for some platforms.
-    insert = 0
+    insert = KeyCode.from_vk(0)
 
     #: The Menu key. This may be undefined for some platforms.
-    menu = 0
+    menu = KeyCode.from_vk(0)
 
     #: The NumLock key. This may be undefined for some platforms.
-    num_lock = 0
+    num_lock = KeyCode.from_vk(0)
 
     #: The Pause/Break key. This may be undefined for some platforms.
-    pause = 0
+    pause = KeyCode.from_vk(0)
 
     #: The PrintScreen key. This may be undefined for some platforms.
-    print_screen = 0
+    print_screen = KeyCode.from_vk(0)
 
     #: The ScrollLock key. This may be undefined for some platforms.
-    scroll_lock = 0
+    scroll_lock = KeyCode.from_vk(0)
 
 
 class Controller(object):
@@ -316,28 +349,6 @@ class Controller(object):
         self._caps_lock = False
         self._dead_key = None
 
-        kc = self._Key
-
-        # pylint: disable=C0103; this is treated as a class scope constant, but
-        # we cannot set it in the class scope, as _Key is overridden by
-        # platform implementations
-        # pylint: disable=C0326; it is easier to read column aligned keys
-        #: The keys used as modifiers; the first value in each tuple is the
-        #: base modifier to use for subsequent modifiers.
-        self._MODIFIER_KEYS = (
-            (kc.alt_gr, (kc.alt_gr.value,)),
-            (kc.alt,    (kc.alt.value,   kc.alt_l.value,   kc.alt_r.value)),
-            (kc.cmd,    (kc.cmd.value,   kc.cmd_l.value,   kc.cmd_r.value)),
-            (kc.ctrl,   (kc.ctrl.value,  kc.ctrl_l.value,  kc.ctrl_r.value)),
-            (kc.shift,  (kc.shift.value, kc.shift_l.value, kc.shift_r.value)))
-
-        #: Control codes to transform into key codes when typing
-        self._CONTROL_CODES = {
-            '\n': kc.enter,
-            '\r': kc.enter,
-            '\t': kc.tab}
-        # pylint: enable=C0103,C0326
-
     def press(self, key):
         """Presses a key.
 
@@ -355,6 +366,8 @@ class Controller(object):
         :raises ValueError: if ``key`` is a string, but its length is not ``1``
         """
         resolved = self._resolve(key)
+        if resolved is None:
+            raise self.InvalidKeyException(key)
         self._update_modifiers(resolved, True)
 
         # Update caps lock state
@@ -403,6 +416,8 @@ class Controller(object):
         :raises ValueError: if ``key`` is a string, but its length is not ``1``
         """
         resolved = self._resolve(key)
+        if resolved is None:
+            raise self.InvalidKeyException(key)
         self._update_modifiers(resolved, False)
 
         # Ignore released dead keys
@@ -410,6 +425,23 @@ class Controller(object):
             return
 
         self._handle(resolved, False)
+
+    def tap(self, key):
+        """Presses and releases a key.
+
+        This is equivalent to the following code::
+
+            controller.press(key)
+            controller.release(key)
+
+        :param key: The key to press.
+
+        :raises InvalidKeyException: if the key is invalid
+
+        :raises ValueError: if ``key`` is a string, but its length is not ``1``
+        """
+        self.press(key)
+        self.release(key)
 
     def touch(self, key, is_press):
         """Calls either :meth:`press` or :meth:`release` depending on the value
@@ -452,8 +484,9 @@ class Controller(object):
         :raises InvalidCharacterException: if an untypable character is
             encountered
         """
+        from . import _CONTROL_CODES
         for i, character in enumerate(string):
-            key = self._CONTROL_CODES.get(character, character)
+            key = _CONTROL_CODES.get(character, character)
             try:
                 self.press(key)
                 self.release(key)
@@ -586,9 +619,8 @@ class Controller(object):
         :return: the base modifier key, or ``None`` if ``key`` is not a
             modifier
         """
-        for base, modifiers in self._MODIFIER_KEYS:
-            if key in modifiers:
-                return base
+        from . import _NORMAL_MODIFIERS
+        return _NORMAL_MODIFIERS.get(key, None)
 
     def _handle(self, key, is_press):
         """The platform implementation of the actual emitting of keyboard
@@ -635,24 +667,32 @@ class Listener(AbstractListener):
         system.
 
     :param kwargs: Any non-standard platform dependent options. These should be
-        prefixed with the platform name thus: ``darwin_``, ``xorg_`` or
-        ``win32_``.
+        prefixed with the platform name thus: ``darwin_``, ``uinput_``,
+        ``xorg_`` or ``win32_``.
 
         Supported values are:
 
         ``darwin_intercept``
             A callable taking the arguments ``(event_type, event)``, where
             ``event_type`` is ``Quartz.kCGEventKeyDown`` or
-            ``Quartz.kCGEventKeyDown``, and ``event`` is a ``CGEventRef``.
+            ``Quartz.kCGEventKeyUp``, and ``event`` is a ``CGEventRef``.
 
             This callable can freely modify the event using functions like
             ``Quartz.CGEventSetIntegerValueField``. If this callable does not
             return the event, the event is suppressed system wide.
 
+        ``uinput_device_paths``
+            A list of device paths.
+
+            If this is specified, *pynput* will limit the number of devices
+            checked for the capabilities needed to those passed, otherwise all
+            system devices will be used. Passing this might be required if an
+            incorrect device is chosen.
+
         ``win32_event_filter``
             A callable taking the arguments ``(msg, data)``, where ``msg`` is
             the current message, and ``data`` associated data as a
-            `KBLLHOOKSTRUCT <https://msdn.microsoft.com/en-us/library/windows/desktop/ms644967(v=vs.85).aspx>`_.
+            `KBDLLHOOKSTRUCT <https://docs.microsoft.com/en-gb/windows/win32/api/winuser/ns-winuser-kbdllhookstruct>`_.
 
             If this callback returns ``False``, the event will not be
             propagated to the listener callback.
@@ -663,11 +703,37 @@ class Listener(AbstractListener):
     def __init__(self, on_press=None, on_release=None, suppress=False,
                  **kwargs):
         self._log = _logger(self.__class__)
-        prefix = self.__class__.__module__.rsplit('.', 1)[-1][1:] + '_'
+        option_prefix = prefix(Listener, self.__class__)
         self._options = {
-            key[len(prefix):]: value
+            key[len(option_prefix):]: value
             for key, value in kwargs.items()
-            if key.startswith(prefix)}
+            if key.startswith(option_prefix)}
         super(Listener, self).__init__(
             on_press=on_press, on_release=on_release, suppress=suppress)
 # pylint: enable=W0223
+
+    def canonical(self, key):
+        """Performs normalisation of a key.
+
+        This method attempts to convert key events to their canonical form, so
+        that events will equal regardless of modifier state.
+
+        This method will convert upper case keys to lower case keys, convert
+        any modifiers with a right and left version to the same value, and may
+        slow perform additional platform dependent normalisation.
+
+        :param key: The key to normalise.
+        :type key: Key or KeyCode
+
+        :return: a key
+        :rtype: Key or KeyCode
+        """
+        from pynput.keyboard import Key, KeyCode, _NORMAL_MODIFIERS
+        if isinstance(key, KeyCode) and key.char is not None:
+            return KeyCode.from_char(key.char.lower())
+        elif isinstance(key, Key) and key.value in _NORMAL_MODIFIERS:
+            return _NORMAL_MODIFIERS[key.value]
+        elif isinstance(key, Key) and key.value.vk is not None:
+            return KeyCode.from_vk(key.value.vk)
+        else:
+            return key

@@ -23,31 +23,25 @@ __all__ = [
     "callbackPointer",
 ]
 
-from objc._objc import (
-    ivar,
-    selector,
-    _makeClosure,
-    selector,
-    _C_SEL,
-    _C_ID,
-    _C_NSUInteger,
-    _C_NSBOOL,
-    _closurePointer,
-)
-import sys, textwrap
+import sys
+import textwrap
 import warnings
 
-try:
-    from inspect import getargspec
-except ImportError:
-    getargspec = None
+from objc._objc import (
+    _C_ID,
+    _C_NSBOOL,
+    _C_SEL,
+    _C_NSUInteger,
+    _closurePointer,
+    _makeClosure,
+    ivar,
+    selector,
+)
 
-try:
-    from inspect import getfullargspec
-except ImportError:
-    getfullargspec = None
+from inspect import getfullargspec
 
-_C_NSRange = [b"{_NSRange=II}", b"{_NSRange=QQ}"][sys.maxsize > 2 ** 32]
+_C_NSRange = [b"{_NSRange=II}", b"{_NSRange=QQ}"][sys.maxsize > 2**32]
+
 
 #
 # Interface builder support.
@@ -102,13 +96,15 @@ def accessor(func, typeSignature=b"@"):
     Return an Objective-C method object that is conformant with key-value coding
     and key-value observing.
     """
-    if getfullargspec is not None:
-        args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, annotations = getfullargspec(
-            func
-        )
-    else:
-        args, varargs, varkw, defaults = getargspec(func)
-        kwonlyargs = kwonlydefaults = annotations = None
+    (
+        args,
+        varargs,
+        varkw,
+        defaults,
+        kwonlyargs,
+        _kwonlydefaults,
+        _annotations,
+    ) = getfullargspec(func)
     funcName = func.__name__
     maxArgs = len(args)
     minArgs = maxArgs - len(defaults or ())
@@ -123,12 +119,14 @@ def accessor(func, typeSignature=b"@"):
     if not (minArgs <= selArgs <= maxArgs):
         if minArgs == maxArgs:
             raise TypeError(
-                "%s expected to take %d args, but must accept %d from Objective-C (implicit self plus count of underscores)"
+                "%s expected to take %d args, but must accept %d "
+                "from Objective-C (implicit self plus count of underscores)"
                 % (funcName, maxArgs, selArgs)
             )
         else:
             raise TypeError(
-                "%s expected to take between %d and %d args, but must accept %d from Objective-C (implicit self plus count of underscores)"
+                "%s expected to take between %d and %d args, but must accept %d "
+                "from Objective-C (implicit self plus count of underscores)"
                 % (funcName, minArgs, maxArgs, selArgs)
             )
 
@@ -182,13 +180,16 @@ def accessor(func, typeSignature=b"@"):
 
         return selector(func, signature=typeSignature + b"@:")
 
-    raise TypeError("%s not recognized as an accessor" % (funcName,))
+    raise TypeError(f"{funcName} not recognized as an accessor")
 
 
 def typedSelector(signature):
     def _typedSelector(func):
         if func is None:
             raise TypeError("typedSelector() function argument must be a callable")
+        if isinstance(func, classmethod):
+            return selector(func.__func__, signature=signature, isClassMethod=True)
+
         return selector(func, signature=signature)
 
     return _typedSelector
@@ -206,14 +207,27 @@ def namedSelector(name, signature=None):
 
         def _namedselector(func):
             if func is None:
-                raise TypeError("IBAction argument must be a callable")
+                raise TypeError("namedSelector argument must be a callable")
+            if isinstance(func, classmethod):
+                return selector(
+                    func.__func__,
+                    selector=name,
+                    signature=signature,
+                    isClassMethod=True,
+                )
             return selector(func, selector=name, signature=signature)
 
     else:
 
         def _namedselector(func):
             if func is None:
-                raise TypeError("IBAction argument must be a callable")
+                raise TypeError("namedSelector argument must be a callable")
+            if isinstance(func, classmethod):
+                return selector(
+                    func.__func__,
+                    selector=name,
+                    isClassMethod=True,
+                )
             return selector(func, selector=name)
 
     return _namedselector
@@ -248,14 +262,16 @@ def typedAccessor(typeSignature):
 
 
 def Accessor(func):
-    warnings.warn("Use objc.accessor instead of objc.Accessor", DeprecationWarning)
+    warnings.warn(
+        "Use objc.accessor instead of objc.Accessor", DeprecationWarning, stacklevel=2
+    )
     return accessor(func)
 
 
 #
 # Callback support
 #
-def callbackFor(callable, argIndex=-1):
+def callbackFor(callable, argIndex=-1):  # noqa: A002
     """
     Decorator for converting a function into an object that can be used
     as a callback function for (Objective-)C API's that take such a beast
@@ -291,14 +307,14 @@ def callbackPointer(closure):
     return _closurePointer(closure.pyobjc_closure)
 
 
-def selectorFor(callable, argIndex=-1):
+def selectorFor(callable, argIndex=-1):  # noqa: A002
     """
     Decorator that makes sure that the method has the right signature to be
     used as the selector argument to the specified method.
 
     Usage::
 
-        @objc.selectorFor(NSApplication.beginSheet_modalForWindow_modalDelegate_didEndSelector_contextInfo_)
+        @objc.selectorFor(NSApplication.beginSheet_modalForWindow_modalDelegate_didEndSelector_contextInfo_)  # noqa: B950
         def sheetDidEnd_returnCode_contextInfo_(self, sheet, returnCode, info):
             pass
     """
@@ -308,7 +324,7 @@ def selectorFor(callable, argIndex=-1):
                 signature = arg["sel_of_type"]
                 break
         else:
-            raise ValueError("No selector argument with type information")
+            raise ValueError("Not a selector argument with type information")
 
     else:
         try:
@@ -322,11 +338,13 @@ def selectorFor(callable, argIndex=-1):
     return addSignature
 
 
-def synthesize(name, copy=False, readwrite=True, type=_C_ID, ivarName=None):
+def synthesize(
+    name, copy=False, readwrite=True, type=_C_ID, ivarName=None  # noqa: A002
+):
     """
     Use this in a class dictionary to syntheze simple setting/setter methods.
 
-    Note: this is only necessary to get propper behaviour when Key-Value coding
+    Note: this is only necessary to get proper behaviour when Key-Value coding
     is used and special features (like copying) are needed
 
     usage::
@@ -343,7 +361,7 @@ def synthesize(name, copy=False, readwrite=True, type=_C_ID, ivarName=None):
 
     classDict = sys._getframe(1).f_locals
 
-    setterName = "set%s%s_" % (name[0].upper(), name[1:])
+    setterName = f"set{name[0].upper()}{name[1:]}_"
 
     if copy:
         setter = textwrap.dedent(
@@ -351,7 +369,7 @@ def synthesize(name, copy=False, readwrite=True, type=_C_ID, ivarName=None):
             def %(name)s(self, value):
                 self.%(ivar)s = value.copy()
             """
-            % dict(name=setterName, ivar=ivarName)
+            % {"name": setterName, "ivar": ivarName}
         )
 
     else:
@@ -360,7 +378,7 @@ def synthesize(name, copy=False, readwrite=True, type=_C_ID, ivarName=None):
             def %(name)s(self, value):
                 self.%(ivar)s = value
             """
-            % dict(name=setterName, ivar=ivarName)
+            % {"name": setterName, "ivar": ivarName}
         )
 
     getter = textwrap.dedent(
@@ -368,7 +386,7 @@ def synthesize(name, copy=False, readwrite=True, type=_C_ID, ivarName=None):
             def %(name)s(self):
                 return self.%(ivar)s
             """
-        % dict(name=name, ivar=ivarName)
+        % {"name": name, "ivar": ivarName}
     )
 
     if readwrite:
@@ -391,7 +409,9 @@ def signature(signature, **kw):
             return 0
     """
     warnings.warn(
-        "Usage objc.typedSelector instead of objc.signature", DeprecationWarning
+        "Usage objc.typedSelector instead of objc.signature",
+        DeprecationWarning,
+        stacklevel=2,
     )
     kw["signature"] = signature
 

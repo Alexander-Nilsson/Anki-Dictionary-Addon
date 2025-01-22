@@ -1,17 +1,17 @@
 """
 Convenience methods for Cocoa mapping types.
 """
+
 __all__ = ("addConvenienceForBasicMapping",)
 
-from objc._objc import selector
-from objc._convenience import addConvenienceForClass, CLASS_ABC
-from objc._convenience import container_unwrap, container_wrap
-import sys
+import collections.abc
 
-if sys.version_info[0] == 2:
-    import collections as collections_abc
-else:
-    import collections.abc as collections_abc
+from objc._convenience import (
+    CLASS_ABC,
+    addConvenienceForClass,
+    container_unwrap,
+    container_wrap,
+)
 
 
 def __getitem__objectForKey_(self, key):
@@ -37,22 +37,22 @@ _CONVENIENCES_MAPPING_RO = (
     ("__contains__", contains_objectForKey_),
 )
 
+
 def __delitem__removeObjectForKey_(self, key):
     self.removeObjectForKey_(container_wrap(key))
 
 
 def update_setObject_forKey_(self, *args, **kwds):
-    # XXX - should this be more flexible?
     if len(args) == 0:
         pass
     elif len(args) != 1:
-        raise TypeError("update expected at most 1 arguments, got {0}".format(len(args)))
+        raise TypeError(f"update expected at most 1 arguments, got {len(args)}")
 
     else:
         other = args[0]
         if hasattr(other, "keys"):
             # This mirrors the implementation of dict.update, but seems
-            # wrong for Python3 (with collectons.abc.Dict)
+            # wrong for Python3 (with collections.abc.Dict)
             for key in other.keys():
                 self[key] = other[key]
 
@@ -96,7 +96,7 @@ def popitem_setObject_forKey_(self):
         it = self.keyEnumerator()
         k = container_unwrap(it.nextObject(), StopIteration)
     except (StopIteration, IndexError):
-        raise KeyError("popitem on an empty %s" % (type(self).__name__,))
+        raise KeyError(f"popitem on an empty {type(self).__name__}")
     else:
         result = (k, container_unwrap(self.objectForKey_(k), KeyError))
         self.removeObjectForKey_(k)
@@ -115,10 +115,10 @@ _CONVENIENCES_MAPPING_RW = _CONVENIENCES_MAPPING_RO + (
 
 def addConvenienceForBasicMapping(classname, readonly=True):
     """
-    Add the convience methods for a Cocoa mapping type
+    Add the convenience methods for a Cocoa mapping type
 
     Used to add the basic collections.abc.Mapping or collections.abc.MutableMapping
-    APIs to a Cocoa class that has an API simular to NSDictionary.
+    APIs to a Cocoa class that has an API similar to NSDictionary.
     """
     addConvenienceForClass(
         classname, _CONVENIENCES_MAPPING_RO if readonly else _CONVENIENCES_MAPPING_RW
@@ -129,4 +129,4 @@ def addConvenienceForBasicMapping(classname, readonly=True):
     except KeyError:
         lst = CLASS_ABC[classname] = []
 
-    lst.append(collections_abc.Mapping if readonly else collections_abc.MutableMapping)
+    lst.append(collections.abc.Mapping if readonly else collections.abc.MutableMapping)

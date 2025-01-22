@@ -5,7 +5,7 @@ import io
 import os
 import aqt
 
-from .migaku_wizard import *
+from .miso_wizard import *
 from . import webConfig
 
 
@@ -28,8 +28,8 @@ class DictionaryWebInstallWizard(MiWizard):
 
         self.dictionary_force_lang = force_lang
 
-        self.setWindowTitle('Migaku Dictionary - Web Installer')
-        self.setWindowIcon(QIcon(os.path.join(addon_path, 'icons', 'migaku.png')))
+        self.setWindowTitle('Miso Dictionary - Web Installer')
+        self.setWindowIcon(QIcon(os.path.join(addon_path, 'icons', 'miso.png')))
 
         server_add_page = self.add_page(ServerAskPage(self))
         dict_select_page = self.add_page(DictionarySelectPage(self), server_add_page)
@@ -42,7 +42,7 @@ class DictionaryWebInstallWizard(MiWizard):
     @classmethod
     def execute_modal(cls, force_lang=None):
         wizard = cls(force_lang)
-        return wizard.exec_()
+        return wizard.exec()
 
 
 
@@ -94,13 +94,13 @@ class ServerAskPage(MiWizardPage):
         index_data = webConfig.download_index(server_url)
 
         if index_data is None:
-            QMessageBox.information(self, 'Migaku Dictioanry',
+            QMessageBox.information(self, 'Miso Dictionary',
                                     'The server "%s" is not reachable.\n\n'\
                                     'Make sure you are connected to the internet and the url you entered is valid.' % server_url_usr)
             return False
 
         self.wizard.dictionary_index = index_data
-        self.wizard.dictioanry_server_root = server_url
+        self.wizard.Dictionary_server_root = server_url
 
         return True
 
@@ -148,16 +148,24 @@ class DictionarySelectPage(MiWizardPage):
 
         for li in range(dict_root.childCount()):
             lang_item = dict_root.child(li)
-            language = lang_item.data(0, Qt.UserRole+0)
+            language = lang_item.data(0, Qt.ItemDataRole.UserRole+0)
             dictionaries = []
 
             def scan_tree(item):
                 for di in range(item.childCount()):
                     dict_item = item.child(di)
-                    dictionary = dict_item.data(0, Qt.UserRole+1)
+                    dictionary = dict_item.data(0, Qt.ItemDataRole.UserRole+1)
                     if dictionary:
-                        if dict_item.checkState(0) == Qt.Checked:
-                            dictionaries.append(dictionary)
+                        try:
+                            # Try the new way
+                            if dict_item.checkState(0) == Qt.CheckState.Checked:
+                                dictionaries.append(dictionary)
+                        except AttributeError:
+                            # Fallback for older versions
+                            if dict_item.checkState(0) == Qt.Checked:
+                                dictionaries.append(dictionary)
+                        # if dict_item.checkState(0) == Qt.CheckState.Checked:
+                        #     dictionaries.append(dictionary)
                     else:
                         scan_tree(dict_item)
             
@@ -196,8 +204,8 @@ class DictionarySelectPage(MiWizardPage):
                 text += ' (' + name_native + ')'
 
             lang_item = QTreeWidgetItem([text])
-            lang_item.setData(0, Qt.UserRole+0, language)
-            lang_item.setData(0, Qt.UserRole+1, None)
+            lang_item.setData(0, Qt.ItemDataRole.UserRole+0, language)
+            lang_item.setData(0, Qt.ItemDataRole.UserRole+1, None)
 
             self.dict_tree.addTopLevelItem(lang_item)
 
@@ -206,7 +214,6 @@ class DictionarySelectPage(MiWizardPage):
                     dictionary_name = dictionary.get('name')
                     if not dictionary_name:
                         continue
-                    
                     dictionary_text = dictionary_name
 
                     dictionary_description = dictionary.get('description')
@@ -214,9 +221,14 @@ class DictionarySelectPage(MiWizardPage):
                         dictionary_text += ' - ' + dictionary_description
 
                     dict_item = QTreeWidgetItem([dictionary_text])
-                    dict_item.setCheckState(0, Qt.Unchecked)
-                    dict_item.setData(0, Qt.UserRole+0, None)
-                    dict_item.setData(0, Qt.UserRole+1, dictionary)
+                    try:
+                        # Try the new way
+                        dict_item.setCheckState(0, Qt.CheckState.Unchecked)
+                    except AttributeError:
+                        # Fallback for older versions
+                        dict_item.setCheckState(0, Qt.Unchecked)
+                    dict_item.setData(0, Qt.ItemDataRole.UserRole+0, None)
+                    dict_item.setData(0, Qt.ItemDataRole.UserRole+1, dictionary)
 
                     parent_item.addChild(dict_item)
 
@@ -232,8 +244,8 @@ class DictionarySelectPage(MiWizardPage):
                     text += ' (' + to_name_native + ')'
 
                 to_lang_item = QTreeWidgetItem([text])
-                to_lang_item.setData(0, Qt.UserRole+0, None)
-                to_lang_item.setData(0, Qt.UserRole+1, None)
+                to_lang_item.setData(0, Qt.ItemDataRole.UserRole+0, None)
+                to_lang_item.setData(0, Qt.ItemDataRole.UserRole+1, None)
 
                 lang_item.addChild(to_lang_item)
 
@@ -494,12 +506,12 @@ class DictionaryInstallPage(MiWizardPage):
 
     def on_cancel(self):
         if self.install_thread and self.install_thread.isRunning():
-            dlg = QMessageBox(QMessageBox.Question, 'Migaku Dictioanry',
+            dlg = QMessageBox(QMessageBox.Icon.Question, 'Miso Dictionary',
                               'Do you really want to cancel the import process?',
-                              QMessageBox.Yes | QMessageBox.No, self)
-            r = dlg.exec_()
+                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, self)
+            r = dlg.exec()
 
-            if r != QMessageBox.Yes:
+            if r != QMessageBox.StandardButton.Yes:
                 return False
 
             self.install_thread.cancel_requested = True
@@ -524,7 +536,7 @@ class DictionaryInstallPage(MiWizardPage):
         if self.install_thread:
             return
 
-        server_root = getattr(self.wizard, 'dictioanry_server_root', '')
+        server_root = getattr(self.wizard, 'Dictionary_server_root', '')
         install_index = getattr(self.wizard, 'dictionary_install_index', [])
         install_freq = getattr(self.wizard, 'dictionary_install_frequency', False)
         install_conj = getattr(self.wizard, 'dictionary_install_conjugation', False)

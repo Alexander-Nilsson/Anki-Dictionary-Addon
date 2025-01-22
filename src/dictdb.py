@@ -36,6 +36,8 @@ class DictDB:
         self.c.close()
         self = False
 
+
+
     def getLangId(self, lang):
         self.c.execute('SELECT id FROM langnames WHERE langname = ?;',  (lang,))
         try:
@@ -65,10 +67,63 @@ class DictDB:
             return []
 
     def addDict(self, dictname, lang, termHeader):
-        lid = self.getLangId(lang)
-        self.c.execute('INSERT INTO dictnames (dictname, lid, fields, addtype, termHeader, duplicateHeader) VALUES (?, ?, "[]", "add", ?, 0);', (dictname, lid, termHeader))
-        self.createDB(self.formatDictName(lid, dictname))
-        self.commitChanges()
+        try:
+            lid = self.getLangId(lang)
+            clean_name = self.normalize_dict_name(dictname)
+            self.c.execute('INSERT INTO dictnames (dictname, lid, fields, addtype, termHeader, duplicateHeader) VALUES (?, ?, "[]", "add", ?, 0);', (clean_name, lid, termHeader))
+            self.createDB(self.formatDictName(lid, clean_name))
+            self.commitChanges()
+            
+            success = True
+            message = "Dictionary added successfully"
+            final_name = clean_name
+            return success, message, final_name
+
+        except Exception as e:
+            success = False
+            message = str(e)
+            final_name = None
+            return success, message, final_name
+
+
+    def normalize_dict_name(self, name: str) -> str:
+        """Normalize dictionary name for database use."""
+        if not name:
+            return "unnamed_dictionary"
+        
+        replacements = {
+            '[': '', ']': '',
+            '(': '', ')': '',
+            '{': '', '}': '',
+            '<': '', '>': '',
+            "'": '', '"': '',
+            '`': '', '´': '',
+            '/': '_', '\\': '_',
+            '|': '_', ':': '_',
+            '*': '', '?': '',
+            '!': '', '@': '',
+            '#': '', '$': '',
+            '%': '', '^': '',
+            '&': '', '=': '',
+            '+': '', ',': '',
+            ';': '', '~': '',
+            '．': '.', '。': '.',
+            '　': '_',  # Full-width space
+            ' ': '_'   # Regular space
+        }
+        
+        result = name
+        for char, replacement in replacements.items():
+            result = result.replace(char, replacement)
+        
+        # Remove any remaining problematic characters
+        result = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', result)
+        
+        # Ensure valid length
+        if len(result) > 100:
+            result = result[:100]
+            
+        return result if result else "unnamed_dictionary"
 
     def formatDictName(self, lid, name):
         return 'l' + str(lid) + 'name' + name
@@ -122,7 +177,7 @@ class DictDB:
             return []
 
     def fetchDefs(self):
-        self.c.execute("SELECT definition FROM l64name大辞林 LIMIT 10;")
+        self.c.execute("SELECT definition FROM dictname LIMIT 10;")
         try:
             langs = []
             allLs = self.c.fetchall()
@@ -302,15 +357,36 @@ class DictDB:
                                 return results
                         results[self.cleanDictName(dic['dict'])] = dictRes
                         break
+                    print("searchTerm:", results)
         return results
 
     def resultToDict(self, r):
-        return {'term' : r[0], 'altterm' : r[1], 'pronunciation' : r[2], 'pos' : r[3], 'definition' : r[4], 'examples' : r[5], 'audio' : r[6], 'starCount' : r[7]}
+        # Create the output dictionary
+        output = {
+            'term': r[0],
+            'altterm': r[1],
+            'pronunciation': r[2],
+            'pos': r[3],
+            'definition': r[4].replace('\n', '<br>'),
+            'examples': r[5],
+            'audio': r[6],
+            'starCount': r[7]
+        }
+
+        # Print the components of the output dictionary
+        print("Output Components:")
+        for key, value in output.items():
+            print(f"{key}: {value}")
+
+        # Return the output dictionary
+        return output
 
     def executeSearch(self, dictName, toQuery, dictLimit, termTuple):
         try:
             self.c.execute("SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM " + dictName +" WHERE " + toQuery + " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT "+dictLimit +" ;", termTuple)
-            return self.c.fetchall()
+            out = self.c.fetchall()
+            print("executeSearch", out)
+            return out
         except:
             return []
 

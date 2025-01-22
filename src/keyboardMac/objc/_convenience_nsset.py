@@ -1,12 +1,14 @@
 """
 Convenience interface for NSSet/NSMutableSet
 """
+
 __all__ = ()
 
-from objc._convenience import addConvenienceForClass, container_wrap, container_unwrap
-from objc._objc import lookUpClass
+import collections.abc
 
-import sys, collections.abc
+from objc._convenience import addConvenienceForClass, container_unwrap, container_wrap
+from objc._objc import lookUpClass
+from ._new import NEW_MAP
 
 NSSet = lookUpClass("NSSet")
 NSMutableSet = lookUpClass("NSMutableSet")
@@ -253,7 +255,7 @@ def nsset_add(self, value):
     self.addObject_(container_wrap(value))
 
 
-class nsset__iter__(object):
+class nsset__iter__:
     def __init__(self, value):
         self._size = len(value)
         self._enum = value.objectEnumerator()
@@ -267,8 +269,6 @@ class nsset__iter__(object):
     def __next__(self):
         self._size -= 1
         return container_unwrap(self._enum.nextObject(), StopIteration)
-
-    next = __next__
 
 
 addConvenienceForClass(
@@ -343,6 +343,5 @@ def nsmutableset_new(cls, sequence=None):
     return value
 
 
-addConvenienceForClass("NSSet", (("__new__", staticmethod(nsset_new)),))
-
-addConvenienceForClass("NSMutableSet", (("__new__", staticmethod(nsmutableset_new)),))
+NEW_MAP.setdefault("NSSet", {})[()] = nsset_new
+NEW_MAP.setdefault("NSMutableSet", {})[()] = nsmutableset_new

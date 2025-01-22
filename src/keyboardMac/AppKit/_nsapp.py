@@ -1,15 +1,15 @@
-import objc
-from AppKit import __bundle__
+import objc as _objc
+import AppKit as _AppKit
 
 
-class _NSApp(object):
+class _NSApp:
     """
     Helper class to emulate NSApp in Python.
     """
 
     def __getrealapp(self):
         d = {}
-        objc.loadBundleVariables(__bundle__, d, [("NSApp", b"@")])
+        _objc.loadBundleVariables(_AppKit.__bundle__, d, [("NSApp", b"@")])
         return d.get("NSApp")
 
     __class__ = property(lambda self: self.__getrealapp().__class__)

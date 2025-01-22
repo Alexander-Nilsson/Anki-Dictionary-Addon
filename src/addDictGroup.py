@@ -7,14 +7,15 @@ import math
 from anki.hooks import addHook
 from aqt.qt import *
 from aqt.utils import openLink, tooltip, showInfo, askUser
-from anki.utils import isMac, isWin, isLin
+from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
 from aqt.webview import AnkiWebView
 import re
 import os
 from os.path import dirname, join, exists
 from aqt import mw
-from PyQt5 import QtCore
+
+from aqt.qt import Qt
 from .miutils import miInfo, miAsk
 from shutil import copyfile
 from operator import itemgetter
@@ -22,7 +23,7 @@ import ntpath
 
 class DictGroupEditor(QDialog):
     def __init__(self, mw, parent = None, dictionaries = [], group = False, groupName = False):
-        super(DictGroupEditor, self).__init__(parent, Qt.Window)
+        super(DictGroupEditor, self).__init__(parent, Qt.WindowType.Window)
         self.mw = mw
         self.settings = parent
         self.setWindowTitle("Add Dictionary Group")
@@ -237,7 +238,7 @@ class DictGroupEditor(QDialog):
 
     def getFontCB(self):
         fonts = QComboBox()
-        fams = QFontDatabase().families()
+        fams = QFontDatabase.families()
         fonts.addItems(fams)
         return fonts
 
@@ -270,18 +271,18 @@ class DictGroupEditor(QDialog):
 
     def setupDictionaries(self):
         macLin = False
-        if isMac  or isLin:
+        if is_mac  or is_lin:
             macLin = True
         dictionaries = QTableWidget()
         dictionaries.setColumnCount(3)
         tableHeader = dictionaries.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.Fixed)
-        tableHeader.setSectionResizeMode(2, QHeaderView.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         dictionaries.setRowCount(0)
         dictionaries.setSortingEnabled(False)
-        dictionaries.setEditTriggers(QTableWidget.NoEditTriggers)
-        dictionaries.setSelectionBehavior(QAbstractItemView.SelectRows)
+        dictionaries.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        dictionaries.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         dictionaries.setColumnWidth(1, 40)
         if macLin:
             dictionaries.setColumnWidth(2, 40)

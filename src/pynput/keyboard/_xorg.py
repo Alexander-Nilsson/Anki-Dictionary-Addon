@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -24,6 +24,13 @@ The keyboard implementation for *Xorg*.
 # pylint: disable=R0903
 # We implement stubs
 
+# pylint: disable=W0611
+try:
+    import pynput._util.xorg
+except Exception as e:
+    raise ImportError('failed to acquire X connection: {}'.format(str(e)), e)
+# pylint: enable=W0611
+
 import enum
 import threading
 
@@ -39,6 +46,7 @@ from pynput._util import NotifierMixin
 from pynput._util.xorg import (
     alt_mask,
     alt_gr_mask,
+    char_to_keysym,
     display_manager,
     index_to_shift,
     keyboard_mapping,
@@ -56,6 +64,14 @@ from . import _base
 
 
 class KeyCode(_base.KeyCode):
+    _PLATFORM_EXTENSIONS = (
+        # The symbol name for this key
+        '_symbol',
+    )
+
+    # Be explicit about fields
+    _symbol = None
+
     @classmethod
     def _from_symbol(cls, symbol, **kwargs):
         """Creates a key from a symbol.
@@ -67,22 +83,37 @@ class KeyCode(_base.KeyCode):
         # First try simple translation
         keysym = Xlib.XK.string_to_keysym(symbol)
         if keysym:
-            return cls.from_vk(keysym, **kwargs)
+            return cls.from_vk(keysym, _symbol=symbol, **kwargs)
 
         # If that fails, try checking a module attribute of Xlib.keysymdef.xkb
         if not keysym:
             # pylint: disable=W0702; we want to ignore errors
             try:
+                symbol = 'XK_' + symbol
                 return cls.from_vk(
-                    getattr(Xlib.keysymdef.xkb, 'XK_' + symbol, 0),
+                    getattr(Xlib.keysymdef.xkb, symbol, 0),
+                    _symbol=symbol,
                     **kwargs)
             except:
                 return cls.from_vk(
                     SYMBOLS.get(symbol, (0,))[0],
+                    _symbol=symbol,
                     **kwargs)
             # pylint: enable=W0702
 
+    @classmethod
+    def _from_media(cls, name, **kwargs):
+        """Creates a media key from a partial name.
 
+        :param str name: The name. The actual symbol name will be this string
+            with ``'XF86_Audio'`` prepended.
+
+        :return: a key code
+        """
+        return cls._from_symbol('XF86_Audio' + name, **kwargs)
+
+
+# pylint: disable=W0212
 class Key(enum.Enum):
     # Default keys
     alt = KeyCode._from_symbol('Alt_L')
@@ -134,12 +165,20 @@ class Key(enum.Enum):
     tab = KeyCode._from_symbol('Tab')
     up = KeyCode._from_symbol('Up')
 
+    media_play_pause = KeyCode._from_media('Play')
+    media_volume_mute = KeyCode._from_media('Mute')
+    media_volume_down = KeyCode._from_media('LowerVolume')
+    media_volume_up = KeyCode._from_media('RaiseVolume')
+    media_previous = KeyCode._from_media('Prev')
+    media_next = KeyCode._from_media('Next')
+
     insert = KeyCode._from_symbol('Insert')
     menu = KeyCode._from_symbol('Menu')
     num_lock = KeyCode._from_symbol('Num_Lock')
     pause = KeyCode._from_symbol('Pause')
     print_screen = KeyCode._from_symbol('Print')
     scroll_lock = KeyCode._from_symbol('Scroll_Lock')
+# pylint: enable=W0212
 
 
 class Controller(NotifierMixin, _base.Controller):
@@ -166,7 +205,7 @@ class Controller(NotifierMixin, _base.Controller):
         # pylint: enable=C0103
 
     def __del__(self):
-        if self._display:
+        if hasattr(self, '_display'):
             self._display.close()
 
     @property
@@ -184,9 +223,8 @@ class Controller(NotifierMixin, _base.Controller):
     def _handle(self, key, is_press):
         """Resolves a key identifier and sends a keyboard event.
 
-        :param event: The *X* keyboard event.
-
-        :param int keysym: The keysym to handle.
+        :param int key: The key to handle.
+        :param bool is_press: Whether this is a press.
         """
         event = Xlib.display.event.KeyPress if is_press \
             else Xlib.display.event.KeyRelease
@@ -197,8 +235,8 @@ class Controller(NotifierMixin, _base.Controller):
             raise self.InvalidKeyException(key)
 
         # If the key has a virtual key code, use that immediately with
-        # fake_input; fake input,being an X server extension, has access to more
-        # internal state that we
+        # fake_input; fake input,being an X server extension, has access to
+        # more internal state that we do
         if key.vk is not None:
             with display_manager(self._display) as dm:
                 Xlib.ext.xtest.fake_input(
@@ -375,11 +413,26 @@ class Controller(NotifierMixin, _base.Controller):
         #: Registers a keycode for a specific key and modifier state
         def register(dm, keycode, index):
             i = kc2i(keycode)
-            mapping[i][index] = keysym
-            dm.change_keyboard_mapping(
-                keycode,
-                mapping[i:i + 1])
-            self._borrows[keysym] = (keycode, index, 0)
+
+            # Check for use of empty mapping with a character that has upper
+            # and lower forms
+            lower = key.char.lower()
+            upper = key.char.upper()
+            if lower != upper and len(lower) == 1 and len(upper) == 1 and all(
+                    m == Xlib.XK.NoSymbol
+                    for m in mapping[i]):
+                lower = self._key_to_keysym(KeyCode.from_char(lower))
+                upper = self._key_to_keysym(KeyCode.from_char(upper))
+                if lower:
+                    mapping[i][0] = lower
+                    self._borrows[lower] = (keycode, 0, 0)
+                if upper:
+                    mapping[i][1] = upper
+                    self._borrows[upper] = (keycode, 1, 0)
+            else:
+                mapping[i][index] = keysym
+                self._borrows[keysym] = (keycode, index, 0)
+            dm.change_keyboard_mapping(keycode, mapping[i:i + 1])
 
         try:
             with display_manager(self._display) as dm, self._borrow_lock as _:
@@ -402,10 +455,17 @@ class Controller(NotifierMixin, _base.Controller):
         :return: a keysym if found
         :rtype: int or None
         """
+        # If the key code already has a VK, simply return it
+        if key.vk is not None:
+            return key.vk
+
+        # If the character has no associated symbol, we try to map the
+        # character to a keysym
         symbol = CHARS.get(key.char, None)
         if symbol is None:
-            return None
+            return char_to_keysym(key.char)
 
+        # Otherwise we attempt to convert the symbol to a keysym
         # pylint: disable=W0702; we want to ignore errors
         try:
             return symbol_to_keysym(symbol)
@@ -499,7 +559,7 @@ class Listener(ListenerMixin, _base.Listener):
             super(Listener, self)._run()
 
     def _initialize(self, display):
-        # Get the keyboard mapping to be able to translate events details to
+        # Get the keyboard mapping to be able to translate event details to
         # key codes
         min_keycode = display.display.info.min_keycode
         keycode_count = display.display.info.max_keycode - min_keycode + 1

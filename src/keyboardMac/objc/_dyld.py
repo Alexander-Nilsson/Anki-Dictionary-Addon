@@ -10,9 +10,10 @@ __all__ = [
     "infoForFramework",
 ]
 
-import os, sys
-from objc._framework import infoForFramework
+import os
 
+from objc._framework import infoForFramework
+from objc._objc import _dyld_shared_cache_contains_path
 
 # These are the defaults as per man dyld(1)
 #
@@ -92,10 +93,13 @@ def dyld_framework(filename, framework_name, version=None):
                 yield os.path.join(path, framework_name + ".framework", framework_name)
 
     for f in inject_suffixes(_search()):
+        if _dyld_shared_cache_contains_path(f):
+            return f
+
         if os.path.exists(f):
             return f
     # raise ..
-    raise ImportError("Framework %s could not be found" % (framework_name,))
+    raise ImportError(f"Framework {framework_name} could not be found")
 
 
 def dyld_library(filename, libname):
@@ -116,9 +120,11 @@ def dyld_library(filename, libname):
             yield os.path.join(path, libname)
 
     for f in inject_suffixes(_search()):
+        if _dyld_shared_cache_contains_path(f):
+            return f
         if os.path.exists(f):
             return f
-    raise ValueError("dylib %s could not be found" % (filename,))
+    raise ValueError(f"dylib {filename} could not be found")
 
 
 def dyld_find(filename):

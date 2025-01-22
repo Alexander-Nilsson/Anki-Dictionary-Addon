@@ -1,8 +1,9 @@
-import objc as _objc
 import CoreFoundation as _CF
+import objc as _objc
+
 
 #
-# 'Emulation' for CFArray contructors
+# 'Emulation' for CFArray constructors
 #
 def _setup():
     NSArray = _objc.lookUpClass("NSArray")

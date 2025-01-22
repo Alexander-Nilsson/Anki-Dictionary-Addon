@@ -19,8 +19,8 @@ class miJHandler():
 
 	def attemptGenerate(self, note):
 		if self.activeNotes:
-			model = note.model()
-			fields = self.mw.col.models.fieldNames(model)
+			model = note.note_type()
+			fields = self.mw.col.models.field_names(model)
 			if model['name'] in self.activeNotes:
 				for field in fields:
 					if field in self.activeNotes[model['name']] and note[field] != '':

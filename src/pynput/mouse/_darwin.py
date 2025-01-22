@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
-The mouse implementation for *OSX*.
+The mouse implementation for *macOS*.
 """
 
 # pylint: disable=C0111
@@ -37,7 +37,7 @@ from . import _base
 def _button_value(base_name, mouse_button):
     """Generates the value tuple for a :class:`Button` value.
 
-    :param str base_name: The base name for the button. This shuld be a string
+    :param str base_name: The base name for the button. This should be a string
         like ``'kCGEventLeftMouse'``.
 
     :param int mouse_button: The mouse button ID.
@@ -62,7 +62,7 @@ class Button(enum.Enum):
 
 class Controller(_base.Controller):
     #: The scroll speed
-    _SCROLL_SPEED = 5
+    _SCROLL_SPEED = 10
 
     def __init__(self, *args, **kwargs):
         super(Controller, self).__init__(*args, **kwargs)
@@ -90,20 +90,17 @@ class Controller(_base.Controller):
                 mouse_button))
 
     def _scroll(self, dx, dy):
-        while dx != 0 or dy != 0:
-            xval = 1 if dx > 0 else -1 if dx < 0 else 0
-            dx -= xval
-            yval = 1 if dy > 0 else -1 if dy < 0 else 0
-            dy -= yval
+        dx = int(dx)
+        dy = int(dy)
 
-            Quartz.CGEventPost(
-                Quartz.kCGHIDEventTap,
-                Quartz.CGEventCreateScrollWheelEvent(
-                    None,
-                    Quartz.kCGScrollEventUnitPixel,
-                    2,
-                    yval * self._SCROLL_SPEED,
-                    xval * self._SCROLL_SPEED))
+        Quartz.CGEventPost(
+            Quartz.kCGHIDEventTap,
+            Quartz.CGEventCreateScrollWheelEvent(
+                None,
+                Quartz.kCGScrollEventUnitPixel,
+                2,
+                dy * self._SCROLL_SPEED,
+                dx * self._SCROLL_SPEED))
 
     def _press(self, button):
         (press, _, _), mouse_button = button.value
@@ -175,8 +172,8 @@ class Listener(ListenerMixin, _base.Listener):
             'intercept',
             None)
 
-    def _handle(self, dummy_proxy, event_type, event, dummy_refcon):
-        """The callback registered with *Mac OSX* for mouse events.
+    def _handle(self, _proxy, event_type, event, _refcon):
+        """The callback registered with *macOS* for mouse events.
 
         This method will call the callbacks registered on initialisation.
         """

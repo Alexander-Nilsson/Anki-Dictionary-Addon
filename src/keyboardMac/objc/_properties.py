@@ -6,31 +6,27 @@ __all__ = (
     "dict_property",
 )
 
-from objc import ivar, selector, _C_ID, _C_NSBOOL, _C_BOOL, NULL, _C_NSUInteger
-from objc import lookUpClass
 from copy import copy as copy_func
-import sys
 
-if sys.version_info[0] == 2:
-    import collections as collections_abc
-else:
-    import collections.abc as collections_abc
+from objc import (
+    _C_BOOL,
+    _C_ID,
+    _C_NSBOOL,
+    NULL,
+    _C_NSUInteger,
+    ivar,
+    lookUpClass,
+    selector,
+)
+
+import collections.abc
 
 NSSet = lookUpClass("NSSet")
 NSObject = lookUpClass("NSObject")
 
-if sys.version_info[0] == 2:  # pragma: no 3.x cover
-    range = xrange
 
-    def _str(value):
-        return value
-
-
-else:  # pragma: no 2.x cover
-    long = int
-
-    def _str(value):
-        return value.decode("ascii")
+def _str(value):
+    return value.decode("ascii")
 
 
 def attrsetter(prop, name, copy):
@@ -65,8 +61,8 @@ def _return_value(value):
 
 
 def _dynamic_getter(name):
-    def getter(object):
-        m = getattr(object.pyobjc_instanceMethods, name)
+    def getter(an_object):
+        m = getattr(an_object.pyobjc_instanceMethods, name)
         return m()
 
     getter.__name__ = name
@@ -74,15 +70,15 @@ def _dynamic_getter(name):
 
 
 def _dynamic_setter(name):
-    def setter(object, value):
-        m = getattr(object.pyobjc_instanceMethods, name.replace(":", "_"))
+    def setter(an_object, value):
+        m = getattr(an_object.pyobjc_instanceMethods, name.replace(":", "_"))
         return m(value)
 
     setter.__name__ = name
     return setter
 
 
-class object_property(object):
+class object_property:
     def __init__(
         self,
         name=None,
@@ -172,7 +168,6 @@ class object_property(object):
                     instance_methods.add(setterName)
 
                 else:
-
                     if self._ivar is NULL:
                         raise ValueError(
                             "Cannot create default setter for property " "without ivar"
@@ -182,15 +177,19 @@ class object_property(object):
                         attrsetter(self._name, ivname, self._copy),
                         selector=setterName,
                         signature=signature,
+                        isHidden=True,
                     )
-                    setprop.isHidden = True
                     instance_methods.add(setprop)
 
                     # Use dynamic setter to avoid problems when subclassing
                     self.__setprop = _dynamic_setter(_str(setterName))
             else:
-                setprop = selector(self._setter, selector=setterName, signature=signature)
-                setprop.isHidden = True
+                setprop = selector(
+                    self._setter,
+                    selector=setterName,
+                    signature=signature,
+                    isHidden=True,
+                )
                 instance_methods.add(setprop)
 
                 # Use dynamic setter to avoid problems when subclassing
@@ -226,15 +225,17 @@ class object_property(object):
                     attrgetter(ivname),
                     selector=getterName,
                     signature=self._typestr + b"@:",
+                    isHidden=True,
                 )
-                self.__getprop.isHidden = True
                 instance_methods.add(self.__getprop)
 
         else:
             self.__getprop = getprop = selector(
-                self._getter, selector=getterName, signature=self._typestr + b"@:"
+                self._getter,
+                selector=getterName,
+                signature=self._typestr + b"@:",
+                isHidden=True,
             )
-            getprop.isHidden = True
             instance_methods.add(getprop)
             # self.__getprop = _dynamic_getter(getterName)
 
@@ -247,7 +248,7 @@ class object_property(object):
             )
             signature = _C_NSBOOL + b"@:N^@o^@"
             validate = selector(self._validate, selector=selName, signature=signature)
-            class_dict[validate.selector] = validate
+            class_dict[validate.selector.decode().replace(":", "_")] = validate
             instance_methods.add(validate)
 
         if self._depends_on:
@@ -265,21 +266,21 @@ class object_property(object):
                 signature=b"@@:",
                 isClassMethod=True,
             )
-            class_dict[affecting.selector] = affecting
+            class_dict[affecting.selector.decode().replace(":", "_")] = affecting
             class_methods.add(affecting)
 
-    def __get__(self, object, owner):
-        if object is None:
+    def __get__(self, an_object, owner):
+        if an_object is None:
             return self
-        return self.__getprop(object)
+        return self.__getprop(an_object)
 
-    def __set__(self, object, value):
+    def __set__(self, an_object, value):
         if self.__setprop is None:
             raise ValueError("setting read-only property " + self._name)
 
-        return self.__setprop(object, value)
+        return self.__setprop(an_object, value)
 
-    def __delete__(self, object):
+    def __delete__(self, an_object):
         raise TypeError("cannot delete property " + self._name)
 
     def depends_on(self, keypath):
@@ -297,7 +298,6 @@ class object_property(object):
         return self
 
     def setter(self, function):
-
         if self.__created:
             v = self._clone()
             v._ro = False
@@ -305,7 +305,7 @@ class object_property(object):
             return v
 
         if self._ro:
-            raise ValueError("Defining settter for read-only property")
+            raise ValueError("Defining setter for read-only property")
 
         self._setter = function
         return self
@@ -333,7 +333,7 @@ class bool_property(object_property):
         ivar=None,
         typestr=_C_NSBOOL,
     ):
-        super(bool_property, self).__init__(name, read_only, copy, dynamic, ivar, typestr)
+        super().__init__(name, read_only, copy, dynamic, ivar, typestr)
 
 
 NSIndexSet = lookUpClass("NSIndexSet")
@@ -351,10 +351,7 @@ def _id(value):
     return value
 
 
-# FIXME: split into two: array_proxy and mutable_array_proxy
-class array_proxy(collections_abc.MutableSequence):
-    # XXX: The implemenation should be complete, but is currently not
-    # tested.
+class array_proxy(collections.abc.MutableSequence):
     __slots__ = ("_name", "_parent", "__wrapped", "_ro")
 
     def __init__(self, name, parent, wrapped, read_only):
@@ -376,7 +373,7 @@ class array_proxy(collections_abc.MutableSequence):
 
             return result
 
-        elif isinstance(index, (int, long)):
+        elif isinstance(index, int):
             if index < 0:
                 v = len(self) + index
                 if v < 0:
@@ -390,7 +387,9 @@ class array_proxy(collections_abc.MutableSequence):
             raise TypeError(index)
 
     def __repr__(self):
-        return "<array proxy for property " + self._name + " " + repr(self._wrapped) + ">"
+        return (
+            "<array proxy for property " + self._name + " " + repr(self._wrapped) + ">"
+        )
 
     def __reduce__(self):
         # Ensure that the proxy itself doesn't get stored
@@ -409,7 +408,7 @@ class array_proxy(collections_abc.MutableSequence):
 
     def __setitem__(self, index, value):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         indexes = self.__indexSetForIndex(index)
         self._parent.willChange_valuesAtIndexes_forKey_(
@@ -424,7 +423,7 @@ class array_proxy(collections_abc.MutableSequence):
 
     def __delitem__(self, index):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         indexes = self.__indexSetForIndex(index)
         self._parent.willChange_valuesAtIndexes_forKey_(
@@ -439,7 +438,7 @@ class array_proxy(collections_abc.MutableSequence):
 
     def append(self, value):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         index = len(self)
         indexes = NSIndexSet.alloc().initWithIndex_(index)
@@ -455,7 +454,7 @@ class array_proxy(collections_abc.MutableSequence):
 
     def insert(self, index, value):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         if isinstance(index, slice):
             raise TypeError("insert argument 1 is a slice")
@@ -473,10 +472,10 @@ class array_proxy(collections_abc.MutableSequence):
 
     def pop(self, index=-1):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         if isinstance(index, slice):
-            raise TypeError("insert argument 1 is a slice")
+            raise TypeError("pop argument 1 is a slice")
 
         indexes = self.__indexSetForIndex(index)
         self._parent.willChange_valuesAtIndexes_forKey_(
@@ -490,9 +489,8 @@ class array_proxy(collections_abc.MutableSequence):
             )
 
     def extend(self, values):
-        # XXX: This is suboptimal but correct
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         values = list(values)
 
@@ -521,8 +519,8 @@ class array_proxy(collections_abc.MutableSequence):
 
     def __imul__(self, count):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
-        if not isinstance(count, (int, long)):
+            raise ValueError(f"Property '{self._name}' is read-only")
+        if not isinstance(count, int):
             raise TypeError(count)
 
         indexes = NSIndexSet.alloc().initWithIndexesInRange_(
@@ -582,50 +580,24 @@ class array_proxy(collections_abc.MutableSequence):
         else:
             return self._wrapped >= other
 
-    if sys.version_info[0] == 2:  # pragma: no 3.x cover
+    def sort(self, key=None, reverse=False):
+        if self._ro:
+            raise ValueError(f"Property '{self._name}' is read-only")
 
-        def __cmp__(self, other):
-            if isinstance(other, array_proxy):
-                return cmp(self._wrapped, other._wrapped)
-
-            else:
-                return cmp(self._wrapped, other)
-
-        def sort(self, cmp=None, key=None, reverse=False):
-            if self._ro:
-                raise ValueError("Property '%s' is read-only" % (self._name,))
-
-            indexes = NSIndexSet.alloc().initWithIndexesInRange_((0, len(self._wrapped)))
-            self._parent.willChange_valuesAtIndexes_forKey_(
+        indexes = NSIndexSet.alloc().initWithIndexesInRange_((0, len(self._wrapped)))
+        self._parent.willChange_valuesAtIndexes_forKey_(
+            NSKeyValueChangeReplacement, indexes, self._name
+        )
+        try:
+            self._wrapped.sort(key=key, reverse=reverse)
+        finally:
+            self._parent.didChange_valuesAtIndexes_forKey_(
                 NSKeyValueChangeReplacement, indexes, self._name
             )
-            try:
-                self._wrapped.sort(cmp=cmp, key=key, reverse=reverse)
-            finally:
-                self._parent.didChange_valuesAtIndexes_forKey_(
-                    NSKeyValueChangeReplacement, indexes, self._name
-                )
-
-    else:  # pragma: no 2.x cover
-
-        def sort(self, key=None, reverse=False):
-            if self._ro:
-                raise ValueError("Property '%s' is read-only" % (self._name,))
-
-            indexes = NSIndexSet.alloc().initWithIndexesInRange_((0, len(self._wrapped)))
-            self._parent.willChange_valuesAtIndexes_forKey_(
-                NSKeyValueChangeReplacement, indexes, self._name
-            )
-            try:
-                self._wrapped.sort(key=key, reverse=reverse)
-            finally:
-                self._parent.didChange_valuesAtIndexes_forKey_(
-                    NSKeyValueChangeReplacement, indexes, self._name
-                )
 
     def reverse(self):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         indexes = NSIndexSet.alloc().initWithIndexesInRange_((0, len(self._wrapped)))
         self._parent.willChange_valuesAtIndexes_forKey_(
@@ -668,7 +640,7 @@ class array_property(object_property):
         ivar=None,
         depends_on=None,
     ):
-        super(array_property, self).__init__(
+        super().__init__(
             name,
             read_only=read_only,
             copy=copy,
@@ -678,12 +650,11 @@ class array_property(object_property):
         )
 
     def __pyobjc_class_setup__(self, name, class_dict, instance_methods, class_methods):
-        super(array_property, self).__pyobjc_class_setup__(
+        super().__pyobjc_class_setup__(
             name, class_dict, instance_methods, class_methods
         )
 
         # Insert (Mutable) Indexed Accessors
-        # FIXME: should only do the mutable bits when we're actually a mutable property
 
         name = self._name
         Name = name[0].upper() + name[1:]
@@ -692,67 +663,67 @@ class array_property(object_property):
 
         countOf = selector(
             countOf,
-            selector=("countOf%s" % (Name,)).encode("latin1"),
+            selector=(f"countOf{Name}").encode("latin1"),
             signature=_C_NSUInteger + b"@:",
+            isHidden=True,
         )
-        countOf.isHidden = True
         instance_methods.add(countOf)
 
         objectIn = selector(
             objectIn,
-            selector=("objectIn%sAtIndex:" % (Name,)).encode("latin1"),
+            selector=(f"objectIn{Name}AtIndex:").encode("latin1"),
             signature=b"@@:" + _C_NSUInteger,
+            isHidden=True,
         )
-        objectIn.isHidden = True
         instance_methods.add(objectIn)
 
         insert = selector(
             insert,
-            selector=("insertObject:in%sAtIndex:" % (Name,)).encode("latin1"),
+            selector=(f"insertObject:in{Name}AtIndex:").encode("latin1"),
             signature=b"v@:@" + _C_NSUInteger,
+            isHidden=True,
         )
-        insert.isHidden = True
         instance_methods.add(insert)
 
         remove = selector(
             remove,
-            selector=("removeObjectFrom%sAtIndex:" % (Name,)).encode("latin1"),
+            selector=(f"removeObjectFrom{Name}AtIndex:").encode("latin1"),
             signature=b"v@:" + _C_NSUInteger,
+            isHidden=True,
         )
-        remove.isHidden = True
         instance_methods.add(remove)
 
         replace = selector(
             replace,
-            selector=("replaceObjectIn%sAtIndex:withObject:" % (Name,)).encode("latin1"),
+            selector=(f"replaceObjectIn{Name}AtIndex:withObject:").encode("latin1"),
             signature=b"v@:" + _C_NSUInteger + b"@",
+            isHidden=True,
         )
-        replace.isHidden = True
         instance_methods.add(replace)
 
-    def __set__(self, object, value):
+    def __set__(self, an_object, value):
         if isinstance(value, array_proxy):
-            if value._name == self._name and value._parent is object:
+            if value._name == self._name and value._parent is an_object:
                 # attr.prop = attr.prop
                 return
 
         if isinstance(value, array_proxy):
             value = list(value)
 
-        super(array_property, self).__set__(object, value)
+        super().__set__(an_object, value)
 
-    def __get__(self, object, owner):
-        v = object_property.__get__(self, object, owner)
+    def __get__(self, an_object, owner):
+        v = object_property.__get__(self, an_object, owner)
         if v is None:
-            v = list()
-            object_property.__set__(self, object, v)
-        return array_proxy(self._name, object, self, self._ro)
+            v = []
+            object_property.__set__(self, an_object, v)
+        return array_proxy(self._name, an_object, self, self._ro)
 
-    def __getvalue__(self, object):
-        v = object_property.__get__(self, object, None)
+    def __getvalue__(self, an_object):
+        v = object_property.__get__(self, an_object, None)
         if v is None:
-            v = list()
-            object_property.__set__(self, object, v)
+            v = []
+            object_property.__set__(self, an_object, v)
         return v
 
 
@@ -762,7 +733,7 @@ NSKeyValueIntersectSetMutation = 3
 NSKeyValueSetSetMutation = 4
 
 
-class set_proxy(collections_abc.MutableSet):
+class set_proxy(collections.abc.MutableSet):
     __slots__ = ("_name", "__wrapped", "_parent", "_ro")
 
     def __init__(self, name, parent, wrapped, read_only):
@@ -837,43 +808,38 @@ class set_proxy(collections_abc.MutableSet):
         else:
             return self._wrapped >= other
 
-    if sys.version_info[0] == 2:  # pragma: no 3.x cover; pragma: no branch
-
-        def __cmp__(self, other):
-            raise TypeError("cannot compare sets using cmp()")
-
     def add(self, item):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self._parent.willChangeValueForKey_withSetMutation_usingObjects_(
-            self._name, NSKeyValueUnionSetMutation, set([item])
+            self._name, NSKeyValueUnionSetMutation, {item}
         )
         try:
             self._wrapped.add(item)
         finally:
             self._parent.didChangeValueForKey_withSetMutation_usingObjects_(
-                self._name, NSKeyValueUnionSetMutation, set([item])
+                self._name, NSKeyValueUnionSetMutation, {item}
             )
 
     def clear(self):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
-        object = set(self._wrapped)
+        current_value = set(self._wrapped)
         self._parent.willChangeValueForKey_withSetMutation_usingObjects_(
-            self._name, NSKeyValueMinusSetMutation, object
+            self._name, NSKeyValueMinusSetMutation, current_value
         )
         try:
             self._wrapped.clear()
         finally:
             self._parent.didChangeValueForKey_withSetMutation_usingObjects_(
-                self._name, NSKeyValueMinusSetMutation, object
+                self._name, NSKeyValueMinusSetMutation, current_value
             )
 
     def difference_update(self, *others):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         s = set()
         s.update(*others)
@@ -890,7 +856,7 @@ class set_proxy(collections_abc.MutableSet):
 
     def discard(self, item):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self._parent.willChangeValueForKey_withSetMutation_usingObjects_(
             self._name, NSKeyValueMinusSetMutation, {item}
@@ -905,7 +871,7 @@ class set_proxy(collections_abc.MutableSet):
 
     def intersection_update(self, other):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         other = set(other)
 
@@ -922,7 +888,7 @@ class set_proxy(collections_abc.MutableSet):
 
     def pop(self):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         try:
             v = next(iter(self))
@@ -934,17 +900,17 @@ class set_proxy(collections_abc.MutableSet):
 
     def remove(self, item):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self._parent.willChangeValueForKey_withSetMutation_usingObjects_(
-            self._name, NSKeyValueMinusSetMutation, set([item])
+            self._name, NSKeyValueMinusSetMutation, {item}
         )
         try:
             self._wrapped.remove(item)
 
         finally:
             self._parent.didChangeValueForKey_withSetMutation_usingObjects_(
-                self._name, NSKeyValueMinusSetMutation, set([item])
+                self._name, NSKeyValueMinusSetMutation, {item}
             )
 
     def symmetric_difference_update(self, other):
@@ -952,7 +918,7 @@ class set_proxy(collections_abc.MutableSet):
         # of the wrapped set to ensure that we generate the right
         # notifications.
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         other = set(other)
 
@@ -988,7 +954,7 @@ class set_proxy(collections_abc.MutableSet):
 
     def update(self, *others):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         s = set()
         s.update(*others)
@@ -1018,28 +984,28 @@ class set_proxy(collections_abc.MutableSet):
 
     def __ior__(self, other):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self.update(other)
         return self
 
     def __isub__(self, other):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self.difference_update(other)
         return self
 
     def __ixor__(self, other):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self.symmetric_difference_update(other)
         return self
 
     def __iand__(self, other):
         if self._ro:
-            raise ValueError("Property '%s' is read-only" % (self._name,))
+            raise ValueError(f"Property '{self._name}' is read-only")
 
         self.intersection_update(other)
         return self
@@ -1081,7 +1047,7 @@ class set_property(object_property):
         ivar=None,
         depends_on=None,
     ):
-        super(set_property, self).__init__(
+        super().__init__(
             name,
             read_only=read_only,
             copy=copy,
@@ -1090,38 +1056,37 @@ class set_property(object_property):
             depends_on=depends_on,
         )
 
-    def __get__(self, object, owner):
-        v = object_property.__get__(self, object, owner)
+    def __get__(self, an_object, owner):
+        v = object_property.__get__(self, an_object, owner)
         if v is None:
             v = set()
-            object_property.__set__(self, object, v)
-        return set_proxy(self._name, object, self, self._ro)
+            object_property.__set__(self, an_object, v)
+        return set_proxy(self._name, an_object, self, self._ro)
 
-    def __set__(self, object, value):
+    def __set__(self, an_object, value):
         if isinstance(value, set_proxy):
-            if value._name == self._name and value._parent is object:
+            if value._name == self._name and value._parent is an_object:
                 # attr.prop = attr.prop
                 return
 
         if isinstance(value, set_proxy):
             value = list(value)
 
-        super(set_property, self).__set__(object, value)
+        super().__set__(an_object, value)
 
-    def __getvalue__(self, object):
-        v = object_property.__get__(self, object, None)
+    def __getvalue__(self, an_object):
+        v = object_property.__get__(self, an_object, None)
         if v is None:
             v = set()
-            object_property.__set__(self, object, v)
+            object_property.__set__(self, an_object, v)
         return v
 
     def __pyobjc_class_setup__(self, name, class_dict, instance_methods, class_methods):
-        super(set_property, self).__pyobjc_class_setup__(
+        super().__pyobjc_class_setup__(
             name, class_dict, instance_methods, class_methods
         )
 
         # (Mutable) Unordered Accessors
-        # FIXME: should only do the mutable bits when we're actually a mutable property
 
         name = self._name
         Name = name[0].upper() + name[1:]
@@ -1130,52 +1095,58 @@ class set_property(object_property):
 
         countOf = selector(
             countOf,
-            selector=("countOf%s" % (Name,)).encode("latin1"),
+            selector=(f"countOf{Name}").encode("latin1"),
             signature=_C_NSUInteger + b"@:",
+            isHidden=True,
         )
-        countOf.isHidden = True
         instance_methods.add(countOf)
 
         enumeratorOf = selector(
             enumeratorOf,
-            selector=("enumeratorOf%s" % (Name,)).encode("latin1"),
+            selector=(f"enumeratorOf{Name}").encode("latin1"),
             signature=b"@@:",
+            isHidden=True,
         )
-        enumeratorOf.isHidden = True
         instance_methods.add(enumeratorOf)
 
         memberOf = selector(
             memberOf,
-            selector=("memberOf%s:" % (Name,)).encode("latin"),
+            selector=(f"memberOf{Name}:").encode("latin"),
             signature=b"@@:@",
+            isHidden=True,
         )
-        memberOf.isHidden = True
         instance_methods.add(memberOf)
 
         add1 = selector(
-            add, selector=("add%s:" % (Name,)).encode("latin"), signature=b"v@:@"
+            add,
+            selector=(f"add{Name}:").encode("latin"),
+            signature=b"v@:@",
+            isHidden=True,
         )
-        add1.isHidden = True
         instance_methods.add(add1)
 
         add2 = selector(
-            add, selector=("add%sObject:" % (Name,)).encode("latin1"), signature=b"v@:@"
+            add,
+            selector=(f"add{Name}Object:").encode("latin1"),
+            signature=b"v@:@",
+            isHidden=True,
         )
-        add2.isHidden = True
         instance_methods.add(add2)
 
         remove1 = selector(
-            remove, selector=("remove%s:" % (Name,)).encode("latin1"), signature=b"v@:@"
+            remove,
+            selector=(f"remove{Name}:").encode("latin1"),
+            signature=b"v@:@",
+            isHidden=True,
         )
-        remove1.isHidden = True
         instance_methods.add(remove1)
 
         remove2 = selector(
             remove,
-            selector=("remove%sObject:" % (Name,)).encode("latin"),
+            selector=(f"remove{Name}Object:").encode("latin"),
             signature=b"v@:@",
+            isHidden=True,
         )
-        remove2.isHidden = True
         instance_methods.add(remove2)
 
 
@@ -1183,9 +1154,9 @@ NSMutableDictionary = lookUpClass("NSMutableDictionary")
 
 
 class dict_property(object_property):
-    def __get__(self, object, owner):
-        v = object_property.__get__(self, object, owner)
+    def __get__(self, an_object, owner):
+        v = object_property.__get__(self, an_object, owner)
         if v is None:
             v = NSMutableDictionary.alloc().init()
-            object_property.__set__(self, object, v)
-        return object_property.__get__(self, object, owner)
+            object_property.__set__(self, an_object, v)
+        return object_property.__get__(self, an_object, owner)

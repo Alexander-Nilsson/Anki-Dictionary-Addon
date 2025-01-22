@@ -3,7 +3,7 @@
 
 from aqt import dialogs
 from aqt.qt import *
-from anki.utils import isMac, isLin, isWin
+from anki.utils import is_mac, is_lin, is_win
 from aqt.utils import ensureWidgetInScreenBoundaries
 from os.path import join, exists
 from shutil import copyfile
@@ -27,20 +27,20 @@ class MITextEdit(QTextEdit):
         menu.exec_(event.globalPos())
     
     def keyPressEvent(self, event):
-        if event.modifiers() & Qt.ControlModifier:
-            if event.key() == Qt.Key_B:
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_B:
                 cursor = self.textCursor()
                 format = QTextCharFormat()
                 format.setFontWeight(QFont.Bold if not cursor.charFormat().font().bold() else QFont.Normal)
                 cursor.mergeCharFormat(format)
                 return
-            elif event.key() == Qt.Key_I:
+            elif event.key() == Qt.Key.Key_I:
                 cursor = self.textCursor()
                 format = QTextCharFormat()
                 format.setFontItalic(True if not cursor.charFormat().font().italic() else False)
                 cursor.mergeCharFormat(format)
                 return
-            elif event.key() == Qt.Key_U:
+            elif event.key() == Qt.Key.Key_U:
                 cursor = self.textCursor()
                 format = QTextCharFormat()
                 format.setUnderlineStyle(QTextCharFormat.SingleUnderline if not cursor.charFormat().font().underline() else QTextCharFormat.NoUnderline)
@@ -84,10 +84,10 @@ class CardExporter():
         self.window = QWidget()
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidget(self.window)
-        self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scrollArea.setWidgetResizable(True)
-        self.window.setAutoFillBackground(True);
+        self.window.setAutoFillBackground(True)
         self.dictInt = dictInt
         self.mw = self.dictInt.mw
         self.bulkTextImporting = False
@@ -135,8 +135,8 @@ class CardExporter():
         self.scrollArea.setMinimumWidth(490)
         self.scrollArea.setMinimumHeight(400)
         self.scrollArea.resize(490, 654)
-        self.scrollArea.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'migaku.png')))
-        self.scrollArea.setWindowTitle('Migaku Card Exporter')
+        self.scrollArea.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'miso.png')))
+        self.scrollArea.setWindowTitle('Miso Card Exporter')
         self.definitionList = []
         self.word = ''
         self.sentence = ''
@@ -152,7 +152,7 @@ class CardExporter():
 
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.scrollArea.setWindowFlags(self.scrollArea.windowFlags() | Qt.WindowStaysOnTopHint)
+            self.scrollArea.setWindowFlags(self.scrollArea.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
             self.scrollArea.show()
 
     def attemptAutoAdd(self, bulkExport):
@@ -186,46 +186,46 @@ class CardExporter():
             focused.searchSelected(in_browser)
 
     def setColors(self):
-        if self.dictInt.nightModeToggler.day :
-            self.scrollArea.setPalette(self.dictInt.ogPalette)
-            if isMac:
-                self.templateCB.setStyleSheet(self.dictInt.getMacComboStyle())
-                self.deckCB.setStyleSheet(self.dictInt.getMacComboStyle())
-                self.definitions.setStyleSheet(self.dictInt.getMacTableStyle())
-            else:
-                self.templateCB.setStyleSheet('')
-                self.deckCB.setStyleSheet('')
-                self.definitions.setStyleSheet('')
+        # self.scrollArea.setPalette(self.dictInt.ogPalette)
+        if is_mac:
+            self.templateCB.setStyleSheet(self.dictInt.getMacComboStyle())
+            self.deckCB.setStyleSheet(self.dictInt.getMacComboStyle())
+            self.definitions.setStyleSheet(self.dictInt.getMacTableStyle())
         else:
-            self.scrollArea.setPalette(self.dictInt.nightPalette)
-            if isMac: 
-                self.templateCB.setStyleSheet(self.dictInt.getMacNightComboStyle())
-                self.deckCB.setStyleSheet(self.dictInt.getMacNightComboStyle())
-            else:
-                self.templateCB.setStyleSheet(self.dictInt.getComboStyle())
-                self.deckCB.setStyleSheet(self.dictInt.getComboStyle())
-            self.definitions.setStyleSheet(self.dictInt.getTableStyle())
+            self.templateCB.setStyleSheet('')
+            self.deckCB.setStyleSheet('')
+            self.definitions.setStyleSheet('')
+        # if self.dictInt.nightModeToggler.day :
+        # else:
+        #     self.scrollArea.setPalette(self.dictInt.nightPalette)
+        #     if is_mac:
+        #         self.templateCB.setStyleSheet(self.dictInt.getMacNightComboStyle())
+        #         self.deckCB.setStyleSheet(self.dictInt.getMacNightComboStyle())
+        #     else:
+        #         self.templateCB.setStyleSheet(self.dictInt.getComboStyle())
+        #         self.deckCB.setStyleSheet(self.dictInt.getComboStyle())
+        #     self.definitions.setStyleSheet(self.dictInt.getTableStyle())
         
     def addNote(self, note, did):
-        note.model()['did'] = int(did)
+        note.note_type()['did'] = int(did)
         ret = note.dupeOrEmpty()
         if ret == 1:
-            if not miAsk('Your note\'s sorting field will be empty with this configuration. Would you like to continue?', self.scrollArea, self.dictInt.nightModeToggler.day):
+            if not miAsk('Your note\'s sorting field will be empty with this configuration. Would you like to continue?', self.scrollArea):
                 return False
-        if '{{cloze:' in note.model()['tmpls'][0]['qfmt']:
+        if '{{cloze:' in note.note_type()['tmpls'][0]['qfmt']:
             if not self.mw.col.models._availClozeOrds(
                     note.model(), note.joinedFields(), False):
                 if not miAsk("You have a cloze deletion note type "
-                "but have not made any cloze deletions. Would you like to continue?", self.scrollArea, self.dictInt.nightModeToggler.day):
+                "but have not made any cloze deletions. Would you like to continue?", self.scrollArea):
                     return False
         cards = self.mw.col.addNote(note)
         if not cards:
             miInfo(("""\
 The current input and template combination \
 will lead to a blank card and therefore has not been added. \
-Please review your template and notetype combination."""), level='wrn', day = self.dictInt.nightModeToggler.day)
+Please review your template and notetype combination."""), level='wrn')
             return False
-        self.mw.col.save()
+        # self.mw.col.save()
         self.mw.reset()
         return True
 
@@ -281,21 +281,21 @@ Please review your template and notetype combination."""), level='wrn', day = se
         config = self.getConfig()
         config["unknownsToSearch"] = self.searchUnknowns.value()
         self.config = config
-        self.mw.refreshMigakuDictConfig(config)
+        self.mw.refreshMisoDictConfig(config)
         self.mw.addonManager.writeConfig(__name__, config)
 
     def saveAutoAddChecked(self):
         config = self.getConfig()
         config["autoAddCards"] = self.autoAdd.isChecked()
         self.config = config
-        self.mw.refreshMigakuDictConfig(config)
+        self.mw.refreshMisoDictConfig(config)
         self.mw.addonManager.writeConfig(__name__, config)
 
     def saveAddDefinitionChecked(self):
         config = self.getConfig()
         config["autoAddDefinitions"] = self.addDefinitionsCheckbox.isChecked()
         self.config = config
-        self.mw.refreshMigakuDictConfig(config)
+        self.mw.refreshMisoDictConfig(config)
         self.mw.addonManager.writeConfig(__name__, config)
 
     def addCard(self):
@@ -306,16 +306,16 @@ Please review your template and notetype combination."""), level='wrn', day = se
             model = self.mw.col.models.byName(noteType)
             if model:
                 note = Note(self.mw.col, model)
-                modelFields = self.mw.col.models.fieldNames(note.model())
+                modelFields = self.mw.col.models.field_names(note.model())
                 fieldsValues, imgField, audioField, tagsField = self.getFieldsValues(template)
                 word = self.wordLE.text()
                 if not fieldsValues:
-                    miInfo('The currently selected template and values will lead to an invalid card. Please try again.', level='wrn', day = self.dictInt.nightModeToggler.day)
+                    miInfo('The currently selected template and values will lead to an invalid card. Please try again.', level='wrn')
                     return
                 for field in fieldsValues:
                     if field in modelFields:
                         note[field] = template['separator'].join(fieldsValues[field])
-                note.setTagsFromStr(tagsField)
+                note.set_tags_from_str(tagsField)
                 did = False
                 deck = self.deckCB.currentText()
                 if deck in self.decks:
@@ -334,9 +334,9 @@ Please review your template and notetype combination."""), level='wrn', day = se
                 self.clearCurrent()
                 return
             else:
-                miInfo('The notetype for the currently selected template does not exist in the currently loaded profile.', level='err', day = self.dictInt.nightModeToggler.day)
+                miInfo('The notetype for the currently selected template does not exist in the currently loaded profile.', level='err')
                 return
-        miInfo('A card could not be added with this current configuration. Please ensure that your template is configured correctly for this collection.', level='err', day = self.dictInt.nightModeToggler.day)
+        miInfo('A card could not be added with this current configuration. Please ensure that your template is configured correctly for this collection.', level='err')
 
     def automaticallyAddDefinitions(self, note, word, template):
         if not self.definitionSettings:
@@ -463,7 +463,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
                 fields[unspecified] = [defList[2]]
             else:
                 fields[unspecified].append(defList[2])
-        return fields, imgField, audioField, tagsField;
+        return fields, imgField, audioField, tagsField
 
     def clearCurrent(self):
         self.definitions.setRowCount(0)
@@ -485,23 +485,23 @@ Please review your template and notetype combination."""), level='wrn', day = se
 
     def getDefinitions(self):
         macLin = False
-        if isMac  or isLin:
+        if is_mac  or is_lin:
             macLin = True
         definitions = QTableWidget()
         definitions.setMinimumHeight(100)
         definitions.setColumnCount(3)
         tableHeader = definitions.horizontalHeader()
         vHeader = definitions.verticalHeader()
-        vHeader.setDefaultSectionSize(50);
-        vHeader.setSectionResizeMode(QHeaderView.ResizeToContents)
-        tableHeader.setSectionResizeMode(0, QHeaderView.Fixed)
+        vHeader.setDefaultSectionSize(50)
+        vHeader.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         definitions.setColumnWidth(1, 100)
-        tableHeader.setSectionResizeMode(1, QHeaderView.Stretch)
-        tableHeader.setSectionResizeMode(2, QHeaderView.Fixed)
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         definitions.setRowCount(0)
         definitions.setSortingEnabled(False)
-        definitions.setEditTriggers(QTableWidget.NoEditTriggers)
-        definitions.setSelectionBehavior(QAbstractItemView.SelectRows)
+        definitions.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        definitions.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         definitions.setColumnWidth(2, 40)
         tableHeader.hide()
         return definitions
@@ -606,14 +606,14 @@ Please review your template and notetype combination."""), level='wrn', day = se
         self.focusWindow()
         defEntry = ["Google Images", False, imgs, imgs]
         if defEntry in self.definitionList:
-            miInfo('A card cannot contain duplicate definitions.', level='not', day = self.dictInt.nightModeToggler.day)
+            miInfo('A card cannot contain duplicate definitions.', level='not')
             return
         self.definitionList.append(defEntry)
         rc = self.definitions.rowCount()
         self.definitions.setRowCount(rc + 1)
         self.definitions.setItem(rc, 0, QTableWidgetItem("Google Images"))
         self.definitions.setCellWidget(rc, 1, thumbs)
-        deleteButton =  QPushButton("X");
+        deleteButton =  QPushButton("X")
         deleteButton.setFixedWidth(40)
         deleteButton.clicked.connect(lambda: self.removeImgs(imgs))
         self.definitions.setCellWidget(rc, 2, deleteButton)
@@ -646,14 +646,14 @@ Please review your template and notetype combination."""), level='wrn', day = se
             shortDef = definition.replace('<br>', ' ')
         defEntry = [dictName, shortDef, definition, False]
         if defEntry in self.definitionList:
-            miInfo('A card can not contain duplicate definitions.', level='not', day = self.dictInt.nightModeToggler.day)
+            miInfo('A card can not contain duplicate definitions.', level='not')
             return
         self.definitionList.append(defEntry)
         rc = self.definitions.rowCount()
         self.definitions.setRowCount(rc + 1)
         self.definitions.setItem(rc, 0, QTableWidgetItem(dictName))  
         self.definitions.setItem(rc, 1, QTableWidgetItem(shortDef)) 
-        deleteButton =  QPushButton("X");
+        deleteButton =  QPushButton("X")
         deleteButton.setFixedWidth(40)
         deleteButton.clicked.connect(self.removeDefinition)
         self.definitions.setCellWidget(rc, 2, deleteButton)
@@ -668,7 +668,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
         if self.imageMap:
             self.imageMap.setText('')
             screenshot = QPixmap(path)
-            screenshot = screenshot.scaled(200,200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            screenshot = screenshot.scaled(200,200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.imageMap.setPixmap(screenshot)
 
 
@@ -715,8 +715,8 @@ Please review your template and notetype combination."""), level='wrn', day = se
      
     def focusWindow(self):
         self.scrollArea.show()
-        if self.scrollArea.windowState() == Qt.WindowMinimized:
-            self.scrollArea.setWindowState(Qt.WindowNoState)
+        if self.scrollArea.windowState() == Qt.WindowState.WindowMinimized:
+            self.scrollArea.setWindowState(Qt.WindowState.WindowNoState)
         self.scrollArea.setFocus()
         self.scrollArea.activateWindow()
 
@@ -728,12 +728,12 @@ Please review your template and notetype combination."""), level='wrn', day = se
         dictToTable['Google Images'] = 'Google Images'
         for dictTableName in sorted(self.mw.miDictDB.getAllDicts()):
             dictName = self.mw.miDictDB.cleanDictName(dictTableName)
-            dictToTable[dictName] = dictTableName;
+            dictToTable[dictName] = dictTableName
         return dictToTable
 
 
     def definitionSettingsWidget(self):
-        settingsWidget = QWidget(self.scrollArea, Qt.Window)
+        settingsWidget = QWidget(self.scrollArea, Qt.WindowType.Window)
         layout = QVBoxLayout()
         dict1 = QComboBox()
         dict2 = QComboBox()
@@ -804,7 +804,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
         layout.setContentsMargins(4, 4, 4, 4)
         save.clicked.connect(lambda: self.saveDefinitionSettings(settingsWidget, dict1.currentText(), howMany1.value(), dict2.currentText(), howMany2.value(), dict3.currentText(), howMany3.value()))
         settingsWidget.setWindowTitle("Definition Settings")
-        settingsWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'migaku.png')))
+        settingsWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'miso.png')))
         settingsWidget.setLayout(layout)
         settingsWidget.show()
 
@@ -858,13 +858,13 @@ Please review your template and notetype combination."""), level='wrn', day = se
             model = self.mw.col.models.byName(noteType)
             if model:
                 note = Note(self.mw.col, model)
-                modelFields = self.mw.col.models.fieldNames(note.model())
+                modelFields = self.mw.col.models.field_names(note.model())
                 fieldsValues, tagsField = self.getFieldsValuesForTextCard(template, word, sentence)
                 if fieldsValues:
                     for field in fieldsValues:
                         if field in modelFields:
                             note[field] = template['separator'].join(fieldsValues[field])
-                    note.setTagsFromStr(tagsField)
+                    note.set_tags_from_str(tagsField)
                     did = False
                     deck = self.deckCB.currentText()
                     if deck in self.decks:
@@ -876,7 +876,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
                             note = self.dictInt.jHandler.attemptGenerate(note)
                         note.model()['did'] = int(did)
                         self.mw.col.addNote(note)
-                        self.mw.col.save()
+                        # self.mw.col.save()
                 else:
                     print("Invalid field values")
 
@@ -905,7 +905,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
         self.bulkTextImporting = True
         total = len(cards)
         importingMessage = "Importing {} of "+ str(total) + " cards."
-        progressWidget, bar, textDisplay = self.getProgressBar("Migaku Dictionary - Importing Text Cards", importingMessage.format(0))
+        progressWidget, bar, textDisplay = self.getProgressBar("Miso Dictionary - Importing Text Cards", importingMessage.format(0))
         bar.setMaximum(total)
         for idx, card in enumerate(cards):
             if not self.bulkTextImporting:
@@ -930,7 +930,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
             model = self.mw.col.models.byName(noteType)
             if model:
                 note = Note(self.mw.col, model)
-                modelFields = self.mw.col.models.fieldNames(note.model())
+                modelFields = self.mw.col.models.field_names(note.model())
                 fieldsValues, tagsField = self.getFieldsValuesForMediaCard(template, word, card)
                 if fieldsValues:
                     for field in fieldsValues:
@@ -938,7 +938,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
                         print(field)
                         if field in modelFields:
                             note[field] = template['separator'].join(fieldsValues[field])
-                    note.setTagsFromStr(tagsField)
+                    note.set_tags_from_str(tagsField)
                     did = False
                     deck = self.deckCB.currentText()
                     if deck in self.decks:
@@ -950,7 +950,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
                             note = self.dictInt.jHandler.attemptGenerate(note)
                         note.model()['did'] = int(did)
                         self.mw.col.addNote(note)
-                        self.mw.col.save()
+                        # self.mw.col.save()
                 else:
                     print("Invalid field values")
 
@@ -1005,15 +1005,15 @@ Please review your template and notetype combination."""), level='wrn', day = se
                     fields[audioField] = [audio]
                 else: 
                     fields[audioField].append(audio)
-        return fields, tagsField;
+        return fields, tagsField
 
     def bulkMediaExport(self, card):
-        if self.mw.MigakuBulkMediaExportWasCancelled:
+        if self.mw.MisoBulkMediaExportWasCancelled:
             return
         if not self.bulkMediaExportProgressWindow:
             total = card["total"]
             importingMessage = "Importing {} of "+ str(total) + " cards."
-            self.bulkMediaExportProgressWindow, self.bulkMediaExportProgressWindow.bar, self.bulkMediaExportProgressWindow.textDisplay = self.getProgressBar("Migaku Dictionary - Importing Media Cards", importingMessage.format(0))
+            self.bulkMediaExportProgressWindow, self.bulkMediaExportProgressWindow.bar, self.bulkMediaExportProgressWindow.textDisplay = self.getProgressBar("Miso Dictionary - Importing Media Cards", importingMessage.format(0))
             self.bulkMediaExportProgressWindow.bar.setMaximum(total)
             self.bulkMediaExportProgressWindow.currentValue = 0
             self.bulkMediaExportProgressWindow.total = total
@@ -1021,7 +1021,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
             importingMessage = "Importing {} of "+ str(self.bulkMediaExportProgressWindow.total) + " cards."
         self.addMediaCard(card)
         try:
-            if self.mw.MigakuBulkMediaExportWasCancelled or not self.bulkMediaExportProgressWindow:
+            if self.mw.MisoBulkMediaExportWasCancelled or not self.bulkMediaExportProgressWindow:
                 if self.bulkMediaExportProgressWindow:
                     self.closeProgressBar(self.bulkMediaExportProgressWindow)
                 return
@@ -1046,7 +1046,7 @@ Please review your template and notetype combination."""), level='wrn', day = se
             miInfo("Importing cards from the extension has been cancelled from within the browser.\n\n {} cards were imported.".format(currentValue))
             self.closeProgressBar(self.bulkMediaExportProgressWindow)
             self.bulkMediaExportProgressWindow = False
-            self.mw.MigakuBulkMediaExportWasCancelled = False
+            self.mw.MisoBulkMediaExportWasCancelled = False
             
 
 
@@ -1062,12 +1062,12 @@ Please review your template and notetype combination."""), level='wrn', day = se
                 currentValue = self.bulkMediaExportProgressWindow.currentValue
                 self.bulkMediaExportProgressWindow = False
                 if not progressWidget.closedBecauseFinishedImporting:
-                    self.mw.MigakuBulkMediaExportWasCancelled = True
+                    self.mw.MisoBulkMediaExportWasCancelled = True
                     miInfo("Importing cancelled.\n\n{} cards were imported.".format(currentValue))
                 
         progressWidget.exporter = self
         textDisplay = QLabel()
-        progressWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'migaku.png')))
+        progressWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'miso.png')))
         progressWidget.setWindowTitle(title)
         textDisplay.setText(initialText)
         
@@ -1078,20 +1078,20 @@ Please review your template and notetype combination."""), level='wrn', day = se
         progressWidget.setLayout(layout) 
         bar.move(10,10)
         per = QLabel(bar)
-        per.setAlignment(Qt.AlignCenter)
+        per.setAlignment(Qt.AlignmentFlag.alignCenter)
         progressWidget.setFixedSize(500, 100)
-        progressWidget.setWindowModality(Qt.ApplicationModal)
+        progressWidget.setWindowModality(Qt.WindowModality.ApplicationModal)
         if self.alwaysOnTop:
-            progressWidget.setWindowFlags(progressWidget.windowFlags() | Qt.WindowStaysOnTopHint)
-        screenGeometry = QApplication.desktop().screenGeometry();
-        x = (screenGeometry.width() - progressWidget.width()) / 2;
-        y = (screenGeometry.height() - progressWidget.height()) / 2;
-        progressWidget.move(x, y);
+            progressWidget.setWindowFlags(progressWidget.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+        screenGeometry = QApplication.desktop().screenGeometry()
+        x = (screenGeometry.width() - progressWidget.width()) / 2
+        y = (screenGeometry.height() - progressWidget.height()) / 2
+        progressWidget.move(x, y)
         progressWidget.show()
         progressWidget.setFocus()
         progressWidget.closeEvent = closedProgressBar
         self.mw.app.processEvents()
-        return progressWidget, bar, textDisplay;
+        return progressWidget, bar, textDisplay
 
     def closeProgressBar(self, progressBar):
         if progressBar:

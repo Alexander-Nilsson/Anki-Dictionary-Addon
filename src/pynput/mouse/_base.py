@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -26,7 +26,7 @@ is located in a platform dependent module.
 
 import enum
 
-from pynput._util import AbstractListener
+from pynput._util import AbstractListener, prefix
 from pynput import _logger
 
 
@@ -100,7 +100,7 @@ class Controller(object):
         """Moves the mouse pointer a number of pixels from its current
         position.
 
-        :param int x: The horizontal offset.
+        :param int dx: The horizontal offset.
 
         :param int dy: The vertical offset.
 
@@ -241,7 +241,7 @@ class Listener(AbstractListener):
         ``win32_event_filter``
             A callable taking the arguments ``(msg, data)``, where ``msg`` is
             the current message, and ``data`` associated data as a
-            `MSLLHOOKSTRUCT <https://msdn.microsoft.com/en-us/library/windows/desktop/ms644970(v=vs.85).aspx>`_.
+            `MSLLHOOKSTRUCT <https://docs.microsoft.com/en-gb/windows/win32/api/winuser/ns-winuser-msllhookstruct>`_.
 
             If this callback returns ``False``, the event will not
             be propagated to the listener callback.
@@ -252,11 +252,11 @@ class Listener(AbstractListener):
     def __init__(self, on_move=None, on_click=None, on_scroll=None,
                  suppress=False, **kwargs):
         self._log = _logger(self.__class__)
-        prefix = self.__class__.__module__.rsplit('.', 1)[-1][1:] + '_'
+        option_prefix = prefix(Listener, self.__class__)
         self._options = {
-            key[len(prefix):]: value
+            key[len(option_prefix):]: value
             for key, value in kwargs.items()
-            if key.startswith(prefix)}
+            if key.startswith(option_prefix)}
         super(Listener, self).__init__(
             on_move=on_move, on_click=on_click, on_scroll=on_scroll,
             suppress=suppress)

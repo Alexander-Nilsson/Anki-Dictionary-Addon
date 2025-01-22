@@ -1,6 +1,6 @@
 # coding=utf-8
 # pynput
-# Copyright (C) 2015-2018 Moses Palmér
+# Copyright (C) 2015-2024 Moses Palmér
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Lesser General Public License as published by the Free
@@ -28,17 +28,29 @@ import ctypes.util
 import six
 
 import objc
-import CoreFoundation
-import Quartz
+import HIServices
+
+from CoreFoundation import (
+    CFRelease
+)
+
+from Quartz import (
+    CFMachPortCreateRunLoopSource,
+    CFRunLoopAddSource,
+    CFRunLoopGetCurrent,
+    CFRunLoopRunInMode,
+    CFRunLoopStop,
+    CGEventTapCreate,
+    CGEventTapEnable,
+    kCFRunLoopDefaultMode,
+    kCFRunLoopRunTimedOut,
+    kCGEventTapOptionDefault,
+    kCGEventTapOptionListenOnly,
+    kCGHeadInsertEventTap,
+    kCGSessionEventTap)
+
 
 from . import AbstractListener
-
-
-#: The objc module as a library handle
-OBJC = ctypes.PyDLL(objc._objc.__file__)
-
-OBJC.PyObjCObject_New.restype = ctypes.py_object
-OBJC.PyObjCObject_New.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 
 
 def _wrap_value(value):
@@ -48,7 +60,7 @@ def _wrap_value(value):
 
     :return: a wrapped value
     """
-    return OBJC.PyObjCObject_New(value, 0, 1)
+    return objc.objc_object(c_void_p=value) if value is not None else None
 
 
 @contextlib.contextmanager
@@ -64,7 +76,7 @@ def _wrapped(value):
     try:
         yield value
     finally:
-        CoreFoundation.CFRelease(wrapped_value)
+        CFRelease(wrapped_value)
 
 
 class CarbonExtra(object):
@@ -188,7 +200,16 @@ class ListenerMixin(object):
     #: The events that we listen to
     _EVENTS = tuple()
 
+    #: Whether this process is trusted to monitor input events.
+    IS_TRUSTED = False
+
     def _run(self):
+        self.IS_TRUSTED = HIServices.AXIsProcessTrusted()
+        if not self.IS_TRUSTED:
+            self._log.warning(
+                'This process is not trusted! Input event monitoring will not '
+                'be possible until it is added to accessibility clients.')
+
         self._loop = None
         try:
             tap = self._create_event_tap()
@@ -196,23 +217,23 @@ class ListenerMixin(object):
                 self._mark_ready()
                 return
 
-            loop_source = Quartz.CFMachPortCreateRunLoopSource(
+            loop_source = CFMachPortCreateRunLoopSource(
                 None, tap, 0)
-            self._loop = Quartz.CFRunLoopGetCurrent()
+            self._loop = CFRunLoopGetCurrent()
 
-            Quartz.CFRunLoopAddSource(
-                self._loop, loop_source, Quartz.kCFRunLoopDefaultMode)
-            Quartz.CGEventTapEnable(tap, True)
+            CFRunLoopAddSource(
+                self._loop, loop_source, kCFRunLoopDefaultMode)
+            CGEventTapEnable(tap, True)
 
             self._mark_ready()
 
             # pylint: disable=W0702; we want to silence errors
             try:
                 while self.running:
-                    result = Quartz.CFRunLoopRunInMode(
-                        Quartz.kCFRunLoopDefaultMode, 1, False)
+                    result = CFRunLoopRunInMode(
+                        kCFRunLoopDefaultMode, 1, False)
                     try:
-                        if result != Quartz.kCFRunLoopRunTimedOut:
+                        if result != kCFRunLoopRunTimedOut:
                             break
                     except AttributeError:
                         # This happens during teardown of the virtual machine
@@ -231,7 +252,7 @@ class ListenerMixin(object):
         # loop around run loop invocations to terminate and set this event
         try:
             if self._loop is not None:
-                Quartz.CFRunLoopStop(self._loop)
+                CFRunLoopStop(self._loop)
         except AttributeError:
             # The loop may not have been created
             pass
@@ -241,20 +262,21 @@ class ListenerMixin(object):
 
         :return: an event tap
         """
-        return Quartz.CGEventTapCreate(
-            Quartz.kCGSessionEventTap,
-            Quartz.kCGHeadInsertEventTap,
-            Quartz.kCGEventTapOptionListenOnly if (True
+        return CGEventTapCreate(
+            kCGSessionEventTap,
+            kCGHeadInsertEventTap,
+            kCGEventTapOptionListenOnly if (
+                True
                 and not self.suppress
                 and self._intercept is None)
-            else Quartz.kCGEventTapOptionDefault,
+            else kCGEventTapOptionDefault,
             self._EVENTS,
             self._handler,
             None)
 
     @AbstractListener._emitter
     def _handler(self, proxy, event_type, event, refcon):
-        """The callback registered with *Mac OSX* for mouse events.
+        """The callback registered with *macOS* for mouse events.
 
         This method will call the callbacks registered on initialisation.
         """

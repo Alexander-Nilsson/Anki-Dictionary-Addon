@@ -3,51 +3,49 @@ Python <-> Objective-C bridge (PyObjC)
 
 This module defines the core interfaces of the Python<->Objective-C bridge.
 """
-import sys
 
-# Aliases for some common Objective-C constants
-nil = None
-YES = True
-NO = False
+from . import _objc
+
 
 # Import the namespace from the _objc extension
-def _update(g=globals()):
-    import objc._objc as _objc
-
+def _update(g):
     for k in _objc.__dict__:
         g.setdefault(k, getattr(_objc, k))
 
 
-_update()
+_update(globals())
 del _update
 
-from objc._convenience import *
-from objc._convenience_nsobject import *
-from objc._convenience_nsdecimal import *
-from objc._convenience_nsdata import *
-from objc._convenience_nsdictionary import *
-from objc._convenience_nsset import *
-from objc._convenience_nsarray import *
-from objc._convenience_nsstring import *
-from objc._convenience_mapping import *
-from objc._convenience_sequence import *
 
-from objc._bridgesupport import *
+from ._transform import *  # noqa: F401, F403, E402
+from ._convenience import *  # noqa: F401, F403, E402
+from ._convenience_nsobject import *  # noqa: F401, F403, E402
+from ._convenience_nsdecimal import *  # noqa: F401, F403, E402
+from ._convenience_nsdata import *  # noqa: F401, F403, E402
+from ._convenience_nsdictionary import *  # noqa: F401, F403, E402
+from ._convenience_nsset import *  # noqa: F401, F403, E402
+from ._convenience_nsarray import *  # noqa: F401, F403, E402
+from ._convenience_nsstring import *  # noqa: F401, F403, E402
+from ._convenience_mapping import *  # noqa: F401, F403, E402
+from ._convenience_sequence import *  # noqa: F401, F403, E402
+from ._dyld import *  # noqa: F401, F403, E402
+from ._protocols import *  # noqa: F401, F403, E402
+from ._descriptors import *  # noqa: F401, F403, E402
+from ._category import *  # noqa: F401, F403, E402
+from ._bridges import *  # noqa: F401, F403, E402
+from ._pythonify import *  # noqa: F401, F403, E402
+from ._locking import *  # noqa: F401, F403, E402
+from ._context import *  # noqa: F401, F403, E402
+from ._properties import *  # noqa: F401, F403, E402
+from ._lazyimport import *  # noqa: F401, F403, E402
+from ._compat import *  # noqa: F401, F403, E402
+from ._bridgesupport import *  # noqa: F401, F403, E402
+from . import _structtype  # noqa: F401, F403, E402
+from . import _callable_docstr  # noqa: F401, F403, E402
+from . import _pycoder  # noqa: F401, F403, E402
+from ._informal_protocol import *  # noqa: F401, F403, E402
+from . import _new  # noqa: F401, E402
 
-from objc._dyld import *
-from objc._protocols import *
-from objc._descriptors import *
-from objc._category import *
-from objc._bridges import *
-from objc._pythonify import *
-from objc._locking import *
-from objc._context import *
-from objc._properties import *
-from objc._lazyimport import *
-from objc._compat import *
-import objc._callable_docstr
-
-import objc._pycoder as _pycoder
 
 # Helper function for new-style metadata modules
 def _resolve_name(name):
@@ -64,8 +62,13 @@ def _resolve_name(name):
 
 _NSAutoreleasePool = None
 
+# Aliases for some common Objective-C constants
+nil = None
+YES = True
+NO = False
 
-class autorelease_pool(object):
+
+class autorelease_pool:
     """
     A context manager that runs the body of the block with a fresh
     autorelease pool. The actual release pool is not accessible.
@@ -74,10 +77,10 @@ class autorelease_pool(object):
     def __init__(self):
         global _NSAutoreleasePool
         if _NSAutoreleasePool is None:
-            _NSAutoreleasePool = objc.lookUpClass("NSAutoreleasePool")
+            _NSAutoreleasePool = lookUpClass("NSAutoreleasePool")  # noqa: F405
 
     def __enter__(self):
         self._pool = _NSAutoreleasePool.alloc().init()
 
-    def __exit__(self, type, value, tp):
+    def __exit__(self, exc_type, value, tp):
         del self._pool

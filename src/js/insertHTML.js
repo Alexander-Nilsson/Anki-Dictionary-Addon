@@ -1,26 +1,35 @@
-function insertHTML(newHTML, ord, action) {
-  const field = document.getElementById("f" + ord)
-  if(action == "overwrite"){
-  	field.innerHTML = newHTML;
-  }else if(action == "add"){
-  	if(field.innerHTML === "<br>") {
-  		field.innerHTML = newHTML;
-  	}else{
-  		field.innerHTML = field.innerHTML + "<br><br>" + newHTML;
-  	}
-  }else if(action == "no"){
-  	if(field.innerHTML === "<br>") {
-  		field.innerHTML = newHTML;
-  	}
+function insertHTML(newHTML, ord, action, currentNoteId) {
+  const fieldContainers = document.querySelectorAll(".field-container");
+  if (!fieldContainers || fieldContainers.length <= ord) {
+    console.error("Field container not found for ord:", ord);
+    return;
   }
-  pycmd("key" + ":" + parseInt(ord) + ":" + currentNoteId + ":" + field.innerHTML);
-  // setFormat("inserthtml", field.innerHTML);
-  // setFormat("inserthtml", newHTML.trim());
+  const fieldContainer = fieldContainers[ord];
+  const editableField = fieldContainer.querySelector(".rich-text-editable");
+  if (!editableField) {
+    console.error("Editable field not found in container:", fieldContainer);
+    return;
+  }
 
+  if (action === "overwrite") {
+    editableField.innerHTML = newHTML;
+  } else if (action === "add") {
+    if (editableField.innerHTML === "<br>" || editableField.innerHTML.trim() === "") {
+      editableField.innerHTML = newHTML;
+    } else {
+      editableField.innerHTML = editableField.innerHTML + "<br><br>" + newHTML;
+    }
+  } else if (action === "no") {
+    if (editableField.innerHTML === "<br>" || editableField.innerHTML.trim() === "") {
+      editableField.innerHTML = newHTML;
+    }
+  }
+
+  pycmd("key" + ":" + parseInt(ord) + ":" + currentNoteId + ":" + editableField.innerHTML);
 }
-try {
 
-  insertHTML("%s", "%s", "%s");
+try {
+  insertHTML("%s", "%s", "%s", "%s");
 } catch (e) {
-  alert(e);
+  console.error("Error in insertHTML:", e);
 }

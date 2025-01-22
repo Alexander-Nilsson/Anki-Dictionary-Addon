@@ -4,34 +4,34 @@ Python mapping for the CoreFoundation framework.
 This module does not contain docstrings for the wrapped code, check Apple's
 documentation for details on how to use these functions and classes.
 """
-import sys
-import objc
 
-from CoreFoundation import _metadata
-from CoreFoundation._inlines import _inline_list_
 
-sys.modules["CoreFoundation"] = mod = objc.ObjCLazyModule(
-    "CoreFoundation",
-    "com.apple.CoreFoundation",
-    objc.pathForFramework("/System/Library/Frameworks/CoreFoundation.framework"),
-    _metadata.__dict__,
-    _inline_list_,
-    {
-        "__doc__": __doc__,
-        "__path__": __path__,
-        "__loader__": globals().get("__loader__", None),
-    },
-    (),
-)
+def _setup():
+    import sys
 
-import CoreFoundation._CoreFoundation
-import CoreFoundation._static
+    import objc
+    from . import _metadata, _CoreFoundation, _static
+    from ._inlines import _inline_list_
 
-for nm in dir(CoreFoundation._CoreFoundation):
-    setattr(mod, nm, getattr(CoreFoundation._CoreFoundation, nm))
-for nm in dir(CoreFoundation._static):
-    setattr(mod, nm, getattr(CoreFoundation._static, nm))
+    dir_func, getattr_func = objc.createFrameworkDirAndGetattr(
+        name="CoreFoundation",
+        frameworkIdentifier="com.apple.CoreFoundation",
+        frameworkPath=objc.pathForFramework(
+            "/System/Library/Frameworks/CoreFoundation.framework"
+        ),
+        globals_dict=globals(),
+        inline_list=_inline_list_,
+        parents=(
+            _CoreFoundation,
+            _static,
+        ),
+        metadict=_metadata.__dict__,
+    )
 
-import sys
+    globals()["__dir__"] = dir_func
+    globals()["__getattr__"] = getattr_func
 
-del sys.modules["CoreFoundation._metadata"]
+    del sys.modules["CoreFoundation._metadata"]
+
+
+globals().pop("_setup")()

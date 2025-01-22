@@ -4,24 +4,61 @@ Python mapping for the Foundation framework.
 This module does not contain docstrings for the wrapped code, check Apple's
 documentation for details on how to use these functions and classes.
 """
-import sys
-import objc
-import CoreFoundation
-
-from Foundation import _metadata
-from Foundation._inlines import _inline_list_
-
-objc.addConvenienceForClass(
-    "NSAttributedString", (("__len__", lambda self: self.length()),)
-)
-
-# XXX
-objc.addConvenienceForBasicMapping("NSMergeConflict", True)
-objc.addConvenienceForBasicMapping("NSUbiquitousKeyValueStore", False)
-objc.addConvenienceForBasicMapping("NSUserDefaults", False)
 
 
-def _setup_conveniences():
+def _setup():
+    import sys
+
+    import CoreFoundation
+    import objc
+    from . import _Foundation, _metadata, _functiondefines, _context
+    from ._inlines import _inline_list_
+
+    dir_func, getattr_func = objc.createFrameworkDirAndGetattr(
+        name="Foundation",
+        frameworkIdentifier="com.apple.Foundation",
+        frameworkPath=objc.pathForFramework(
+            "/System/Library/Frameworks/Foundation.framework"
+        ),
+        globals_dict=globals(),
+        inline_list=_inline_list_,
+        parents=(
+            _Foundation,
+            _functiondefines,
+            _context,
+            CoreFoundation,
+        ),
+        metadict=_metadata.__dict__,
+    )
+
+    globals()["__dir__"] = dir_func
+    globals()["__getattr__"] = getattr_func
+
+    for cls, sel in (
+        ("NSPresentationIntent", b"init"),
+        ("NSURLSessionWebSocketMessage", b"init"),
+        ("NSURLSessionWebSocketMessage", b"new"),
+        ("NSURLSessionWebSocketTask", b"init"),
+        ("NSURLSessionWebSocketTask", b"new"),
+        ("NSInflectionRule", b"init"),
+        ("NSMorphologyPronoun", b"init"),
+        ("NSMorphologyPronoun", b"new"),
+        ("NSTermOfAddress", b"init"),
+        ("NSTermOfAddress", b"new"),
+        ("NSObject", b"poseAsClass:"),
+    ):
+        objc.registerUnavailableMethod(cls, sel)
+
+    del sys.modules["Foundation._metadata"]
+
+    objc.addConvenienceForClass(
+        "NSAttributedString", (("__len__", lambda self: self.length()),)
+    )
+
+    objc.addConvenienceForBasicMapping("NSMergeConflict", True)
+    objc.addConvenienceForBasicMapping("NSUbiquitousKeyValueStore", False)
+    objc.addConvenienceForBasicMapping("NSUserDefaults", False)
+
     NSNull = objc.lookUpClass("NSNull")
 
     def nscache_getitem(self, key):
@@ -82,7 +119,6 @@ def _setup_conveniences():
         else:
             return value
 
-    # XXX: add more of the set interface
     objc.addConvenienceForClass(
         "NSHashTable",
         (
@@ -96,26 +132,11 @@ def _setup_conveniences():
         ),
     )
 
-    # XXX: These convenience wrappers don't work due to type issues
-    # def charset_contains(self, value):
-    #    try:
-    #        return self.characterIsMember_(value)
-    #    except ValueErorr:
-    #        # Wrong type
-    #        return False
+    objc.addConvenienceForClass(
+        "NSIndexPath", (("__len__", lambda self: self.count()),)
+    )
 
-    # objc.addConvenienceForClass('NSCharacterSet', (
-    #    ('__len__',         lambda self: self.count()),
-    #    ('__contains__',    charset_contains),
-    # ))
-
-    # XXX: add full set interface (even if other value can only be a set)
-    # objc.addConvenienceForClass('NSMutableCharacterSet', (
-
-    # XXX: add __new__, __getitem__ and __iter__ as well
-    objc.addConvenienceForClass("NSIndexPath", (("__len__", lambda self: self.count()),))
-
-    if sys.maxsize > 2 ** 32:
+    if sys.maxsize > 2**32:
         NSNotFound = 0x7FFFFFFFFFFFFFFF
     else:
         NSNotFound = 0x7FFFFFFF
@@ -152,7 +173,6 @@ def _setup_conveniences():
         except ValueError:
             return False
 
-    # XXX: Add __new__
     objc.addConvenienceForClass(
         "NSIndexSet",
         (
@@ -180,60 +200,12 @@ def _setup_conveniences():
     )
 
 
-_setup_conveniences()
+globals().pop("_setup")()
 
-sys.modules["Foundation"] = mod = objc.ObjCLazyModule(
-    "Foundation",
-    "com.apple.Foundation",
-    objc.pathForFramework("/System/Library/Frameworks/Foundation.framework"),
-    _metadata.__dict__,
-    _inline_list_,
-    {
-        "__doc__": __doc__,
-        "objc": objc,
-        "YES": objc.YES,
-        "NO": objc.NO,
-        "NSMaximumStringLength": sys.maxsize - 1,
-        "__path__": __path__,
-        "__loader__": globals().get("__loader__", None),
-    },
-    (CoreFoundation,),
-)
+from objc import NSDecimal, YES, NO  # isort:skip   # noqa: E402, F401
 
-import sys
-
-del sys.modules["Foundation._metadata"]
-
-import Foundation._Foundation
-
-for nm in dir(Foundation._Foundation):
-    if nm.startswith("_"):
-        continue
-    setattr(mod, nm, getattr(Foundation._Foundation, nm))
-
-import objc
-
-mod.NSDecimal = objc.NSDecimal
-
-import Foundation._nsobject
-import Foundation._nsindexset
-
-
-import Foundation._functiondefines
-
-for nm in dir(Foundation._functiondefines):
-    setattr(mod, nm, getattr(Foundation._functiondefines, nm))
-
-
-# XXX: This is suboptimal, could calculate this in the metadata
-# generator.
-import sys
-
-mod.NSIntegerMax = sys.maxsize
-mod.NSIntegerMin = -sys.maxsize - 1
-mod.NSUIntegerMax = (sys.maxsize * 2) + 1
-
-import Foundation._context
-
-for nm in dir(Foundation._context):
-    setattr(mod, nm, getattr(Foundation._context, nm))
+import Foundation._context  # isort:skip  # noqa: E402
+import Foundation._functiondefines  # isort:skip  # noqa: E402
+import Foundation._nsindexset  # isort:skip  # noqa: E402
+import Foundation._nsobject  # isort:skip  # noqa: E402, F401
+import Foundation._nsurl  # isort:skip  # noqa: E402, F401

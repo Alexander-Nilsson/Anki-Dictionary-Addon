@@ -1,13 +1,14 @@
 """
 Convenience interface for NSDictionary/NSMutableDictionary
 """
+
 __all__ = ()
 
-from objc._convenience_mapping import addConvenienceForBasicMapping
-from objc._convenience import container_wrap, container_unwrap, addConvenienceForClass
-from objc._objc import lookUpClass
+import collections.abc
 
-import sys, os, collections.abc
+from objc._convenience import addConvenienceForClass, container_wrap
+from objc._convenience_mapping import addConvenienceForBasicMapping
+from objc._objc import lookUpClass
 
 NSDictionary = lookUpClass("NSDictionary")
 NSMutableDictionary = lookUpClass("NSMutableDictionary")
@@ -164,7 +165,7 @@ class nsdict_keys(nsdict_view):
     def __repr__(self):
         keys = list(self.__value)
 
-        return "<nsdict_keys({0})>".format(keys)
+        return f"<nsdict_keys({keys})>"
 
     def __len__(self):
         return len(self.__value)
@@ -186,7 +187,7 @@ class nsdict_values(nsdict_view):
         values = list(self)
         values.sort()
 
-        return "<nsdict_values({0})>".format(values)
+        return f"<nsdict_values({values})>"
 
     def __len__(self):
         return len(self.__value)
@@ -211,7 +212,7 @@ class nsdict_items(nsdict_view):
         values = list(self)
         values.sort()
 
-        return "<nsdict_items({0})>".format(values)
+        return f"<nsdict_items({values})>"
 
     def __len__(self):
         return len(self.__value)
@@ -235,40 +236,20 @@ collections.abc.Mapping.register(NSDictionary)
 collections.abc.MutableMapping.register(NSMutableDictionary)
 
 
-if int(os.uname()[2].split(".")[0]) <= 10:
-    # Limited functionality on OSX 10.6 and earlier
+def nsdict_fromkeys(cls, keys, value=None):
+    keys = [container_wrap(k) for k in keys]
+    values = [container_wrap(value)] * len(keys)
 
-    def nsdict_fromkeys(cls, keys, value=None):
-        keys = [container_wrap(k) for k in keys]
-        values = [container_wrap(value)] * len(keys)
-
-        return NSDictionary.dictionaryWithObjects_forKeys_(values, keys)
-
-    # XXX: 'nsdict_fromkeys' doesn't work on OSX 10.5
-    def nsmutabledict_fromkeys(cls, keys, value=None):
-        value = container_wrap(value)
-
-        result = NSMutableDictionary.alloc().init()
-        for k in keys:
-            result[container_wrap(k)] = value
-        return result
+    return cls.dictionaryWithObjects_forKeys_(values, keys)
 
 
-else:
+def nsmutabledict_fromkeys(cls, keys, value=None):
+    value = container_wrap(value)
 
-    def nsdict_fromkeys(cls, keys, value=None):
-        keys = [container_wrap(k) for k in keys]
-        values = [container_wrap(value)] * len(keys)
-
-        return cls.dictionaryWithObjects_forKeys_(values, keys)
-
-    def nsmutabledict_fromkeys(cls, keys, value=None):
-        value = container_wrap(value)
-
-        result = cls.alloc().init()
-        for k in keys:
-            result[container_wrap(k)] = value
-        return result
+    result = cls.alloc().init()
+    for k in keys:
+        result[container_wrap(k)] = value
+    return result
 
 
 def nsdict_new(cls, *args, **kwds):
@@ -276,7 +257,7 @@ def nsdict_new(cls, *args, **kwds):
         pass
 
     elif len(args) == 1:
-        d = dict()
+        d = {}
         if isinstance(args[0], collections.abc.Mapping):
             items = args[0].items()
         else:
@@ -290,10 +271,10 @@ def nsdict_new(cls, *args, **kwds):
         return cls.dictionaryWithDictionary_(d)
 
     else:
-        raise TypeError("dict expected at most 1 arguments, got {0}".format(len(args)))
+        raise TypeError(f"dict expected at most 1 arguments, got {len(args)}")
 
     if kwds:
-        d = dict()
+        d = {}
         for k, v in kwds.items():
             d[container_wrap(k)] = container_wrap(v)
 
@@ -316,14 +297,18 @@ def nsdict__ne__(self, other):
 def nsdict__lt__(self, other):
     return NotImplemented
 
+
 def nsdict__le__(self, other):
     return NotImplemented
+
 
 def nsdict__ge__(self, other):
     return NotImplemented
 
+
 def nsdict__gt__(self, other):
     return NotImplemented
+
 
 addConvenienceForClass(
     "NSDictionary",
@@ -356,7 +341,7 @@ addConvenienceForClass(
     "NSMutableDictionary",
     (
         ("__new__", staticmethod(nsdict_new)),
-        ("fromkeys", classmethod(nsdict_fromkeys)),
+        ("fromkeys", classmethod(nsmutabledict_fromkeys)),
         ("clear", lambda self: self.removeAllObjects()),
     ),
 )

@@ -1,7 +1,7 @@
 import os
 import stat
 import requests
-from anki.utils import isMac, isWin, isLin
+from anki.utils import is_mac, is_win, is_lin
 from anki.hooks import addHook
 from os.path import join, exists, dirname
 from .miutils import miInfo
@@ -17,12 +17,12 @@ class FFMPEGInstaller:
         self.addonPath = dirname(__file__)
         self.ffmpegDir = join(self.addonPath, 'user_files', 'ffmpeg')
         self.ffmpegFilename = "ffmpeg"
-        if isWin:
+        if is_win:
             self.ffmpegFilename += ".exe"
             self.downloadURL = "http://dicts.migaku.io/ffmpeg/windows"
-        elif isLin:
+        elif is_lin:
             self.downloadURL = "http://dicts.migaku.io/ffmpeg/linux"
-        elif isMac:
+        elif is_mac:
             self.downloadURL = "http://dicts.migaku.io/ffmpeg/macos"
         self.ffmpegPath = join(self.ffmpegDir, self.ffmpegFilename)
         self.tempPath = join(self.addonPath, 'temp', 'ffmpeg')
@@ -31,11 +31,11 @@ class FFMPEGInstaller:
     def getFFMPEGProgressBar(self, title, initialText):
         progressWidget = QWidget(None)
         textDisplay = QLabel()
-        progressWidget.setWindowIcon(QIcon(join(self.addonPath, 'icons', 'migaku.png')))
+        progressWidget.setWindowIcon(QIcon(join(self.addonPath, 'icons', 'miso.png')))
         progressWidget.setWindowTitle(title)
         textDisplay.setText(initialText)
         progressWidget.setFixedSize(500, 100)
-        progressWidget.setWindowModality(Qt.ApplicationModal)
+        progressWidget.setWindowModality(Qt.WindowModality.ApplicationModal)
         bar = QProgressBar(progressWidget)
         layout = QVBoxLayout()
         layout.addWidget(textDisplay)
@@ -43,7 +43,7 @@ class FFMPEGInstaller:
         progressWidget.setLayout(layout) 
         bar.move(10,10)
         per = QLabel(bar)
-        per.setAlignment(Qt.AlignCenter)
+        per.setAlignment(Qt.AlignmentFlag.AlignCenter)
         progressWidget.show()
         progressWidget.setFocus()
         return progressWidget, bar, textDisplay;
@@ -72,7 +72,7 @@ class FFMPEGInstaller:
                     total = int(ffmpegRequest.headers['Content-Length'])
                     roundedTotal = self.roundToKb(total)
                     downloadedSoFar = 0
-                    progressWidget, bar, textDisplay = self.getFFMPEGProgressBar("Migaku Dictionary - FFMPEG Download", downloadingText.format( self.roundToKb(downloadedSoFar), roundedTotal))
+                    progressWidget, bar, textDisplay = self.getFFMPEGProgressBar("Miso Dictionary - FFMPEG Download", downloadingText.format( self.roundToKb(downloadedSoFar), roundedTotal))
                     bar.setMaximum(total)
                     lastUpdated = 0
                     for chunk in ffmpegRequest.iter_content(chunk_size=8192):
@@ -100,7 +100,7 @@ class FFMPEGInstaller:
             progressBar.deleteLater()
 
     def makeExecutable(self):
-        if not isWin:
+        if not is_win:
             try:
                 st = os.stat(self.ffmpegPath)
                 os.chmod(self.ffmpegPath, st.st_mode | stat.S_IEXEC)
@@ -119,7 +119,7 @@ class FFMPEGInstaller:
     def couldNotInstall(self):
         self.toggleMP3Conversion(False)
         self.toggleFailedInstallation(True)
-        miInfo("FFMPEG could not be installed. MP3 Conversion has been disabled. You will not be able to convert audio files imported from the Immerse with Migaku Browser Extension to MP3 format until it is installed. Migaku Dictionary will attempt to install it again on the next profile load.")
+        miInfo("FFMPEG could not be installed. MP3 Conversion has been disabled. You will not be able to convert audio files imported from the Immerse with miso Browser Extension to MP3 format until it is installed. miso Dictionary will attempt to install it again on the next profile load.")
     
 
         
@@ -129,7 +129,7 @@ class FFMPEGInstaller:
             currentStep = 1
             totalSteps = 3
             stepText = "Step {} of {}"
-            progressWidget, progressBar, textL = self.getFFMPEGProgressBar("Migaku Dictionary - Installing FFMPEG", "Downloading FFMPEG.\n" + stepText.format(currentStep, totalSteps))
+            progressWidget, progressBar, textL = self.getFFMPEGProgressBar("Miso Dictionary - Installing FFMPEG", "Downloading FFMPEG.\n" + stepText.format(currentStep, totalSteps))
             progressBar.setMaximum(3)
             progressBar.setValue(currentStep)
             print("Downloading FFMPEG.")
