@@ -140,3 +140,12 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# User dictionary
+src/user_files/db/
+
+src/keyboardMac
+src/pyobjc-core
+src/HIServices
+src/pynput
+src/.idea
