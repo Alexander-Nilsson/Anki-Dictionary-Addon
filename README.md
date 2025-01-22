@@ -31,7 +31,6 @@ Contributions are welcome! Please review the [contribution guidelines](./.github
 
 *Anki Dictionary Addon* is a successor to the *Migaku Dictionary Addon*.
 
-*
 This project is free and open-source software. The add-on code that runs within Anki is released under the GNU AGPLv3 license, extended by a number of additional terms. For more information please see the [LICENSE](https://github.com/migaku-official/Migaku-Dictionary-Addon/blob/master/README.md) file that accompanied this program.
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY.
