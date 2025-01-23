@@ -1,5 +1,0 @@
-{
-    "package": "Miso Dictionary",
-    "name": "Miso Dictionary",
-    "requirements": ["pyobjc-core", "pyobjc-framework-Cocoa"]
-}
