@@ -142,12 +142,12 @@ dmypy.json
 cython_debug/
 
 # User dictionary
-src/user_files/db/
-src/user_files/db/dictionaries.sqlite
-src/user_files/ffmpeg
+ankiDict/user_files/db/
+ankiDict/user_files/db/dictionaries.sqlite
+ankiDict/user_files/ffmpeg
 
-src/keyboardMac
-src/pyobjc-core
-src/HIServices
-src/pynput
-src/.idea
+ankiDict/keyboardMac
+ankiDict/pyobjc-core
+ankiDict/HIServices
+ankiDict/pynput
+ankiDict/.idea
