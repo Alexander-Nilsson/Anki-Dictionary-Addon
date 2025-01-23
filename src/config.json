@@ -31,7 +31,7 @@
     "exporterSizePos" : false,
     "fontSizes": [12, 22],
     "tooltips" : true,
-    "globalHotkeys" : true,
+    "globalHotkeys" : false,
     "openOnGlobal" : true,
     "mp3Convert": true,
     "failedFFMPEGInstallation": false,
