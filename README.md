@@ -1,7 +1,7 @@
 <h2 align="center">Anki Dictionary Addon (Successor to Migaku Dictionary Addon)</h2>
 
 <p align="center">
-<!-- <a title="Rate on AnkiWeb" href="https://ankiweb.net/shared/info/1655992655"><img src="https://glutanimate.com/logos/ankiweb-rate.svg"></a> -->
+<!-- <a title="Rate on AnkiWeb" href="https://ankiweb.net/shared/info/1655992655"><img ankiDict="https://glutanimate.com/logos/ankiweb-rate.svg"></a> -->
 <a title="License: GNU AGPLv3" href="https://github.com/migaku-official/Migaku-Dictionary-Addon/blob/master/README.md><img  src="https://img.shields.io/badge/license-GNU AGPLv3-green.svg"></a>
 <br>
 
