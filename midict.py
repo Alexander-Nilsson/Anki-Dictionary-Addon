@@ -1149,7 +1149,7 @@ class DictInterface(QWidget):
 
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
             self.show()
 
     def initTooltips(self):
