@@ -3,7 +3,7 @@
   "selector": "#ffebf5",
   "header_text": "#4a5d7e",
   "search_term": "#bf7bd0",
-  "border": "#e0d6ff",
+  "border": "#ffffff",
   "anki_button_background": "#bcd9ff",
   "anki_button_text": "#4a5d7e",
   "tab_hover": "#ffd6e6",
@@ -12,6 +12,5 @@
   "example_highlight": "#e4d7fe",
   "definition_background": "#fff0f7",
   "definition_text": "#4a5d7e",
-  "pitch_accent_color": "#bb60fc",
-  "active_theme_name": "pastel_dream"
+  "pitch_accent_color": "#bb60fc"
 }

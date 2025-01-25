@@ -382,8 +382,8 @@ def initGlobalHotkeys():
     mw.hkThread.extensionFileNotFound.connect(extensionFileNotFound)
     mw.hkThread.run()
 
-if mw.addonManager.getConfig(__name__)['globalHotkeys']:
-    initGlobalHotkeys()
+# if mw.addonManager.getConfig(__name__)['globalHotkeys']:
+#     initGlobalHotkeys()
 
 mw.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), mw)
 mw.hotkeyW.activated.connect(dictionaryInit)
