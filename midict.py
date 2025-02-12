@@ -26,7 +26,7 @@ from .miJapaneseHandler import miJHandler
 from urllib.request import Request, urlopen
 import requests
 import urllib.request
-from . import googleimages
+from . import duckduckgoimages
 from .addonSettings import SettingsGui
 import datetime
 import codecs
@@ -77,8 +77,28 @@ class MIDict(AnkiWebView):
         miInfo(message, level='err')
 
     def loadImageResults(self, results):
-        html, idName = results
-        self.eval("loadImageForvoHtml('%s', '%s');"%(html.replace('"', '\\"'), idName))
+        urls, idName = results  # Unpack tuple of (urls, idName)
+        html = ''
+        for url in urls:
+            html += self.downloadImage(url)
+        self.dict.loadImageResults(html, idName)
+
+    def downloadImage(self, url):
+        try:
+            filename = str(time.time()).replace('.', '') + '.png'
+            req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            file = urlopen(req).read()
+            image = QImage()
+            image.loadFromData(file)
+            if not image.isNull():
+                image = image.scaled(QSize(self.config['maxWidth'], 
+                                        self.config['maxHeight']),
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation)
+                image.save(filename)
+                return '<img src="' + filename + '">'
+        except:
+            return ''
 
     def loadHTMLURL(self, html, url):
         self._page.setHtml(html, url)
@@ -327,22 +347,23 @@ class MIDict(AnkiWebView):
         html = '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div class="dictionaryTitle">Google Images</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
         html += ('<div  data-index="' + str(entryCount)  +'" class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +
                         self.highlightTarget(term, term) +
-                        '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName +'">' + self.getGoogleImages(term, idName)
+                        '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName +'">' + self.getImages(term, idName)
                          + '</div></div>')
         return html
 
-    def getGoogleImages(self, term, idName):
-        imager = googleimages.Google()
+    def getImages(self, term, idName):
+        imager = duckduckgoimages.DuckDuckGo()
         imager.setTermIdName(term, idName)
-        imager.setSearchRegion(self.config['googleSearchRegion'])
-        imager.setSafeSearch(self.config["safeSearch"])
+        #imager.setSearchRegion(self.config['googleSearchRegion'])
+        #imager.setSafeSearch(self.config["safeSearch"])
         imager.signals.resultsFound.connect(self.loadImageResults)
-        imager.signals.noResults.connect(self.showGoogleForvoMessage)
+        imager.signals.noResults.connect(self.showNoImagesMessage)
         self.threadpool.start(imager)
 
-
         return 'Loading...'
-
+    
+    def showNoImagesMessage(self):
+        tooltip("No images found")
 
     def getCleanedUrls(self, urls):
         return [x.replace('\\', '\\\\') for x in urls]

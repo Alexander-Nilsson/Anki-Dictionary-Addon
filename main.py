@@ -30,8 +30,8 @@ from aqt.editcurrent import EditCurrent
 from aqt.browser import Browser
 from aqt.tagedit import TagEdit
 from aqt.reviewer import Reviewer
-from . import googleimages
 from .forvodl import Forvo
+from . import duckduckgoimages
 from urllib.request import Request, urlopen
 from aqt.previewer import Previewer
 import requests
@@ -597,27 +597,24 @@ def formatDefinitions(results, th,dh, fb, bb):
         definitions.append(text)
     return '<br><br>'.join(definitions).replace('<br><br><br>', '<br><br>')
 
-googleImager = None
-
 def initImager():
-    global googleImager
-    googleImager = googleimages.Google()
+    global imageSearcher
+    imageSearcher = duckduckgoimages.DuckDuckGo()
     config = mw.addonManager.getConfig(__name__)
-    googleImager.setSearchRegion(config['googleSearchRegion'])
-    googleImager.setSafeSearch(config["safeSearch"])
+    imageSearcher.setSafeSearch(config["safeSearch"])
 
-def exportGoogleImages(term, howMany):
+def exportImages(term, howMany):
     config = mw.addonManager.getConfig(__name__)
     maxW = config['maxWidth']
     maxH = config['maxHeight']
-    if not googleImager:
+    if not imageSearcher:
         initImager()
     imgSeparator = ''
     imgs = []
-    urls = googleImager.search(term, 80)
+    urls = imageSearcher.search(term, 80)
     if len(urls) < 1:
         time.sleep(.1)
-        urls = googleImager.search(term, 80, 'countryUS')
+        urls = imageSearcher.search(term, 80)
     for url in urls:
         time.sleep(.1)
         img = downloadImage(url, maxW, maxH)
