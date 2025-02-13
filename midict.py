@@ -72,8 +72,17 @@ class MIDict(AnkiWebView):
         miInfo(message, level='err')
 
     def loadImageResults(self, results):
+        """ 
+        Loads image search results into the dictionary window
+            Args:
+                html: HTML string containing image gallery markup
+                idName: Unique identifier for the image container
+        """
         html, idName = results
         print(f'loadImageResults html: {html}, idName: {idName}')
+
+        # Bridge between Python and JavaScript
+        # Calls JavaScript function to insert HTML into webpage
         self.eval("loadImageForvoHtml('%s', '%s');"%(html.replace('"', '\\"'), idName))
 
     def downloadImage(self, url):
