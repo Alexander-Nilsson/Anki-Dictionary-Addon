@@ -120,6 +120,9 @@ class DuckDuckGo(QRunnable):
             return 'No Images Found. This is likely due to a connectivity error.'
         firstImages = []
         tempImages = []
+
+        print(f'get HTML Images: {images}')
+
         # Splitting images into two groups for display
         for idx, image in enumerate(images):
             tempImages.append(image)
@@ -133,7 +136,7 @@ class DuckDuckGo(QRunnable):
             html += (
                 '<div class="imgBox">'
                 f'<div onclick="toggleImageSelect(this)" data-url="{img}" class="googleHighlight"></div>'
-                f'<img class="googleImage" ankiDict="{img}">'
+                f'<img class="googleImage" src="{img}" ankiDict="{img}">'
                 '</div>'
             )
         html += '</div><div class="googleCont">'
@@ -141,7 +144,7 @@ class DuckDuckGo(QRunnable):
             html += (
                 '<div class="imgBox">'
                 f'<div onclick="toggleImageSelect(this)" data-url="{img}" class="googleHighlight"></div>'
-                f'<img class="googleImage" ankiDict="{img}">'
+                f'<img class="googleImage" src="{img}" ankiDict="{img}">'
                 '</div>'
             )
         html += (
