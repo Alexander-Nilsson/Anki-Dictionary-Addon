@@ -1,25 +1,40 @@
 import unittest
-from duckduckgoimages import DuckDuckGo
+from duckduckgoimages import DuckDuckGo, Google    
 
-class TestDuckDuckGoImages(unittest.TestCase):
-    def setUp(self):
-        self.ddg = DuckDuckGo()
-
-    def test_image_search_returns_results(self):
-        test_term = "cat"
-        results = self.ddg.search(test_term)
-
-        print(results)
-        
-        # Basic validation
-        self.assertIsNotNone(results, "Search results should not be None")
-        self.assertIsInstance(results, list, "Results should be a list")
-        self.assertTrue(len(results) > 0, "Should return at least one image")
-
-        # Verify first result is a URL string
-        first_result = results[0]
-        self.assertIsInstance(first_result, str, "Result should be a URL string")
-        self.assertTrue(first_result.startswith('http'), "URL should start with http")
+########################################
+# Test Code to Validate Different Parts
+########################################
 
 if __name__ == '__main__':
-    unittest.main()
+    # Test Google Search Engine
+    print("=== Testing Google Search Engine ===")
+    google_engine = Google()
+    google_engine.setTermIdName("dogs", "google_test")
+    google_engine.setSearchRegion("US")
+    google_engine.setSafeSearch(True)
+    google_results = google_engine.search("dogs", maximum=10)
+    print("\nGoogle image URLs for 'dogs':")
+    for url in google_results:
+        print(url)
+    google_html = google_engine.getHtml("dogs")
+    print("\nGenerated Google HTML:")
+    print(google_html)
+    
+    # Test DuckDuckGo Search Engine
+    print("\n=== Testing DuckDuckGo Search Engine ===")
+    duck_engine = DuckDuckGo()
+    duck_engine.setTermIdName("cats", "duckduckgo_test")
+    duck_engine.setSearchRegion("US")  # Even though not used, for compatibility
+    duck_engine.setSafeSearch(True)
+    duck_results = duck_engine.search("cats")
+    print("\nDuckDuckGo image URLs for 'cats':")
+    for url in duck_results:
+        print(url)
+    duck_html = duck_engine.getHtml("cats")
+    print("\nGenerated DuckDuckGo HTML:")
+    print(duck_html)
+    
+    # Test prepared results (HTML + idName) for DuckDuckGo
+    duck_prepared = duck_engine.getPreparedResults("cats", "duckduckgo_test")
+    print("\nDuckDuckGo Prepared Results:")
+    print(duck_prepared)

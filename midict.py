@@ -33,12 +33,7 @@ import codecs
 from .forvodl import Forvo
 import ntpath
 from .miutils import miInfo
-
-try:
-    from PyQt6.QtSvgWidgets import QSvgWidget
-except ModuleNotFoundError:
-    from PyQt5.QtSvg import QSvgWidget
-
+from PyQt6.QtSvgWidgets import QSvgWidget
 from .themeEditor import *
 from .themes import *
 
@@ -77,11 +72,9 @@ class MIDict(AnkiWebView):
         miInfo(message, level='err')
 
     def loadImageResults(self, results):
-        urls, idName = results  # Unpack tuple of (urls, idName)
-        html = ''
-        for url in urls:
-            html += self.downloadImage(url)
-        self.dict.loadImageResults(html, idName)
+        html, idName = results
+        print(f'loadImageResults html: {html}, idName: {idName}')
+        self.eval("loadImageForvoHtml('%s', '%s');"%(html.replace('"', '\\"'), idName))
 
     def downloadImage(self, url):
         try:
