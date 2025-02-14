@@ -305,6 +305,7 @@ class MIDict(AnkiWebView):
             html = '<div class="no-forvo">No Results Found.</div>'
         self.eval("loadImageForvoHtml('%s', '%s');loadForvoDict(false, '%s');"%(html.replace('"', '\\"'), idName, idName))
 
+
     def getForvoDictionaryResults(self, term, dictCount, bracketFront, bracketBack, entryCount, font):
         dictName = 'Forvo'
         overwrite = self.getOverwriteChecks(dictCount, dictName )
