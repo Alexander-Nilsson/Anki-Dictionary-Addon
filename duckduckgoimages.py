@@ -11,6 +11,13 @@ import re
 from aqt.qt import QRunnable, QObject, pyqtSignal
 from urllib.parse import quote_plus
 
+from PIL import Image
+import io
+
+import hashlib
+from aqt import mw
+from typing import List, Optional
+
 # Country codes dictionary (for Google searches)
 countryCodes = {
     'Japan': 'countryJP',
@@ -23,9 +30,9 @@ countryCodes = {
 ########################################
 
 class DuckDuckGoSignals(QObject):
-    # For compatibility, we emit a tuple [html, idName]
-    resultsFound = pyqtSignal(tuple)
-    noResults = pyqtSignal()
+    resultsFound = pyqtSignal(list)  # Changed from tuple to list
+    noResults = pyqtSignal(str)      # Changed to emit string like Google
+    finished = pyqtSignal()          # Added finished signal
 
 class DuckDuckGo(QRunnable):
     def __init__(self):
@@ -36,6 +43,13 @@ class DuckDuckGo(QRunnable):
         # For interface compatibility with Google
         self.region = None
         self.safeSearch = False
+
+        # Get media directory
+        try:
+            self.media_dir = mw.col.media.dir()
+        except Exception as e:
+            print(f"Error initializing media directory: {e}")
+            self.media_dir = None
 
     def setTermIdName(self, term, idName):
         self.term = term
@@ -50,6 +64,34 @@ class DuckDuckGo(QRunnable):
     def getCleanedUrls(self, urls):
         # Escape backslashes as done in Google
         return [x.replace('\\', '\\\\') for x in urls]
+    
+    def download_to_media(self, url: str) -> Optional[str]:
+        """Download image to Anki media folder and return filename"""
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                # Create image from bytes
+                img = Image.open(io.BytesIO(response.content))
+                
+                # Convert to RGB if necessary
+                if img.mode in ('RGBA', 'P'): 
+                    img = img.convert('RGB')
+                
+                # Resize maintaining aspect ratio
+                img.thumbnail((200, 200))
+                
+                # Generate filename and path
+                img_hash = hashlib.md5(url.encode()).hexdigest()
+                filename = f"dict_img_{img_hash}.jpg"
+                filepath = os.path.join(mw.col.media.dir(), filename)
+                
+                # Save resized image
+                img.save(filepath, 'JPEG', quality=85)
+                return filename
+                
+        except Exception as e:
+            print(f"Error downloading image: {str(e)}")
+        return None
 
     def search(self, term, maximum=10):
         """
@@ -115,16 +157,23 @@ class DuckDuckGo(QRunnable):
         Generate HTML using the images from the search results.
         Uses a similar approach as in the Google class 
         """
-        images = self.search(term, ) # Limiting to 10 images
+        images = self.search(term) # Limiting to 10 images
         if not images or len(images) < 1:
             return 'No Images Found. This is likely due to a connectivity error.'
+        
+        # Download images to media folder
+        local_images = []
+        for img_url in images:
+            if filename := self.download_to_media(img_url):
+                # use full path
+                full_path = os.path.join(self.media_dir, filename)
+                local_images.append(full_path)
+        
         firstImages = []
         tempImages = []
 
-        print(f'get HTML Images: {images}')
-
         # Splitting images into two groups for display
-        for idx, image in enumerate(images):
+        for idx, image in enumerate(local_images):
             tempImages.append(image)
             if len(tempImages) > 2 and len(firstImages) < 1:
                 firstImages += tempImages
@@ -147,6 +196,8 @@ class DuckDuckGo(QRunnable):
                 f'<img class="googleImage" src="{img}" ankiDict="{img}">'
                 '</div>'
             )
+        
+        #button that calls the loadMoreImages JS function 
         html += (
             '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
             '\\\' , \\\''.join(self.getCleanedUrls(images)) +
@@ -157,7 +208,8 @@ class DuckDuckGo(QRunnable):
     def getPreparedResults(self, term, idName):
         html = self.getHtml(term)
         return [html, idName]
-
+    
+    '''
     def run(self):
         try:
             prepared = self.getPreparedResults(self.term, self.idName)
@@ -169,178 +221,21 @@ class DuckDuckGo(QRunnable):
         except Exception as e:
             print(f"DuckDuckGo run error: {e}")
             self.signals.noResults.emit()
-
-########################################
-# Google Search Engine Implementation
-########################################
-
-class GoogleSignals(QObject):
-    resultsFound = pyqtSignal(list)
-    noResults = pyqtSignal(str)
-    finished = pyqtSignal()
-
-class Google(QRunnable):
-    def __init__(self):
-        super(Google, self).__init__()
-        self.GOOGLE_SEARCH_URL = "https://www.google.com/search"
-        self.term = False
-        self.signals = GoogleSignals()
-        self.initSession()
-        self.region = 'US'
-        self.safeSearch = False
-
-    def initSession(self):
-        self.session = requests.session()
-        self.session.headers.update(
-            {
-                "User-Agent": (
-                    'Mozilla/5.0 (Linux; Android 9; SM-G960F '
-                    'Build/PPR1.180610.011; wv) AppleWebKit/537.36 (KHTML, like Gecko) '
-                    'Version/4.0 Chrome/74.0.3729.157 Mobile Safari/537.36'
-                )
-            }
-        )
-
-    def setTermIdName(self, term, idName):
-        self.term = term
-        self.idName = idName
-
+    '''
     def run(self):
-        if self.term:
-            resultList = self.getPreparedResults(self.term, self.idName)
-            self.signals.resultsFound.emit(resultList)
-        self.signals.finished.emit()
-
-    def search(self, keyword, maximum, region=False):
-        query = self.query_gen(keyword) 
-        return self.image_search(query, maximum, region)
-
-    def query_gen(self, keyword):
-        page = 0
-        while True:
-            queryDict = {"q": keyword, "tbm": "isch"}
-            if self.safeSearch:
-                queryDict["safe"] = "active"
-            params = urllib.parse.urlencode(queryDict)
-            if self.region == 'Japan':
-                url = 'https://www.google.co.jp/search'
-            else:
-                url = self.GOOGLE_SEARCH_URL
-            yield url + "?" + params
-            page += 1
-
-    def setSearchRegion(self, region):
-        self.region = region
-
-    def setSafeSearch(self, safe):
-        self.safeSearch = safe
-
-    def getResultsFromRawHtml(self, html):
-        pattern = r"AF_initDataCallback[\s\S]+AF_initDataCallback\({key: '[\s\S]+?',[\s\S]+?data:(\[[\s\S]+\])[\s\S]+?<\/script><script id="
-        matches = re.findall(pattern, html)
-        results = []
         try:
-            if len(matches) > 0:
-                decoded = json.loads(matches[0])[31][0][12][2]
-                for d in decoded:
-                    d1 = d[1]
-                    if d1:
-                        results.append(str(d1[3][0]))   
-            return results
-        except:
-            return []
+            if self.term:
+                resultList = self.getPreparedResults(self.term, self.idName)
+                self.signals.resultsFound.emit(resultList)  # Changed from tuple to list
+        except Exception as e:
+            print(f"DuckDuckGo run error: {e}")
+            self.signals.noResults.emit('No Images Found. This is likely due to a connectivity error.')
+        finally:
+            self.signals.finished.emit()
 
-    def getHtml(self, term):
-        images = self.search(term, 80)
-        if not images or len(images) < 1:
-            return 'No Images Found. This is likely due to a connectivity error.'
-        firstImages = []
-        tempImages = []
-        for idx, image in enumerate(images):
-            tempImages.append(image)
-            if len(tempImages) > 2 and len(firstImages) < 1:
-                firstImages += tempImages
-                tempImages = []
-            if len(tempImages) > 2 and len(firstImages) > 1:
-                break
-        html = '<div class="googleCont">'
-        for img in firstImages:
-            html += (
-                '<div class="imgBox">'
-                f'<div onclick="toggleImageSelect(this)" data-url="{img}" class="googleHighlight"></div>'
-                f'<img class="googleImage" ankiDict="{img}">'
-                '</div>'
-            )
-        html += '</div><div class="googleCont">'
-        for img in tempImages:
-            html += (
-                '<div class="imgBox">'
-                f'<div onclick="toggleImageSelect(this)" data-url="{img}" class="googleHighlight"></div>'
-                f'<img class="googleImage" ankiDict="{img}">'
-                '</div>'
-            )
-        html += (
-            '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
-            '\\\' , \\\''.join(self.getCleanedUrls(images)) +
-            '\\\')">Load More</button>'
-        )
-        return html
-
-    def getPreparedResults(self, term, idName):
-        html = self.getHtml(term)
-        return [html, idName]
-
-    def getCleanedUrls(self, urls):
-        return [x.replace('\\', '\\\\') for x in urls]
-
-    def image_search(self, query_gen, maximum, region=False):
-        results = []
-        if not region:
-            region = countryCodes.get(self.region, 'countryUS')
-        total = 0
-        finished = False
-        while True:
-            try:
-                count = 0
-                while not finished:
-                    count += 1
-                    hr = self.session.get(next(query_gen) + '&ijn=0&cr=' + region)
-                    html = hr.text
-                    if not html or '<!doctype html>' not in html:
-                        if count > 5:
-                            finished = True
-                            break
-                        self.initSession()
-                        time.sleep(0.1)
-                    else:
-                        finished = True
-                        break
-            except Exception as e:
-                self.signals.noResults.emit(
-                    'The Google Image Dictionary could not establish a connection. '
-                    'Please ensure you are connected to the internet and try again.'
-                )
-                return False
-            results = self.getResultsFromRawHtml(html)
-            if len(results) == 0:
-                soup = BeautifulSoup(html, "html.parser")
-                elements = soup.select(".rg_meta.notranslate")
-                jsons = [json.loads(e.get_text()) for e in elements]
-                image_url_list = [js.get("ou") for js in jsons if "ou" in js]
-                if not len(image_url_list):
-                    break
-                elif len(image_url_list) > maximum - total:
-                    results += image_url_list[: maximum - total]
-                    break
-                else:
-                    results += image_url_list
-                    total += len(image_url_list)
-            else:
-                break
-        return results
 
 ########################################
-# Search Function (using Google by default)
+# Search Function (using duckduckgo by default)
 ########################################
 
 def search(target, number):

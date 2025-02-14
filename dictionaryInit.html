@@ -392,15 +392,22 @@ function displayEntry(entry) {
     }
 
     function getImageExport(event, dictName){
+        // 1. Navigation to find elements
         var termTitle = event.target.parentElement.parentElement.parentElement
+        // 2. Extract the word/term
         var defBlock = termTitle.nextElementSibling;
+        
+        // 3. Find selected images
         var word = cleanTermDef(termTitle.querySelector('.terms').innerHTML)
         var selImgs = defBlock.getElementsByClassName('selectedImage')
         var urls = [];
+
+        // 4. Collect URLs of selected images
         if(selImgs.length > 0){
             for(var i = 0; i < selImgs.length; i++){
                 urls.push(selImgs[i].dataset.url)
             }
+            // 5. Send to Python command with format: word◳◴[urls]
             pycmd('imgExport:' + word + '◳◴' + JSON.stringify(urls));
         }
     }
@@ -638,13 +645,26 @@ function displayEntry(entry) {
     }
 
     function loadNewImages(toLoad, defBox, button){
+        console.log('URLs to load:', toLoad); // Add debugging
         var cont = document.createElement('div')
         cont.classList.add('googleCont')
         var html = '<div class="googleCont">'
         for(var i = 0; i < toLoad.length; i++){
             img = toLoad[i]
-            html+= '<div class="imgBox"><div onclick="toggleImageSelect(this)" data-url="'+ img +'" class="googleHighlight"></div><img class="googleImage"  src="' + img + '"></div>'
+            console.log('Processing URL:', img); // Add debugging
+
+            html += `
+            <div class="imgBox">
+                <div onclick="toggleImageSelect(this)" 
+                     data-url="${img}" 
+                     class="googleHighlight"></div>
+                <img class="googleImage" 
+                     src="${img}" 
+                     onerror="console.error('Failed to load:', this.src)"
+                     onload="console.log('Loaded:', this.src)">
+            </div>`;
         }
+        html += '</div>';
         cont.innerHTML = html;
         defBox.insertBefore(cont, button);
         setTimeout(function(){
