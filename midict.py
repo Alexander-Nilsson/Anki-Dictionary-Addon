@@ -42,10 +42,12 @@ except ModuleNotFoundError:
 from .themeEditor import *
 from .themes import *
 
+
 class MIDict(AnkiWebView):
-    def __init__(self, dictInt, db, path, terms  = False):
+    def __init__(self, dictInt, db, path, terms=False):
         AnkiWebView.__init__(self)
-        self._page.profile().setHttpUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
+        self._page.profile().setHttpUserAgent(
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
         self.terms = terms
         self.dictInt = dictInt
         self.config = self.dictInt.getConfig()
@@ -78,11 +80,10 @@ class MIDict(AnkiWebView):
 
     def loadImageResults(self, results):
         html, idName = results
-        self.eval("loadImageForvoHtml('%s', '%s');"%(html.replace('"', '\\"'), idName))
+        self.eval("loadImageForvoHtml('%s', '%s');" % (html.replace('"', '\\"'), idName))
 
     def loadHTMLURL(self, html, url):
         self._page.setHtml(html, url)
-
 
     def formatTermHeaders(self, ths):
         formattedHeaders = {}
@@ -111,7 +112,7 @@ class MIDict(AnkiWebView):
         langs = self.db.getCurrentDbLangs()
         conjugations = {}
         for lang in langs:
-            filePath = join(self.homeDir, "user_files", "db",  "conjugation", "%s.json" % lang)
+            filePath = join(self.homeDir, "user_files", "db", "conjugation", "%s.json" % lang)
             if not os.path.exists(filePath):
                 filePath = join(self.homeDir, "user_files", 'dictionaries', lang, "conjugations.json")
                 if not os.path.exists(filePath):
@@ -127,36 +128,37 @@ class MIDict(AnkiWebView):
         if not group['font']:
             return ' '
         if group['customFont']:
-            return ' style="font-family:'+ re.sub(r'\..*$', '' , group['font']) + ';" '
+            return ' style="font-family:' + re.sub(r'\..*$', '', group['font']) + ';" '
         else:
-            return ' style="font-family:'+ group['font'] + ';" '
+            return ' style="font-family:' + group['font'] + ';" '
 
     def injectFont(self, font):
-        name = re.sub(r'\..*$', '' , font)
-        self.eval("addCustomFont('%s', '%s');"%(font, name))
+        name = re.sub(r'\..*$', '', font)
+        self.eval("addCustomFont('%s', '%s');" % (font, name))
 
     def getTabMode(self):
         if self.dictInt.tabB.singleTab:
             return 'true'
         return 'false'
 
-    def getHTMLResult(self,term, selectedGroup):
+    def getHTMLResult(self, term, selectedGroup):
         singleTab = self.getTabMode()
         cleaned = self.cleanTerm(term)
         font = self.getFontFamily(selectedGroup)
         dictDefs = self.config['dictSearch']
         maxDefs = self.config['maxSearch']
-        html = self.prepareResults(self.db.searchTerm(term, selectedGroup, self.conjugations, self.sType.currentText(), self.deinflect, str(dictDefs), maxDefs), cleaned, font)
+        html = self.prepareResults(
+            self.db.searchTerm(term, selectedGroup, self.conjugations, self.sType.currentText(), self.deinflect,
+                               str(dictDefs), maxDefs), cleaned, font)
         html = html.replace('\n', '')
         return html, cleaned, singleTab;
-
 
     def addNewTab(self, term, selectedGroup):
         if selectedGroup['customFont'] and selectedGroup['font'] not in self.customFontsLoaded:
             self.customFontsLoaded.append(selectedGroup['font'])
             self.injectFont(selectedGroup['font'])
-        html, cleaned, singleTab= self.getHTMLResult(term, selectedGroup)
-        self.eval("addNewTab('%s', '%s', %s);"%(html.replace('\r', '<br>').replace('\n','<br>'), cleaned, singleTab))
+        html, cleaned, singleTab = self.getHTMLResult(term, selectedGroup)
+        self.eval("addNewTab('%s', '%s', %s);" % (html.replace('\r', '<br>').replace('\n', '<br>'), cleaned, singleTab))
 
     def addResultWrappers(self, results):
         for idx, result in enumerate(results):
@@ -208,24 +210,36 @@ class MIDict(AnkiWebView):
         return text
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
-        html = '<div' + font +'class="definitionSideBar"><div class="innerSideBar">'
+        html = '<div' + font + 'class="definitionSideBar"><div class="innerSideBar">'
         dictCount = 0
         entryCount = 0
         for dictName, dictResults in results.items():
-                if dictName == 'Google Images' or dictName == 'Forvo':
-                    html += '<div data-index="' + str(dictCount)  +'" class="listTitle">'+ dictName + '</div><ol class="foundEntriesList"><li data-index="' + str(entryCount)  +'">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, term, term, term, True) +'</li></ol>'
-                    entryCount += 1
-                    dictCount += 1
-                    continue
-                html += '<div data-index="' + str(dictCount)  +'" class="listTitle">'+ dictName + '</div><ol class="foundEntriesList">'
+            if dictName == 'Google Images' or dictName == 'Forvo':
+                html += '<div data-index="' + str(
+                    dictCount) + '" class="listTitle">' + dictName + '</div><ol class="foundEntriesList"><li data-index="' + str(
+                    entryCount) + '">' + self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, term,
+                                                                    term, term, True) + '</li></ol>'
+                entryCount += 1
                 dictCount += 1
-                for idx, entry in enumerate(dictResults):
-                    html += ('<li data-index="' + str(entryCount)  +'">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, entry['term'], entry['altterm'], entry['pronunciation'], True) +'</li>')
-                    entryCount += 1
-                html += '</ol>'
+                continue
+            html += '<div data-index="' + str(
+                dictCount) + '" class="listTitle">' + dictName + '</div><ol class="foundEntriesList">'
+            dictCount += 1
+            for idx, entry in enumerate(dictResults):
+                html += ('<li data-index="' + str(entryCount) + '">' + self.getPreparedTermHeader(dictName,
+                                                                                                  frontBracket,
+                                                                                                  backBracket, term,
+                                                                                                  entry['term'],
+                                                                                                  entry['altterm'],
+                                                                                                  entry[
+                                                                                                      'pronunciation'],
+                                                                                                  True) + '</li>')
+                entryCount += 1
+            html += '</ol>'
         return html + '<br></div><div class="resizeBar" onmousedown="hresize(event)"></div></div>'
 
-    def getPreparedTermHeader(self, dictName, frontBracket, backBracket, target,  term, altterm, pronunciation, sb = False):
+    def getPreparedTermHeader(self, dictName, frontBracket, backBracket, target, term, altterm, pronunciation,
+                              sb=False):
         altFB = frontBracket
         altBB = backBracket
         if pronunciation == term:
@@ -246,7 +260,11 @@ class MIDict(AnkiWebView):
             else:
                 header = self.termHeaders[dictName][0]
 
-        return header.replace('◳t', self.highlightTarget(term, target)).replace('◳a', self.highlightTarget(altterm, target)).replace('◳p', self.highlightTarget(pronunciation, target)).replace('◳f', frontBracket).replace('◳b', backBracket).replace('◳x', altFB).replace('◳y', altBB)
+        return header.replace('◳t', self.highlightTarget(term, target)).replace('◳a', self.highlightTarget(altterm,
+                                                                                                           target)).replace(
+            '◳p', self.highlightTarget(pronunciation, target)).replace('◳f', frontBracket).replace('◳b',
+                                                                                                   backBracket).replace(
+            '◳x', altFB).replace('◳y', altBB)
 
     def prepareResults(self, results, term, font):
         frontBracket = self.config['frontBracket']
@@ -264,33 +282,42 @@ class MIDict(AnkiWebView):
                 clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
                 sendTooltip = ' title="Send this definition, or any selected text and this definition\'s header to the card exporter to this dictionary\'s target fields. It will send it to the current target window, be it an Editor window, or the Review window." '
             for dictName, dictResults in results.items():
-                    if dictName == 'Google Images':
-                        html += self.getGoogleDictionaryResults(term, dictCount, frontBracket, backBracket,entryCount, font)
-                        dictCount += 1
-                        entryCount += 1
-                        continue
-                    if  dictName == 'Forvo':
-                        html += self.getForvoDictionaryResults(term, dictCount, frontBracket, backBracket,entryCount, font)
-                        dictCount += 1
-                        entryCount += 1
-                        continue
-                    duplicateHeader = self.getDuplicateHeaderCB(dictName)
-                    overwrite = self.getOverwriteChecks(dictCount, dictName)
-                    select = self.getFieldChecks(dictName)
-                    html += '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div  ' + font +'  class="dictionaryTitle">' + dictName.replace('_', ' ') + '</div><div class="dictionarySettings">' + duplicateHeader + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+                if dictName == 'Google Images':
+                    html += self.getGoogleDictionaryResults(term, dictCount, frontBracket, backBracket, entryCount,
+                                                            font)
                     dictCount += 1
-                    for idx, entry in enumerate(dictResults):
-                        html += ('<div data-index="' + str(entryCount)  +'" class="termPronunciation"><span ' + font +' class="tpCont">'+ self.getPreparedTermHeader(dictName, frontBracket, backBracket, term, entry['term'], entry['altterm'], entry['pronunciation']) +
-                        ' <span class="starcount">' + entry['starCount']  +'</span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img '+ imgTooltip+' ankiDict="icons/anki.png"></div><div onclick="clipText(event)" '+ clipTooltip +' class="clipper">✂</div><div ' + sendTooltip +' onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div' + font +' class="definitionBlock">' + self.highlightTarget(self.highlightExamples(entry['definition']), term)
+                    entryCount += 1
+                    continue
+                if dictName == 'Forvo':
+                    html += self.getForvoDictionaryResults(term, dictCount, frontBracket, backBracket, entryCount, font)
+                    dictCount += 1
+                    entryCount += 1
+                    continue
+                duplicateHeader = self.getDuplicateHeaderCB(dictName)
+                overwrite = self.getOverwriteChecks(dictCount, dictName)
+                select = self.getFieldChecks(dictName)
+                html += '<div data-index="' + str(
+                    dictCount) + '" class="dictionaryTitleBlock"><div  ' + font + '  class="dictionaryTitle">' + dictName.replace(
+                    '_',
+                    ' ') + '</div><div class="dictionarySettings">' + duplicateHeader + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+                dictCount += 1
+                for idx, entry in enumerate(dictResults):
+                    html += ('<div data-index="' + str(
+                        entryCount) + '" class="termPronunciation"><span ' + font + ' class="tpCont">' + self.getPreparedTermHeader(
+                        dictName, frontBracket, backBracket, term, entry['term'], entry['altterm'],
+                        entry['pronunciation']) +
+                             ' <span class="starcount">' + entry[
+                                 'starCount'] + '</span></span><div class="defTools"><div onclick="ankiExport(event, \'' + dictName + '\')" class="ankiExportButton"><img ' + imgTooltip + ' ankiDict="icons/anki.png"></div><div onclick="clipText(event)" ' + clipTooltip + ' class="clipper">✂</div><div ' + sendTooltip + ' onclick="sendToField(event, \'' + dictName + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div' + font + ' class="definitionBlock">' + self.highlightTarget(
+                                self.highlightExamples(entry['definition']), term)
                              + '</div>')
-                        entryCount += 1
+                    entryCount += 1
 
         else:
             html = '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img ankiDict="icons/searchzero.svg" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "' + term + '".</h3> </div></div>'
         return html.replace("'", "\\'")
 
     def attemptFetchForvo(self, term, idName):
-        forvo =  Forvo(self.config['ForvoLanguage'])
+        forvo = Forvo(self.config['ForvoLanguage'])
         forvo.setTermIdName(term, idName)
         forvo.signals.resultsFound.connect(self.loadForvoResults)
         forvo.signals.noResults.connect(self.showGoogleForvoMessage)
@@ -300,35 +327,41 @@ class MIDict(AnkiWebView):
     def loadForvoResults(self, results):
         forvoData, idName = results
         if forvoData:
-            html = "<div class=\\'forvo\\'  data-urls=\\'" + forvoData +"\\'></div>"
+            html = "<div class=\\'forvo\\'  data-urls=\\'" + forvoData + "\\'></div>"
         else:
             html = '<div class="no-forvo">No Results Found.</div>'
-        self.eval("loadImageForvoHtml('%s', '%s');loadForvoDict(false, '%s');"%(html.replace('"', '\\"'), idName, idName))
+        self.eval(
+            "loadImageForvoHtml('%s', '%s');loadForvoDict(false, '%s');" % (html.replace('"', '\\"'), idName, idName))
 
     def getForvoDictionaryResults(self, term, dictCount, bracketFront, bracketBack, entryCount, font):
         dictName = 'Forvo'
-        overwrite = self.getOverwriteChecks(dictCount, dictName )
+        overwrite = self.getOverwriteChecks(dictCount, dictName)
         select = self.getFieldChecks(dictName)
         idName = 'fcon' + str(time.time())
         self.attemptFetchForvo(term, idName)
-        html = '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div class="dictionaryTitle">'+ dictName +'</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-        html += ('<div  data-index="' + str(entryCount)  +'"  class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +
-                        self.highlightTarget(term, term) +
-                        '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div id="' + idName + '" class="definitionBlock">' )
+        html = '<div data-index="' + str(
+            dictCount) + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">' + dictName + '</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+        html += ('<div  data-index="' + str(
+            entryCount) + '"  class="termPronunciation"><span class="tpCont">' + bracketFront + '<span ' + font + ' class="terms">' +
+                 self.highlightTarget(term, term) +
+                 '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \'' + dictName + '\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \'' + dictName + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div id="' + idName + '" class="definitionBlock">')
         html += 'Loading...'
         html += '</div>'
         return html
 
     def getGoogleDictionaryResults(self, term, dictCount, bracketFront, bracketBack, entryCount, font):
         dictName = 'Google Images'
-        overwrite = self.getOverwriteChecks(dictCount, dictName )
-        select = self.getFieldChecks( dictName)
+        overwrite = self.getOverwriteChecks(dictCount, dictName)
+        select = self.getFieldChecks(dictName)
         idName = 'gcon' + str(time.time())
-        html = '<div data-index="' + str(dictCount)  +'" class="dictionaryTitleBlock"><div class="dictionaryTitle">Google Images</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-        html += ('<div  data-index="' + str(entryCount)  +'" class="termPronunciation"><span class="tpCont">' + bracketFront+ '<span ' + font +' class="terms">' +
-                        self.highlightTarget(term, term) +
-                        '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''+ dictName +'\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''+ dictName +'\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName +'">' + self.getGoogleImages(term, idName)
-                         + '</div></div>')
+        html = '<div data-index="' + str(
+            dictCount) + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">Google Images</div><div class="dictionarySettings">' + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+        html += ('<div  data-index="' + str(
+            entryCount) + '" class="termPronunciation"><span class="tpCont">' + bracketFront + '<span ' + font + ' class="terms">' +
+                 self.highlightTarget(term, term) +
+                 '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \'' + dictName + '\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \'' + dictName + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName + '">' + self.getGoogleImages(
+                    term, idName)
+                 + '</div></div>')
         return html
 
     def getGoogleImages(self, term, idName):
@@ -340,9 +373,7 @@ class MIDict(AnkiWebView):
         imager.signals.noResults.connect(self.showGoogleForvoMessage)
         self.threadpool.start(imager)
 
-
         return 'Loading...'
-
 
     def getCleanedUrls(self, urls):
         return [x.replace('\\', '\\\\') for x in urls]
@@ -352,7 +383,7 @@ class MIDict(AnkiWebView):
         if self.config['tooltips']:
             tooltip = ' title="Enable this option if this dictionary has the target word\'s header within the definition. Enabling this will prevent the addon from exporting duplicate header."'
         checked = ' '
-        className = 'checkDict' + re.sub(r'\s', '' , dictName)
+        className = 'checkDict' + re.sub(r'\s', '', dictName)
         if dictName in self.dupHeaders:
             num = self.dupHeaders[dictName]
             if num == 1:
@@ -378,8 +409,8 @@ class MIDict(AnkiWebView):
             f1, f2 = dAct[7:].split(':')
             self.dictInt.writeConfig('fontSizes', [int(f1), int(f2)])
         elif dAct.startswith('setDup:'):
-            dup, name =dAct[7:].split('◳')
-            dup =  int(dup)
+            dup, name = dAct[7:].split('◳')
+            dup = int(dup)
             self.dictInt.db.setDupHeader(dup, name)
             self.dupHeaders = self.db.getDupHeaders()
         elif dAct.startswith('fieldsSetting:'):
@@ -415,10 +446,10 @@ class MIDict(AnkiWebView):
             self.addDefToExportWindow(dictName, word, text)
         elif dAct.startswith('audioExport:'):
             word, urls = dAct[12:].split('◳◴')
-            self.addAudioToExportWindow( word, urls)
+            self.addAudioToExportWindow(word, urls)
         elif dAct.startswith('imgExport:'):
             word, urls = dAct[10:].split('◳◴')
-            self.addImgsToExportWindow( word, json.loads(urls))
+            self.addImgsToExportWindow(word, json.loads(urls))
 
     def addImgsToExportWindow(self, word, urls):
         self.initCardExporterIfNeeded()
@@ -428,7 +459,8 @@ class MIDict(AnkiWebView):
         for imgurl in urls:
             try:
                 url = re.sub(r'\?.*$', '', imgurl)
-                filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '', url.strip().split('/')[-1]) + '.jpg'
+                filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '',
+                                                                           url.strip().split('/')[-1]) + '.jpg'
                 fullpath = join(self.dictInt.mw.col.media.dir(), filename)
                 self.saveQImage(imgurl, filename)
                 rawPaths.append(fullpath)
@@ -439,31 +471,34 @@ class MIDict(AnkiWebView):
             self.addWindow.addImgs(word, imgSeparator.join(imgs), self.getThumbs(rawPaths))
 
     def saveQImage(self, url, filename):
-        req = Request(url , headers={'User-Agent':  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
+        req = Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
         file = urlopen(req).read()
         image = QImage()
         image.loadFromData(file)
-        image = image.scaled(QSize(self.maxW,self.maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        image = image.scaled(QSize(self.maxW, self.maxH), Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
         image.save(filename)
 
     def getThumbs(self, paths):
         thumbCase = QWidget()
-        thumbCase.setContentsMargins(0,0,0,0)
+        thumbCase.setContentsMargins(0, 0, 0, 0)
         vLayout = QVBoxLayout()
-        vLayout.setContentsMargins(0,0,0,0)
+        vLayout.setContentsMargins(0, 0, 0, 0)
         hLayout = QHBoxLayout()
-        hLayout.setContentsMargins(0,0,0,0)
+        hLayout.setContentsMargins(0, 0, 0, 0)
         vLayout.addLayout(hLayout)
         for idx, path in enumerate(paths):
             image = QPixmap(path)
-            image = image.scaled(QSize(50,50), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            image = image.scaled(QSize(50, 50), Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation)
             label = QLabel('')
             label.setPixmap(image)
-            label.setFixedSize(40,40)
+            label.setFixedSize(40, 40)
             hLayout.addWidget(label)
             if idx > 0 and idx % 4 == 0:
                 hLayout = QHBoxLayout()
-                hLayout.setContentsMargins(0,0,0,0)
+                hLayout.setContentsMargins(0, 0, 0, 0)
                 vLayout.addLayout(hLayout)
         thumbCase.setLayout(vLayout)
         return thumbCase
@@ -478,7 +513,6 @@ class MIDict(AnkiWebView):
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
         self.addWindow.exportImage(path, name)
-
 
     def initCardExporterIfNeeded(self):
         if not self.addWindow:
@@ -496,15 +530,14 @@ class MIDict(AnkiWebView):
         if self.addWindow:
             self.addWindow.bulkMediaExportCancelledByBrowserRefresh()
 
-
     def exportAudio(self, audioList):
         self.dictInt.ensureVisible()
         temp, tag, name = audioList
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
-        self.addWindow.exportAudio(temp, tag,  name)
+        self.addWindow.exportAudio(temp, tag, name)
 
-    def exportSentence(self, sentence, secondary = ""):
+    def exportSentence(self, sentence, secondary=""):
         self.dictInt.ensureVisible()
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
@@ -542,8 +575,6 @@ class MIDict(AnkiWebView):
         if len(soundFiles) > 0:
             self.addWindow.addDefinition('Forvo', word, audioSeparator.join(soundFiles))
 
-
-
     def sendAudioToField(self, urls):
         audioSeparator = ''
         soundFiles = self.downloadForvoAudio(json.loads(urls))
@@ -553,7 +584,8 @@ class MIDict(AnkiWebView):
         tags = []
         for url in urls:
             try:
-                req = Request(url , headers={'User-Agent':  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
+                req = Request(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
                 file = urlopen(req).read()
                 filename = str(time.time()) + '.mp3'
                 open(join(self.dictInt.mw.col.media.dir(), filename), 'wb').write(file)
@@ -570,22 +602,23 @@ class MIDict(AnkiWebView):
             for imgurl in urls:
                 try:
                     url = re.sub(r'\?.*$', '', imgurl)
-                    filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '', url.strip().split('/')[-1]) + '.jpg'
+                    filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '',
+                                                                               url.strip().split('/')[-1]) + '.jpg'
                     self.saveQImage(imgurl, filename)
                     urlsList.append('<img ankiDict="' + filename + '">')
                 except:
                     continue
-            if len(urlsList) > 0 :
+            if len(urlsList) > 0:
                 self.sendToField('Google Images', imgSeparator.join(urlsList))
 
     def sendToField(self, name, definition):
         if self.reviewer and self.reviewer.card:
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']
-                addType =  self.config['GoogleImageAddType']
+                addType = self.config['GoogleImageAddType']
             elif name == 'Forvo':
                 tFields = self.config['ForvoFields']
-                addType =  self.config['ForvoAddType']
+                addType = self.config['ForvoAddType']
             else:
                 tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.reviewer.card.note()
@@ -598,9 +631,10 @@ class MIDict(AnkiWebView):
                     if newField is not False:
                         changed = True
                         if self.jSend:
-                            note[field['name']] = self.dictInt.jHandler.attemptFieldGenerate(newField, field['name'], model['name'], note)
+                            note[field['name']] = self.dictInt.jHandler.attemptFieldGenerate(newField, field['name'],
+                                                                                             model['name'], note)
                         else:
-                            note[field['name']] =  newField
+                            note[field['name']] = newField
             if not changed:
                 return
             # note.flush()
@@ -612,14 +646,14 @@ class MIDict(AnkiWebView):
             elif self.reviewer.state == 'question':
                 self.reviewer._showQuestion()
             if hasattr(self.dictInt.mw, "DictReloadEditorAndBrowser"):
-                    self.dictInt.mw.DictReloadEditorAndBrowser(note)
+                self.dictInt.mw.DictReloadEditorAndBrowser(note)
         if self.currentEditor and self.currentEditor.note:
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']
-                addType =  self.config['GoogleImageAddType']
+                addType = self.config['GoogleImageAddType']
             elif name == 'Forvo':
                 tFields = self.config['ForvoFields']
-                addType =  self.config['ForvoAddType']
+                addType = self.config['ForvoAddType']
             else:
                 tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.currentEditor.note
@@ -639,7 +673,7 @@ class MIDict(AnkiWebView):
                         )
                     )
 
-    def getOverwriteChecks(self, dictCount,dictName):
+    def getOverwriteChecks(self, dictCount, dictName):
         if dictName == 'Google Images':
             addType = self.config['GoogleImageAddType']
         elif dictName == 'Forvo':
@@ -649,33 +683,34 @@ class MIDict(AnkiWebView):
         tooltip = ''
         if self.config['tooltips']:
             tooltip = ' title="This determines the conditions for sending a definition (or a Google Image) to a field. Overwrite the target field\'s content. Add to the target field\'s current contents. Only add definitions to the target field if it is empty."'
-        if addType == 'add' :
-           typeName = '&nbsp;Add'
-        elif addType == 'overwrite' :
-           typeName = '&nbsp;Overwrite'
-        elif addType == 'no' :
-           typeName = '&nbsp;If Empty'
-        select = ('<div class="overwriteSelectCont"><div '+ tooltip + ' class="overwriteSelect" onclick="showCheckboxes(event)">'+ typeName +'</div>'+
-           self.getSelectedOverwriteType(dictName, addType) + '</div>')
+        if addType == 'add':
+            typeName = '&nbsp;Add'
+        elif addType == 'overwrite':
+            typeName = '&nbsp;Overwrite'
+        elif addType == 'no':
+            typeName = '&nbsp;If Empty'
+        select = (
+                '<div class="overwriteSelectCont"><div ' + tooltip + ' class="overwriteSelect" onclick="showCheckboxes(event)">' + typeName + '</div>' +
+                self.getSelectedOverwriteType(dictName, addType) + '</div>')
         return select
 
     def getSelectedOverwriteType(self, dictName, addType):
         count = str(self.radioCount)
         checked = ''
-        if addType == 'add' :
+        if addType == 'add':
             checked = ' checked'
-        add =  '<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' +  count + dictName + '" value="add"/>Add</label>'
+        add = '<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' + count + dictName + '" value="add"/>Add</label>'
         checked = ''
-        if addType == 'overwrite' :
+        if addType == 'overwrite':
             checked = ' checked'
-        overwrite ='<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' +  count +  dictName + '" value="overwrite"/>Overwrite</label>'
+        overwrite = '<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' + count + dictName + '" value="overwrite"/>Overwrite</label>'
         checked = ''
-        if addType == 'no' :
+        if addType == 'no':
             checked = ' checked'
-        ifempty = '<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' +  count +  dictName + '" value="no"/>If Empty</label>'
-        checks = ('<div class="overwriteCheckboxes" data-dictname="' + dictName + '">'+
-        add + overwrite + ifempty +
-        '</div>')
+        ifempty = '<label class="inCheckBox"><input' + checked + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio' + dictName + '" type="radio" name="' + count + dictName + '" value="no"/>If Empty</label>'
+        checks = ('<div class="overwriteCheckboxes" data-dictname="' + dictName + '">' +
+                  add + overwrite + ifempty +
+                  '</div>')
         self.radioCount += 1
         return checks
 
@@ -690,11 +725,12 @@ class MIDict(AnkiWebView):
         if self.config['tooltips']:
             tooltip = ' title="Select this dictionary\'s target fields for when sending a definition(or a Google Image) to a card. If a field does not exist in the target card, then it is ignored, otherwise the definition is added to all fields that exist within the target card."'
         title = '&nbsp;Select Fields ▾'
-        length =  len(selF)
+        length = len(selF)
         if length > 0:
             title = '&nbsp;' + str(length) + ' Selected'
-        select = ('<div class="fieldSelectCont"><div class="fieldSelect" '+ tooltip +' onclick="showCheckboxes(event)">'+ title +'</div>'+
-            self.getCheckBoxes(dictName, selF) +'</div>')
+        select = (
+                '<div class="fieldSelectCont"><div class="fieldSelect" ' + tooltip + ' onclick="showCheckboxes(event)">' + title + '</div>' +
+                self.getCheckBoxes(dictName, selF) + '</div>')
         return select
 
     def getCheckBoxes(self, dictName, selF):
@@ -704,7 +740,7 @@ class MIDict(AnkiWebView):
             checked = ''
             if f in selF:
                 checked = ' checked'
-            options += '<label class="inCheckBox"><input'+ checked + ' onclick="handleFieldCheck(this)" class="inCheckBox" type="checkbox" value="'+ f + '" />'+ f + '</label>'
+            options += '<label class="inCheckBox"><input' + checked + ' onclick="handleFieldCheck(this)" class="inCheckBox" type="checkbox" value="' + f + '" />' + f + '</label>'
         return options + '</div>'
 
     def getFieldNames(self):
@@ -718,7 +754,7 @@ class MIDict(AnkiWebView):
         fields.sort()
         return fields
 
-    def setCurrentEditor(self, editor, target = ''):
+    def setCurrentEditor(self, editor, target=''):
         if editor != self.currentEditor:
             self.currentEditor = editor
             self.reviewer = False
@@ -738,9 +774,11 @@ class MIDict(AnkiWebView):
         self.currentEditor = False
         self.dictInt.currentTarget.setText('')
 
+
 class HoverButton(QPushButton):
     mouseHover = pyqtSignal(bool)
-    mouseOut =  pyqtSignal(bool)
+    mouseOut = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         QPushButton.__init__(self, parent)
         self.setMouseTracking(True)
@@ -752,26 +790,27 @@ class HoverButton(QPushButton):
         self.mouseHover.emit(False)
         self.mouseOut.emit(True)
 
+
 def imageResizer(img):
     width, height = img.size
     maxh = 300
     maxw = 300
-    ratio = min(maxw/width, maxh/height)
+    ratio = min(maxw / width, maxh / height)
     height = int(round(ratio * height))
     width = int(round(ratio * width))
-    return img.resize((width, height) , Image.ANTIALIAS)
+    return img.resize((width, height), Image.ANTIALIAS)
+
 
 class ClipThread(QObject):
-
     sentence = pyqtSignal(str)
     search = pyqtSignal(str)
-    colSearch  = pyqtSignal(str)
+    colSearch = pyqtSignal(str)
     add = pyqtSignal(str)
     image = pyqtSignal(list)
     test = pyqtSignal(list)
     release = pyqtSignal(list)
     extensionCardExport = pyqtSignal(dict)
-    searchFromExtension  = pyqtSignal(list)
+    searchFromExtension = pyqtSignal(list)
     extensionFileNotFound = pyqtSignal()
     bulkTextExport = pyqtSignal(list)
     bulkMediaExport = pyqtSignal(dict)
@@ -795,7 +834,7 @@ class ClipThread(QObject):
         self.mw = mw
         self.config = self.mw.addonManager.getConfig(__name__)
 
-    def on_press(self,key):
+    def on_press(self, key):
         self.test.emit([key])
 
     def on_release(self, key):
@@ -804,7 +843,8 @@ class ClipThread(QObject):
 
     def darwinIntercept(self, event_type, event):
         keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode)
-        if ('Key.cmd' in self.mw.currentlyPressed or 'Key.cmd_r' in self.mw.currentlyPressed)  and "'c'" in self.mw.currentlyPressed and keycode == 1:
+        if (
+                'Key.cmd' in self.mw.currentlyPressed or 'Key.cmd_r' in self.mw.currentlyPressed) and "'c'" in self.mw.currentlyPressed and keycode == 1:
             self.handleSystemSearch()
             self.mw.currentlyPressed = []
             return None
@@ -813,13 +853,13 @@ class ClipThread(QObject):
     def run(self):
         if is_win:
             self.listener = self.keyboard.Listener(
-                on_press =self.on_press, on_release= self.on_release, dict = self.mw, suppress= True)
+                on_press=self.on_press, on_release=self.on_release, dict=self.mw, suppress=True)
         elif is_mac:
             self.listener = self.keyboard.Listener(
-                on_press =self.on_press, on_release= self.on_release, dict = self.mw, darwin_intercept= self.darwinIntercept)
+                on_press=self.on_press, on_release=self.on_release, dict=self.mw, darwin_intercept=self.darwinIntercept)
         else:
             self.listener = self.keyboard.Listener(
-                on_press =self.on_press, on_release= self.on_release)
+                on_press=self.on_press, on_release=self.on_release)
         self.listener.start()
 
     def attemptAddCard(self):
@@ -841,7 +881,6 @@ class ClipThread(QObject):
 
     def getConfig(self):
         return self.mw.addonManager.getConfig(__name__)
-
 
     def handleBulkTextExport(self, cards):
         self.bulkTextExport.emit(cards)
@@ -873,13 +912,13 @@ class ClipThread(QObject):
         else:
             self.extensionCardExport.emit(card)
 
-
-    def saveScaledImage(self,imageTempPath, imageFileName):
+    def saveScaledImage(self, imageTempPath, imageFileName):
         maxW = self.mw.AnkiDictConfig['maxWidth']
         maxH = self.mw.AnkiDictConfig['maxHeight']
         path = join(self.mw.col.media.dir(), imageFileName)
         image = QImage(imageTempPath)
-        image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
         image.save(path)
 
     def removeFile(self, file):
@@ -923,7 +962,8 @@ class ClipThread(QObject):
                 fullpath = join(self.addonPath, 'temp', filename)
                 maxW = max(self.config['maxWidth'], image.width())
                 maxH = max(self.config['maxHeight'], image.height())
-                image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio,
+                                     Qt.TransformationMode.SmoothTransformation)
                 image.save(fullpath)
                 self.image.emit([fullpath, filename])
             elif clip.endswith('.mp3'):
@@ -961,6 +1001,7 @@ class ClipThread(QObject):
         if self.checkDict():
             self.sentence.emit(self.mw.app.clipboard().text())
 
+
 class DictInterface(QWidget):
     def __init__(self, dictdb, mw, path, welcome, parent=None, terms=False):
         super(DictInterface, self).__init__()
@@ -983,7 +1024,6 @@ class DictInterface(QWidget):
         self.setHotkeys()
         ensureWidgetInScreenBoundaries(self)
 
-
     def load_theme_color(self, color_key):
         """
         Load a specific color from the active theme file.
@@ -1005,7 +1045,6 @@ class DictInterface(QWidget):
         widget.repaint()
         for child in widget.findChildren(QWidget):
             self.refresh_widget(child)
-
 
     def refresh_application_theme(self):
         """
@@ -1073,7 +1112,7 @@ class DictInterface(QWidget):
 
     def getStretchLay(self):
         stretch = QHBoxLayout()
-        stretch.setContentsMargins(0,0,0,0)
+        stretch.setContentsMargins(0, 0, 0, 0)
         stretch.addStretch()
         return stretch
 
@@ -1126,8 +1165,8 @@ class DictInterface(QWidget):
         self.mainLayout = self.setupView()
         self.dict.setSType(self.sType)
         self.setLayout(self.mainLayout)
-        self.resize(800,600)
-        self.setMinimumSize(350,350)
+        self.resize(800, 600)
+        self.setMinimumSize(350, 350)
         self.sbOpened = False
         self.historyModel = HistoryModel(self.getHistory(), self)
         self.historyBrowser = HistoryBrowser(self.historyModel, self)
@@ -1165,13 +1204,11 @@ class DictInterface(QWidget):
             # self.nightModeToggler.setToolTip('Enable/Disable night-mode.')
             self.setB.setToolTip('Open the dictionary settings.')
 
-
     def restoreSizePos(self):
         sizePos = self.config['dictSizePos']
         if sizePos:
             self.resize(sizePos[2], sizePos[3])
             self.move(sizePos[0], sizePos[1])
-
 
     def refineToValidSearchTerms(self, terms):
         if terms:
@@ -1186,126 +1223,125 @@ class DictInterface(QWidget):
         return False
 
     def getHTMLURL(self, willSearch):
-        # Load the active theme colors
         active_theme_path = join(self.addonPath, "user_files/themes", "active.json")
         try:
             with open(active_theme_path, "r", encoding="utf-8") as f:
                 active_theme = json.load(f)
         except Exception as e:
             print(f"Error loading active theme: {e}")
-            # Fallback to default light theme if active.json is missing or invalid
             active_theme = {
-                "background": "#FFFFFF",
-                "background_secondary": "#F0F0F0",
-                "text": "#000000",
-                "text_secondary": "#444444",
-                "border": "#000000",
-                "border_hover": "#444444",
-                "button_bg": "#F0F0F0",
-                "button_bg_hover": "#E0E0E0",
-                "button_text": "#000000",
-                "input_bg": "#FFFFFF",
-                "input_text": "#000000",
-                "sidebar_bg": "#F0F0F0",
-                "tab_active_bg": "#FFFFFF",
-                "tab_hover_bg": "#E0E0E0",
-                "button_gradient_start": "#FFFFFF",
-                "button_gradient_end": "#C0C0C0",
-                "accent_primary": "#000000",
-                "accent_secondary": "#444444",
-                "definitionBlock_color": "#FFFFFF",
-                "definitionBlock_bg": "#FFFFFF",
-                "listTerm_bg": "#FFFFFF",
-                "altterm_color": "#FFFFFF",
-                "pronunciation_color": "#FFFFFF",
-                "tabs_bg": "#FFFFFF",
-            },
+                "header_background": "#51576d",
+                "selector": "#949cbb",
+                "header_text": "#babbf1",
+                "search_term": "#f4b8e4",
+                "border": "#babbf1",
+                "anki_button_background": "#99d1db",
+                "anki_button_text": "#c6d0f5",
+                "tab_hover": "#f4b8e4",
+                "current_tab_gradient_top": "#737994",
+                "current_tab_gradient_bottom": "#414559",
+                "example_highlight": "#414559",
+                "definition_background": "#51576d",
+                "definition_text": "#c6d0f5",
+                "pitch_accent_color": "#eebebe"
+            }
 
-
-        # Generate the custom theme CSS dynamically
+        qss = f"""
+                    QWidget {{
+                        background-color: {active_theme["definition_background"]};
+                        font-family: 'Segoe UI', sans-serif;
+                        font-size: 14px;
+                    }}
+                    QPushButton {{
+                        color: {active_theme['header_text']};
+                        border: 1px solid {active_theme['border']};
+                        border-radius: 5px;
+                        padding: 8px;
+                    }}
+                    QPushButton:hover {{
+                        border: 2px solid {active_theme['border']};
+                    }}
+                    QLineEdit, QComboBox {{
+                        background-color: {active_theme['selector']};
+                        color: {active_theme['search_term']};
+                        border: 1px solid {active_theme['border']};
+                        border-radius: 5px;
+                        padding: 8px;
+                    }}
+                    QLabel {{
+                        font-weight: bold;
+                        border: 1px solid {active_theme['border']};
+                    }}
+                    QComboBox QAbstractItemView {{
+                        color: {active_theme['header_text']};
+                        border: 1px solid {active_theme['border']};
+                    }}
+                    
+                    SVGPushButton{{
+                        background-color: {active_theme['selector']};
+                        color: {active_theme['header_text']}
+                        border: 1px solid {active_theme['border']};
+                    }}
+                """
+        self.setStyleSheet(qss)
         custom_theme_css = f"""
             <style id="customThemeCss">
-                /* Base styles */
                 body {{
                     background-color: {active_theme['header_background']};
                     color: {active_theme['header_text']};
                 }}
-                .definitionSideBar, .defTools {{
+                .header {{
                     background-color: {active_theme['header_background']};
                     color: {active_theme['header_text']};
+                    border-bottom: 2px solid {active_theme['border']};
                 }}
-                .termPronunciation {{
-                    background-color: {active_theme['header_background']};
-                    border-top: 1px solid {active_theme['border']};
-                    border-bottom: 1px solid {active_theme['border']};
-                }}
-                .overwriteSelect, .fieldSelect, .overwriteCheckboxes, .fieldCheckboxes {{
-                    background-color: {active_theme['selector']};
-                }}
-                #tabs {{
-                    background-color: {active_theme['header_background']};
-                    color: {active_theme['header_text']};
-                }}
-                .tablinks:hover {{
-                    background-color: {active_theme['tab_hover']};
-                }}
-                .tablinks {{
-                    color: {active_theme['header_text']};
-                }}
-                .active {{
-                    background-image: linear-gradient({active_theme['current_tab_gradient_top']}, {active_theme['current_tab_gradient_bottom']});
-                    border-left: 1px solid {active_theme['border']};
-                    border-right: 1px solid {active_theme['border']};
-                }}
-                .dictionaryTitleBlock {{
-                    border-top: 2px solid {active_theme['border']};
-                    border-bottom: 1px solid {active_theme['border']};
-                }}
-                .imageLoader, .forvoLoader {{
-                    background-image: linear-gradient({active_theme['current_tab_gradient_top']}, {active_theme['current_tab_gradient_bottom']});
-                    color: {active_theme['header_text']};
-                    border: 1px solid {active_theme['border']};
-                }}
-                .definitionSideBar {{
-                    border: 2px solid {active_theme['border']};
-                }} 
                 .targetTerm {{
-                    color: {active_theme['search_term']};
+                    color: {active_theme['search_term']} !important;
                 }}
-                .defBox {{
-                    color: {active_theme['header_text']};
+                .exampleSentence {{
+                    background-color: {active_theme['example_highlight']};
+                    border-radius: 3px;
+                    padding-top:1px;
+                    margin:0 5px;
                 }}
-                .fieldSelectCont, .overwriteSelectCont {{
-                    background-color: {active_theme['selector']};
-                }}
-                .fieldSelect, .overwriteSelect {{
+                .definitionBlock {{
+                    background-color: {active_theme['definition_background']};
+                    color: {active_theme['definition_text']};
                     border: 1px solid {active_theme['border']};
+                    border-radius: 5px;
+                    padding: 15px;
+                    margin: 10px;
                 }}
-                .fieldCheckboxes, .overwriteCheckboxes {{
+                .altterm {{
+                    color: {active_theme['pitch_accent_color']};
+                }}
+                .ankiExportButton {{
                     border: 1px solid {active_theme['border']};
-                    background-color: {active_theme['selector']};
-                }}
-                .clipper:hover, .sendToField:hover, .prevDef:hover, .nextDef:hover, .nextDict:hover, .prevDict:hover {{
-                    color: {active_theme['search_term']};
+                    border-radius: 5px;
+                    padding: 5px;
                 }}
                 .ankiExportButton img {{
                     background-color: {active_theme['anki_button_background']};
                 }}
-                .accent-secondary {{
-                    color: {active_theme['example_highlight']};
+                .tablinks {{
+                    border: 1px solid {active_theme['border']};
+                    border-radius: 5px 5px 0 0;
                 }}
-                .exampleSentence {{
-                    background-color: {active_theme['example_highlight']};
+                .tablinks.active {{
+                    background-image: linear-gradient(
+                        {active_theme['current_tab_gradient_top']},
+                        {active_theme['current_tab_gradient_bottom']}
+                    );
+                    border-bottom: none;
                 }}
-
-                /* New CSS rules */
-                .definitionBlock {{
-                    color: {active_theme['definition_text']};
-                    background-color: {active_theme['definition_background']};
+                .tablinks:hover {{
+                    background-color: {active_theme['tab_hover']};
                 }}
-
-                .altterm {{
-                    color: {active_theme['pitch_accent_color']};
+                .overwriteSelect, .fieldSelect {{
+                    background-color: {active_theme['selector']};
+                    border: 1px solid {active_theme['border']};
+                    border-radius: 5px;
+                    padding: 5px;
                 }}
             </style>
         """
@@ -1313,14 +1349,6 @@ class DictInterface(QWidget):
         html_path = join(self.addonPath, 'dictionaryInit.html')
         with open(html_path, 'r', encoding="utf-8") as fh:
             html = fh.read()
-            font_sizes = self.config['fontSizes']
-            f1 = str(font_sizes[0])
-            f2 = str(font_sizes[1])
-            html = html.replace('var fefs = 12, dbfs = 22;', f'var fefs = {f1}, dbfs = {f2};')
-            html = html.replace(
-                '<style id="fontSpecs">.foundEntriesList{font-size: 12px;}.termPronunciation,.definitionBlock{font-size: 20px;}</style>',
-                f'<style id="fontSpecs">.foundEntriesList{{font-size: {f1}px;}}.termPronunciation,.definitionBlock{{font-size: {f2}px;}}.ankiExportButton img{{height:{f2}px; width:{f2}px;}}</style>'
-            )
             # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
             if not willSearch:
@@ -1330,7 +1358,6 @@ class DictInterface(QWidget):
                 )
             url = QUrl.fromLocalFile(html_path)
         return html, url
-
 
     def getAllGroups(self):
         allGroups = {}
@@ -1392,9 +1419,9 @@ class DictInterface(QWidget):
         if self.config['tooltips']:
             self.dictGroups.setToolTip('Select the dictionary group.')
         if not is_win:
-            self.dictGroups.setFixedSize(108,38)
+            self.dictGroups.setFixedSize(108, 38)
         else:
-            self.dictGroups.setFixedSize(110,38)
+            self.dictGroups.setFixedSize(110, 38)
         # if self.nightModeToggler.day:
         #     if not is_win:
         #         self.dictGroups.setStyleSheet(self.getMacComboStyle())
@@ -1436,7 +1463,7 @@ class DictInterface(QWidget):
         size = self.size()
         width = size.width()
         height = size.height()
-        posSize = [x,y,width, height]
+        posSize = [x, y, width, height]
         self.writeConfig('dictSizePos', posSize)
 
     def getUserGroups(self):
@@ -1447,7 +1474,7 @@ class DictInterface(QWidget):
             userGroups[name] = {}
             userGroups[name]['dictionaries'] = self.db.getUserGroups(dicts)
             userGroups[name]['customFont'] = group['customFont']
-            userGroups[name]['font']  = group['font']
+            userGroups[name]['font'] = group['font']
         return userGroups
 
     def getConfig(self):
@@ -1456,54 +1483,57 @@ class DictInterface(QWidget):
     def setupView(self):
         layoutV = QVBoxLayout()
         layoutH = QHBoxLayout()
+
         self.toolbarTopLayout = layoutH
+
         layoutH.addWidget(self.dictGroups)
-
         layoutH.addWidget(self.sType)
-
         layoutH.addWidget(self.search)
         layoutH.addWidget(self.searchButton)
+
         if not is_win:
-            self.dictGroups.setFixedSize(108,38)
-            self.search.setFixedSize(104, 38)
-            self.sType.setFixedSize(92,38)
-
+            self.dictGroups.setFixedSize(120, 40)
+            self.search.setFixedSize(120, 40)
+            self.sType.setFixedSize(100, 40)
         else:
-            self.sType.setFixedHeight(38)
-            self.dictGroups.setFixedSize(110,38)
-            self.search.setFixedSize(114, 38)
+            self.sType.setFixedHeight(40)
+            self.dictGroups.setFixedSize(120, 40)
+            self.search.setFixedSize(120, 40)
 
-        layoutH.setContentsMargins(1,1,0,0)
-        layoutH.setSpacing(1)
+        layoutH.setContentsMargins(5, 5, 5, 5)
+        layoutH.setSpacing(10)
+
         self.layoutH2.addWidget(self.openSB)
-
         self.layoutH2.addWidget(self.minusB)
         self.layoutH2.addWidget(self.plusB)
         self.layoutH2.addWidget(self.tabB)
         self.layoutH2.addWidget(self.histB)
         self.layoutH2.addWidget(self.conjToggler)
-        # self.layoutH2.addWidget(self.nightModeToggler)
         self.layoutH2.addWidget(self.themeSettings)
-
         self.layoutH2.addWidget(self.setB)
-        self.targetLabel.setFixedHeight(38)
+
+        self.targetLabel.setFixedHeight(40)
         self.layoutH2.addWidget(self.targetLabel)
-        self.currentTarget.setFixedHeight(38)
+        self.currentTarget.setFixedHeight(40)
         self.layoutH2.addWidget(self.currentTarget)
+
         if not self.config['showTarget']:
             self.currentTarget.hide()
             self.targetLabel.hide()
+
         self.layoutH2.addStretch()
-        self.layoutH2.setContentsMargins(0,1,0,0)
-        self.layoutH2.setSpacing(1)
-        self.mainHLay.setContentsMargins(0,0,0,0)
+        self.layoutH2.setContentsMargins(5, 5, 5, 5)
+        self.layoutH2.setSpacing(10)
+        self.mainHLay.setContentsMargins(0, 0, 0, 0)
         self.mainHLay.addLayout(layoutH)
         self.mainHLay.addLayout(self.layoutH2)
         self.mainHLay.addStretch()
+
         layoutV.addLayout(self.mainHLay)
         layoutV.addWidget(self.dict)
-        layoutV.setContentsMargins(0,0,0,0)
-        layoutV.setSpacing(1)
+        layoutV.setContentsMargins(0, 0, 0, 0)
+        layoutV.setSpacing(5)
+
         return layoutV
 
     def toggleMenuBar(self, vertical):
@@ -1513,7 +1543,6 @@ class DictInterface(QWidget):
         else:
             self.mainLayout.removeItem(self.layoutH2)
             self.mainHLay.insertLayout(1, self.layoutH2)
-
 
     def resizeEvent(self, event):
         w = self.width()
@@ -1525,16 +1554,14 @@ class DictInterface(QWidget):
             self.toggleMenuBar(False)
         event.accept()
 
-
     def setupSearchButton(self):
-        searchB =  SVGPushButton(40,40)
+        searchB = SVGPushButton(40, 40)
         self.setSvg(searchB, 'search')
         searchB.clicked.connect(self.initSearch)
         return searchB
 
-
     def setupOpenSB(self):
-        openSB = SVGPushButton(40,40)
+        openSB = SVGPushButton(40, 40)
         self.setSvg(openSB, 'sidebaropen')
         openSB.clicked.connect(self.toggleSB)
         return openSB
@@ -1549,7 +1576,7 @@ class DictInterface(QWidget):
         self.dict.eval('openSidebar()')
 
     def setupTabMode(self):
-        TabMode = SVGPushButton(40,40)
+        TabMode = SVGPushButton(40, 40)
         if self.config['onetab']:
             TabMode.singleTab = True
             icon = 'onetab'
@@ -1571,7 +1598,7 @@ class DictInterface(QWidget):
             self.writeConfig('onetab', True)
 
     def setupConjugationMode(self):
-        conjugationMode = SVGPushButton(40,40)
+        conjugationMode = SVGPushButton(40, 40)
         if self.config['deinflect']:
             self.dict.deinflect = True
             icon = 'conjugation'
@@ -1583,7 +1610,7 @@ class DictInterface(QWidget):
         return conjugationMode
 
     def setupOpenHistory(self):
-        history = SVGPushButton(40,40)
+        history = SVGPushButton(40, 40)
         self.setSvg(history, 'history')
         history.clicked.connect(self.openHistory)
         return history
@@ -1664,17 +1691,16 @@ class DictInterface(QWidget):
         # return widget.setSvg(join(self.iconpath, 'dictsvgs', name + 'night.svg'))
         return widget.setSvg(join(self.iconpath, 'dictsvgs', name + '.svg'))
 
-
     def setAllIcons(self):
-        self.setSvg( self.setB, 'settings')
-        self.setSvg( self.plusB, 'plus')
-        self.setSvg( self.minusB, 'minus')
-        self.setSvg( self.histB, 'history')
-        self.setSvg( self.searchButton, 'search')
-        self.setSvg( self.themeSettings, 'themesettings')
-        self.setSvg( self.tabB, self.getTabStatus())
-        self.setSvg( self.openSB, self.getSBStatus())
-        self.setSvg( self.conjToggler, self.getConjStatus())
+        self.setSvg(self.setB, 'settings')
+        self.setSvg(self.plusB, 'plus')
+        self.setSvg(self.minusB, 'minus')
+        self.setSvg(self.histB, 'history')
+        self.setSvg(self.searchButton, 'search')
+        self.setSvg(self.themeSettings, 'themesettings')
+        self.setSvg(self.tabB, self.getTabStatus())
+        self.setSvg(self.openSB, self.getSBStatus())
+        self.setSvg(self.conjToggler, self.getConjStatus())
 
     def getConjStatus(self):
         if self.dict.deinflect:
@@ -1683,7 +1709,7 @@ class DictInterface(QWidget):
 
     def getSBStatus(self):
         if self.openSB.opened:
-           return 'sidebarclose'
+            return 'sidebarclose'
         return 'sidebaropen'
 
     def getTabStatus(self):
@@ -1698,7 +1724,7 @@ class DictInterface(QWidget):
     #     return nightToggle
 
     def setupThemes(self):
-        themeButton = SVGPushButton(40,40)
+        themeButton = SVGPushButton(40, 40)
         # nightToggle.day = self.config['day']
         # themeButton.applied.connect(self.refresh_application_theme)
         self.setSvg(themeButton, 'themesettings')
@@ -1707,7 +1733,7 @@ class DictInterface(QWidget):
         return themeButton
 
     def setupOpenSettings(self):
-        settings = SVGPushButton(40,40)
+        settings = SVGPushButton(40, 40)
         self.setSvg(settings, 'settings')
         settings.clicked.connect(self.openDictionarySettings)
         return settings
@@ -1717,19 +1743,19 @@ class DictInterface(QWidget):
             self.mw.dictSettings = SettingsGui(self.mw, self.addonPath, self.openDictionarySettings)
         self.mw.dictSettings.show()
         if self.mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:
-                # Window is minimised. Restore it.
-               self.mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
+            # Window is minimised. Restore it.
+            self.mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
         self.mw.dictSettings.setFocus()
         self.mw.dictSettings.activateWindow()
 
     def setupPlus(self):
-        plusB = SVGPushButton(40,40)
+        plusB = SVGPushButton(40, 40)
         self.setSvg(plusB, 'plus')
         plusB.clicked.connect(self.incFont)
         return plusB
 
     def setupMinus(self):
-        minusB = SVGPushButton(40,40)
+        minusB = SVGPushButton(40, 40)
         self.setSvg(minusB, 'minus')
         minusB.clicked.connect(self.decFont)
         return minusB
@@ -1744,12 +1770,12 @@ class DictInterface(QWidget):
         for i in range(0, dictGroups.count()):
             dictGroups.model().item(i).setTextAlignment(Qt.AlignmentFlag.alignCenter)
 
-    def setupDictGroups(self, dictGroups = False):
+    def setupDictGroups(self, dictGroups=False):
         if not dictGroups:
-            dictGroups =  QComboBox()
+            dictGroups = QComboBox()
             dictGroups.setFixedHeight(30)
             dictGroups.setFixedWidth(80)
-            dictGroups.setContentsMargins(0,0,0,0)
+            dictGroups.setContentsMargins(0, 0, 0, 0)
         ug = sorted(list(self.userGroups.keys()))
         dictGroups.addItems(ug)
         dictGroups.addItem('──────')
@@ -1769,14 +1795,14 @@ class DictInterface(QWidget):
         return dictGroups
 
     def setupSearchType(self):
-        searchTypes =  QComboBox()
+        searchTypes = QComboBox()
         searchTypes.addItems(self.searchOptions)
         current = self.config['searchMode']
         if current in self.searchOptions:
             searchTypes.setCurrentText(current)
         searchTypes.setFixedHeight(30)
         searchTypes.setFixedWidth(80)
-        searchTypes.setContentsMargins(0,0,0,0)
+        searchTypes.setContentsMargins(0, 0, 0, 0)
         searchTypes.currentIndexChanged.connect(lambda: self.writeConfig('searchMode', searchTypes.currentText()))
         return searchTypes
 
@@ -1793,9 +1819,9 @@ class DictInterface(QWidget):
         if cur == 'All':
             return self.allGroups
         if cur == 'Google Images':
-            return {'dictionaries' : [{'dict' : 'Google Images', 'lang' : ''}], 'customFont': False, 'font' : False}
+            return {'dictionaries': [{'dict': 'Google Images', 'lang': ''}], 'customFont': False, 'font': False}
         if cur == 'Forvo':
-            return {'dictionaries' : [{'dict' : 'Forvo', 'lang' : ''}], 'customFont': False, 'font' : False}
+            return {'dictionaries': [{'dict': 'Forvo', 'lang': ''}], 'customFont': False, 'font': False}
         if cur in self.defaultGroups:
             return self.defaultGroups[cur]
 
@@ -1810,7 +1836,7 @@ class DictInterface(QWidget):
     def cleanTermBrackets(self, term):
         return re.sub(r'(?:\[.*\])|(?:\(.*\))|(?:《.*》)|(?:（.*）)|\(|\)|\[|\]|《|》|（|）', '', term)[:30]
 
-    def initSearch(self, term = False):
+    def initSearch(self, term=False):
         self.ensureVisible()
         selectedGroup = self.getSelectedDictGroup()
         if term == False:
@@ -1825,16 +1851,14 @@ class DictInterface(QWidget):
         self.dict.addNewTab(term, selectedGroup)
         self.search.setFocus()
 
-
-
     def addToHistory(self, term):
         date = str(datetime.date.today())
-        self.historyModel.insertRows(term=term, date = date)
+        self.historyModel.insertRows(term=term, date=date)
         self.saveHistory()
 
     def saveHistory(self):
         path = join(self.mw.col.media.dir(), '_searchHistory.json')
-        with codecs.open(path, "w","utf-8") as outfile:
+        with codecs.open(path, "w", "utf-8") as outfile:
             json.dump(self.historyModel.history, outfile, ensure_ascii=False)
         return
 
@@ -1859,7 +1883,7 @@ class DictInterface(QWidget):
         searchBox.setFixedHeight(30)
         searchBox.setFixedWidth(100)
         searchBox.returnPressed.connect(self.initSearch)
-        searchBox.setContentsMargins(0,0,0,0)
+        searchBox.setContentsMargins(0, 0, 0, 0)
         return searchBox;
 
     def getMacOtherStyles(self):
@@ -1869,6 +1893,7 @@ class DictInterface(QWidget):
             QPushButton {border: 1px solid black; border-radius: 5px; color: black; background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 white, stop: 1 silver);} 
             QPushButton:hover{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 white, stop: 1 silver); border-right: 2px solid black; border-bottom: 2px solid black;}"
             '''
+
     # def getMacNightStyles(self):
     #     return '''
     #         QLabel {color: white;}
@@ -1886,7 +1911,7 @@ class DictInterface(QWidget):
             '''
 
     def getMacComboStyle(self):
-        return  '''
+        return '''
 QComboBox {color: black; border-radius: 3px; border: 1px solid black;}
 QComboBox:hover {border: 1px solid black;}
 QComboBox:editable {
@@ -1929,7 +1954,7 @@ QCombobox:selected{
 }
 
 QComboBox::down-arrow {
-    image: url(''' + join(self.iconpath, 'blackdown.png').replace('\\', '/') +  ''');
+    image: url(''' + join(self.iconpath, 'blackdown.png').replace('\\', '/') + ''');
 }
 
 QComboBox::down-arrow:on { 
@@ -1985,7 +2010,7 @@ QScrollBar:vertical {
         '''
 
     def getComboStyle(self):
-        return  '''
+        return '''
 QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
 QComboBox:hover {border: 1px solid white;}
 QComboBox:editable {
@@ -2020,7 +2045,7 @@ QCombobox:selected{
 }
 
 QComboBox::down-arrow {
-    image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') +  ''');
+    image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') + ''');
 }
 
 QComboBox::down-arrow:on { 
@@ -2082,6 +2107,7 @@ QScrollBar:vertical {
      }
 
         '''
+
 
 #     def getMacNightComboStyle(self):
 #         return  '''
@@ -2159,12 +2185,14 @@ QScrollBar:vertical {
 #     }'''
 
 class DictSVG(QSvgWidget):
-    clicked=pyqtSignal()
+    clicked = pyqtSignal()
+
     def __init__(self, parent=None):
         QSvgWidget.__init__(self, parent)
 
     def mousePressEvent(self, ev):
         self.clicked.emit()
+
 
 class SVGPushButton(QPushButton):
     def __init__(self, width, height):
@@ -2185,4 +2213,3 @@ class SVGPushButton(QPushButton):
         self.svgWidget = QSvgWidget(svgPath)
         self.svgWidget.setFixedSize(self.width(), self.height())  # Match the button's size
         self.layout.addWidget(self.svgWidget)
-
