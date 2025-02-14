@@ -334,6 +334,7 @@ class MIDict(AnkiWebView):
         self.eval(
             "loadImageForvoHtml('%s', '%s');loadForvoDict(false, '%s');" % (html.replace('"', '\\"'), idName, idName))
 
+
     def getForvoDictionaryResults(self, term, dictCount, bracketFront, bracketBack, entryCount, font):
         dictName = 'Forvo'
         overwrite = self.getOverwriteChecks(dictCount, dictName)
@@ -1189,7 +1190,7 @@ class DictInterface(QWidget):
 
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
             self.show()
 
     def initTooltips(self):

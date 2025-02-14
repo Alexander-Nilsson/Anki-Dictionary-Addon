@@ -152,7 +152,7 @@ class CardExporter():
 
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.scrollArea.setWindowFlags(self.scrollArea.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+            self.scrollArea.setWindowFlags(self.scrollArea.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
             self.scrollArea.show()
 
     def attemptAutoAdd(self, bulkExport):
@@ -1082,7 +1082,7 @@ Please review your template and notetype combination."""), level='wrn')
         progressWidget.setFixedSize(500, 100)
         progressWidget.setWindowModality(Qt.WindowModality.ApplicationModal)
         if self.alwaysOnTop:
-            progressWidget.setWindowFlags(progressWidget.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+            progressWidget.setWindowFlags(progressWidget.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         screenGeometry = QApplication.desktop().screenGeometry()
         x = (screenGeometry.width() - progressWidget.width()) / 2
         y = (screenGeometry.height() - progressWidget.height()) / 2

@@ -111,9 +111,9 @@ def performColSearch(text):
                 browser.setWindowState(browser.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
                 browser.raise_()  
             else:
-                browser.setWindowFlags(browser.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+                browser.setWindowFlags(browser.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
                 browser.show()
-                browser.setWindowFlags(browser.windowFlags() & ~Qt.WindowState.WindowStaysOnTopHint)
+                browser.setWindowFlags(browser.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
                 browser.show()
 
 
@@ -241,10 +241,10 @@ def showCardExporterWindow():
         cardWindow.setWindowState(cardWindow.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
         cardWindow.raise_()  
     else:
-        cardWindow.setWindowFlags(cardWindow.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+        cardWindow.setWindowFlags(cardWindow.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         cardWindow.show()
         if not adder.alwaysOnTop:
-            cardWindow.setWindowFlags(cardWindow.windowFlags() & ~Qt.WindowState.WindowStaysOnTopHint)
+            cardWindow.setWindowFlags(cardWindow.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
             cardWindow.show()
 
 def trySearch(term):    
@@ -261,10 +261,10 @@ def showAfterGlobalSearch():
         mw.ankiDictionary.setWindowState(mw.ankiDictionary.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
         mw.ankiDictionary.raise_()  
     else:
-        mw.ankiDictionary.setWindowFlags(mw.ankiDictionary.windowFlags() | Qt.WindowState.WindowStaysOnTopHint)
+        mw.ankiDictionary.setWindowFlags(mw.ankiDictionary.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         mw.ankiDictionary.show()
         if not mw.ankiDictionary.alwaysOnTop:
-            mw.ankiDictionary.setWindowFlags(mw.ankiDictionary.windowFlags() & ~Qt.WindowState.WindowStaysOnTopHint)
+            mw.ankiDictionary.setWindowFlags(mw.ankiDictionary.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
             mw.ankiDictionary.show()
 
 def attemptAddCard(add):
@@ -382,8 +382,8 @@ def initGlobalHotkeys():
     mw.hkThread.extensionFileNotFound.connect(extensionFileNotFound)
     mw.hkThread.run()
 
-if mw.addonManager.getConfig(__name__)['globalHotkeys']:
-    initGlobalHotkeys()
+# if mw.addonManager.getConfig(__name__)['globalHotkeys']:
+#     initGlobalHotkeys()
 
 mw.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), mw)
 mw.hotkeyW.activated.connect(dictionaryInit)
