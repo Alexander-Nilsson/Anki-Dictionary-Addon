@@ -94,5 +94,21 @@
     "definition_background": "#51576d",
     "definition_text": "#c6d0f5",
     "pitch_accent_color": "#eebebe"
+  },
+    "kdeWall": {
+    "header_background": "#efe1e2",
+    "selector": "#F19CB0",
+    "header_text": "#0C0F14",
+    "search_term": "#018FB3",
+    "border": "#2289A5",
+    "anki_button_background": "#018FB3",
+    "anki_button_text": "#0C0F14",
+    "tab_hover": "#C4ABB4",
+    "current_tab_gradient_top": "#e6efff",
+    "current_tab_gradient_bottom": "#018FB3",
+    "example_highlight": "#608EA6",
+    "definition_background": "#C4ABB4",
+    "definition_text": "#0C0F14",
+    "pitch_accent_color": "#F19CB0"
   }
 }
