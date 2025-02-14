@@ -62,19 +62,43 @@ def refresh_anki_dict_config(config = False):
 
 mw.refreshAnkiDictConfig = refresh_anki_dict_config
 
-def removeTempFiles():
-    filelist = [ f for f in os.listdir(tmpdir)]
-    for f in filelist:
-        path = os.path.join(tmpdir, f)
-        try:
-            os.remove(path)
-        except:
-            innerDirFiles = [ df for df in os.listdir(path)]
-            for df in innerDirFiles:
-                innerPath = os.path.join(path, df)
-                os.remove(innerPath)
-            os.rmdir(path)
+import os
 
+
+def removeTempFiles():
+    # Define tmpdir (assuming it's meant to be a constant)
+    tmpdir = os.path.join(os.path.dirname(__file__), 'temp')
+
+    # Create directory if it doesn't exist
+    os.makedirs(tmpdir, exist_ok=True)
+
+    try:
+        # Get list of files in directory
+        filelist = [f for f in os.listdir(tmpdir)]
+
+        # Remove each file/directory
+        for f in filelist:
+            path = os.path.join(tmpdir, f)
+            try:
+                # If it's a file, remove it
+                if os.path.isfile(path):
+                    os.remove(path)
+                # If it's a directory, remove its contents first
+                elif os.path.isdir(path):
+                    innerDirFiles = [df for df in os.listdir(path)]
+                    for df in innerDirFiles:
+                        innerPath = os.path.join(path, df)
+                        if os.path.isfile(innerPath):
+                            os.remove(innerPath)
+                    os.rmdir(path)
+            except Exception as e:
+                print(f"Error removing {path}: {str(e)}")
+
+    except Exception as e:
+        print(f"Error accessing temporary directory: {str(e)}")
+
+
+# Usage
 removeTempFiles()
 
 def ankiDict(text):
