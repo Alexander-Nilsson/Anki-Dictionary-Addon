@@ -10,7 +10,7 @@
     "tab_hover": "#E0E0E0",
     "current_tab_gradient_top": "#FFFFFF",
     "current_tab_gradient_bottom": "#C0C0C0",
-    "example_highlight": "#444444",
+    "example_highlight": "#ffd3e3",
     "definition_background": "#FFFFFF",
     "definition_text": "#000000",
     "pitch_accent_color": "#FFFFFF"
@@ -78,5 +78,21 @@
     "definition_background": "#fff0f7",
     "definition_text": "#4a5d7e",
     "pitch_accent_color": "#bb60fc"
+  },
+  "catpuccino_frappe": {
+    "header_background": "#51576d",
+    "selector": "#949cbb",
+    "header_text": "#babbf1",
+    "search_term": "#f4b8e4",
+    "border": "#babbf1",
+    "anki_button_background": "#99d1db",
+    "anki_button_text": "#c6d0f5",
+    "tab_hover": "#f4b8e4",
+    "current_tab_gradient_top": "#737994",
+    "current_tab_gradient_bottom": "#414559",
+    "example_highlight": "#414559",
+    "definition_background": "#51576d",
+    "definition_text": "#c6d0f5",
+    "pitch_accent_color": "#eebebe"
   }
 }
