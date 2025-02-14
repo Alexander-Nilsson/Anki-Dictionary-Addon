@@ -301,6 +301,7 @@ class MIDict(AnkiWebView):
                     '_',
                     ' ') + '</div><div class="dictionarySettings">' + duplicateHeader + overwrite + select + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
                 dictCount += 1
+
                 for idx, entry in enumerate(dictResults):
                     html += ('<div data-index="' + str(
                         entryCount) + '" class="termPronunciation"><span ' + font + ' class="tpCont">' + self.getPreparedTermHeader(
