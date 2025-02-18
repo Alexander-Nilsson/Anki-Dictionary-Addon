@@ -18,11 +18,18 @@ import hashlib
 from aqt import mw
 from typing import List, Optional
 
-# Country codes dictionary (for Google searches)
-countryCodes = {
-    'Japan': 'countryJP',
-    'US': 'countryUS',
-    # Add more as needed
+# Add comprehensive language/region codes for DuckDuckGo
+languageCodes = {
+    'zh-CN': 'cn-zh',  # Chinese (China)
+    'zh-TW': 'tw-zh',  # Chinese (Taiwan) 
+    'ja-JP': 'jp-ja',  # Japanese
+    'ko-KR': 'kr-ko',  # Korean
+    'en-US': 'us-en',  # English (US)
+    'en-GB': 'uk-en',  # English (UK)
+    'es-ES': 'es-es',  # Spanish
+    'fr-FR': 'fr-fr',  # French
+    'de-DE': 'de-de',  # German
+    'ru-RU': 'ru-ru',  # Russian
 }
 
 ########################################
@@ -41,8 +48,11 @@ class DuckDuckGo(QRunnable):
         self.term = ""
         self.idName = ""
         # For interface compatibility with Google
-        self.region = None
+        self.region = None #TODO remove?
         self.safeSearch = False
+
+        self.language = "us-en"  # Default to US English
+
 
         # Get media directory
         try:
@@ -55,11 +65,13 @@ class DuckDuckGo(QRunnable):
         self.term = term
         self.idName = idName
 
-    def setSearchRegion(self, region):
-        self.region = region
-
-    def setSafeSearch(self, safe):
-        self.safeSearch = safe
+    def setSearchRegion(self, lang_code):
+        """Set search language/region. Use ISO codes like 'zh-CN' for Chinese"""
+        if lang_code in languageCodes:
+            self.language = languageCodes[lang_code]
+        else:
+            print(f"Warning: Unsupported language code {lang_code}, using default")
+            self.language = "us-en"
 
     def getCleanedUrls(self, urls):
         # Escape backslashes as done in Google
@@ -83,7 +95,7 @@ class DuckDuckGo(QRunnable):
                 # Generate filename and path
                 img_hash = hashlib.md5(url.encode()).hexdigest()
                 filename = f"dict_img_{img_hash}.jpg"
-                filepath = os.path.join(mw.col.media.dir(), filename)
+                filepath = os.path.join(mw.col.media.dir(), filename) #TODO change this to be the temp folder
                 
                 # Save resized image
                 img.save(filepath, 'JPEG', quality=85)
@@ -123,8 +135,10 @@ class DuckDuckGo(QRunnable):
             params = {
                 'q': term,
                 'iax': 'images',
-                'ia': 'images'
+                'ia': 'images',
+                'kl': self.language,  # Add language/region parameter
             }
+
             response = session.get(search_url, params=params, timeout=10)
             
             # Extract the vqd token using regex
@@ -146,7 +160,7 @@ class DuckDuckGo(QRunnable):
             response = session.get(api_url, params=params, timeout=10)
             if response.status_code == 200:
                 results = [img['image'] for img in response.json().get('results', [])]
-                return results[:maximum]  # Limit results to maximum
+                return results[:maximum]  # Limit results to maximum TODO: check if this is a legit way to do it
                 
         except Exception as e:
             print(f"Error in DuckDuckGo search: {str(e)}")
