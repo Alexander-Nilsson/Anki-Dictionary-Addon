@@ -47,12 +47,7 @@ class DuckDuckGo(QRunnable):
         self.signals = DuckDuckGoSignals()
         self.term = ""
         self.idName = ""
-        # For interface compatibility with Google
-        self.region = None #TODO remove?
-        self.safeSearch = False
-
         self.language = "us-en"  # Default to US English
-
 
         # Get media directory
         try:

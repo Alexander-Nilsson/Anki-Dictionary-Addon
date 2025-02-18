@@ -601,6 +601,7 @@ def initImager():
     global imageSearcher
     imageSearcher = duckduckgoimages.DuckDuckGo()
     config = mw.addonManager.getConfig(__name__)
+    #googleImager.setSearchRegion(config['googleSearchRegion'])
     imageSearcher.setSafeSearch(config["safeSearch"])
 
 def exportImages(term, howMany):
@@ -624,7 +625,7 @@ def exportImages(term, howMany):
             break
     return imgSeparator.join(imgs)
 
-def downloadImage(url, maxW, maxH):
+def downloadImage(url, maxW, maxH): # Download image and return img tag USE THIS? TODO
     try:
         filename = str(time.time()).replace('.', '') + '.png'
         req = Request(url , headers={'User-Agent':  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
@@ -636,6 +637,8 @@ def downloadImage(url, maxW, maxH):
         return '<img ankiDict="' + filename + '">'
     except:
         return False
+
+### FORVO ###
 
 forvoDler = False;
 def initForvo():
@@ -731,7 +734,7 @@ def addDefinitionsToCardExporterNote(note, term, dictionaryConfigurations):
                 continue
             tresults = []
             if tableName == 'Google Images':
-                tresults.append(exportGoogleImages(term, limit))
+                tresults.append(exportImages(term, limit))
             elif tableName == 'Forvo':
                 tresults.append(exportForvoAudio(term, limit, lang))
             elif tableName != 'None':
@@ -786,7 +789,7 @@ def exportDefinitions(og, dest, addType, dictNs, howMany, notes, generateWidget,
             dCount = 0
             for dictN in dictNs:
                 if dictN == 'Google Images':
-                    tresults.append(exportGoogleImages( term, howMany))
+                    tresults.append(exportImages( term, howMany))
                 elif dictN == 'Forvo':
                     tresults.append(exportForvoAudio( term, howMany, lang))
                 elif dictN != 'None':
