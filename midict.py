@@ -79,7 +79,7 @@ class MIDict(AnkiWebView):
                 idName: Unique identifier for the image container
         """
         html, idName = results
-        print(f'loadImageResults html: {html}, idName: {idName}')
+        #print(f'loadImageResults html: {html}, idName: {idName}')
 
         # Bridge between Python and JavaScript
         # Calls JavaScript function to insert HTML into webpage
