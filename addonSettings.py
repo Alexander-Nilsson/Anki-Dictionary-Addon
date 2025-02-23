@@ -219,7 +219,7 @@ class SettingsGui(QTabWidget):
             nc ['condensedAudioDirectory'] = False
         self.mw.addonManager.writeConfig(__name__, nc)
         self.hide()
-        self.mw.refresh_anki_dict_config()
+        self.mw.refreshAnkiDictConfig()
         if nc['mp3Convert']:
             self.ffmpegInstaller.installFFMPEG()
         if self.mw.ankiDictionary and self.mw.ankiDictionary.isVisible():
