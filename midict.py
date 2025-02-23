@@ -455,7 +455,8 @@ class MIDict(AnkiWebView):
                 fullpath = join(self.dictInt.mw.col.media.dir(), filename)
                 self.saveQImage(imgurl, filename)
                 rawPaths.append(fullpath)
-                imgs.append('<img ankiDict="' + filename + '">')
+                #imgs.append('<img ankiDict="' + filename + '">')
+                imgs.append('<img src="' + filename + '">')
             except:
                 continue
         if len(imgs) > 0:
@@ -586,22 +587,48 @@ class MIDict(AnkiWebView):
         return tags
 
     def sendImgToField(self, urls):
+        print("sendImgToField midict.py")
+        
         if (self.reviewer and self.reviewer.card) or (self.currentEditor and self.currentEditor.note):
             urlsList = []
             imgSeparator = ''
             urls = json.loads(urls)
+            
             for imgurl in urls:
                 try:
-                    url = re.sub(r'\?.*$', '', imgurl)
-                    filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '', url.strip().split('/')[-1]) + '.jpg'
-                    self.saveQImage(imgurl, filename)
-                    urlsList.append('<img ankiDict="' + filename + '">')
-                except:
+                    # Check if it's a local file path
+                    if os.path.exists(imgurl):
+                        # Handle local file
+                        filename = os.path.basename(imgurl)
+                        dest_path = join(self.dictInt.mw.col.media.dir(), filename)
+                        
+                        # Copy file if needed
+                        if imgurl != dest_path:
+                            shutil.copy2(imgurl, dest_path)
+                        
+                        urlsList.append(f'<img src="{filename}">')
+                    
+                    else:
+                        # Handle remote URL
+                        url = re.sub(r'\?.*$', '', imgurl)
+                        filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '', url.strip().split('/')[-1]) + '.jpg'
+                        
+                        self.saveQImage(imgurl, join(self.dictInt.mw.col.media.dir(), filename))
+                        urlsList.append(f'<img src="{filename}">')
+                        
+                except Exception as e:
+                    print(f"Failed to process image: {imgurl}")
+                    print(f"Error: {str(e)}")
                     continue
-            if len(urlsList) > 0 :
+                    
+            if len(urlsList) > 0:
                 self.sendToField('Google Images', imgSeparator.join(urlsList))
-
-    def sendToField(self, name, definition):
+                
+        else:
+            print("no reviewer or editor")
+            tooltip("No active reviewer or editor found. Please open a card to send images to a field.")
+            
+    def sendToField(self, name, definition): 
         if self.reviewer and self.reviewer.card:
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']

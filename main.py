@@ -167,14 +167,12 @@ def captureKey(keyList):
             mw.hkThread.handleImageExport()
             mw.currentlyPressed = []
 
-   
 def releaseKey(keyList):
     key = keyList[0]
     try:
         mw.currentlyPressed.remove(str(key))
     except:
         return
-    
 
 def exportSentence(sentence):
     if mw.ankiDictionary and mw.ankiDictionary.isVisible():
@@ -597,12 +595,13 @@ def formatDefinitions(results, th,dh, fb, bb):
         definitions.append(text)
     return '<br><br>'.join(definitions).replace('<br><br><br>', '<br><br>')
 
+'''
 def initImager():
     global imageSearcher
     imageSearcher = duckduckgoimages.DuckDuckGo()
     config = mw.addonManager.getConfig(__name__)
     #googleImager.setSearchRegion(config['googleSearchRegion'])
-    imageSearcher.setSafeSearch(config["safeSearch"])
+    #imageSearcher.setSafeSearch(config["safeSearch"])
 
 def exportImages(term, howMany):
     config = mw.addonManager.getConfig(__name__)
@@ -625,6 +624,16 @@ def exportImages(term, howMany):
             break
     return imgSeparator.join(imgs)
 
+
+def exportGoogleImages(term, howMany):
+    config = mw.addonManager.getConfig(__name__)
+    maxW = config['maxWidth']
+    maxH = config['maxHeight']
+    if tableName == 'Google Images':
+        tresults.append(exportGoogleImages(term, limit))
+        if dictN == 'Google Images':
+            tresults.append(exportGoogleImages( term, howMany))
+
 def downloadImage(url, maxW, maxH): # Download image and return img tag USE THIS? TODO
     try:
         filename = str(time.time()).replace('.', '') + '.png'
@@ -637,9 +646,54 @@ def downloadImage(url, maxW, maxH): # Download image and return img tag USE THIS
         return '<img ankiDict="' + filename + '">'
     except:
         return False
+'''
+
+googleImager = None
+
+def initImager():
+    global googleImager
+    googleImager = duckduckgoimages.DuckDuckGo()
+    config = mw.addonManager.getConfig(__name__)
+    #googleImager.setSearchRegion(config['googleSearchRegion'])
+    #googleImager.setSafeSearch(config["safeSearch"])
+
+def exportGoogleImages(term, howMany):
+    print("main.py exportGoogleImages")
+    config = mw.addonManager.getConfig(__name__)
+    maxW = config['maxWidth']
+    maxH = config['maxHeight']
+    if not googleImager:
+        initImager()
+    imgSeparator = ''
+    imgs = []
+    urls = googleImager.search(term, 80)
+    if len(urls) < 1:
+        time.sleep(.1)
+        urls = googleImager.search(term, 80)
+    for url in urls:
+        time.sleep(.1)
+        img = downloadImage(url, maxW, maxH)
+        if img:
+            imgs.append(img)
+        if len(imgs) == howMany:
+            break
+    return imgSeparator.join(imgs)
+
+def downloadImage(url, maxW, maxH):
+    print("main.py downloadImage")
+    try:
+        filename = str(time.time()).replace('.', '') + '.png'
+        req = Request(url , headers={'User-Agent':  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
+        file = urlopen(req).read()
+        image = QImage()
+        image.loadFromData(file)
+        image = image.scaled(QSize(maxW,maxH), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        image.save(filename)
+        return '<img src="' + filename + '">'
+    except:
+        return False
 
 ### FORVO ###
-
 forvoDler = False;
 def initForvo():
     global forvoDler
@@ -734,7 +788,7 @@ def addDefinitionsToCardExporterNote(note, term, dictionaryConfigurations):
                 continue
             tresults = []
             if tableName == 'Google Images':
-                tresults.append(exportImages(term, limit))
+                tresults.append(exportGoogleImages(term, limit))
             elif tableName == 'Forvo':
                 tresults.append(exportForvoAudio(term, limit, lang))
             elif tableName != 'None':
@@ -750,6 +804,7 @@ def addDefinitionsToCardExporterNote(note, term, dictionaryConfigurations):
 
 mw.addDefinitionsToCardExporterNote = addDefinitionsToCardExporterNote
 
+# maybe only when doing mass export??
 def exportDefinitions(og, dest, addType, dictNs, howMany, notes, generateWidget, rawNames):
     config = mw.addonManager.getConfig(__name__)
     config["massGenerationPreferences"] = {
@@ -789,7 +844,7 @@ def exportDefinitions(og, dest, addType, dictNs, howMany, notes, generateWidget,
             dCount = 0
             for dictN in dictNs:
                 if dictN == 'Google Images':
-                    tresults.append(exportImages( term, howMany))
+                    tresults.append(exportGoogleImages( term, howMany))
                 elif dictN == 'Forvo':
                     tresults.append(exportForvoAudio( term, howMany, lang))
                 elif dictN != 'None':
