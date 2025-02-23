@@ -33,6 +33,9 @@ languageCodes = {
     'ru-RU': 'ru-ru',  # Russian
 }
 
+temp_dir = join(dirname(__file__), 'temp') #TODO put this somwhere good
+
+
 ########################################
 # DuckDuckGo Search Engine Implementation
 ########################################
@@ -75,7 +78,7 @@ class DuckDuckGo(QRunnable):
     
     
     #Not needed? 
-    def download_to_media(self, url: str) -> Optional[str]:
+    def download_media(self, url: str) -> Optional[str]:
         """Download image to Anki temp folder and return filename"""
         try:
             response = requests.get(url, timeout=10)
@@ -94,7 +97,6 @@ class DuckDuckGo(QRunnable):
                 img_hash = hashlib.md5(url.encode()).hexdigest()
                 filename = f"dict_img_{img_hash}.jpg"
 
-                temp_dir = join(dirname(__file__), 'temp')
                 os.makedirs(temp_dir, exist_ok=True)
 
                 filepath = os.path.join(temp_dir, filename) 
@@ -181,9 +183,9 @@ class DuckDuckGo(QRunnable):
         # Download images
         local_images = []
         for img_url in images:
-            if filename := self.download_to_media(img_url):
+            if filename := self.download_media(img_url):
                 # use full path
-                full_path = os.path.join(self.media_dir, filename)
+                full_path = os.path.join(temp_dir, filename)
                 local_images.append(full_path)
 
         firstImages = []
