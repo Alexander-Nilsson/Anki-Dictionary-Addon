@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+from os.path import dirname, join
 import urllib
 from aqt.utils import showInfo
 from bs4 import BeautifulSoup
@@ -72,8 +73,10 @@ class DuckDuckGo(QRunnable):
         # Escape backslashes as done in Google
         return [x.replace('\\', '\\\\') for x in urls]
     
+    
+    #Not needed? 
     def download_to_media(self, url: str) -> Optional[str]:
-        """Download image to Anki media folder and return filename"""
+        """Download image to Anki temp folder and return filename"""
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
@@ -90,7 +93,11 @@ class DuckDuckGo(QRunnable):
                 # Generate filename and path
                 img_hash = hashlib.md5(url.encode()).hexdigest()
                 filename = f"dict_img_{img_hash}.jpg"
-                filepath = os.path.join(mw.col.media.dir(), filename) #TODO change this to be the temp folder
+
+                temp_dir = join(dirname(__file__), 'temp')
+                os.makedirs(temp_dir, exist_ok=True)
+
+                filepath = os.path.join(temp_dir, filename) 
                 
                 # Save resized image
                 img.save(filepath, 'JPEG', quality=85)
@@ -99,6 +106,7 @@ class DuckDuckGo(QRunnable):
         except Exception as e:
             print(f"Error downloading image: {str(e)}")
         return None
+        
 
     def search(self, term, maximum=10):
         """
@@ -164,20 +172,20 @@ class DuckDuckGo(QRunnable):
     def getHtml(self, term):
         """
         Generate HTML using the images from the search results.
-        Uses a similar approach as in the Google class 
+        Downloads images to the temp folder. (seems to be needed to display them idk why)
         """
-        images = self.search(term) # Limiting to 10 images
+        images = self.search(term) # Get image URLs
         if not images or len(images) < 1:
             return 'No Images Found. This is likely due to a connectivity error.'
         
-        # Download images to media folder
+        # Download images
         local_images = []
         for img_url in images:
             if filename := self.download_to_media(img_url):
                 # use full path
                 full_path = os.path.join(self.media_dir, filename)
                 local_images.append(full_path)
-        
+
         firstImages = []
         tempImages = []
 
@@ -218,19 +226,6 @@ class DuckDuckGo(QRunnable):
         html = self.getHtml(term)
         return [html, idName]
     
-    '''
-    def run(self):
-        try:
-            prepared = self.getPreparedResults(self.term, self.idName)
-            # Check if the generated HTML indicates a failure
-            if prepared and "No Images Found" not in prepared[0]:
-                self.signals.resultsFound.emit(tuple(prepared))
-            else:
-                self.signals.noResults.emit()
-        except Exception as e:
-            print(f"DuckDuckGo run error: {e}")
-            self.signals.noResults.emit()
-    '''
     def run(self):
         try:
             if self.term:
