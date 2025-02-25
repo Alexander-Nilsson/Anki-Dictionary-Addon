@@ -51,7 +51,7 @@ class DuckDuckGo(QRunnable):
         self.signals = DuckDuckGoSignals()
         self.term = ""
         self.idName = ""
-        self.language = "us-en"  # Default to US English
+        self.language = "cn-zh"  # Default to US English
 
         # Get media directory
         try:
@@ -182,6 +182,7 @@ class DuckDuckGo(QRunnable):
         
         # Download images
         local_images = []
+        print(f"Downloading {len(images)} images...")
         for img_url in images:
             if filename := self.download_media(img_url):
                 # use full path
@@ -191,6 +192,11 @@ class DuckDuckGo(QRunnable):
         firstImages = []
         tempImages = []
 
+        IMAGES_PER_GROUP = 5
+        first_group = local_images[:IMAGES_PER_GROUP]
+        second_group = local_images[IMAGES_PER_GROUP:IMAGES_PER_GROUP*2]
+
+        '''
         # Splitting images into two groups for display
         for idx, image in enumerate(local_images):
             tempImages.append(image)
@@ -199,6 +205,7 @@ class DuckDuckGo(QRunnable):
                 tempImages = []
             if len(tempImages) > 2 and len(firstImages) > 1:
                 break
+
         html = '<div class="googleCont">'
         for img in firstImages:
             html += (
@@ -222,6 +229,26 @@ class DuckDuckGo(QRunnable):
             '\\\' , \\\''.join(self.getCleanedUrls(images)) +
             '\\\')">Load More</button>'
         )
+        '''
+
+        def generate_image_html(image_path):
+            return (
+                '<div class="imgBox">'
+                f'<div onclick="toggleImageSelect(this)" data-url="{image_path}" class="googleHighlight"></div>'
+                f'<img class="googleImage" src="{image_path}" ankiDict="{image_path}">'
+                '</div>'
+            )
+
+        html = '<div class="googleCont">'
+        html += ''.join(generate_image_html(img) for img in first_group)
+        html += '</div><div class="googleCont">'
+        html += ''.join(generate_image_html(img) for img in second_group)
+        html += (
+            '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
+            '\\\' , \\\''.join(self.getCleanedUrls(images)) +
+            '\\\')">Load More</button>'
+        )
+
         return html
 
     def getPreparedResults(self, term, idName):
