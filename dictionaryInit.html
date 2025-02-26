@@ -686,7 +686,7 @@ function displayEntry(entry) {
         loadNewImages(toLoad, defBox, button);
     }
 
-    function loadNewImages(toLoad, defBox, button){ //TODO make this function work 
+    function loadNewImages(toLoad, defBox, button){ 
         console.log('URLs to load:', toLoad); // Add debugging
         var cont = document.createElement('div')
         cont.classList.add('googleCont')
@@ -702,6 +702,7 @@ function displayEntry(entry) {
                      class="googleHighlight"></div>
                 <img class="googleImage" 
                      src="${img}" 
+                     ankiDict="${img}"
                      onerror="console.error('Failed to load:', this.src)"
                      onload="console.log('Loaded:', this.src)">
             </div>`;

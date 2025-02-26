@@ -110,7 +110,7 @@ class DuckDuckGo(QRunnable):
         return None
         
 
-    def search(self, term, maximum=10):
+    def search(self, term, maximum=15):
         """
         Search for images using DuckDuckGo
         Args:
@@ -189,47 +189,10 @@ class DuckDuckGo(QRunnable):
                 full_path = os.path.join(temp_dir, filename)
                 local_images.append(full_path)
 
-        firstImages = []
-        tempImages = []
-
+        # Split images into two groups for better layout
         IMAGES_PER_GROUP = 5
         first_group = local_images[:IMAGES_PER_GROUP]
         second_group = local_images[IMAGES_PER_GROUP:IMAGES_PER_GROUP*2]
-
-        '''
-        # Splitting images into two groups for display
-        for idx, image in enumerate(local_images):
-            tempImages.append(image)
-            if len(tempImages) > 2 and len(firstImages) < 1:
-                firstImages += tempImages
-                tempImages = []
-            if len(tempImages) > 2 and len(firstImages) > 1:
-                break
-
-        html = '<div class="googleCont">'
-        for img in firstImages:
-            html += (
-                '<div class="imgBox">'
-                f'<div onclick="toggleImageSelect(this)" data-url="{img}" class="googleHighlight"></div>'
-                f'<img class="googleImage" src="{img}" ankiDict="{img}">'
-                '</div>'
-            )
-        html += '</div><div class="googleCont">'
-        for img in tempImages:
-            html += (
-                '<div class="imgBox">'
-                f'<div onclick="toggleImageSelect(this)" data-url="{img}" class="googleHighlight"></div>'
-                f'<img class="googleImage" src="{img}" ankiDict="{img}">'
-                '</div>'
-            )
-        
-        #button that calls the loadMoreImages JS function 
-        html += (
-            '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
-            '\\\' , \\\''.join(self.getCleanedUrls(images)) +
-            '\\\')">Load More</button>'
-        )
-        '''
 
         def generate_image_html(image_path):
             return (
@@ -245,7 +208,7 @@ class DuckDuckGo(QRunnable):
         html += ''.join(generate_image_html(img) for img in second_group)
         html += (
             '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
-            '\\\' , \\\''.join(self.getCleanedUrls(images)) +
+            '\\\' , \\\''.join(self.getCleanedUrls(local_images)) +
             '\\\')">Load More</button>'
         )
 
