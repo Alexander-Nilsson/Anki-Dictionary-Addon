@@ -1,23 +1,21 @@
 # -*- coding: utf-8 -*-
 import argparse
-import json
 import os
 from os.path import dirname, join
-import urllib
-from aqt.utils import showInfo
-from bs4 import BeautifulSoup
 import requests
-import time
 import re
 from aqt.qt import QRunnable, QObject, pyqtSignal
-from urllib.parse import quote_plus
-
 from PIL import Image
 import io
-
 import hashlib
 from aqt import mw
-from typing import List, Optional
+import os
+import io
+import asyncio
+import aiohttp
+import hashlib
+import concurrent.futures
+from PIL import Image
 
 # Add comprehensive language/region codes for DuckDuckGo
 languageCodes = {
@@ -34,7 +32,7 @@ languageCodes = {
 }
 
 temp_dir = join(dirname(__file__), 'temp') #TODO put this somwhere good
-
+os.makedirs(temp_dir, exist_ok=True)
 
 ########################################
 # DuckDuckGo Search Engine Implementation
@@ -76,7 +74,7 @@ class DuckDuckGo(QRunnable):
         # Escape backslashes as done in Google
         return [x.replace('\\', '\\\\') for x in urls]
     
-    
+    '''
     #Not needed? 
     def download_media(self, url: str) -> Optional[str]:
         """Download image to Anki temp folder and return filename"""
@@ -108,6 +106,7 @@ class DuckDuckGo(QRunnable):
         except Exception as e:
             print(f"Error downloading image: {str(e)}")
         return None
+    '''
         
 
     def search(self, term, maximum=15):
@@ -171,30 +170,81 @@ class DuckDuckGo(QRunnable):
             print(f"Error in DuckDuckGo search: {str(e)}")
         return []
 
+    def process_image(self, url: str, content: bytes) -> str:
+        """Process the image: open, convert, resize, and save to disk."""
+        try:
+            img = Image.open(io.BytesIO(content))
+            # Convert image if necessary
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            # Resize image maintaining aspect ratio
+            img.thumbnail((200, 200))
+            # Generate a unique filename based on the URL
+            img_hash = hashlib.md5(url.encode()).hexdigest()
+            filename = f"dict_img_{img_hash}.jpg"
+            filepath = os.path.join(temp_dir, filename)
+            img.save(filepath, 'JPEG', quality=85)
+            return filename
+        except Exception as e:
+            print(f"Error processing image from {url}: {e}")
+        return None
+
+    async def download_and_process_image(self, url: str, session: aiohttp.ClientSession, 
+                                       executor: concurrent.futures.Executor) -> str:
+        """Download an image asynchronously and process it using a thread pool."""
+        try:
+            async with session.get(url, timeout=10) as response:
+                if response.status == 200:
+                    content = await response.read()
+                    loop = asyncio.get_running_loop()
+                    # Offload the synchronous image processing to the executor
+                    filename = await loop.run_in_executor(
+                        executor, self.process_image, url, content)
+                    return filename
+        except Exception as e:
+            print(f"Error downloading image from {url}: {e}")
+        return None
+
+    async def download_all_images(self, urls: list) -> list:
+        """Download and process all images concurrently."""
+        # Create a thread pool for image processing
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            async with aiohttp.ClientSession() as session:
+                tasks = [
+                    self.download_and_process_image(url, session, executor)
+                    for url in urls
+                ]
+                # Gather all tasks concurrently
+                results = await asyncio.gather(*tasks)
+                # Filter out any None results
+                return [filename for filename in results if filename]
+
     def getHtml(self, term):
         """
         Generate HTML using the images from the search results.
-        Downloads images to the temp folder. (seems to be needed to display them idk why)
+        Downloads images to the temp folder.
         """
         images = self.search(term) # Get image URLs
         if not images or len(images) < 1:
             return 'No Images Found. This is likely due to a connectivity error.'
         
-        # Download images
-        local_images = []
-        print(f"Downloading {len(images)} images...")
-        for img_url in images:
-            if filename := self.download_media(img_url):
-                # use full path
-                full_path = os.path.join(temp_dir, filename)
-                local_images.append(full_path)
+        # Download images asynchronously
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            local_images = loop.run_until_complete(self.download_all_images(images))
+            loop.close()
+        except Exception as e:
+            print(f"Error in async image download: {e}")
+            return 'Error downloading images'
 
         # Split images into two groups for better layout
         IMAGES_PER_GROUP = 5
         first_group = local_images[:IMAGES_PER_GROUP]
         second_group = local_images[IMAGES_PER_GROUP:IMAGES_PER_GROUP*2]
 
-        def generate_image_html(image_path):
+        def generate_image_html(filename):
+            image_path = os.path.join(temp_dir, filename)
             return (
                 '<div class="imgBox">'
                 f'<div onclick="toggleImageSelect(this)" data-url="{image_path}" class="googleHighlight"></div>'
@@ -208,12 +258,12 @@ class DuckDuckGo(QRunnable):
         html += ''.join(generate_image_html(img) for img in second_group)
         html += (
             '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
-            '\\\' , \\\''.join(self.getCleanedUrls(local_images)) +
+            '\\\' , \\\''.join(self.getCleanedUrls([os.path.join(temp_dir, img) for img in local_images])) +
             '\\\')">Load More</button>'
         )
 
         return html
-
+    
     def getPreparedResults(self, term, idName):
         html = self.getHtml(term)
         return [html, idName]
