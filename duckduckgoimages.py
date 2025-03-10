@@ -39,9 +39,9 @@ os.makedirs(temp_dir, exist_ok=True)
 ########################################
 
 class DuckDuckGoSignals(QObject):
-    resultsFound = pyqtSignal(list)  # Changed from tuple to list
-    noResults = pyqtSignal(str)      # Changed to emit string like Google
-    finished = pyqtSignal()          # Added finished signal
+    resultsFound = pyqtSignal(list) 
+    noResults = pyqtSignal(str)      
+    finished = pyqtSignal()          
 
 class DuckDuckGo(QRunnable):
     def __init__(self):
@@ -50,13 +50,6 @@ class DuckDuckGo(QRunnable):
         self.term = ""
         self.idName = ""
         self.language = "cn-zh"  # Default to US English
-
-        # Get media directory
-        try:
-            self.media_dir = mw.col.media.dir()
-        except Exception as e:
-            print(f"Error initializing media directory: {e}")
-            self.media_dir = None
 
     def setTermIdName(self, term, idName):
         self.term = term
@@ -71,44 +64,8 @@ class DuckDuckGo(QRunnable):
             self.language = "us-en"
 
     def getCleanedUrls(self, urls):
-        # Escape backslashes as done in Google
         return [x.replace('\\', '\\\\') for x in urls]
     
-    '''
-    #Not needed? 
-    def download_media(self, url: str) -> Optional[str]:
-        """Download image to Anki temp folder and return filename"""
-        try:
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                # Create image from bytes
-                img = Image.open(io.BytesIO(response.content))
-                
-                # Convert to RGB if necessary
-                if img.mode in ('RGBA', 'P'): 
-                    img = img.convert('RGB')
-                
-                # Resize maintaining aspect ratio
-                img.thumbnail((200, 200))
-                
-                # Generate filename and path
-                img_hash = hashlib.md5(url.encode()).hexdigest()
-                filename = f"dict_img_{img_hash}.jpg"
-
-                os.makedirs(temp_dir, exist_ok=True)
-
-                filepath = os.path.join(temp_dir, filename) 
-                
-                # Save resized image
-                img.save(filepath, 'JPEG', quality=85)
-                return filename
-                
-        except Exception as e:
-            print(f"Error downloading image: {str(e)}")
-        return None
-    '''
-        
-
     def search(self, term, maximum=15):
         """
         Search for images using DuckDuckGo
