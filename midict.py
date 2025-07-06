@@ -36,12 +36,12 @@ from .miutils import miInfo
 from PyQt6.QtSvgWidgets import QSvgWidget
 from .themeEditor import *
 from .themes import *
-
+from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 class MIDict(AnkiWebView):
     def __init__(self, dictInt, db, path, terms=False):
         AnkiWebView.__init__(self)
-        self._page.profile().setHttpUserAgent(
+        self.page().profile().setHttpUserAgent(
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
         self.terms = terms
         self.dictInt = dictInt
@@ -101,7 +101,7 @@ class MIDict(AnkiWebView):
             return ''
 
     def loadHTMLURL(self, html, url):
-        self._page.setHtml(html, url)
+        self.page().setHtml(html, url)
 
     def formatTermHeaders(self, ths):
         formattedHeaders = {}
@@ -345,56 +345,13 @@ class MIDict(AnkiWebView):
 
     def loadForvoResults(self, results):
         forvoData, idName = results
-        
-        # Debug output
-        print("=== Forvo Debug ===")
-        print(f"idName: {idName}")
-        
         if forvoData:
-            try:
-                # Parse the JSON data - now contains local file paths
-                pronunciations = json.loads(forvoData)
-                print(f"Parsed JSON successfully. Found {len(pronunciations)} pronunciations")
-                
-                # Create HTML with audio elements using local files
-                html = '<div class="forvo-container" style="padding: 10px;">'
-                
-                for i, pron in enumerate(pronunciations):
-                    speaker = pron[0] or f"Speaker {i+1}"
-                    origin = pron[1] or ""
-                    audio_path = pron[2]  # Local file path
-                    
-                    # Extract just the filename from the path for use in HTML
-                    filename = os.path.basename(audio_path)
-                    
-                    html += f'''
-                    <div style="margin: 10px 0; padding: 5px; border-bottom: 1px solid #babbf1;">
-                        <div style="margin-bottom: 5px;"><strong>{speaker}</strong> {origin}</div>
-                        <audio controls preload="none" src="{filename}" style="width: 100%;"></audio>
-                    </div>
-                    '''
-                    
-                    # Copy file to Anki media directory for player access
-                    try:
-                        media_path = join(self.dictInt.mw.col.media.dir(), filename)
-                        if not os.path.exists(media_path):
-                            with open(audio_path, 'rb') as src_file:
-                                with open(media_path, 'wb') as dest_file:
-                                    dest_file.write(src_file.read())
-                            print(f"Copied {filename} to media folder")
-                    except Exception as e:
-                        print(f"Error copying audio file to media folder: {e}")
-                
-                html += '</div>'
-                
-            except Exception as e:
-                print(f"Error processing Forvo data: {str(e)}")
-                html = f'<div style="color: red; padding: 15px;">Error processing pronunciations: {str(e)}</div>'
+            html = "<div class=\\'forvo\\'  data-urls=\\'" + forvoData + "\\'></div>"
         else:
-            html = '<div style="padding: 15px;">No pronunciations found.</div>'
-        
-        # Directly inject the HTML into the container
-        self.eval(f"document.getElementById('{idName}').innerHTML = {json.dumps(html)};")
+            html = '<div class="no-forvo">No Results Found.</div>'
+        self.eval(
+            "loadImageForvoHtml('%s', '%s');loadForvoDict(false, '%s');" % (html.replace('"', '\\"'), idName, idName))
+
 
     def getForvoDictionaryResults(self, term, dictCount, bracketFront, bracketBack, entryCount, font):
         dictName = 'Forvo'
