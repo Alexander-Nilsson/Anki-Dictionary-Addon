@@ -1151,9 +1151,9 @@ class DictInterface(QWidget):
         self.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self)
         self.hotkeyW.activated.connect(self.mw.dictionaryInit)
         self.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchTerm(self.dict._page))
+        self.hotkeyS.activated.connect(lambda: self.mw.searchTerm(self.dict.page))
         self.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchCol(self.dict._page))
+        self.hotkeyS.activated.connect(lambda: self.mw.searchCol(self.dict.page))
 
     def getFontColor(self, color):
         pal = QPalette()
