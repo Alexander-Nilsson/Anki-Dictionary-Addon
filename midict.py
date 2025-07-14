@@ -26,27 +26,22 @@ from .miJapaneseHandler import miJHandler
 from urllib.request import Request, urlopen
 import requests
 import urllib.request
-from . import googleimages
+from . import duckduckgoimages
 from .addonSettings import SettingsGui
 import datetime
 import codecs
 from .forvodl import Forvo
 import ntpath
 from .miutils import miInfo
-
-try:
-    from PyQt6.QtSvgWidgets import QSvgWidget
-except ModuleNotFoundError:
-    from PyQt5.QtSvg import QSvgWidget
-
+from PyQt6.QtSvgWidgets import QSvgWidget
 from .themeEditor import *
 from .themes import *
-
+from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 class MIDict(AnkiWebView):
     def __init__(self, dictInt, db, path, terms=False):
         AnkiWebView.__init__(self)
-        self._page.profile().setHttpUserAgent(
+        self.page().profile().setHttpUserAgent(
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
         self.terms = terms
         self.dictInt = dictInt
@@ -79,11 +74,34 @@ class MIDict(AnkiWebView):
         miInfo(message, level='err')
 
     def loadImageResults(self, results):
+        """ 
+        Loads image search results into the dictionary window
+            Args:
+                html: HTML string containing image gallery markup
+                idName: Unique identifier for the image container
+        """
         html, idName = results
         self.eval("loadImageForvoHtml('%s', '%s');" % (html.replace('"', '\\"'), idName))
 
+    def downloadImage(self, url):
+        try:
+            filename = str(time.time()).replace('.', '') + '.png'
+            req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            file = urlopen(req).read()
+            image = QImage()
+            image.loadFromData(file)
+            if not image.isNull():
+                image = image.scaled(QSize(self.config['maxWidth'], 
+                                        self.config['maxHeight']),
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation)
+                image.save(filename)
+                return '<img src="' + filename + '">'
+        except:
+            return ''
+
     def loadHTMLURL(self, html, url):
-        self._page.setHtml(html, url)
+        self.page().setHtml(html, url)
 
     def formatTermHeaders(self, ths):
         formattedHeaders = {}
@@ -361,21 +379,24 @@ class MIDict(AnkiWebView):
         html += ('<div  data-index="' + str(
             entryCount) + '" class="termPronunciation"><span class="tpCont">' + bracketFront + '<span ' + font + ' class="terms">' +
                  self.highlightTarget(term, term) +
-                 '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \'' + dictName + '\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \'' + dictName + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName + '">' + self.getGoogleImages(
+                 '</span>' + bracketBack + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \'' + dictName + '\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \'' + dictName + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="' + idName + '">' + self.getImages(
                     term, idName)
                  + '</div></div>')
         return html
 
-    def getGoogleImages(self, term, idName):
-        imager = googleimages.Google()
+    def getImages(self, term, idName):
+        imager = duckduckgoimages.DuckDuckGo()
         imager.setTermIdName(term, idName)
-        imager.setSearchRegion(self.config['googleSearchRegion'])
-        imager.setSafeSearch(self.config["safeSearch"])
+        #imager.setSearchRegion(self.config['googleSearchRegion'])
+        #imager.setSafeSearch(self.config["safeSearch"])
         imager.signals.resultsFound.connect(self.loadImageResults)
-        imager.signals.noResults.connect(self.showGoogleForvoMessage)
+        imager.signals.noResults.connect(self.showNoImagesMessage)
         self.threadpool.start(imager)
 
         return 'Loading...'
+    
+    def showNoImagesMessage(self):
+        tooltip("No images found")
 
     def getCleanedUrls(self, urls):
         return [x.replace('\\', '\\\\') for x in urls]
@@ -466,7 +487,8 @@ class MIDict(AnkiWebView):
                 fullpath = join(self.dictInt.mw.col.media.dir(), filename)
                 self.saveQImage(imgurl, filename)
                 rawPaths.append(fullpath)
-                imgs.append('<img ankiDict="' + filename + '">')
+                #imgs.append('<img ankiDict="' + filename + '">')
+                imgs.append('<img src="' + filename + '">')
             except:
                 continue
         if len(imgs) > 0:
@@ -597,23 +619,49 @@ class MIDict(AnkiWebView):
         return tags
 
     def sendImgToField(self, urls):
+        print("sendImgToField midict.py")
+        
         if (self.reviewer and self.reviewer.card) or (self.currentEditor and self.currentEditor.note):
             urlsList = []
             imgSeparator = ''
             urls = json.loads(urls)
+            
             for imgurl in urls:
                 try:
-                    url = re.sub(r'\?.*$', '', imgurl)
-                    filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '',
+                    # Check if it's a local file path
+                    if os.path.exists(imgurl):
+                        # Handle local file
+                        filename = os.path.basename(imgurl)
+                        dest_path = join(self.dictInt.mw.col.media.dir(), filename)
+                        
+                        # Copy file if needed
+                        if imgurl != dest_path:
+                            shutil.copy2(imgurl, dest_path)
+                        
+                        urlsList.append(f'<img src="{filename}">')
+                    
+                    else:
+                        # Handle remote URL
+                        url = re.sub(r'\?.*$', '', imgurl)
+                        filename = str(time.time())[:-4].replace('.', '') + re.sub(r'\..*$', '',
                                                                                url.strip().split('/')[-1]) + '.jpg'
-                    self.saveQImage(imgurl, filename)
-                    urlsList.append('<img ankiDict="' + filename + '">')
-                except:
+                        
+                        self.saveQImage(imgurl, join(self.dictInt.mw.col.media.dir(), filename))
+                        urlsList.append(f'<img src="{filename}">')
+                        
+                except Exception as e:
+                    print(f"Failed to process image: {imgurl}")
+                    print(f"Error: {str(e)}")
                     continue
             if len(urlsList) > 0:
                 self.sendToField('Google Images', imgSeparator.join(urlsList))
+                
+        else:
+            print("no reviewer or editor")
+            tooltip("No active reviewer or editor found. Please open a card to send images to a field.")
+    
 
-    def sendToField(self, name, definition):
+    def sendToField(self, name, definition): 
         if self.reviewer and self.reviewer.card:
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']
@@ -1103,9 +1151,9 @@ class DictInterface(QWidget):
         self.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self)
         self.hotkeyW.activated.connect(self.mw.dictionaryInit)
         self.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchTerm(self.dict._page))
+        self.hotkeyS.activated.connect(lambda: self.mw.searchTerm(self.dict.page))
         self.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchCol(self.dict._page))
+        self.hotkeyS.activated.connect(lambda: self.mw.searchCol(self.dict.page))
 
     def getFontColor(self, color):
         pal = QPalette()

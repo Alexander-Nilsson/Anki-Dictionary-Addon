@@ -262,6 +262,48 @@
             -ms-user-select: none;
             user-select: none;
         }
+
+        .googleCont {
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+        }
+
+        .imgBox {
+            margin: 5px;
+            display: inline-block;
+            position: relative;
+            border: 1px solid black;
+            width: 160px;
+        }
+
+        .googleImage {
+            width: 160px;
+            display: block;
+            height: auto;
+        }
+
+        .googleHighlight {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            z-index: 100;
+        }
+
+        .googleHighlight:hover {
+            background-color: rgba(49, 90, 255, .5);
+        }
+
+        .selectedImage {
+            background-color: rgba(49, 90, 255, .5);
+        }
+
+        .imageLoader {
+            height: 40px;
+            width: 99%;
+            margin-left: .5%;
+            border-radius: 3px;
+        }
     </style>
     <style id="fontSpecs">
         .foundEntriesList{font-size: 12px;}.termPronunciation,.definitionBlock{font-size: 20px; white-space: pre-line;
@@ -392,15 +434,22 @@ function displayEntry(entry) {
     }
 
     function getImageExport(event, dictName){
+        // 1. Navigation to find elements
         var termTitle = event.target.parentElement.parentElement.parentElement
+        // 2. Extract the word/term
         var defBlock = termTitle.nextElementSibling;
+        
+        // 3. Find selected images
         var word = cleanTermDef(termTitle.querySelector('.terms').innerHTML)
         var selImgs = defBlock.getElementsByClassName('selectedImage')
         var urls = [];
+
+        // 4. Collect URLs of selected images
         if(selImgs.length > 0){
             for(var i = 0; i < selImgs.length; i++){
                 urls.push(selImgs[i].dataset.url)
             }
+            // 5. Send to Python command with format: word◳◴[urls]
             pycmd('imgExport:' + word + '◳◴' + JSON.stringify(urls));
         }
     }
@@ -637,14 +686,28 @@ function displayEntry(entry) {
         loadNewImages(toLoad, defBox, button);
     }
 
-    function loadNewImages(toLoad, defBox, button){
+    function loadNewImages(toLoad, defBox, button){ 
+        console.log('URLs to load:', toLoad); // Add debugging
         var cont = document.createElement('div')
         cont.classList.add('googleCont')
         var html = '<div class="googleCont">'
         for(var i = 0; i < toLoad.length; i++){
             img = toLoad[i]
-            html+= '<div class="imgBox"><div onclick="toggleImageSelect(this)" data-url="'+ img +'" class="googleHighlight"></div><img class="googleImage"  src="' + img + '"></div>'
+            console.log('Processing URL:', img); // Add debugging
+
+            html += `
+            <div class="imgBox">
+                <div onclick="toggleImageSelect(this)" 
+                     data-url="${img}" 
+                     class="googleHighlight"></div>
+                <img class="googleImage" 
+                     src="${img}" 
+                     ankiDict="${img}"
+                     onerror="console.error('Failed to load:', this.src)"
+                     onload="console.log('Loaded:', this.src)">
+            </div>`;
         }
+        html += '</div>';
         cont.innerHTML = html;
         defBox.insertBefore(cont, button);
         setTimeout(function(){

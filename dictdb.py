@@ -357,7 +357,6 @@ class DictDB:
                                 return results
                         results[self.cleanDictName(dic['dict'])] = dictRes
                         break
-                    print("searchTerm:", results)
         return results
 
     def resultToDict(self, r):
@@ -373,19 +372,13 @@ class DictDB:
             'starCount': r[7]
         }
 
-        # Print the components of the output dictionary
-        print("Output Components:")
-        for key, value in output.items():
-            print(f"{key}: {value}")
-
-        # Return the output dictionary
         return output
 
     def executeSearch(self, dictName, toQuery, dictLimit, termTuple):
         try:
             self.c.execute("SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM " + dictName +" WHERE " + toQuery + " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT "+dictLimit +" ;", termTuple)
             out = self.c.fetchall()
-            print("executeSearch", out)
+            #print("executeSearch", out)
             return out
         except:
             return []
