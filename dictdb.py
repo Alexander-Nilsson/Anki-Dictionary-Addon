@@ -14,6 +14,12 @@ class DictDB:
     c = None
 
     def __init__(self):
+        """Initialize the database connection."""
+        # Ensure the user_files directory exists
+        user_files_dir = os.path.join(mw.pm.addonFolder(), addon_path, "user_files", "db")
+        if not os.path.exists(user_files_dir):
+            os.makedirs(user_files_dir)
+        # Connect to the SQLite database1
         db_file = os.path.join(mw.pm.addonFolder(), addon_path, "user_files", "db", "dictionaries.sqlite")
         self.conn=sqlite3.connect(db_file, check_same_thread=False)
         self.c = self.conn.cursor()
