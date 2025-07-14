@@ -230,7 +230,7 @@ Please review your template and notetype combination."""), level='wrn')
         return True
 
     def getDecks(self):
-        decksRaw = self.mw.col.decks.decks
+        decksRaw = self.mw.col.decks
         decks = {}
         for did, deck in decksRaw.items():
             if not deck['dyn']:
