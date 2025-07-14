@@ -4,7 +4,8 @@ from os.path import dirname, join, basename, exists, join
 import sys, os, platform, re, subprocess, aqt.utils
 from anki.utils import strip_html, is_win, is_mac, is_lin
 
-# from anki.utils import strip_html, is_win, is_mac, is_lin
+# Add the vendor directory to the system path
+sys.path.append(os.path.join(os.path.dirname(__file__), "vendor"))
 
 from .midict import DictInterface, ClipThread
 from .themes import *
