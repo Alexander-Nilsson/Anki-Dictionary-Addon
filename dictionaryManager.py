@@ -5,10 +5,7 @@ import re
 import operator
 import shutil
 import logging
-<<<<<<< HEAD
 import os
-=======
->>>>>>> de39c15f31bb24a422c207a80bbe4e62f308c655
 from aqt.qt import *
 from aqt import mw 
 from .dictionaryWebInstallWizard import DictionaryWebInstallWizard
@@ -617,7 +614,6 @@ def handlePitchDictEntry(jsonDict, count, entry):
         starCount     # star count
     )
 
-<<<<<<< HEAD
 def handleMiDictEntry(jsonDict, count, entry, freq=False):
     # Handle both list and dict formats
     if isinstance(entry, list):
@@ -655,8 +651,6 @@ def handleMiDictEntry(jsonDict, count, entry, freq=False):
     
     jsonDict[count] = (term, altTerm, pronunciation, pos, definition, '', '', frequency, starCount)   
 
-=======
->>>>>>> de39c15f31bb24a422c207a80bbe4e62f308c655
 def handleYomiDictEntry(jsonDict, count, entry, freq=False):
     def extract_definition(items):
         """Extracts definition text from deeply nested dictionary structure."""
@@ -820,7 +814,6 @@ def organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang, miDic
             continue
 
     if miDict:
-<<<<<<< HEAD
         # For miDict, handle both processed tuples and raw dict entries
         def get_frequency(item):
             if isinstance(item, tuple) and len(item) > 7:
@@ -833,9 +826,6 @@ def organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang, miDic
                 return 999999
         
         return sorted(jsonDict, key=get_frequency)
-=======
-        return sorted(jsonDict, key=lambda i: i[2].get('frequency', 999999) if isinstance(i[2], dict) else 999999)
->>>>>>> de39c15f31bb24a422c207a80bbe4e62f308c655
     else:
         return sorted(jsonDict, key=lambda i: i[8] if len(i) > 8 else 999999)
 
