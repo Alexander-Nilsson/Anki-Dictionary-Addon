@@ -521,7 +521,7 @@ class DictionaryInstallPage(MiWizardPage):
 
 
     def add_log(self, txt):
-        self.log_box.moveCursor(QTextCursor.End)
+        self.log_box.moveCursor(QTextCursor.MoveOperation.End)
         if not self.log_box.document().isEmpty():
             self.log_box.insertPlainText('\n')    
         self.log_box.insertPlainText(txt)

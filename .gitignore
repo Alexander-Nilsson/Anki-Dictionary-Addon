@@ -153,3 +153,4 @@ ankiDict/pynput
 ankiDict/.idea
 
 temp/
+user_files/db/dictionaries.sqlite
