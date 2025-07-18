@@ -5,6 +5,7 @@ import re
 import operator
 import shutil
 import logging
+import os
 from aqt.qt import *
 from aqt import mw 
 from .dictionaryWebInstallWizard import DictionaryWebInstallWizard
@@ -613,6 +614,43 @@ def handlePitchDictEntry(jsonDict, count, entry):
         starCount     # star count
     )
 
+def handleMiDictEntry(jsonDict, count, entry, freq=False):
+    # Handle both list and dict formats
+    if isinstance(entry, list):
+        # Convert list format to expected structure
+        term = entry[0] if len(entry) > 0 else ''
+        altterm = entry[1] if len(entry) > 1 else ''
+        details = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else {}
+        
+        # Extract from details or use defaults
+        pronunciation = details.get('pronunciation', altterm)
+        pos = details.get('pos', '')
+        definition = details.get('definition', '')
+        frequency = details.get('frequency', '') if freq else ''
+        starCount = details.get('starCount', '') if freq else ''
+    elif isinstance(entry, dict):
+        # Handle dict format (original code)
+        term = entry.get('term', '')
+        altterm = entry.get('altterm', '')
+        pronunciation = entry.get('pronunciation', '')
+        pos = entry.get('pos', '')
+        definition = entry.get('definition', '')
+        frequency = entry.get('frequency', '') if freq else ''
+        starCount = entry.get('starCount', '') if freq else ''
+    else:
+        # Fallback for unexpected formats
+        return
+    
+    if pronunciation == '':
+        pronunciation = term
+        
+    term = getAdjustedTerm(term) 
+    altTerm = getAdjustedTerm(altterm)
+    pronunciation = getAdjustedPronunciation(pronunciation)
+    definition = getAdjustedDefinition(definition)
+    
+    jsonDict[count] = (term, altTerm, pronunciation, pos, definition, '', '', frequency, starCount)   
+
 def handleYomiDictEntry(jsonDict, count, entry, freq=False):
     def extract_definition(items):
         """Extracts definition text from deeply nested dictionary structure."""
@@ -776,7 +814,18 @@ def organizeDictionaryByFrequency(jsonDict, frequencyDict, dictName, lang, miDic
             continue
 
     if miDict:
-        return sorted(jsonDict, key=lambda i: i[2].get('frequency', 999999) if isinstance(i[2], dict) else 999999)
+        # For miDict, handle both processed tuples and raw dict entries
+        def get_frequency(item):
+            if isinstance(item, tuple) and len(item) > 7:
+                # Already processed entry
+                return item[7] if item[7] != '' else 999999
+            elif isinstance(item, list) and len(item) > 2 and isinstance(item[2], dict):
+                # Raw dict entry
+                return item[2].get('frequency', 999999)
+            else:
+                return 999999
+        
+        return sorted(jsonDict, key=get_frequency)
     else:
         return sorted(jsonDict, key=lambda i: i[8] if len(i) > 8 else 999999)
 
