@@ -63,7 +63,7 @@ def main():
     
     # Import and run the standalone script
     try:
-        from ultimate_launcher import main as run_addon
+        from external_launcher import main as run_addon
         return run_addon()
     except Exception as e:
         print(f"❌ Error launching addon: {e}")
