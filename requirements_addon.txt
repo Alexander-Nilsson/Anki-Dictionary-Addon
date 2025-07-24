@@ -1,21 +1,18 @@
-# Requirements for running Anki Dictionary Addon without full Anki application
-# These are the minimal dependencies needed to run the addon directly
+# Minimal requirements for running Anki Dictionary Addon without full Anki application
+# These are the essential dependencies needed to run the addon directly
 
-# Core Anki components (minimal installation)
-anki>=2.1.50
+# Core Anki components (required)
+anki>=2.1.50,<2.2.0
 
-# Qt components for the UI
-PyQt6>=6.4.0
-PyQt6-WebEngine>=6.4.0
+# Qt components for the UI (required)
+PyQt6>=6.4.0,<7.0.0
+PyQt6-WebEngine>=6.4.0,<7.0.0
 
-# Additional dependencies that might be needed
-requests>=2.25.0
-beautifulsoup4>=4.9.0
-lxml>=4.6.0
+# Note: Many vendor dependencies are already included in the addon's vendor/ folder
+# This keeps external dependencies to a minimum
 
-# Optional: For better audio support
-pygame>=2.0.0
+# Optional: For audio support (uncomment if needed)
+# pygame>=2.0.0,<3.0.0
 
-# Note: You might also need to install Anki's dependencies
-# If you encounter import errors, you may need to install:
+# If you encounter import errors, you may need additional Anki dependencies:
 # pip install anki[qt]
