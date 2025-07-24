@@ -1,0 +1,31 @@
+# Simplified Anki Dictionary Requirements
+# Minimal dependencies for the refactored codebase
+
+# Core Python libraries (built-in, no installation needed)
+# - sqlite3 (database)
+# - urllib.request (HTTP requests)
+# - json (JSON parsing)
+# - logging (logging)
+# - pathlib (path handling)
+# - tempfile (temporary files)
+# - unittest (testing)
+
+# Optional dependencies for enhanced functionality
+# Uncomment if needed:
+
+# For GUI applications (if building a standalone UI)
+# PyQt6>=6.0.0
+# PyQt6-WebEngine>=6.0.0
+
+# For advanced HTML parsing (if needed for web scraping)
+# beautifulsoup4>=4.9.0
+# lxml>=4.6.0
+
+# For development and testing
+# pytest>=6.0.0
+# pytest-cov>=2.10.0
+# black>=21.0.0
+# flake8>=3.8.0
+
+# Note: The simplified codebase is designed to work with Python standard library only
+# This eliminates the need for the heavy vendor/ directory and external dependencies
