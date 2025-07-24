@@ -28,7 +28,7 @@
   "currentTemplate": false,
   "currentDeck": false,
   "deinflect": true,
-  "onetab": false,
+  "onetab": true,
   "dictSizePos": [
     0,
     0,

@@ -100,7 +100,7 @@ def check_test_dependencies():
     
     # Check if main module can be imported
     try:
-        import standalone_launcher
+        import external_launcher
         print("✅ Main module can be imported")
     except ImportError as e:
         print(f"❌ Cannot import main module: {e}")

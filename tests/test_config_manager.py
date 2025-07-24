@@ -14,7 +14,7 @@ from unittest.mock import patch, mock_open
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from standalone_launcher import ConfigManager
+from external_launcher import ConfigManager
 
 
 class TestConfigManager(unittest.TestCase):
