@@ -63,13 +63,13 @@ def main():
     
     # Import and run the standalone script
     try:
-        from run_addon_standalone import main as run_addon
+        from ultimate_launcher import main as run_addon
         return run_addon()
     except Exception as e:
         print(f"❌ Error launching addon: {e}")
         print("\n🔧 Troubleshooting tips:")
         print("1. Make sure you have all dependencies installed")
-        print("2. Try running: pip install -r requirements_addon.txt")
+        print("2. Try running: pip install PyQt6 PyQt6-WebEngine anki")
         print("3. Make sure you're in the addon directory")
         print("4. Check that dictionary files are present")
         return 1
