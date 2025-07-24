@@ -13,7 +13,7 @@ from unittest.mock import patch, MagicMock
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from standalone_launcher import MinimalAnkiEnvironment, ConfigManager
+from external_launcher import MinimalAnkiEnvironment, ConfigManager
 
 
 class TestMinimalAnkiEnvironment(unittest.TestCase):

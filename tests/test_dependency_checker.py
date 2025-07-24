@@ -11,7 +11,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from standalone_launcher import DependencyChecker
+from external_launcher import DependencyChecker
 
 
 class TestDependencyChecker(unittest.TestCase):

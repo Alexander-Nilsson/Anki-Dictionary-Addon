@@ -13,7 +13,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from standalone_launcher import (
+from external_launcher import (
     DependencyChecker, ConfigManager, MinimalAnkiEnvironment, 
     DictionaryLauncher, main
 )
