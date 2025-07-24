@@ -9,13 +9,22 @@ the dictionary addon directly, without having to start the full Anki application
 
 import sys
 import os
-from os.path import dirname, join, exists
+from os.path import dirname, join, exists, abspath
 import json
+import importlib.util
 
-# Add the current directory to Python path so we can import the addon modules
-addon_path = dirname(__file__)
-sys.path.insert(0, addon_path)
-sys.path.append(join(addon_path, "vendor"))
+# Get paths
+addon_path = dirname(abspath(__file__))
+addon_name = os.path.basename(addon_path)
+
+# Add parent directory to path so we can import as a package
+parent_path = dirname(addon_path)
+sys.path.insert(0, parent_path)
+
+# Also add vendor path
+vendor_path = join(addon_path, "vendor")
+if exists(vendor_path):
+    sys.path.append(vendor_path)
 
 # Import required Qt components
 try:
@@ -39,11 +48,45 @@ except ImportError:
     print("pip install anki")
     sys.exit(1)
 
-# Import addon modules
+# Import addon modules as a package
 try:
-    import dictdb
-    from midict import DictInterface
-except ImportError as e:
+    # Import the addon as a package module
+    addon_module_name = addon_name.replace('-', '_').replace(' ', '_')
+    addon_spec = importlib.util.spec_from_file_location(
+        addon_module_name, 
+        join(addon_path, "__init__.py")
+    )
+    addon_module = importlib.util.module_from_spec(addon_spec)
+    sys.modules[addon_module_name] = addon_module
+    
+    # Import required submodules
+    dictdb_spec = importlib.util.spec_from_file_location(
+        f"{addon_module_name}.dictdb",
+        join(addon_path, "dictdb.py")
+    )
+    dictdb_module = importlib.util.module_from_spec(dictdb_spec)
+    sys.modules[f"{addon_module_name}.dictdb"] = dictdb_module
+    dictdb_spec.loader.exec_module(dictdb_module)
+    
+    midict_spec = importlib.util.spec_from_file_location(
+        f"{addon_module_name}.midict",
+        join(addon_path, "midict.py")
+    )
+    midict_module = importlib.util.module_from_spec(midict_spec)
+    sys.modules[f"{addon_module_name}.midict"] = midict_module
+    
+    # Set up the package context for relative imports
+    midict_module.__package__ = addon_module_name
+    dictdb_module.__package__ = addon_module_name
+    
+    # Execute the modules
+    midict_spec.loader.exec_module(midict_module)
+    
+    # Get the classes we need
+    DictDB = dictdb_module.DictDB
+    DictInterface = midict_module.DictInterface
+    
+except Exception as e:
     print(f"Error importing addon modules: {e}")
     print("Make sure you're running this script from the addon directory")
     sys.exit(1)
@@ -75,7 +118,7 @@ class MinimalAnkiMainWindow:
         # Initialize addon-specific attributes
         self.DictExportingDefinitions = False
         self.dictSettings = False
-        self.miDictDB = dictdb.DictDB()
+        self.miDictDB = DictDB()
         self.misoEditorLoadedAfterDictionary = False
         self.DictBulkMediaExportWasCancelled = False
         
@@ -148,7 +191,7 @@ def main():
     # Initialize dictionary database
     print("🗃️  Loading dictionary database...")
     try:
-        mw.miDictDB = dictdb.DictDB()
+        mw.miDictDB = DictDB()
         print("✅ Dictionary database loaded successfully")
     except Exception as e:
         print(f"❌ Error loading dictionary database: {e}")
