@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 def main():
-    print("🎯 Anki Dictionary Addon (Ultimate)")
+    print("🎯 Anki Dictionary Addon")
     print("=" * 40)
     
     # Check directory
@@ -43,6 +43,33 @@ def main():
                         self.AnkiDictConfig = json.load(f)
                 else:
                     self.AnkiDictConfig = {}
+
+                self.dictSettings = None  # Initialize dictSettings as None
+
+                # Define our own refresh function for standalone mode
+                def refresh_anki_dict_config(config=False):
+                    if config:
+                        self.AnkiDictConfig = config
+                        return
+                    # In standalone mode, we manage config differently
+                    # This function exists for compatibility but doesn't need to do much
+                    pass
+                
+                self.refreshAnkiDictConfig = refresh_anki_dict_config
+
+
+                def openDictionarySettings(self):
+                    """Ensure dictSettings is initialized and displayed."""
+                    if not self.dictSettings:
+                        from main import openDictionarySettings  # Import the function from main.py
+                        addon_path = str(Path.cwd())  # Set the addon path
+                        openDictionarySettings(self, addon_path, openDictionarySettings)  # Pass required arguments
+                    else:
+                        self.dictSettings.show()
+                        if self.dictSettings.windowState() == Qt.WindowState.WindowMinimized:
+                            self.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
+                        self.dictSettings.setFocus()
+                        self.dictSettings.activateWindow()
                 
                 # Create addon manager that returns our config
                 class MinimalAddonManager:
