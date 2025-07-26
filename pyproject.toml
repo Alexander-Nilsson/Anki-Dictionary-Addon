@@ -1,0 +1,11 @@
+[project]
+name = "anki-dictionary-addon"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anki>=25.7.4",
+    "pyqt6>=6.9.1",
+    "pyqt6-webengine>=6.9.0",
+]
