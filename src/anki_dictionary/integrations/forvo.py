@@ -94,7 +94,9 @@ class AnkiAudioObject:
         return self.word + "-" + str(self.id) + "-" + self.votes + "." + self.link.split(".")[-1]
         
     def getBucketFilename(self):
-        fileExtension = (mw.addonManager.getConfig(__name__)["audioFileExtension"] or self.link.split(".")[-1])
+        from anki_dictionary.utils.config import get_addon_config
+        config = get_addon_config()
+        fileExtension = (config.get("audioFileExtension") or self.link.split(".")[-1])
         return self.word + "-" + str(self.id) + "." + fileExtension
     
     def getVotes(self):

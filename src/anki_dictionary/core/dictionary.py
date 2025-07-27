@@ -882,7 +882,9 @@ class ClipThread(QObject):
         self.keyboard = keyboard
         self.addonPath = path
         self.mw = mw
-        self.config = self.mw.addonManager.getConfig(__name__)
+        # Import here to avoid circular imports
+        from anki_dictionary.utils.config import get_addon_config
+        self.config = get_addon_config()
 
     def on_press(self, key):
         self.test.emit([key])
@@ -930,7 +932,8 @@ class ClipThread(QObject):
         self.colSearch.emit(self.mw.app.clipboard().text())
 
     def getConfig(self):
-        return self.mw.addonManager.getConfig(__name__)
+        from anki_dictionary.utils.config import get_addon_config
+        return get_addon_config()
 
     def handleBulkTextExport(self, cards):
         self.bulkTextExport.emit(cards)
@@ -993,7 +996,7 @@ class ClipThread(QObject):
         suffix = ''
         if is_win:
             suffix = '.exe'
-        ffmpeg = join(dirname(__file__), 'user_files', 'ffmpeg', 'ffmpeg' + suffix)
+        ffmpeg = join(dirname(dirname(dirname(dirname(__file__)))), 'user_files', 'ffmpeg', 'ffmpeg' + suffix)
         path = join(self.mw.col.media.dir(), filename)
         import subprocess
         subprocess.call([ffmpeg, '-i', source, path])
@@ -1527,7 +1530,8 @@ class DictInterface(QWidget):
         return userGroups
 
     def getConfig(self):
-        return self.mw.addonManager.getConfig(__name__)
+        from anki_dictionary.utils.config import get_addon_config
+        return get_addon_config()
 
     def setupView(self):
         layoutV = QVBoxLayout()
@@ -1858,7 +1862,9 @@ class DictInterface(QWidget):
     def writeConfig(self, attribute, value):
         newConfig = self.getConfig()
         newConfig[attribute] = value
-        self.mw.addonManager.writeConfig(__name__, newConfig)
+        # Use our safe config utility instead of direct addon manager call
+        from anki_dictionary.utils.config import save_addon_config
+        save_addon_config(newConfig)
         self.reloadConfig(newConfig)
 
     def getSelectedDictGroup(self):

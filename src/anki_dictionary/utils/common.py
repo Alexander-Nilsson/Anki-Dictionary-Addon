@@ -7,7 +7,7 @@ from os.path import dirname, join
 from aqt.webview import AnkiWebView
 
 
-addon_path = dirname(__file__)
+addon_path = dirname(dirname(dirname(dirname(__file__))))
 
 def miInfo(text, parent=False, level = 'msg', day = True):
     if level == 'wrn':
@@ -20,7 +20,7 @@ def miInfo(text, parent=False, level = 'msg', day = True):
         title = "Anki Dictionary"
     if parent is False:
         parent = aqt.mw.app.activeWindow() or aqt.mw
-    icon = QIcon(join(addon_path, 'icons', 'miso.png'))
+    icon = QIcon(join(addon_path, 'assets', 'icons', 'miso.png'))
     mb = QMessageBox(parent)
     if not day:
         mb.setStyleSheet(" QMessageBox {background-color: #272828;}")
@@ -38,7 +38,7 @@ def miAsk(text, parent=None, day=True, customText = False):
     msg = QMessageBox(parent)
     msg.setWindowTitle("Anki Dictionary")
     msg.setText(text)
-    icon = QIcon(join(addon_path, 'icons', 'miso.png'))
+    icon = QIcon(join(addon_path, 'assets', 'icons', 'miso.png'))
     b = msg.addButton(QMessageBox.StandardButton.Yes)
     
     b.setFixedSize(100, 30)

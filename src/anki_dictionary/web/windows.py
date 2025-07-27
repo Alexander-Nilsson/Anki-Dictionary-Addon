@@ -5,7 +5,7 @@ from anki.httpclient import HttpClient
 
 from . import config as webConfig
 
-addon_path = os.path.dirname(__file__)
+addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 
 
@@ -24,7 +24,7 @@ class FreqConjWebWindow(QDialog):
         self.mode_str = 'frequency' if self.mode == self.Mode.Freq else 'conjugation'
 
         self.setWindowTitle('Anki Dictionary - Web Installer')
-        self.setWindowIcon(QIcon(os.path.join(addon_path, 'icons', 'miso.png')))
+        self.setWindowIcon(QIcon(os.path.join(addon_path, 'assets', 'icons', 'miso.png')))
 
         lyt = QVBoxLayout()
         self.setLayout(lyt)
