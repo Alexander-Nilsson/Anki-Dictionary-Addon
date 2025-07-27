@@ -1,7 +1,4 @@
 <h2 align="center">Anki Dictionary Addon </h2>
-
-(Successor to Migaku Dictionary Addon)
-
 <p align="center">
   <a href="https://www.gnu.org/licenses/agpl-3.0.html" title="License: GNU AGPLv3">
     <img src="https://img.shields.io/badge/license-GNU%20AGPLv3-green.svg" alt="License: GNU AGPLv3">
