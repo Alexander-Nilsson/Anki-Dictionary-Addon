@@ -17,6 +17,7 @@ from aqt import mw
 
 from aqt.qt import Qt
 from ...utils.common import miInfo, miAsk
+from ...utils.config import get_addon_config, save_addon_config
 from shutil import copyfile
 from operator import itemgetter
 import ntpath
@@ -105,7 +106,7 @@ class DictGroupEditor(QDialog):
                     count+= 1
 
     def getConfig(self):
-        return self.mw.addonManager.getConfig(__name__)
+        return get_addon_config()
 
     def initHandlers(self):
         self.browseFontFile.clicked.connect(self.grabFontFromFile)
@@ -187,7 +188,7 @@ class DictGroupEditor(QDialog):
         'font' : fontName
         }
         curGroups[gn] = dictGroup
-        self.mw.addonManager.writeConfig(__name__, newConfig)
+        save_addon_config(newConfig)
         self.settings.loadTemplateTable()
         self.settings.loadGroupTable()
         self.hide()

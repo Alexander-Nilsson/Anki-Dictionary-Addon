@@ -8,6 +8,7 @@ from aqt.utils import ensureWidgetInScreenBoundaries
 from os.path import join, exists
 from shutil import copyfile
 from ..utils.common import miInfo, miAsk
+from ..utils.config import get_addon_config
 import json
 from anki.notes import Note
 from anki import sound
@@ -511,7 +512,7 @@ Please review your template and notetype combination."""), level='wrn')
         return definitions
 
     def getConfig(self):
-        return self.mw.addonManager.getConfig(__name__)
+        return get_addon_config()
 
     def setupLayout(self):
         tempLayout = QHBoxLayout()
