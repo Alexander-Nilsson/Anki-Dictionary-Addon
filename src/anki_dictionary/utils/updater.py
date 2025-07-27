@@ -2,7 +2,7 @@ from aqt import mw
 from aqt import addons
 from . import dictdb
 from anki.hooks import  wrap, addHook
-from .miutils import miInfo
+from .common import miInfo
 import time
 from anki.httpclient import HttpClient
 

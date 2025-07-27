@@ -8,8 +8,8 @@ import logging
 import os
 from aqt.qt import *
 from aqt import mw 
-from .dictionaryWebInstallWizard import DictionaryWebInstallWizard
-from .freqConjWebWindow import FreqConjWebWindow
+from ...web.installer import DictionaryWebInstallWizard
+from ...web.windows import FreqConjWebWindow
 logger = logging.getLogger(__name__)
 
 class DictionaryManagerWidget(QWidget):

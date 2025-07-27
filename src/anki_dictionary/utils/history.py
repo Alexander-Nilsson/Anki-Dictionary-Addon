@@ -6,7 +6,7 @@ import json
 from aqt.qt import *
 from aqt.utils import askUser, showInfo
 import datetime
-from .miutils import miInfo, miAsk
+from .common import miInfo, miAsk
 from anki.utils import strip_html, is_win, is_mac, is_lin
 
 

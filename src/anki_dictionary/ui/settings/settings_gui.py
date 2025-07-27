@@ -14,11 +14,11 @@ import re
 import os
 from os.path import dirname, join
 import platform
-from .addDictGroup import DictGroupEditor
-from .addTemplate import TemplateEditor
-from .miutils import miInfo, miAsk
-from . dictionaryManager import DictionaryManagerWidget
-from .ffmpegInstaller import FFMPEGInstaller
+from .dict_groups import DictGroupEditor
+from .templates import TemplateEditor
+from ...utils.common import miInfo, miAsk
+from ..dialogs.dictionary_manager import DictionaryManagerWidget
+from ...utils.ffmpeg import FFMPEGInstaller
 try:
     from PyQt5.QtSvg import QSvgWidget
 except ModuleNotFoundError:

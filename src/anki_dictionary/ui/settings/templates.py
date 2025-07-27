@@ -12,7 +12,7 @@ from anki.lang import _
 import re
 import os
 from os.path import dirname, join
-from .miutils import miInfo, miAsk
+from ...utils.common import miInfo, miAsk
 
 class TemplateEditor(QDialog):
     def __init__(self, mw, parent = None, dictionaries = [], toEdit = False, tName = False):

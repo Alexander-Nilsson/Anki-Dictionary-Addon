@@ -4,7 +4,7 @@ import os
 from aqt.qt import *
 from aqt.utils import showInfo
 
-from .themes import ThemeColors
+from ..themes import ThemeColors
 
 
 class ThemeEditorDialog(QDialog):

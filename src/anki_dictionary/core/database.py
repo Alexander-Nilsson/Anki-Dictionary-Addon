@@ -6,7 +6,8 @@ from aqt.utils import showInfo
 from ..utils.common import miInfo
 import re
 import json
-addon_path = os.path.dirname(__file__)
+# Get the root addon path (go up from src/anki_dictionary/core to root)
+addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from aqt import mw
 
 class DictDB:
