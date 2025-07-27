@@ -5,6 +5,7 @@ from anki.utils import is_mac, is_win, is_lin
 from anki.hooks import addHook
 from os.path import join, exists, dirname
 from .common import miInfo
+from .config import get_addon_config, save_addon_config
 from aqt.qt import *
 from aqt import mw
 import zipfile
@@ -13,8 +14,8 @@ class FFMPEGInstaller:
 
     def __init__(self, mw):
         self.mw = mw
-        self.config = self.mw.addonManager.getConfig(__name__)
-        self.addonPath = dirname(__file__)
+        self.config = get_addon_config()
+        self.addonPath = dirname(dirname(dirname(dirname(__file__))))
         self.ffmpegDir = join(self.addonPath, 'user_files', 'ffmpeg')
         self.ffmpegFilename = "ffmpeg"
         if is_win:
@@ -31,7 +32,7 @@ class FFMPEGInstaller:
     def getFFMPEGProgressBar(self, title, initialText):
         progressWidget = QWidget(None)
         textDisplay = QLabel()
-        progressWidget.setWindowIcon(QIcon(join(self.addonPath, 'icons', 'miso.png')))
+        progressWidget.setWindowIcon(QIcon(join(self.addonPath, 'assets', 'icons', 'miso.png')))
         progressWidget.setWindowTitle(title)
         textDisplay.setText(initialText)
         progressWidget.setFixedSize(500, 100)
@@ -49,14 +50,14 @@ class FFMPEGInstaller:
         return progressWidget, bar, textDisplay;
 
     def toggleMP3Conversion(self, enable):
-        config = self.mw.addonManager.getConfig(__name__)
+        config = get_addon_config()
         config["mp3Convert"] = enable
-        self.mw.addonManager.writeConfig(__name__, config)
+        save_addon_config(config)
 
     def toggleFailedInstallation(self, failedInstallation):
-        config = self.mw.addonManager.getConfig(__name__)
+        config = get_addon_config()
         config["failedFFMPEGInstallation"] = failedInstallation
-        self.mw.addonManager.writeConfig(__name__, config)
+        save_addon_config(config)
     
     def roundToKb(self, value):
         return round(value / 1000)
@@ -125,8 +126,8 @@ class FFMPEGInstaller:
 
         
     def installFFMPEG(self):
-        config = self.mw.addonManager.getConfig(__name__)
-        if (config["mp3Convert"] or config["failedFFMPEGInstallation"]) and not exists(self.ffmpegPath):
+        config = get_addon_config()
+        if (config.get("mp3Convert", False) or config.get("failedFFMPEGInstallation", False)) and not exists(self.ffmpegPath):
             currentStep = 1
             totalSteps = 3
             stepText = "Step {} of {}"

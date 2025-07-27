@@ -282,21 +282,25 @@ Please review your template and notetype combination."""), level='wrn')
         config["unknownsToSearch"] = self.searchUnknowns.value()
         self.config = config
         self.mw.refresh_anki_dict_config(config)
-        self.mw.addonManager.writeConfig(__name__, config)
+        # Use our safe config utility
+        from anki_dictionary.utils.config import save_addon_config
+        save_addon_config(config)
 
     def saveAutoAddChecked(self):
         config = self.getConfig()
         config["autoAddCards"] = self.autoAdd.isChecked()
         self.config = config
         self.mw.refresh_anki_dict_config(config)
-        self.mw.addonManager.writeConfig(__name__, config)
+        from anki_dictionary.utils.config import save_addon_config
+        save_addon_config(config)
 
     def saveAddDefinitionChecked(self):
         config = self.getConfig()
         config["autoAddDefinitions"] = self.addDefinitionsCheckbox.isChecked()
         self.config = config
         self.mw.refresh_anki_dict_config(config)
-        self.mw.addonManager.writeConfig(__name__, config)
+        from anki_dictionary.utils.config import save_addon_config
+        save_addon_config(config)
 
     def addCard(self):
         templateName = self.templateCB.currentText()
@@ -817,7 +821,8 @@ Please review your template and notetype combination."""), level='wrn')
         config = self.getConfig()
         self.definitionSettings = definitionSettings
         config["autoDefinitionSettings"] = definitionSettings
-        self.mw.addonManager.writeConfig(__name__, config)
+        from anki_dictionary.utils.config import save_addon_config
+        save_addon_config(config)
         settingsWidget.close()
         settingsWidget.deleteLater()
 

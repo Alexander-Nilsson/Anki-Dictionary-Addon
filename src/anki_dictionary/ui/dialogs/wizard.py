@@ -22,6 +22,9 @@ from aqt.webview import AnkiWebView
 from aqt.utils import openLink
 from anki.hooks import addHook
 
+# Import config utilities
+from anki_dictionary.utils.config import get_addon_config, save_addon_config
+
 
 class MiWizardPage(QWidget):
     """Base class for wizard pages."""
@@ -275,12 +278,12 @@ def attemptOpenLink(cmd):
 
 def getConfig():
     """Get addon configuration."""
-    return mw.addonManager.getConfig(__name__)
+    return get_addon_config()
 
 
 def saveConfiguration(newConf):
     """Save addon configuration."""
-    mw.addonManager.writeConfig(__name__, newConf)
+    save_addon_config(newConf)
 
 
 def getLatestVideos(config) -> Tuple[Optional[str], Optional[str]]:
@@ -316,15 +319,39 @@ def miMessage(text, parent=False):
         parent = aqt.mw.app.activeWindow() or aqt.mw
     
     # Get addon path
-    addon_path = dirname(dirname(dirname(__file__)))
-    icon = QIcon(join(addon_path, 'assets', 'icons', 'migaku.png'))
+    addon_path = dirname(dirname(dirname(dirname(__file__))))
+    icon = QIcon(join(addon_path, 'assets', 'icons', 'miso.png'))
     
     mb = QMessageBox(parent)
     mb.setWindowIcon(icon)
     mb.setWindowTitle(title)
     cb = QCheckBox("Don't show me the welcome screen again.")
     wv = AnkiWebView()
-    wv._page._bridge.onCmd = attemptOpenLink
+    
+    # Set up bridge for handling link clicks
+    # Use a robust approach that works across Anki versions
+    try:
+        # Modern Anki bridge setup
+        if hasattr(wv, 'set_bridge_command'):
+            # Newest Anki versions
+            wv.set_bridge_command(attemptOpenLink, 'openLink')
+        elif hasattr(wv, 'bridge') and hasattr(wv.bridge, 'onCmd'):
+            # Modern approach
+            wv.bridge.onCmd = attemptOpenLink
+        elif hasattr(wv.page(), 'bridge') and hasattr(wv.page().bridge, 'onCmd'):
+            # Alternative modern approach
+            wv.page().bridge.onCmd = attemptOpenLink
+        elif hasattr(wv, '_page') and hasattr(wv._page, '_bridge') and hasattr(wv._page._bridge, 'onCmd'):
+            # Legacy approach (keep as fallback)
+            wv._page._bridge.onCmd = attemptOpenLink
+        else:
+            # Last resort - try setting up a simple handler
+            pass  # Will work without clickable links
+    except (AttributeError, TypeError):
+        # If bridge setup fails, continue without it
+        # The dialog will still work, just without clickable links
+        pass
+    
     wv.setFixedSize(680, 450)
     wv.page().setHtml(text)
     wide = QWidget()
@@ -413,6 +440,7 @@ migakuMessage = '''
 
 def disableMessage(config):
     """Disable welcome message."""
+    # The config utility ensures config is never None (returns empty dict)
     config["displayAgain"] = False
     saveConfiguration(config)
     mw.MigakuShouldNotShowMessage = True
@@ -427,6 +455,8 @@ def displayMessageMaybeDisableMessage(content, config):
 def attemptShowMigakuBrandUpdateMessage():
     """Attempt to show Migaku brand update message."""
     config = getConfig()
+    
+    # The config utility returns empty dict if None, so we can safely use get()
     shouldShow = config.get("displayAgain", False)
     
     if shouldShow and not hasattr(mw, "MigakuShouldNotShowMessage"):

@@ -31,7 +31,7 @@ from ..integrations.forvo import Forvo
 from ..integrations import image_search as duckduckgoimages
 
 # Global variables
-addon_path = dirname(dirname(dirname(__file__)))
+addon_path = dirname(dirname(dirname(dirname(__file__))))
 tmpdir = join(addon_path, 'temp')
 currentNote = False
 currentField = False
@@ -45,7 +45,9 @@ def refresh_anki_dict_config(config=False):
     if config:
         mw.AnkiDictConfig = config
         return
-    mw.AnkiDictConfig = mw.addonManager.getConfig(__name__)
+    # Import here to avoid circular imports
+    from anki_dictionary.utils.config import get_addon_config
+    mw.AnkiDictConfig = get_addon_config()
 
 def removeTempFiles():
     """Remove temporary files from temp directory."""
@@ -122,14 +124,14 @@ def releaseKey(keyList):
 
 def getWelcomeScreen():
     """Get welcome screen HTML."""
-    htmlPath = join(addon_path, 'welcome.html')
+    htmlPath = join(addon_path, 'assets', 'templates', 'welcome.html')
     with open(htmlPath, 'r', encoding="utf-8") as fh:
         file = fh.read()
     return file
 
 def getMacWelcomeScreen():
     """Get Mac-specific welcome screen HTML."""
-    htmlPath = join(addon_path, 'macwelcome.html')
+    htmlPath = join(addon_path, 'assets', 'templates', 'macwelcome.html')
     with open(htmlPath, 'r', encoding="utf-8") as fh:
         file = fh.read()
     return file

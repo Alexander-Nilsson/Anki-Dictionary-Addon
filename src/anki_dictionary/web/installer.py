@@ -9,7 +9,7 @@ from ..ui.dialogs.wizard import MiWizard, MiWizardPage
 from . import config as webConfig
 
 
-addon_path = os.path.dirname(__file__)
+addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 
 class NoAutoSelectLineEdit(QLineEdit):
@@ -29,7 +29,7 @@ class DictionaryWebInstallWizard(MiWizard):
         self.dictionary_force_lang = force_lang
 
         self.setWindowTitle('Anki Dictionary - Web Installer')
-        self.setWindowIcon(QIcon(os.path.join(addon_path, 'icons', 'miso.png')))
+        self.setWindowIcon(QIcon(os.path.join(addon_path, 'assets', 'icons', 'miso.png')))
 
         server_add_page = self.add_page(ServerAskPage(self))
         dict_select_page = self.add_page(DictionarySelectPage(self), server_add_page)
