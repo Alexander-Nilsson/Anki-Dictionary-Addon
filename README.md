@@ -1,4 +1,6 @@
-<h2 align="center">Anki Dictionary Addon (Successor to Migaku Dictionary Addon)</h2>
+<h2 align="center">Anki Dictionary Addon </h2>
+
+(Successor to Migaku Dictionary Addon)
 
 <p align="center">
   <a href="https://www.gnu.org/licenses/agpl-3.0.html" title="License: GNU AGPLv3">
