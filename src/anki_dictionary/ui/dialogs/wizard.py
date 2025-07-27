@@ -470,5 +470,5 @@ def attemptShowDictBrandUpdateMessage():
         mw.DictShouldNotShowMessage = True
 
 
-# Hook to show message on profile load
-addHook("profileLoaded", attemptShowDictBrandUpdateMessage)
+# Hook to show message on profile load - DISABLED to remove welcome screen
+# addHook("profileLoaded", attemptShowDictBrandUpdateMessage)

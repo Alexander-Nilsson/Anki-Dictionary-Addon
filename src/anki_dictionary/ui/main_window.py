@@ -125,16 +125,26 @@ def releaseKey(keyList):
 def getWelcomeScreen():
     """Get welcome screen HTML."""
     htmlPath = join(addon_path, 'assets', 'templates', 'welcome.html')
-    with open(htmlPath, 'r', encoding="utf-8") as fh:
-        file = fh.read()
-    return file
+    try:
+        with open(htmlPath, 'r', encoding="utf-8") as fh:
+            file = fh.read()
+        print(f"Loaded welcome screen from: {htmlPath}")
+        return file
+    except Exception as e:
+        print(f"Error loading welcome screen from {htmlPath}: {e}")
+        return ""
 
 def getMacWelcomeScreen():
     """Get Mac-specific welcome screen HTML."""
     htmlPath = join(addon_path, 'assets', 'templates', 'macwelcome.html')
-    with open(htmlPath, 'r', encoding="utf-8") as fh:
-        file = fh.read()
-    return file
+    try:
+        with open(htmlPath, 'r', encoding="utf-8") as fh:
+            file = fh.read()
+        print(f"Loaded Mac welcome screen from: {htmlPath}")
+        return file
+    except Exception as e:
+        print(f"Error loading Mac welcome screen from {htmlPath}: {e}")
+        return ""
 
 def showAfterGlobalSearch():
     """Show dictionary after global search."""
@@ -158,11 +168,14 @@ def dictionaryInit(terms=False):
     if is_mac:
         shortcut = '⌘W'
     
-    # Get welcome screen
+    # Get welcome screen - Show shortcuts and help inside dictionary
     if is_mac:
         welcomeScreen = getMacWelcomeScreen()
     else:
         welcomeScreen = getWelcomeScreen()
+    
+    # Debug: Print welcome screen info
+    print(f"Welcome screen loaded: {len(welcomeScreen)} characters")
     
     if not mw.ankiDictionary:
         mw.ankiDictionary = DictInterface(mw.miDictDB, mw, addon_path, welcomeScreen, terms=terms)
