@@ -41,6 +41,7 @@ class ThemeManager:
         self.current_theme = 'light'
         self.themes = self._load_default_themes()
         self._load_user_themes()
+        self._load_active_theme()
 
     def _load_default_themes(self) -> Dict[str, ThemeColors]:
         return {
@@ -121,27 +122,61 @@ class ThemeManager:
             except Exception as e:
                 print(f"Error loading user themes: {e}")
 
+    def _load_active_theme(self):
+        """Load the active theme from active.json"""
+        if os.path.exists(self.active_theme_file):
+            try:
+                with open(self.active_theme_file, 'r') as f:
+                    active_theme_data = json.load(f)
+                
+                # Remove any extra fields that aren't part of ThemeColors
+                valid_fields = {
+                    'header_background', 'selector', 'header_text', 'search_term', 'border',
+                    'anki_button_background', 'anki_button_text', 'tab_hover',
+                    'current_tab_gradient_top', 'current_tab_gradient_bottom',
+                    'example_highlight', 'definition_background', 'definition_text', 'pitch_accent_color'
+                }
+                filtered_data = {k: v for k, v in active_theme_data.items() if k in valid_fields}
+                
+                # Store the theme name if it exists
+                if 'active_theme_name' in active_theme_data:
+                    self.current_theme = active_theme_data['active_theme_name']
+                
+                self.themes["active"] = ThemeColors(**filtered_data)
+            except Exception as e:
+                print(f"Error loading active theme: {e}")
+                # If loading fails, create a default active theme
+                self.themes["active"] = self.themes[self.current_theme]
+
+    def get_active_theme(self) -> ThemeColors:
+        """Get the currently active theme"""
+        return self.themes.get("active", self.themes[self.current_theme])
+
+    def set_active_theme(self, theme_name: str):
+        """Set the active theme by name"""
+        if theme_name in self.themes:
+            self.current_theme = theme_name
+            self.save_active_theme(self.themes[theme_name], theme_name)
+
     def save_theme(self, name: str, colors: ThemeColors):
-        print(name, colors)
         self.themes[name] = colors
         self._save_themes()
 
-    def save_active_theme(self, colors: ThemeColors):
+    def save_active_theme(self, colors: ThemeColors, theme_name: str = None):
         self.themes["active"] = colors
         self._save_themes()
         os.makedirs(os.path.dirname(self.active_theme_file), exist_ok=True)
-        with open(self.active_theme_file, 'o') as f:
-            themes_dict = {name: vars(colors) for name, colors in self.themes.items()}
-            json.dump(themes_dict, f, indent=2)
+        with open(self.active_theme_file, 'w') as f:
+            # Save only the active theme colors, not all themes
+            active_theme_dict = vars(colors).copy()
+            if theme_name:
+                active_theme_dict['active_theme_name'] = theme_name
+            json.dump(active_theme_dict, f, indent=2)
 
     def _save_themes(self):
         os.makedirs(os.path.dirname(self.themes_file), exist_ok=True)
-        print(self.themes_file)
-        print(os.path.dirname(self.themes_file))
         with open(self.themes_file, 'w') as f:
             themes_dict = {name: vars(colors) for name, colors in self.themes.items()}
-            print(os.path.dirname(self.themes_file))
-            print(themes_dict)
             json.dump(themes_dict, f, indent=2)
 
     def get_css(self, theme_name: str = None) -> str:

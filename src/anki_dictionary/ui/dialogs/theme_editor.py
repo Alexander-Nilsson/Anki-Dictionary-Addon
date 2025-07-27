@@ -15,7 +15,6 @@ class ThemeEditorDialog(QDialog):
         self.theme_manager = theme_manager
         self.dict_interface = dict_interface
         self.addonPath = path
-        self.active_theme_file = os.path.join(self.addonPath, "user_files/themes", "active.json")
         self.themes_file = os.path.join(self.addonPath, "user_files/themes", "themes.json")
         self.setup_ui()
 
@@ -118,7 +117,6 @@ class ThemeEditorDialog(QDialog):
 
         self._save_active_theme(colors)
         self.refresh_application_theme()
-        print(f"Applied theme: {selected_theme_name}")
         self.applied.emit()
 
     def pick_color(self, color_name):
@@ -150,12 +148,9 @@ class ThemeEditorDialog(QDialog):
 
     def _save_active_theme(self, colors):
         try:
-            theme_data = vars(colors)
-            theme_data["active_theme_name"] = self.theme_combo.currentText()
-            with open(self.active_theme_file, "w") as f:
-                json.dump(theme_data, f, indent=2)
-            print("Active theme saved.")
-        except IOError as e:
+            theme_name = self.theme_combo.currentText()
+            self.theme_manager.save_active_theme(colors, theme_name)
+        except Exception as e:
             print(f"Error saving active theme: {e}")
 
 
@@ -187,7 +182,6 @@ class ThemeEditorDialog(QDialog):
             selected_theme_colors = self.theme_manager.themes[selected_theme_name]
             self._save_active_theme(selected_theme_colors)
             self.refresh_application_theme()
-            print(f"Applied theme: {selected_theme_name}")
             self.applied.emit()
         else:
             print(f"Error: Selected theme '{selected_theme_name}' not found.")
@@ -198,29 +192,25 @@ class ThemeEditorDialog(QDialog):
 
     def load_active_theme_name(self):
         try:
-            with open(self.active_theme_file, "r") as f:
-                theme_data = json.load(f)
-                return theme_data.get("active_theme_name", self.theme_manager.current_theme)
+            return self.theme_manager.current_theme
         except Exception as e:
             print(f"Error loading active theme name: {e}")
-            return self.theme_manager.current_theme
+            return 'light'
 
     def load_active_theme_colors(self):
-        """Load color values from active.json."""
+        """Load color values from the active theme."""
         try:
-            with open(self.active_theme_file, "r") as f:
-                theme_data = json.load(f)
-                return theme_data
+            active_theme = self.theme_manager.get_active_theme()
+            return vars(active_theme)
         except Exception as e:
             print(f"Error loading active theme colors: {e}")
             return {}
 
     def load_theme_color(self, color_key):
         try:
-            with open(self.active_theme_file, "r") as f:
-                theme = json.load(f)
-                if color_key in theme:
-                    return QColor(theme[color_key])
+            active_theme = self.theme_manager.get_active_theme()
+            color_value = getattr(active_theme, color_key, "#ffffff")
+            return QColor(color_value)
         except Exception as e:
             print(f"Error loading active theme color: {e}")
         return QColor("#ffffff")

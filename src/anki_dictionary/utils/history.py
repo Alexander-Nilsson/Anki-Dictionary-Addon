@@ -86,8 +86,8 @@ class HistoryBrowser(QWidget):
         self.clearHistory.clicked.connect(self.deleteHistory)
         self.tableView.doubleClicked.connect(self.searchAgain)
         self.setupTable()
-        self.layout = self.getLayout()
-        self.setLayout(self.layout)
+        self.main_layout = self.getLayout()
+        self.setLayout(self.main_layout)
         self.setColors()
         self.history_model = self.history_model
         self.dictInt = self.dictInt
@@ -99,13 +99,6 @@ class HistoryBrowser(QWidget):
         """
         Set up the user interface components for the history browser.
         """
-        # Ensure the table view is properly set up
-        self.setupTable()
-
-        # Set up the layout
-        self.layout = self.getLayout()
-        self.setLayout(self.layout)
-
         # Set the colors based on the active theme
         self.setColors()
 
@@ -127,8 +120,7 @@ class HistoryBrowser(QWidget):
         Set the colors for the history browser based on the active theme.
         """
         # Load the background color from the active theme
-        background_color = self.dictInt.load_theme_color("background")
-        print(f"Background color: {background_color}, Type: {type(background_color)}")  # Debug statement
+        background_color = self.dictInt.load_theme_color("header_background")
 
         # Create a QPalette object and set the background color
         palette = QPalette()
@@ -138,8 +130,6 @@ class HistoryBrowser(QWidget):
         self.setPalette(palette)
         self.setStyleSheet(self.dictInt.theme_manager.get_qt_styles(is_mac=is_mac))  # Reapply stylesheet
         self.update()  # Force the widget to repaint
-
-        print("History browser colors updated.")  # Debug statement
 
     def deleteHistory(self):
         if miAsk('Clearing your history cannot be undone. Would you like to proceed?', self):
