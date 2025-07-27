@@ -1223,7 +1223,7 @@ class DictInterface(QWidget):
         self.sbOpened = False
         self.historyModel = HistoryModel(self.getHistory(), self)
         self.historyBrowser = HistoryBrowser(self.historyModel, self)
-        self.setWindowIcon(QIcon(join(self.iconpath, 'miso.png')))
+        self.setWindowIcon(QIcon(join(self.iconpath, 'dictionary.png')))
         self.readyToSearch = False
         self.restoreSizePos()
         self.initTooltips()

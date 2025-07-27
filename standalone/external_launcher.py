@@ -133,7 +133,7 @@ def main():
                                 ]
                             },
                             {
-                                'name': 'Migaku Japanese',
+                                'name': 'Japanese Dictionary',
                                 'flds': [
                                     {'name': 'Expression', 'ord': 0},
                                     {'name': 'ExpressionAudio', 'ord': 1},

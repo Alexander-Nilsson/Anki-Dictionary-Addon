@@ -80,7 +80,8 @@ anki_dictionary_addon/
 │   │   └── (move JS from dictionaryInit.html)
 │   └── icons/                       # Icon files (keep existing structure)
 │       ├── anki.png
-│       ├── miso.png
+│       ├── dictionary.png           # Main app icon (replaces miso.png)
+│       ├── github.svg               # Simple GitHub icon
 │       └── ...
 │
 ├── standalone/                      # Standalone execution scripts

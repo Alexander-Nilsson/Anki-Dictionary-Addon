@@ -20,11 +20,14 @@ class FFMPEGInstaller:
         self.ffmpegFilename = "ffmpeg"
         if is_win:
             self.ffmpegFilename += ".exe"
-            self.downloadURL = "http://dicts.migaku.io/ffmpeg/windows"
+            # TODO: Setup alternative FFmpeg distribution for Windows
+            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/windows"
         elif is_lin:
-            self.downloadURL = "http://dicts.migaku.io/ffmpeg/linux"
+            # TODO: Setup alternative FFmpeg distribution for Linux
+            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/linux"
         elif is_mac:
-            self.downloadURL = "http://dicts.migaku.io/ffmpeg/macos"
+            # TODO: Setup alternative FFmpeg distribution for macOS
+            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/macos"
         self.ffmpegPath = join(self.ffmpegDir, self.ffmpegFilename)
         self.tempPath = join(self.addonPath, 'temp', 'ffmpeg')
 
@@ -32,7 +35,7 @@ class FFMPEGInstaller:
     def getFFMPEGProgressBar(self, title, initialText):
         progressWidget = QWidget(None)
         textDisplay = QLabel()
-        progressWidget.setWindowIcon(QIcon(join(self.addonPath, 'assets', 'icons', 'miso.png')))
+        progressWidget.setWindowIcon(QIcon(join(self.addonPath, 'assets', 'icons', 'dictionary.png')))
         progressWidget.setWindowTitle(title)
         textDisplay.setText(initialText)
         progressWidget.setFixedSize(500, 100)

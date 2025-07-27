@@ -29,7 +29,7 @@ class DictionaryWebInstallWizard(MiWizard):
         self.dictionary_force_lang = force_lang
 
         self.setWindowTitle('Anki Dictionary - Web Installer')
-        self.setWindowIcon(QIcon(os.path.join(addon_path, 'assets', 'icons', 'miso.png')))
+        self.setWindowIcon(QIcon(os.path.join(addon_path, 'assets', 'icons', 'dictionary.png')))
 
         server_add_page = self.add_page(ServerAskPage(self))
         dict_select_page = self.add_page(DictionarySelectPage(self), server_add_page)

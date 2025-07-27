@@ -32,7 +32,7 @@ def initialize_addon():
     mw.DictExportingDefinitions = False
     mw.dictSettings = False
     mw.ankiDictionary = False
-    mw.misoEditorLoadedAfterDictionary = False
+    mw.dictEditorLoadedAfterDictionary = False
     mw.DictBulkMediaExportWasCancelled = False
     mw.currentlyPressed = []
     

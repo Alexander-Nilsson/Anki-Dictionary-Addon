@@ -320,7 +320,7 @@ def miMessage(text, parent=False):
     
     # Get addon path
     addon_path = dirname(dirname(dirname(dirname(__file__))))
-    icon = QIcon(join(addon_path, 'assets', 'icons', 'miso.png'))
+    icon = QIcon(join(addon_path, 'assets', 'icons', 'dictionary.png'))
     
     mb = QMessageBox(parent)
     mb.setWindowIcon(icon)
@@ -416,11 +416,10 @@ migakuMessage = '''
     }
 </style>
 <body>
-<h3><b>Thanks so much for using the Migaku Add-on series!</b></h3>
+<h3><b>Thanks for using the Anki Dictionary Addon!</b></h3>
 <div class="center-div">
-    If you would like to ensure you don't miss any Migaku updates, or new releases.<br>
-    Please consider visiting our <a href="https://migaku.io">website</a>, and following us on <a href="https://www.youtube.com/channel/UCQFe3x4WAgm7joN5daMm5Ew">YouTube</a> and <a href="https://twitter.com/Migaku_Yoga">Twitter</a>!
-    <br>Also, please consider supporting Migaku on <a href="https://www.patreon.com/Migaku">Patreon</a> if you have found value in our work!
+    This addon helps you learn languages more efficiently by providing instant dictionary lookups within Anki.<br>
+    For more information, please visit the project repository on <a href="https://github.com/migaku-official/Anki-Dictionary-Addon">GitHub</a>!
 </div>
 <div>
 %s
@@ -443,7 +442,7 @@ def disableMessage(config):
     # The config utility ensures config is never None (returns empty dict)
     config["displayAgain"] = False
     saveConfiguration(config)
-    mw.MigakuShouldNotShowMessage = True
+    mw.DictShouldNotShowMessage = True
 
 
 def displayMessageMaybeDisableMessage(content, config):
@@ -452,24 +451,24 @@ def displayMessageMaybeDisableMessage(content, config):
         disableMessage(config)
      
 
-def attemptShowMigakuBrandUpdateMessage():
-    """Attempt to show Migaku brand update message."""
+def attemptShowDictBrandUpdateMessage():
+    """Attempt to show Dictionary addon update message."""
     config = getConfig()
     
     # The config utility returns empty dict if None, so we can safely use get()
     shouldShow = config.get("displayAgain", False)
     
-    if shouldShow and not hasattr(mw, "MigakuShouldNotShowMessage"):
+    if shouldShow and not hasattr(mw, "DictShouldNotShowMessage"):
         videoIds, videoId = getLatestVideos(config)
         if videoIds:
             displayMessageMaybeDisableMessage(videoIds, config)
         else:
             displayMessageMaybeDisableMessage("", config)
-    elif shouldShow and hasattr(mw, "MigakuShouldNotShowMessage"):
+    elif shouldShow and hasattr(mw, "DictShouldNotShowMessage"):
         disableMessage(config)
     else:
-        mw.MigakuShouldNotShowMessage = True
+        mw.DictShouldNotShowMessage = True
 
 
 # Hook to show message on profile load
-addHook("profileLoaded", attemptShowMigakuBrandUpdateMessage)
+addHook("profileLoaded", attemptShowDictBrandUpdateMessage)

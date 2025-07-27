@@ -27,7 +27,7 @@ class TestIntegration(unittest.TestCase):
         
         # Create basic addon structure
         (self.addon_path / "icons").mkdir()
-        (self.addon_path / "icons" / "miso.png").touch()
+        (self.addon_path / "assets" / "icons" / "dictionary.png").touch()
         
         # Create config file
         config = {
@@ -189,7 +189,7 @@ class TestIntegration(unittest.TestCase):
         required_attrs = [
             'addonManager', 'AnkiDictConfig', 'DictExportingDefinitions',
             'dictSettings', 'miDictDB', 'refreshAnkiDictConfig',
-            'misoEditorLoadedAfterDictionary', 'DictBulkMediaExportWasCancelled'
+            'dictEditorLoadedAfterDictionary', 'DictBulkMediaExportWasCancelled'
         ]
         
         for attr in required_attrs:

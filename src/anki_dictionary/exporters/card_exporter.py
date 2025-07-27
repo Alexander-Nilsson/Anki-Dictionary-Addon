@@ -136,7 +136,7 @@ class CardExporter():
         self.scrollArea.setMinimumWidth(490)
         self.scrollArea.setMinimumHeight(400)
         self.scrollArea.resize(490, 654)
-        self.scrollArea.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'miso.png')))
+        self.scrollArea.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'assets', 'icons', 'dictionary.png')))
         self.scrollArea.setWindowTitle('Anki Card Exporter')
         self.definitionList = []
         self.word = ''
@@ -809,7 +809,7 @@ Please review your template and notetype combination."""), level='wrn')
         layout.setContentsMargins(4, 4, 4, 4)
         save.clicked.connect(lambda: self.saveDefinitionSettings(settingsWidget, dict1.currentText(), howMany1.value(), dict2.currentText(), howMany2.value(), dict3.currentText(), howMany3.value()))
         settingsWidget.setWindowTitle("Definition Settings")
-        settingsWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'miso.png')))
+        settingsWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'assets', 'icons', 'dictionary.png')))
         settingsWidget.setLayout(layout)
         settingsWidget.show()
 
@@ -1073,7 +1073,7 @@ Please review your template and notetype combination."""), level='wrn')
                 
         progressWidget.exporter = self
         textDisplay = QLabel()
-        progressWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'icons', 'miso.png')))
+        progressWidget.setWindowIcon(QIcon(join(self.dictInt.addonPath, 'assets', 'icons', 'dictionary.png')))
         progressWidget.setWindowTitle(title)
         textDisplay.setText(initialText)
         

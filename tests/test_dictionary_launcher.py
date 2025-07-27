@@ -55,7 +55,7 @@ class TestDictionaryLauncher(unittest.TestCase):
         # Create icon file
         icons_dir = self.addon_path / "icons"
         icons_dir.mkdir()
-        icon_file = icons_dir / "miso.png"
+        icon_file = icons_dir / "dictionary.png"
         icon_file.touch()
         
         mock_app = MagicMock()
