@@ -19,6 +19,7 @@ from .templates import TemplateEditor
 from ...utils.common import miInfo, miAsk
 from ..dialogs.dictionary_manager import DictionaryManagerWidget
 from ...utils.ffmpeg import FFMPEGInstaller
+from ...utils.config import get_addon_config, save_addon_config
 try:
     from PyQt5.QtSvg import QSvgWidget
 except ModuleNotFoundError:
@@ -66,7 +67,7 @@ class SettingsGui(QTabWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
-        self.setWindowIcon(QIcon(join(self.addonPath, 'icons', 'miso.png')))
+        self.setWindowIcon(QIcon(join(self.addonPath, 'assets', 'icons', 'miso.png')))
         self.addDictGroup = QPushButton('Add Dictionary Group')
         self.addExportTemplate = QPushButton('Add Export Template')
         self.dictGroups = self.getGroupTemplateTable()
@@ -160,7 +161,7 @@ class SettingsGui(QTabWidget):
         self.disableCondensedMessages.setToolTip('Disable messages shown when condensed audio files are successfully created.')
 
     def getConfig(self):
-        return self.mw.addonManager.getConfig(__name__)
+        return get_addon_config()
         
     def loadConfig(self):
         config = self.getConfig()
@@ -217,7 +218,7 @@ class SettingsGui(QTabWidget):
             nc ['condensedAudioDirectory'] = self.chooseAudioDirectory.text()
         else:
             nc ['condensedAudioDirectory'] = False
-        self.mw.addonManager.writeConfig(__name__, nc)
+        save_addon_config(nc)
         self.hide()
         self.mw.refreshAnkiDictConfig()
         if nc['mp3Convert']:
@@ -301,7 +302,7 @@ class SettingsGui(QTabWidget):
             dictGroups = newConfig['DictionaryGroups']
             groupName = self.dictGroups.item(row, 0).text()
             del dictGroups[groupName]
-            self.mw.addonManager.writeConfig(__name__, newConfig)
+            save_addon_config(newConfig)
             self.dictGroups.removeRow(row)
             self.loadGroupTable()
 
@@ -335,7 +336,7 @@ class SettingsGui(QTabWidget):
             exportTemplates = newConfig['ExportTemplates']
             templateName = self.exportTemplates.item(row, 0).text()
             del exportTemplates[templateName]
-            self.mw.addonManager.writeConfig(__name__, newConfig)
+            save_addon_config(newConfig)
             self.exportTemplates.removeRow(row)
             self.loadTemplateTable()
 
@@ -377,7 +378,7 @@ class SettingsGui(QTabWidget):
     def restoreDefaults(self):
         if miAsk('This will remove any export templates and dictionary groups you have created, and is not undoable. Are you sure you would like to restore the default settings?'):
             conf = self.mw.addonManager.addonConfigDefaults(dirname(__file__))
-            self.mw.addonManager.writeConfig(__name__, conf)
+            save_addon_config(conf)
             # self.userGuideTab.close()
             # self.userGuideTab.deleteLater()
             self.close()

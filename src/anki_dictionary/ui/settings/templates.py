@@ -13,6 +13,7 @@ import re
 import os
 from os.path import dirname, join
 from ...utils.common import miInfo, miAsk
+from ...utils.config import get_addon_config, save_addon_config
 
 class TemplateEditor(QDialog):
     def __init__(self, mw, parent = None, dictionaries = [], toEdit = False, tName = False):
@@ -110,7 +111,7 @@ class TemplateEditor(QDialog):
                 self.addDictFieldRow(dictName, field)
 
     def getConfig(self):
-        return self.mw.addonManager.getConfig(__name__)
+        return get_addon_config()
 
     def getSpecificDictFields(self):
         dictFields = {}
@@ -146,7 +147,7 @@ class TemplateEditor(QDialog):
         'separator' : self.entrySeparator.text()
         }
         curGroups[tn] = exportTemplate
-        self.mw.addonManager.writeConfig(__name__, newConfig)
+        save_addon_config(newConfig)
         self.settings.loadTemplateTable()
         self.hide()
          
