@@ -31,7 +31,9 @@ languageCodes = {
     'ru-RU': 'ru-ru',  # Russian
 }
 
-temp_dir = join(dirname(__file__), 'temp') #TODO put this somwhere good
+# Get the root addon directory (4 levels up from this file)
+addon_path = dirname(dirname(dirname(dirname(__file__))))
+temp_dir = join(addon_path, 'temp')
 os.makedirs(temp_dir, exist_ok=True)
 
 ########################################
@@ -201,21 +203,46 @@ class DuckDuckGo(QRunnable):
         second_group = local_images[IMAGES_PER_GROUP:IMAGES_PER_GROUP*2]
 
         def generate_image_html(filename):
+            # Use base64 data URL to embed the image directly in HTML
+            import base64
             image_path = os.path.join(temp_dir, filename)
-            return (
-                '<div class="imgBox">'
-                f'<div onclick="toggleImageSelect(this)" data-url="{image_path}" class="googleHighlight"></div>'
-                f'<img class="googleImage" src="{image_path}" ankiDict="{image_path}">'
-                '</div>'
-            )
+            try:
+                with open(image_path, 'rb') as img_file:
+                    img_data = img_file.read()
+                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                    data_url = f"data:image/jpeg;base64,{img_base64}"
+                    return (
+                        '<div class="imgBox">'
+                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
+                        f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
+                        '</div>'
+                    )
+            except Exception as e:
+                print(f"Error reading image {filename}: {e}")
+                return '<div class="imgBox">Error loading image</div>'
 
         html = '<div class="googleCont">'
         html += ''.join(generate_image_html(img) for img in first_group)
         html += '</div><div class="googleCont">'
         html += ''.join(generate_image_html(img) for img in second_group)
+        # Generate data URLs for Load More button
+        import base64
+        data_urls = []
+        for img in local_images:
+            try:
+                image_path = os.path.join(temp_dir, img)
+                with open(image_path, 'rb') as img_file:
+                    img_data = img_file.read()
+                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                    data_url = f"data:image/jpeg;base64,{img_base64}"
+                    data_urls.append(data_url)
+            except Exception as e:
+                print(f"Error creating data URL for {img}: {e}")
+                continue
+        
         html += (
             '</div><button class="imageLoader" onclick="loadMoreImages(this, \\\'' +
-            '\\\' , \\\''.join(self.getCleanedUrls([os.path.join(temp_dir, img) for img in local_images])) +
+            '\\\' , \\\''.join(self.getCleanedUrls(data_urls)) +
             '\\\')">Load More</button>'
         )
 

@@ -63,6 +63,10 @@ class MIDict(AnkiWebView):
         self.sType = False
         self.radioCount = 0
         self.homeDir = path
+        # Set up root addon temp directory path
+        self.addon_root = dirname(dirname(dirname(dirname(__file__))))
+        self.temp_dir = join(self.addon_root, 'temp')
+        os.makedirs(self.temp_dir, exist_ok=True)
         self.conjugations = self.loadConjugations()
         self.deinflect = True
         self.addWindow = False
@@ -912,6 +916,10 @@ class ClipThread(QObject):
         super(ClipThread, self).__init__(mw)
         self.addonPath = path
         self.mw = mw
+        # Set up root addon temp directory path (same as MIDict)
+        self.addon_root = dirname(dirname(dirname(dirname(__file__))))
+        self.temp_dir = join(self.addon_root, 'temp')
+        os.makedirs(self.temp_dir, exist_ok=True)
         # Import here to avoid circular imports
         from anki_dictionary.utils.config import get_addon_config
         self.config = get_addon_config()
@@ -983,7 +991,7 @@ class ClipThread(QObject):
         imageFileName = card["image"]
         bulk = card["bulk"]
         if audioFileName:
-            audioTempPath = join(dirname(__file__), 'temp', audioFileName)
+            audioTempPath = join(self.temp_dir, audioFileName)
             if not self.checkFileExists(audioTempPath):
                 self.extensionFileNotFound.emit()
                 return
@@ -995,7 +1003,7 @@ class ClipThread(QObject):
                 self.moveExtensionFileToMediaFolder(audioTempPath, audioFileName)
             self.removeFile(audioTempPath)
         if imageFileName:
-            imageTempPath = join(dirname(__file__), 'temp', imageFileName)
+            imageTempPath = join(self.temp_dir, imageFileName)
             if self.checkFileExists(imageTempPath):
                 self.saveScaledImage(imageTempPath, imageFileName)
                 self.removeFile(imageTempPath)
@@ -1051,7 +1059,7 @@ class ClipThread(QObject):
             if not clip.endswith('.mp3') and mime.hasImage():
                 image = mime.imageData()
                 filename = str(time.time()) + '.png'
-                fullpath = join(self.addonPath, 'temp', filename)
+                fullpath = join(self.temp_dir, filename)
                 maxW = max(self.config['maxWidth'], image.width())
                 maxH = max(self.config['maxHeight'], image.height())
                 image = image.scaled(QSize(maxW, maxH), Qt.AspectRatioMode.KeepAspectRatio,
@@ -1081,7 +1089,7 @@ class ClipThread(QObject):
         try:
             if exists(path):
                 filename = str(time.time()).replace('.', '') + '.mp3'
-                destpath = join(self.addonPath, 'temp', filename)
+                destpath = join(self.temp_dir, filename)
                 if not exists(destpath):
                     copyfile(path, destpath)
                     return destpath, filename;
@@ -1118,13 +1126,12 @@ class DictInterface(QWidget):
 
     def load_theme_color(self, color_key):
         """
-        Load a specific color from the active theme file.
+        Load a specific color from the active theme.
         """
         try:
-            with open(self.active_theme_file, "r") as f:
-                theme = json.load(f)
-                if color_key in theme:
-                    return QColor(theme[color_key])  # Ensure this returns a QColor
+            active_theme = self.theme_manager.get_active_theme()
+            color_value = getattr(active_theme, color_key, "#ffffff")
+            return QColor(color_value)
         except Exception as e:
             print(f"Error loading active theme color: {e}")
         return QColor("#ffffff")  # Default color if anything fails
@@ -1142,11 +1149,12 @@ class DictInterface(QWidget):
         """
         Refresh the application theme by updating styles and re-rendering components.
         """
-        # Load the active theme
-        active_theme_path = os.path.join(self.addonPath, "user_files/themes", "active.json")
+        # Reload the active theme from disk to ensure we have the latest changes
+        self.theme_manager._load_active_theme()
+        
+        # Load the active theme from theme manager
         try:
-            with open(active_theme_path, "r") as f:
-                active_theme = json.load(f)
+            active_theme = self.theme_manager.get_active_theme()
         except Exception as e:
             print(f"Error loading active theme: {e}")
             return
@@ -1159,6 +1167,10 @@ class DictInterface(QWidget):
 
         # Re-render the dictionary interface
         self.reload_dictionary_interface()
+        
+        # Update the history browser colors if it exists
+        if hasattr(self, 'historyBrowser') and self.historyBrowser:
+            self.historyBrowser.setColors()
 
     def update_child_widget_styles(self):
         """
@@ -1315,13 +1327,12 @@ class DictInterface(QWidget):
         return False
 
     def getHTMLURL(self, willSearch):
-        active_theme_path = join(self.addonPath, "user_files/themes", "active.json")
         try:
-            with open(active_theme_path, "r", encoding="utf-8") as f:
-                active_theme = json.load(f)
+            active_theme = self.theme_manager.get_active_theme()
+            active_theme_dict = vars(active_theme)
         except Exception as e:
             print(f"Error loading active theme: {e}")
-            active_theme = {
+            active_theme_dict = {
                 "header_background": "#51576d",
                 "selector": "#949cbb",
                 "header_text": "#babbf1",
@@ -1340,113 +1351,133 @@ class DictInterface(QWidget):
 
         qss = f"""
                     QWidget {{
-                        background-color: {active_theme["definition_background"]};
+                        background-color: {active_theme_dict["definition_background"]};
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 14px;
                     }}
                     QPushButton {{
-                        color: {active_theme['header_text']};
-                        border: 1px solid {active_theme['border']};
+                        color: {active_theme_dict['header_text']};
+                        border: 1px solid {active_theme_dict['border']};
                         border-radius: 5px;
                         padding: 8px;
                     }}
                     QPushButton:hover {{
-                        border: 2px solid {active_theme['border']};
+                        border: 2px solid {active_theme_dict['border']};
                     }}
                     QLineEdit, QComboBox {{
-                        background-color: {active_theme['selector']};
-                        color: {active_theme['search_term']};
-                        border: 1px solid {active_theme['border']};
+                        background-color: {active_theme_dict['selector']};
+                        color: {active_theme_dict['search_term']};
+                        border: 1px solid {active_theme_dict['border']};
                         border-radius: 5px;
                         padding: 8px;
                     }}
                     QLabel {{
                         font-weight: bold;
-                        border: 1px solid {active_theme['border']};
+                        border: 1px solid {active_theme_dict['border']};
                     }}
                     QComboBox QAbstractItemView {{
-                        color: {active_theme['header_text']};
-                        border: 1px solid {active_theme['border']};
+                        color: {active_theme_dict['header_text']};
+                        border: 1px solid {active_theme_dict['border']};
                     }}
                     
                     SVGPushButton{{
-                        background-color: {active_theme['selector']};
-                        color: {active_theme['header_text']}
-                        border: 1px solid {active_theme['border']};
+                        background-color: {active_theme_dict['selector']};
+                        color: {active_theme_dict['header_text']}
+                        border: 1px solid {active_theme_dict['border']};
                     }}
                 """
         self.setStyleSheet(qss)
         custom_theme_css = f"""
             <style id="customThemeCss">
+                :root {{
+                    --background: {active_theme_dict['header_background']};
+                    --background-secondary: {active_theme_dict['selector']};
+                    --text: {active_theme_dict['header_text']};
+                    --text-secondary: {active_theme_dict['search_term']};
+                    --border: {active_theme_dict['border']};
+                    --button-bg: {active_theme_dict['anki_button_background']};
+                    --button-text: {active_theme_dict['anki_button_text']};
+                    --button-bg-hover: {active_theme_dict['tab_hover']};
+                }}
                 body {{
-                    background-color: {active_theme['header_background']};
-                    color: {active_theme['header_text']};
+                    background-color: {active_theme_dict['header_background']};
+                    color: {active_theme_dict['header_text']};
                 }}
                 .header {{
-                    background-color: {active_theme['header_background']};
-                    color: {active_theme['header_text']};
-                    border-bottom: 2px solid {active_theme['border']};
+                    background-color: {active_theme_dict['header_background']};
+                    color: {active_theme_dict['header_text']};
+                    border-bottom: 2px solid {active_theme_dict['border']};
                 }}
                 .targetTerm {{
-                    color: {active_theme['search_term']} !important;
+                    color: {active_theme_dict['search_term']} !important;
                 }}
                 .exampleSentence {{
-                    background-color: {active_theme['example_highlight']};
+                    background-color: {active_theme_dict['example_highlight']};
                     border-radius: 3px;
                     padding-top:1px;
                     margin:0 5px;
                 }}
                 .definitionBlock {{
-                    background-color: {active_theme['definition_background']};
-                    color: {active_theme['definition_text']};
-                    border: 1px solid {active_theme['border']};
+                    background-color: {active_theme_dict['definition_background']};
+                    color: {active_theme_dict['definition_text']};
+                    border: 1px solid {active_theme_dict['border']};
                     border-radius: 5px;
                     padding: 15px;
                     margin: 10px;
                 }}
                 .altterm {{
-                    color: {active_theme['pitch_accent_color']};
+                    color: {active_theme_dict['pitch_accent_color']};
                 }}
                 .ankiExportButton {{
-                    border: 1px solid {active_theme['border']};
+                    border: 1px solid {active_theme_dict['border']};
                     border-radius: 5px;
                     padding: 5px;
                 }}
                 .ankiExportButton img {{
-                    background-color: {active_theme['anki_button_background']};
+                    background-color: {active_theme_dict['anki_button_background']};
                 }}
                 .tablinks {{
-                    border: 1px solid {active_theme['border']};
+                    border: 1px solid {active_theme_dict['border']};
                     border-radius: 5px 5px 0 0;
                 }}
                 .tablinks.active {{
                     background-image: linear-gradient(
-                        {active_theme['current_tab_gradient_top']},
-                        {active_theme['current_tab_gradient_bottom']}
+                        {active_theme_dict['current_tab_gradient_top']},
+                        {active_theme_dict['current_tab_gradient_bottom']}
                     );
                     border-bottom: none;
                 }}
                 .tablinks:hover {{
-                    background-color: {active_theme['tab_hover']};
+                    background-color: {active_theme_dict['tab_hover']};
                 }}
                 .overwriteSelect, .fieldSelect {{
-                    background-color: {active_theme['selector']};
-                    border: 1px solid {active_theme['border']};
+                    background-color: {active_theme_dict['selector']};
+                    border: 1px solid {active_theme_dict['border']};
                     border-radius: 5px;
                     padding: 5px;            }}
         </style>
         """
 
         html_path = join(self.addonPath, 'assets', 'templates', 'dictionary.html')
+        js_path = join(self.addonPath, 'assets', 'scripts', 'dictionary.js')
+        
+        # Read the JavaScript content to inline it
+        with open(js_path, 'r', encoding="utf-8") as js_file:
+            js_content = js_file.read()
+        
         with open(html_path, 'r', encoding="utf-8") as fh:
             html = fh.read()
+            # Replace the external script tag with inline JavaScript
+            html = html.replace(
+                '<script src="../scripts/dictionary.js"></script>',
+                f'<script>{js_content}</script>'
+            )
             # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
             if not willSearch:
                 # Only add welcome screen if it's not empty
                 if self.welcome and self.welcome.strip():
                     # Properly escape the HTML content for JavaScript
-                    import json
                     escaped_welcome = json.dumps(self.welcome)
                     html = html.replace(
                         '<script id="initialValue"></script>',
@@ -1783,8 +1814,6 @@ class DictInterface(QWidget):
     #         self.refresh_application_theme()
 
     def setTheme(self):
-        theme_manager = ThemeManager(self.addonPath)
-        self.theme_editor = ThemeEditorDialog(theme_manager, self.mw, self.addonPath, self)
         self.theme_editor.exec()
         self.refresh_application_theme()
 
