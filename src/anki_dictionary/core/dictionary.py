@@ -28,6 +28,22 @@ from aqt.editor import Editor
 from ..exporters.card_exporter import CardExporter
 import time
 from . import database as dictdb
+
+# Suppress Qt SVG warnings about path data
+def qt_message_handler(mode, context, message):
+    if "Invalid path data; path truncated" in message:
+        return  # Suppress this specific warning
+    # Let other messages through normally
+    if mode == QtMsgType.QtWarningMsg:
+        if not ("Invalid path data" in message or "path truncated" in message):
+            print(f"Qt Warning: {message}")
+    elif mode == QtMsgType.QtCriticalMsg:
+        print(f"Qt Critical: {message}")
+    elif mode == QtMsgType.QtFatalMsg:
+        print(f"Qt Fatal: {message}")
+
+# Install the message handler
+qInstallMessageHandler(qt_message_handler)
 import aqt
 from ..integrations.japanese import miJHandler
 from urllib.request import Request, urlopen
@@ -92,7 +108,10 @@ class MIDict(AnkiWebView):
                 idName: Unique identifier for the image container
         """
         html, idName = results
-        self.eval("loadImageForvoHtml('%s', '%s');" % (html.replace('"', '\\"'), idName))
+        # Use json.dumps to safely encode the HTML for JavaScript
+        escaped_html = json.dumps(html)
+        escaped_idName = json.dumps(idName)
+        self.eval("loadImageForvoHtml(%s, %s);" % (escaped_html, escaped_idName))
 
     def downloadImage(self, url):
         try:
@@ -396,8 +415,20 @@ class MIDict(AnkiWebView):
         return html
 
     def getImages(self, term, idName):
+        # Track pagination offset per search term
+        if not hasattr(self, 'image_offsets'):
+            self.image_offsets = {}
+        
+        # Initialize offset for new terms
+        if term not in self.image_offsets:
+            self.image_offsets[term] = 0
+        
+        # Always create a new DuckDuckGo instance for each search
+        # to avoid QRunnable reuse issues
         imager = duckduckgoimages.DuckDuckGo()
         imager.setTermIdName(term, idName)
+        # Set the search offset for pagination
+        imager.search_offset = self.image_offsets[term]
         #imager.setSearchRegion(self.config['googleSearchRegion'])
         #imager.setSafeSearch(self.config["safeSearch"])
         imager.signals.resultsFound.connect(self.loadImageResults)
@@ -484,6 +515,65 @@ class MIDict(AnkiWebView):
         elif dAct.startswith('imgExport:'):
             word, urls = dAct[10:].split('◳◴')
             self.addImgsToExportWindow(word, json.loads(urls))
+        elif dAct.startswith('load_more_images:'):
+            search_term = dAct[17:]
+            self.loadMoreImages(search_term)
+        elif dAct.startswith('getMoreImages::'):
+            search_term = dAct[15:]
+            self.loadMoreImages(search_term)
+
+    def loadMoreImages(self, search_term):
+        """
+        Load more images for a search term by performing a new search
+        """
+        # Track pagination offset per search term
+        if not hasattr(self, 'image_offsets'):
+            self.image_offsets = {}
+        
+        # Increment offset for this term to get next page
+        if search_term in self.image_offsets:
+            self.image_offsets[search_term] += 15
+        else:
+            self.image_offsets[search_term] = 15  # Start from second page
+        
+        # Always create a new DuckDuckGo instance for each search
+        # to avoid QRunnable reuse issues
+        imager = duckduckgoimages.DuckDuckGo()
+        imager.setTermIdName(search_term, "load_more")
+        # Set the search offset for pagination
+        imager.search_offset = self.image_offsets[search_term]
+        # Connect to a different handler for load more results
+        imager.signals.resultsFound.connect(self.loadMoreImageResults)
+        imager.signals.noResults.connect(self.showNoMoreImagesMessage)
+        self.threadpool.start(imager)
+
+    def loadMoreImageResults(self, results):
+        """
+        Handle results from load more images request
+        """
+        html, idName = results
+        
+        # Handle empty results
+        if not html or html.strip() == '':
+            self.showNoMoreImagesMessage()
+            return
+        
+        # Use json.dumps to safely encode the HTML for JavaScript
+        escaped_html = json.dumps(html)
+        
+        # Use the appendNewImages JavaScript function to add the new images
+        try:
+            js_code = f"appendNewImages({escaped_html});"
+            self.eval(js_code)
+        except Exception as e:
+            print(f"Error in loadMoreImageResults: {e}")
+            self.showNoMoreImagesMessage()
+
+    def showNoMoreImagesMessage(self):
+        """
+        Show message when no more images are available
+        """
+        self.eval("var btn = document.querySelector('.imageLoader'); if(btn) { btn.textContent = 'No more images'; btn.disabled = true; }")
 
     def addImgsToExportWindow(self, word, urls):
         self.initCardExporterIfNeeded()
@@ -630,7 +720,7 @@ class MIDict(AnkiWebView):
         return tags
 
     def sendImgToField(self, urls):
-        print("sendImgToField midict.py")
+        # print("sendImgToField midict.py")
         
         if (self.reviewer and self.reviewer.card) or (self.currentEditor and self.currentEditor.note):
             urlsList = []
@@ -915,7 +1005,6 @@ class ClipThread(QObject):
             
         super(ClipThread, self).__init__(mw)
         self.addonPath = path
-        self.mw = mw
         # Set up root addon temp directory path (same as MIDict)
         self.addon_root = dirname(dirname(dirname(dirname(__file__))))
         self.temp_dir = join(self.addon_root, 'temp')
@@ -1313,6 +1402,8 @@ class DictInterface(QWidget):
         if sizePos:
             self.resize(sizePos[2], sizePos[3])
             self.move(sizePos[0], sizePos[1])
+        #     self.resize(800, 600)
+        #     self.move(100, 100)
 
     def refineToValidSearchTerms(self, terms):
         if terms:
@@ -1481,13 +1572,13 @@ class DictInterface(QWidget):
                     escaped_welcome = json.dumps(self.welcome)
                     html = html.replace(
                         '<script id="initialValue"></script>',
-                        f'<script id="initialValue">addNewTab({escaped_welcome}); document.getElementsByClassName(\'tablinks\')[0].classList.add(\'active\');</script>'
+                        f'<script id="initialValue">if (typeof addNewTab === "function") {{ addNewTab({escaped_welcome}, "Welcome", true); }} if(document.getElementsByClassName(\'tablinks\')[0]) {{ document.getElementsByClassName(\'tablinks\')[0].classList.add(\'active\'); }}</script>'
                     )
                 # If welcome is empty, just remove the script tag to avoid showing welcome screen
                 else:
                     html = html.replace(
                         '<script id="initialValue"></script>',
-                        '<script id="initialValue">/* Welcome screen disabled */</script>'
+                        '<script id="initialValue">console.log("Welcome screen disabled - no welcome content");</script>'
                     )
             url = QUrl.fromLocalFile(html_path)
         return html, url
@@ -2126,96 +2217,80 @@ QScrollBar:vertical {
         subcontrol-origin: margin;
     }'''
 
-    def getMacTableStyle(self):
-        return '''
-        QAbstractItemView{color:black;}
-
-        QHeaderView {
-            color: black;
-            background: silver;
-            }
-        QHeaderView::section
-        {
-            color:black;
-            background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 white, stop: 1 silver);
-            border: 1px solid black;
-        }
-
-        '''
-
-    def getComboStyle(self):
-        return '''
-QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
-QComboBox:hover {border: 1px solid white;}
-QComboBox:editable {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-}
-
-QComboBox:!editable, QComboBox::drop-down:editable {
-     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-
-}
-
-QComboBox:!editable:on, QComboBox::drop-down:editable:on {
-    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-}
-
-QComboBox:on { 
-    padding-top: 3px;
-    padding-left: 4px;
-}
-
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: top right;
-    width: 15px;
-    border-top-right-radius: 3px; 
-    border-bottom-right-radius: 3px;
-}
-
-QCombobox:selected{
-    background: gray;
-}
-
-QComboBox::down-arrow {
-    image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') + ''');
-}
-
-QComboBox::down-arrow:on { 
-    top: 1px;
-    left: 1px;
-}
-
-QComboBox QAbstractItemView{background: #272828; border: 0px;color:white; selection-background-color: gray;}
-
-QAbstractItemView:selected {
-background:gray;}
-
-QScrollBar:vertical {              
-        border: 1px solid white;
-        background:white;
-        width:17px;    
-        margin: 0px 0px 0px 0px;
-    }
-    QScrollBar::handle:vertical {
-        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-    }
-    QScrollBar::add-line:vertical {
-        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-        height: 0px;
-        subcontrol-position: bottom;
-        subcontrol-origin: margin;
-    }
-    QScrollBar::sub-line:vertical {
-        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-     
-        height: 0 px;
-        subcontrol-position: top;
-        subcontrol-origin: margin;
-    }'''
+    # def getMacNightComboStyle(self):
+    #     return  '''
+    # QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
+    # QComboBox:hover {border: 1px solid white;}
+    # QComboBox:editable {
+    #     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+    # }
+    #
+    # QComboBox:!editable, QComboBox::drop-down:editable {
+    #      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+    # }
+    # QComboBox:!editable:on, QComboBox::drop-down:editable:on {
+    #     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+    # }
+    # QComboBox:on {
+    #     padding-top: 3px;
+    #     padding-left: 4px;
+    # }
+    #
+    # QComboBox::drop-down {
+    #     subcontrol-origin: padding;
+    #     subcontrol-position: top right;
+    #     width: 15px;
+    #     border-top-right-radius: 3px;
+    #     border-bottom-right-radius: 3px;
+    # }
+    #
+    # QCombobox:selected{
+    #     background: gray;
+    # }
+    #
+    # QComboBox QAbstractItemView
+    #     {
+    #     min-width: 130px;
+    #     }
+    #
+    # QComboBox::down-arrow {
+    #     image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') +  ''');
+    # }
+    #
+    # QComboBox::down-arrow:on {
+    #     top: 1px;
+    #     left: 1px;
+    # }
+    #
+    # QComboBox QAbstractItemView{background: #272828; border: 0px;color:white; selection-background-color: gray;}
+    #
+    # QAbstractItemView:selected {
+    # background:gray;}
+    #
+    # QScrollBar:vertical {
+    #         border: 1px solid white;
+    #         background:white;
+    #         width:17px;
+    #         margin: 0px 0px 0px 0px;
+    #     }
+    #     QScrollBar::handle:vertical {
+    #         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+    #
+    #     }
+    #     QScrollBar::add-line:vertical {
+    #         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+    #
+    #         height: 0px;
+    #         subcontrol-position: bottom;
+    #         subcontrol-origin: margin;
+    #     }
+    #     QScrollBar::sub-line:vertical {
+    #         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
+    #
+    #         height: 0 px;
+    #         subcontrol-position: top;
+    #         subcontrol-origin: margin;
+    #     }'''
 
     def getTableStyle(self):
         return '''
