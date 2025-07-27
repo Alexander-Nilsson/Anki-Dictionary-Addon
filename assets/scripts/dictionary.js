@@ -15,7 +15,16 @@ var tabs = [];
  * Load image and Forvo HTML content
  */
 function loadImageForvoHtml(html, idName) {
-    document.getElementById(idName).innerHTML = html;
+    try {
+        const element = document.getElementById(idName);
+        if (element) {
+            element.innerHTML = html;
+        } else {
+            console.warn('Element not found:', idName);
+        }
+    } catch (error) {
+        console.error('Error in loadImageForvoHtml:', error);
+    }
 }
 
 /**
@@ -346,126 +355,90 @@ function stopResize() {
 }
 
 /**
- * Add custom font
+ * Add custom font for languages that need special fonts
  */
-function addCustomFont(font, name) {
-    var cf = document.getElementById('customFonts');
-    cf.innerHTML += ' @font-face { font-family: ' + name + '; src: url(user_files/fonts/' + font + ');}\n '
-}
-
-/**
- * Scale font size
- */
-function scaleFont(plus) {
-    var fs = document.getElementById('fontSpecs');
-    if (plus) {
-        fefs += 2;
-        dbfs += 2;
-    } else {
-        fefs -= 2;
-        dbfs -= 2;
-    }
-    fs.innerHTML = '.foundEntriesList{font-size:' + fefs + 'px;}.termPronunciation,.definitionBlock{font-size:' + dbfs + 'px;  white-space: pre-line;}.ankiExportButton img{height:' + dbfs + 'px; width:' + dbfs + 'px;}'
-    pycmd('saveFS:' + fefs + ':' + dbfs);
-}
-
-/**
- * Show checkboxes dropdown
- */
-function showCheckboxes(event) {
-    var el = event.target;
-    if (expanded !== el) {
-        hideCheckBoxes();
-        showCheckBoxes(el);
-    } else {
-        hideCheckBoxes();
-    }
-    event.stopPropagation();
-}
-
-/**
- * Show specific checkbox
- */
-function showCheckBoxes(el) {
-    var checkboxes = el.nextSibling;
-    el.classList.add('currentCheckbox')
-    checkboxes.classList.add('displayedCheckBoxes');
-    expanded = el;
-}
-
-/**
- * Hide checkboxes
- */
-function hideCheckBoxes() {
-    var boxes = document.getElementsByClassName("displayedCheckBoxes");
-    if (boxes) {
-        for (var i = 0; i < boxes.length; i++) {
-            boxes[i].classList.remove('displayedCheckBoxes');
-        }
-    }
-    if (current) {
-        var current = document.getElementsByClassName("currentCheckbox");
-        for (var i = 0; i < current.length; i++) {
-            current[i].classList.remove('currentCheckbox');
-        }
-    }
-    expanded = false;
-}
-
-/**
- * Toggle image selection
- */
-function toggleImageSelect(img) {
-    if (img.classList.contains('selectedImage')) {
-        img.classList.remove('selectedImage');
-    } else {
-        img.classList.add('selectedImage');
+function addCustomFont(fontFile, fontName) {
+    try {
+        // console.log('Adding custom font:', fontName, 'from', fontFile);
+        
+        // Create a new style element for the font
+        const style = document.createElement('style');
+        style.textContent = `
+            @font-face {
+                font-family: '${fontName}';
+                src: url('${fontFile}');
+            }
+        `;
+        document.head.appendChild(style);
+        
+    } catch (error) {
+        console.error('Error adding custom font:', error);
     }
 }
 
 /**
- * Load more images
+ * Load new images into the interface from a new search
  */
-function loadMoreImages(button, ...rest) {
-    var urls = rest;
+function loadNewImages(htmlContent, button) {
+    console.log('loadNewImages called with:', typeof htmlContent, htmlContent ? htmlContent.length : 0);
+    
     var defBox = button.parentElement;
-    var imageCount = defBox.getElementsByClassName('googleImage').length;
-    if (imageCount > urls.length) return;
-    var toLoad = urls.slice(imageCount, imageCount + 3);
-    loadNewImages(toLoad, defBox, button);
-}
-
-/**
- * Load new images into the interface
- */
-function loadNewImages(toLoad, defBox, button) {
-    console.log('URLs to load:', toLoad);
-    var cont = document.createElement('div')
-    cont.classList.add('googleCont')
-    var html = '<div class="googleCont">'
-    for (var i = 0; i < toLoad.length; i++) {
-        img = toLoad[i]
-        console.log('Processing URL:', img);
-
-        html += `
-        <div class="imgBox">
-            <div onclick="toggleImageSelect(this)" 
-                 data-url="${img}" 
-                 class="googleHighlight"></div>
-            <img class="googleImage" 
-                 src="${img}" 
-                 src="${img}"
-                 onerror="console.error('Failed to load:', this.src)"
-                 onload="console.log('Loaded:', this.src)">
-        </div>`;
+    
+    if (htmlContent && htmlContent.trim() !== '') {
+        // Create a temporary div to parse the HTML
+        var tempDiv = document.createElement('div');
+        try {
+            tempDiv.innerHTML = htmlContent;
+        } catch(e) {
+            console.error('Error parsing HTML:', e);
+            button.textContent = 'Error loading images';
+            button.disabled = true;
+            return;
+        }
+        
+        // Get all new image boxes
+        var newImages = tempDiv.querySelectorAll('.imgBox');
+        
+        if (newImages.length > 0) {
+            // Find the existing image container
+            var existingContainer = defBox.querySelector('.googleCont.horizontal-layout');
+            
+            if (existingContainer) {
+                // Append new images to existing container
+                newImages.forEach(function(imgBox) {
+                    existingContainer.appendChild(imgBox.cloneNode(true));
+                });
+            } else {
+                // Create new container if none exists
+                var newContainer = document.createElement('div');
+                newContainer.className = 'googleCont horizontal-layout';
+                newImages.forEach(function(imgBox) {
+                    newContainer.appendChild(imgBox.cloneNode(true));
+                });
+                defBox.insertBefore(newContainer, button);
+            }
+            
+            // Re-enable the button
+            button.disabled = false;
+            button.textContent = 'Load More';
+            
+            // Scroll to show new images
+            setTimeout(function () {
+                var w = button.closest('#defBox');
+                if (w) {
+                    w.scrollTop = button.offsetTop - 500;
+                }
+            }, 300);
+        } else {
+            // No more images found
+            button.textContent = 'No more images';
+            button.disabled = true;
+        }
+    } else {
+        // No more images found
+        button.textContent = 'No more images';
+        button.disabled = true;
     }
-    html += '</div>';
-    cont.innerHTML = html;
-    defBox.insertBefore(cont, button);
-    setTimeout(function () {
-        var w = button.closest('#defBox');
-        w.scrollTop = button.offsetTop - 500;
-    }, 650)
 }
 
 /**
@@ -480,113 +453,11 @@ function handleBodyClick(ev) {
 }
 
 /**
- * Handle duplicate header changes
- */
-function handleDupChange(cb, className) {
-    var check;
-    var dictName = cb.parentElement.parentElement.parentElement.getElementsByClassName('dictionaryTitle')[0].textContent.replace(/ /g, '_');
-    var checkbs = document.getElementsByClassName(className);
-    if (cb.checked) {
-        check = '1';
-        for (var i = 0; i < checkbs.length; i++) {
-            checkbs[i].checked = true
-        }
-    } else {
-        check = '0';
-        for (var i = 0; i < checkbs.length; i++) {
-            checkbs[i].checked = false
-        }
-    }
-    pycmd('setDup:' + check + '◳' + dictName);
-}
-
-/**
  * Body click event listener
  */
 document.body.addEventListener("click", function (ev) {
     handleBodyClick(ev);
 }, false);
-
-/**
- * Handle field checkbox changes
- */
-function handleFieldCheck(el) {
-    var dictName = el.parentElement.parentElement.dataset.dictname;
-    if (dictName != 'Google Images') {
-        dictName = dictName.replace(/ /g, '_');
-    }
-    var conts = document.querySelectorAll('.fieldCheckboxes[data-dictname="' + dictName + '"')
-    var fields = {};
-    fields.dictName = dictName;
-    fields.fields = [];
-    for (var i = 0; i < conts.length; i++) {
-        var checks = conts[i].getElementsByTagName('INPUT');
-        var selCount = 0;
-        for (var x = 0; x < checks.length; x++) {
-            if (el.value === checks[x].value) {
-                checks[x].checked = el.checked
-            }
-            if (checks[x].checked === true) {
-                selCount++;
-                if (fields.fields.indexOf(checks[x].value) == -1) {
-                    fields.fields.push(checks[x].value);
-                }
-            }
-        }
-        var header = '&nbsp;' + selCount + " Selected";
-        if (selCount === 0) {
-            header = '&nbsp;Select Fields ▾';
-        }
-        conts[i].parentElement.firstChild.innerHTML = header;
-    }
-    pycmd('fieldsSetting:' + JSON.stringify(fields));
-}
-
-/**
- * Handle add type checkbox changes
- */
-function handleAddTypeCheck(el) {
-    var radios = document.getElementsByClassName(el.classList[1]);
-    var dictName = el.parentElement.parentElement.dataset.dictname;
-    var addType = { 'name': dictName, 'type': el.value };
-    for (var i = 0; i < radios.length; i++) {
-        if (radios[i].value === el.value) {
-            radios[i].checked = true;
-            var cont = radios[i].closest('.overwriteSelectCont');
-            var title = cont.getElementsByClassName('overwriteSelect')[0]
-            title.innerHTML = '&nbsp;' + el.parentElement.textContent;
-        }
-    }
-    hideCheckBoxes();
-    pycmd('overwriteSetting:' + JSON.stringify(addType));
-}
-
-/**
- * Open/close sidebar
- */
-function openSidebar() {
-    if (sidebarOpened === false) {
-        var sidebars = document.getElementsByClassName('definitionSideBar');
-        for (var i = 0; i < sidebars.length; i++) {
-            sidebars[i].classList.add('sidebarOpenedSideBar')
-        }
-        var mains = document.getElementsByClassName('mainDictDisplay');
-        for (var i = 0; i < mains.length; i++) {
-            mains[i].classList.add('sidebarOpenedDisplay')
-        }
-        sidebarOpened = true;
-    } else {
-        var sidebars = document.getElementsByClassName('definitionSideBar');
-        for (var i = 0; i < sidebars.length; i++) {
-            sidebars[i].classList.remove('sidebarOpenedSideBar')
-        }
-        var mains = document.getElementsByClassName('mainDictDisplay');
-        for (var i = 0; i < mains.length; i++) {
-            mains[i].classList.remove('sidebarOpenedDisplay')
-        }
-        sidebarOpened = false;
-    }
-}
 
 /**
  * Navigate to dictionary or entry
@@ -749,14 +620,34 @@ function focusAnotherTab(index) {
  * Resize interface elements
  */
 function resizer() {
-    var height = document.getElementById('tabs').offsetHeight;
-    var wHeight = window.innerHeight;
-    var defB = document.getElementById('defBox');
-    defB.style.top = height + 'px';
-    defB.style.height = wHeight - height + 'px';
-    var sidebars = document.getElementsByClassName('definitionSideBar');
-    for (var i = 0; i < sidebars.length; i++) {
-        sidebars[i].style.height = wHeight - 14 - height + 'px';
+    try {
+        const tabsElement = document.getElementById('tabs');
+        const defBox = document.getElementById('defBox');
+        
+        if (!tabsElement || !defBox) {
+            // If elements don't exist, skip resizing
+            return;
+        }
+        
+        // Check if the element has valid dimensions before accessing offsetHeight
+        let height = 0;
+        if (tabsElement.offsetHeight !== undefined && tabsElement.offsetHeight !== null) {
+            height = tabsElement.offsetHeight;
+        }
+        
+        const wHeight = window.innerHeight || 600; // Fallback height
+        
+        defBox.style.top = height + 'px';
+        defBox.style.height = Math.max(wHeight - height, 100) + 'px'; // Ensure minimum height
+        
+        const sidebars = document.getElementsByClassName('definitionSideBar');
+        for (let i = 0; i < sidebars.length; i++) {
+            if (sidebars[i] && sidebars[i].style) {
+                sidebars[i].style.height = Math.max(wHeight - 14 - height, 100) + 'px';
+            }
+        }
+    } catch (error) {
+        console.error('Error in resizer:', error);
     }
 }
 
@@ -864,121 +755,114 @@ function loadMoreForvos(button) {
 }
 
 /**
- * Load Forvo dictionary content
+ * Load more images for a search term
+ * Called when the Load More button is clicked
  */
-function loadForvoDict(content, id = false) {
-    if (id) {
-        content = document.getElementById(id);
-    }
-    var forvos = content.getElementsByClassName('forvo');
-
-    if (forvos.length > 0) {
-        var forvo = forvos[0];
-        var urls = JSON.parse(forvo.dataset.urls)
-        var html = '<div class="forvo-flex">'
-        var max = 3;
-        if (urls.length < max) max = urls.length;
-        for (var i = 0; i < max; i++) {
-            html += '<div class="forvo-play-box" ><input type="checkbox"><audio class="forvo-play" controls controlsList="nodownload"><source src="' + urls[i][3] + '" type="audio/mpeg"><source src="' + urls[i][2] + '" type="audio/mpeg"></audio></input><div class="forvo-name-origin"><div class="forvo-name"><b>' + urls[i][0] + '</b></div> <div class="forvo-origin">' + urls[i][1] + '</div></div></div>';
+function loadMoreImages(button, term) {
+    try {
+        // console.log('loadMoreImages called with term:', term);
+        
+        // Disable the button during loading
+        button.disabled = true;
+        button.textContent = 'Loading...';
+        
+        // Call Python backend to get more images
+        if (typeof pycmd !== 'undefined') {
+            pycmd('getMoreImages::' + term);
+        } else {
+            console.error('pycmd not available');
+            button.disabled = false;
+            button.textContent = 'Load More';
         }
-        var buttonHtml = ''
-        if (urls.length > 6) {
-            for (var i = 6; i < urls.length; i++) {
-                html += '<div class="forvo-play-box hidden-forvo" ><input type="checkbox"><audio class="forvo-play" controls controlsList="nodownload"><source src="' + urls[i][3] + '" type="audio/mpeg"><source src="' + urls[i][2] + '" type="audio/mpeg"></audio></input><div class="forvo-name-origin"><div class="forvo-name"><b>' + urls[i][0] + '</b></div> <div class="forvo-origin">' + urls[i][1] + '</div></div></div>';
+    } catch (error) {
+        console.error('Error in loadMoreImages:', error);
+        button.disabled = false;
+        button.textContent = 'Load More';
+    }
+}
+
+/**
+ * Add new images to the existing image container
+ * Called from Python after more images are loaded
+ */
+function appendNewImages(html) {
+    try {
+        // console.log('appendNewImages called');
+        
+        // Find the image container
+        const container = document.querySelector('.googleCont.horizontal-layout');
+        if (!container) {
+            console.error('Image container not found');
+            return false;
+        }
+        
+        // Store the current scroll position
+        const scrollContainer = container.closest('#defBox') || container.parentElement;
+        const currentScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+        
+        // Create a temporary div to parse the new HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        // Find new images in the temporary div
+        const newImages = tempDiv.querySelectorAll('.imgBox');
+        
+        // Append new images to the existing container
+        newImages.forEach(img => {
+            container.appendChild(img);
+        });
+        
+        // Re-enable the Load More button if it exists in the new HTML
+        const newButton = tempDiv.querySelector('.imageLoader');
+        if (newButton) {
+            // Replace the old button with the new one
+            const oldButton = document.querySelector('.imageLoader');
+            if (oldButton) {
+                oldButton.parentNode.replaceChild(newButton.cloneNode(true), oldButton);
             }
-            buttonHtml = '<button class="forvoLoader" onclick="loadMoreForvos(this)">Load More</button>'
+        } else {
+            // If no new button found, re-enable existing button
+            const existingButton = document.querySelector('.imageLoader');
+            if (existingButton) {
+                existingButton.disabled = false;
+                existingButton.textContent = 'Load More';
+            }
         }
-        html += buttonHtml + '</div>'
-        forvo.innerHTML = html;
-    }
-}
-
-/**
- * Add new tab to the interface
- */
-function addNewTab(html, term = 'Welcome', singleTabMode = false, forvo = false) {
-    if (singleTabMode) {
-        var newTab = fetchCurrentTab(term);
-        if (newTab) {
-            var content = fetchCurrentTabContent(html);
-            addSidebarListeners(content);
-            document.getElementById("defBox").scrollTop = 0;
+        
+        // Ensure the container maintains scrolling capability
+        if (scrollContainer) {
+            scrollContainer.style.overflowY = 'auto';
+            scrollContainer.style.overflowX = 'hidden';
         }
-    }
-    if (!newTab) {
-        attemptCloseFirstTab()
-        var newTab = fetchNewTab(term);
-        var content = fetchNewTabContent(html);
-        document.getElementById("defBox").appendChild(content);
-        tabBar = document.getElementById("tabs")
-        tabBar.appendChild(newTab);
-        tabBar.scrollLeft = 99999
-        removeFocus();
-        tabs.push([newTab, content, 0])
-        addSidebarListeners(content);
-        focusTab(newTab);
-    }
-
-    if (sidebarOpened) {
-        content.getElementsByClassName('definitionSideBar')[0].classList.add('sidebarOpenedSideBar')
-        content.getElementsByClassName('mainDictDisplay')[0].classList.add('sidebarOpenedDisplay')
-    }
-    resizer();
-    if (nightMode) {
-        applyIcon(nightMode)
-    }
-    loadForvoDict(content)
-}
-
-/**
- * Apply icons based on night mode
- */
-function applyIcon(night) {
-    var imgConts = document.getElementsByClassName('ankiExportButton');
-    if (night) {
-        for (var i = imgConts.length - 1; i >= 0; i--) {
-            imgConts[i].getElementsByTagName('img')[0].src = 'assets/icons/blackAnki.png'
+        
+        // Trigger a resize to ensure layout is correct
+        if (typeof resizer === 'function') {
+            resizer();
         }
-    } else {
-        for (var i = imgConts.length - 1; i >= 0; i--) {
-            imgConts[i].getElementsByTagName('img')[0].src = 'assets/icons/anki.png'
+        
+        // Ensure scrolling is still enabled on the container
+        const parentScrollContainer = container.closest('#defBox') || 
+                               container.closest('.mainDictDisplay') || 
+                               document.getElementById('defBox');
+        if (parentScrollContainer) {
+            parentScrollContainer.style.overflowY = 'auto';
+            parentScrollContainer.style.overflowX = 'hidden';
         }
+        
+        // console.log('Successfully appended', newImages.length, 'new images');
+        return true;
+    } catch (error) {
+        console.error('Error in appendNewImages:', error);
+        
+        // Re-enable the Load More button on error
+        const button = document.querySelector('.imageLoader');
+        if (button) {
+            button.disabled = false;
+            button.textContent = 'Load More';
+        }
+        return false;
     }
 }
-
-/**
- * Toggle night mode
- */
-function nightModeToggle(night) {
-    var cf = document.getElementById('nightModeCss');
-    if (night) {
-        nightMode = true
-        cf.innerHTML = 'body, .definitionSideBar, .defTools{color: white !important;background: black !important;} .termPronunciation{background: black !important;border-top:1px solid white !important;border-bottom:1px solid white !important;} .overwriteSelect, .fieldSelect, .overwriteCheckboxes, .fieldCheckboxes{background: black !important;} .fieldCheckboxes label:hover, .overwriteCheckboxes label:hover {background-color:   #282828 !important;} #tabs{background:black !important; color: white !important;} .tablinks:hover{background:gray !important;} .tablinks{color: white !important;} .active{background-image: linear-gradient(#272828, black); border-left: 1px solid white !important;border-right: 1px solid white !important;} .dictionaryTitleBlock{border-top: 2px solid white;border-bottom: 1px solid white;} .imageLoader, .forvoLoader{background-image: linear-gradient(#272828, black); color: white; border: 1px solid gray;}.definitionSideBar{border: 2px solid white;}';
-        applyIcon(nightMode);
-    } else {
-        nightMode = false
-        cf.innerHTML = '';
-        applyIcon(nightMode);
-    }
-}
-
-/**
- * Copy selected text
- */
-function copyText() {
-    var copied = window.getSelectionText()
-    if (copied) pycmd('clipped:' + copied.replace('&lt', '<').replace('&gt;', '>'));
-}
-
-/**
- * Keyboard event handling
- */
-document.documentElement.addEventListener('keydown', function (e) {
-    if (e.keyCode === 67 && e.ctrlKey) {
-        copyText();
-        e.preventDefault();
-    }
-}, false)
 
 /**
  * Wait for pycmd to load and signal ready
@@ -987,7 +871,7 @@ function awaitPycmdToLoad() {
     let awaitPycmd = setInterval(() => {
         if (pycmd) {
             clearInterval(awaitPycmd);
-            console.log("AnkiDictionaryLoaded");
+            // console.log("AnkiDictionaryLoaded");
             pycmd('AnkiDictionaryLoaded')
         }
     }, 5);
@@ -997,3 +881,319 @@ function awaitPycmdToLoad() {
  * Initialize when DOM is loaded
  */
 document.addEventListener('DOMContentLoaded', awaitPycmdToLoad, false);
+
+/**
+ * Add a new tab with search results
+ */
+function addNewTab(html, term, singleTab) {
+    try {
+        // console.log('addNewTab called with term:', term, 'singleTab:', singleTab);
+        
+        // Handle undefined parameters gracefully
+        if (typeof html === 'undefined' || html === null) {
+            console.warn('addNewTab called with undefined html, skipping');
+            return;
+        }
+        
+        if (typeof term === 'undefined' || term === null) {
+            console.warn('addNewTab called with undefined term');
+            term = '';
+        }
+        
+        if (typeof singleTab === 'undefined') {
+            singleTab = true; // Default to single tab mode
+        }
+        
+        // Find or create the main content container
+        let contentArea = document.querySelector('#defBox');
+        
+        if (!contentArea) {
+            // Create the main structure if it doesn't exist
+            contentArea = document.createElement('div');
+            contentArea.id = 'defBox';
+            contentArea.style.cssText = 'position: absolute; top: 50px; left: 0; overflow-x: hidden; overflow-y: auto; height: calc(100% - 50px); width: 100%; white-space: pre-line;';
+            document.body.appendChild(contentArea);
+        }
+        
+        // Clear previous content and add new content
+        contentArea.innerHTML = html;
+        
+        // Ensure scrolling is enabled on the content area
+        contentArea.style.overflowY = 'auto';
+        contentArea.style.overflowX = 'hidden';
+        
+        // Initialize any interactive elements
+        initializeInteractiveElements();
+        
+        // Call resizer to ensure proper layout - with a small delay to ensure DOM is ready
+        if (typeof resizer === 'function') {
+            setTimeout(() => {
+                try {
+                    resizer();
+                } catch (error) {
+                    console.warn('Resizer error (non-critical):', error);
+                }
+            }, 100);
+        }
+        
+    } catch (error) {
+        console.error('Error in addNewTab:', error);
+    }
+}
+
+/**
+ * Initialize interactive elements after content is loaded
+ */
+function initializeInteractiveElements() {
+    // Initialize image selection
+    initializeImageSelection();
+    
+    // Initialize any other interactive elements as needed
+    // This can be expanded based on what functionality is needed
+}
+
+/**
+ * Initialize image selection functionality
+ */
+function initializeImageSelection() {
+    const imageBoxes = document.querySelectorAll('.imgBox');
+    imageBoxes.forEach(box => {
+        const highlight = box.querySelector('.googleHighlight');
+        if (highlight) {
+            // Re-attach click handlers if needed
+            highlight.onclick = function() {
+                toggleImageSelect(this);
+            };
+        }
+    });
+}
+
+/**
+ * Toggle image selection
+ */
+function toggleImageSelect(element) {
+    try {
+        const imgBox = element.closest('.imgBox');
+        if (!imgBox) return;
+        
+        if (imgBox.classList.contains('selected')) {
+            imgBox.classList.remove('selected');
+            element.style.background = 'rgba(0,0,0,0.3)';
+        } else {
+            imgBox.classList.add('selected');
+            element.style.background = 'rgba(66, 165, 245, 0.7)';
+        }
+    } catch (error) {
+        console.error('Error in toggleImageSelect:', error);
+    }
+}
+
+/**
+ * Handle checkbox changes for field selection
+ */
+function handleFieldCheck(checkbox) {
+    try {
+        const container = checkbox.closest('.fieldCheckboxes');
+        if (!container) return;
+        
+        const dictName = container.getAttribute('data-dictname');
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        const selectedFields = [];
+        
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedFields.push(cb.value);
+            }
+        });
+        
+        // Send the selection back to Python
+        if (typeof pycmd !== 'undefined') {
+            const data = {
+                dictName: dictName,
+                fields: selectedFields
+            };
+            pycmd('fieldsSetting:' + JSON.stringify(data));
+        }
+        
+    } catch (error) {
+        console.error('Error in handleFieldCheck:', error);
+    }
+}
+
+/**
+ * Handle add type checkbox changes
+ */
+function handleAddTypeCheck(radio) {
+    try {
+        const dictName = radio.className.match(/radio([^\s]+)/)?.[1];
+        if (!dictName) return;
+        
+        const value = radio.value;
+        
+        // Send the selection back to Python
+        if (typeof pycmd !== 'undefined') {
+            const data = {
+                name: dictName,
+                type: value
+            };
+            pycmd('overwriteSetting:' + JSON.stringify(data));
+        }
+        
+    } catch (error) {
+        console.error('Error in handleAddTypeCheck:', error);
+    }
+}
+
+/**
+ * Show/hide checkboxes for field/type selection
+ */
+function showCheckboxes(event) {
+    try {
+        const target = event.target;
+        const container = target.parentElement;
+        const checkboxContainer = container.querySelector('.fieldCheckboxes, .overwriteCheckboxes');
+        
+        if (checkboxContainer) {
+            if (checkboxContainer.style.display === 'none' || !checkboxContainer.style.display) {
+                checkboxContainer.style.display = 'block';
+            } else {
+                checkboxContainer.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error in showCheckboxes:', error);
+    }
+}
+
+/**
+ * Handle duplicate header change
+ */
+function handleDupChange(checkbox, className) {
+    try {
+        const container = checkbox.closest('.dupHeadCB');
+        const dictName = container?.getAttribute('data-dictname');
+        
+        if (dictName && typeof pycmd !== 'undefined') {
+            const value = checkbox.checked ? 1 : 0;
+            pycmd('setDup:' + value + '◳' + dictName);
+        }
+    } catch (error) {
+        console.error('Error in handleDupChange:', error);
+    }
+}
+
+/**
+ * Scale font size
+ */
+function scaleFont(increase) {
+    try {
+        const currentSize = parseInt(getComputedStyle(document.body).fontSize) || 14;
+        const newSize = increase ? currentSize + 1 : Math.max(currentSize - 1, 8);
+        
+        document.body.style.fontSize = newSize + 'px';
+        
+        // Save the font size
+        if (typeof pycmd !== 'undefined') {
+            pycmd('saveFS:' + newSize + ':' + newSize);
+        }
+        
+    } catch (error) {
+        console.error('Error in scaleFont:', error);
+    }
+}
+
+/**
+ * Open/close sidebar
+ */
+function openSidebar() {
+    try {
+        const sidebar = document.querySelector('.definitionSideBar');
+        if (sidebar) {
+            if (sidebar.style.display === 'none') {
+                sidebar.style.display = 'block';
+            } else {
+                sidebar.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error in openSidebar:', error);
+    }
+}
+
+/**
+ * Load Forvo audio dictionary functionality
+ */
+function loadForvoDict(autoplay, idName) {
+    try {
+        console.log('Loading Forvo dictionary:', idName, 'autoplay:', autoplay);
+        
+        const container = document.getElementById(idName);
+        if (!container) {
+            console.warn('Forvo container not found:', idName);
+            return;
+        }
+        
+        // Initialize Forvo audio elements
+        const forvoElements = container.querySelectorAll('.forvo');
+        forvoElements.forEach(element => {
+            const urls = element.getAttribute('data-urls');
+            if (urls) {
+                try {
+                    const audioUrls = JSON.parse(urls);
+                    createForvoAudioPlayer(element, audioUrls, autoplay);
+                } catch (e) {
+                    console.error('Error parsing Forvo URLs:', e);
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error in loadForvoDict:', error);
+    }
+}
+
+/**
+ * Create Forvo audio player interface
+ */
+function createForvoAudioPlayer(container, audioUrls, autoplay) {
+    try {
+        container.innerHTML = '';
+        
+        audioUrls.forEach((url, index) => {
+            const audioContainer = document.createElement('div');
+            audioContainer.className = 'forvo-audio-item';
+            audioContainer.style.cssText = 'margin: 5px 0; padding: 5px; border: 1px solid #ccc; border-radius: 3px;';
+            
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.controls = true;
+            audio.style.cssText = 'width: 100%; max-width: 200px;';
+            
+            if (autoplay && index === 0) {
+                audio.autoplay = true;
+            }
+            
+            const playButton = document.createElement('button');
+            playButton.textContent = '▶';
+            playButton.style.cssText = 'margin-right: 10px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer;';
+            playButton.onclick = () => {
+                if (audio.paused) {
+                    audio.play();
+                } else {
+                    audio.pause();
+                }
+            };
+            
+            audioContainer.appendChild(playButton);
+            audioContainer.appendChild(audio);
+            container.appendChild(audioContainer);
+        });
+        
+    } catch (error) {
+        console.error('Error creating Forvo audio player:', error);
+    }
+}
+
+/**
+ * Wait for pycmd to load and signal ready
+ */
