@@ -1404,10 +1404,24 @@ class DictInterface(QWidget):
             # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
             if not willSearch:
-                html = html.replace(
-                    '<script id="initialValue"></script>',
-                    f'<script id="initialValue">addNewTab(\'{self.welcome}\'); document.getElementsByClassName(\'tablinks\')[0].classList.add(\'active\');</script>'
-                )
+                # Only add welcome screen if it's not empty
+                if self.welcome and self.welcome.strip():
+                    # Debug: Print welcome screen processing
+                    print(f"Processing welcome screen: willSearch={willSearch}, welcome length={len(self.welcome)}")
+                    # Properly escape the HTML content for JavaScript
+                    import json
+                    escaped_welcome = json.dumps(self.welcome)
+                    html = html.replace(
+                        '<script id="initialValue"></script>',
+                        f'<script id="initialValue">addNewTab({escaped_welcome}); document.getElementsByClassName(\'tablinks\')[0].classList.add(\'active\');</script>'
+                    )
+                # If welcome is empty, just remove the script tag to avoid showing welcome screen
+                else:
+                    print(f"Welcome screen empty or None: willSearch={willSearch}, welcome={self.welcome}")
+                    html = html.replace(
+                        '<script id="initialValue"></script>',
+                        '<script id="initialValue">/* Welcome screen disabled */</script>'
+                    )
             url = QUrl.fromLocalFile(html_path)
         return html, url
 
