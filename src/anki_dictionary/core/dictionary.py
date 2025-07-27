@@ -1063,7 +1063,7 @@ class DictInterface(QWidget):
         self.setAutoFillBackground(True)
         self.mw = mw
         self.parent = parent
-        self.iconpath = join(path, 'icons')
+        self.iconpath = join(path, 'assets', 'icons')
 
         self.active_theme_file = join(self.addonPath, "user_files/themes", "active.json")
         self.theme_manager = ThemeManager(self.addonPath)
@@ -1416,7 +1416,7 @@ class DictInterface(QWidget):
         return allGroups
 
     def getInsertHTMLJS(self):
-        insertHTML = join(self.addonPath, "js", "insertHTML.js")
+        insertHTML = join(self.addonPath, "assets", "scripts", "insertHTML.js")
         with open(insertHTML, "r", encoding="utf-8") as insertHTMLFile:
             return insertHTMLFile.read()
 

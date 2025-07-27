@@ -5,8 +5,8 @@ import io
 import os
 import aqt
 
-from .dict_wizard import *
-from . import webConfig
+from ..ui.dialogs.wizard import MiWizard, MiWizardPage
+from . import config as webConfig
 
 
 addon_path = os.path.dirname(__file__)

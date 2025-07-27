@@ -16,7 +16,7 @@ from os.path import dirname, join, exists
 from aqt import mw
 
 from aqt.qt import Qt
-from .miutils import miInfo, miAsk
+from ...utils.common import miInfo, miAsk
 from shutil import copyfile
 from operator import itemgetter
 import ntpath

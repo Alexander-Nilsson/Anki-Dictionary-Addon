@@ -4,7 +4,7 @@ import requests
 from anki.utils import is_mac, is_win, is_lin
 from anki.hooks import addHook
 from os.path import join, exists, dirname
-from .miutils import miInfo
+from .common import miInfo
 from aqt.qt import *
 from aqt import mw
 import zipfile
