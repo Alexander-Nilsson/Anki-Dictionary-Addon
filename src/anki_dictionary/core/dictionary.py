@@ -16,26 +16,26 @@ from shutil import copyfile
 import os, shutil
 from os.path import join, exists, dirname
 
-from .history import HistoryBrowser, HistoryModel
+from ..utils.history import HistoryBrowser, HistoryModel
 from aqt.editor import Editor
-from .cardExporter import CardExporter
+from ..exporters.card_exporter import CardExporter
 import time
-from . import dictdb
+from . import database as dictdb
 import aqt
-from .miJapaneseHandler import miJHandler
+from ..integrations.japanese import miJHandler
 from urllib.request import Request, urlopen
 import requests
 import urllib.request
-from . import duckduckgoimages
-from .addonSettings import SettingsGui
+from ..integrations import image_search as duckduckgoimages
+from ..ui.settings.settings_gui import SettingsGui
 import datetime
 import codecs
-from .forvodl import Forvo
+from ..integrations.forvo import Forvo
 import ntpath
-from .miutils import miInfo
+from ..utils.common import miInfo
 from PyQt6.QtSvgWidgets import QSvgWidget
-from .themeEditor import *
-from .themes import *
+from ..ui.dialogs.theme_editor import *
+from ..ui.themes import *
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 class MIDict(AnkiWebView):

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            background-color: var(--background);
+            color: var(--text);
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+            overflow-y: hidden;
+            -webkit-touch-callout: text;
+            -webkit-user-select: text;
+            -khtml-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        .dictionaryTitle {
+            font-size: 18px; /* Increase font size */
+            font-weight: bold; /* Optional: Make it bold for emphasis */
+        }
+
+        .example-highlight, .overwriteSelect, .fieldSelect, .overwriteCheckboxes, .fieldCheckboxes {
+            border-radius: 3px;
+        }
+        .tablinks {
+            height: 30px; /* Adjust this value as needed */
+            line-height: 30px; /* Ensure text is vertically centered */
+            padding: 0 10px; /* Add padding for better spacing */
+            font-size: 14px; /* Consistent font size */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #defBox {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            height: calc(100% - 50px);
+            width: 100%;
+            white-space: pre-line; /* Ensure line breaks are respected */
+        }
+
+        .definitionSideBar {
+            display: none;
+            height: calc(100% - 50px);
+            position: fixed;
+            border: 2px solid var(--border);
+            background-color: var(--background);
+            z-index: 10;
+            padding: 5px 0 10px 0;
+        }
+
+        .innerSideBar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .resizeBar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 5px;
+            cursor: w-resize;
+            z-index: 100;
+        }
+
+        .listTitle {
+            font-weight: bold;
+            padding-left: 10px;
+        }
+
+        .listTitle:hover, li:hover {
+            cursor: pointer;
+            background-color: var(--button-bg-hover);
+        }
+
+        .foundEntriesList {
+            margin: 0;
+        }
+
+        .hiddenOl {
+            display: none;
+        }
+
+        .fieldSelectCont {
+            width: 120px;
+            background-color: var(--background-secondary);
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .overwriteSelectCont {
+            width: 100px;
+            background-color: var(--background-secondary);
+            display: inline-block;
+            margin-right: 5px;
+            margin-left: 5px;
+        }
+
+        .dictionarySettings {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .dupHeadCB {
+            display: flex;
+            align-items: center;
+            margin-left: 10px;
+            max-width: 90px;
+        }
+
+        .fieldSelect, .overwriteSelect {
+            font-weight: bold;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            height: 20px;
+        }
+
+        .inCheckBox {
+            cursor: pointer;
+        }
+
+        .fieldCheckboxes, .overwriteCheckboxes {
+            display: none;
+            position: absolute;
+            border: 1px solid var(--border);
+            z-index: 10;
+            background-color: var(--background-secondary);
+        }
+
+        .fieldCheckboxes label, .overwriteCheckboxes label {
+            display: block;
+        }
+
+        .fieldCheckboxes label:hover, .overwriteCheckboxes label:hover {
+            background-color: var(--button-bg-hover);
+        }
+
+        .displayedCheckBoxes {
+            display: block !important;
+        }
+
+        .defTools, .dictNav, ol {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .dictNav {
+            margin-right: 5px;
+            display: inline-block;
+            font-size: 20px;
+        }
+
+        .prevDict {
+            position: relative;
+            top: 3px;
+            cursor: pointer;
+        }
+
+        .nextDict {
+            position: relative;
+            bottom: 3px;
+            cursor: pointer;
+        }
+
+        .clipper:hover, .sendToField:hover, .prevDef:hover, .nextDef:hover, .nextDict:hover, .prevDict:hover {
+            color: var(--text-secondary);
+        }
+
+        .termPronunciation {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            overflow-x: none;
+            overflow-y: none;
+        }
+
+        .tpCont {
+            max-width: 80%;
+        }
+
+        .defTools, .defNav, .clipper, .sendToField, .ankiExportButton {
+            display: inline-block;
+            vertical-align: middle;
+            cursor: pointer;
+            margin: 0 3px;
+        }
+
+        .defTools {
+            background-color: var(--background-secondary);
+            height: 100%;
+        }
+
+        .defNav {
+            position: relative;
+            bottom: 2px;
+        }
+
+        .prevDef, .nextDef {
+            font-size: 14px;
+        }
+
+        .prevDef {
+            position: relative;
+            margin: 0;
+            top: 5px;
+            cursor: pointer;
+        }
+
+        .nextDef {
+            margin: 0;
+            cursor: pointer;
+            padding-top: 1px;
+        }
+
+        .ankiExportButton {
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .clipper {
+            position: relative;
+            bottom: 1px;
+        }
+
+        .sendToField {
+            position: relative;
+            bottom: 1px;
+        }
+
+        .ankiExportButton img {
+            width: 25px;
+            height: 25px;
+            display: block;
+            border-radius: 3px;
+        }
+
+        .overwriteSelect, .fieldSelect, .dupHeadCB, .dictionaryTitle {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .googleCont {
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+        }
+
+        .imgBox {
+            margin: 5px;
+            display: inline-block;
+            position: relative;
+            border: 1px solid black;
+            width: 160px;
+        }
+
+        .googleImage {
+            width: 160px;
+            display: block;
+            height: auto;
+        }
+
+        .googleHighlight {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            z-index: 100;
+        }
+
+        .googleHighlight:hover {
+            background-color: rgba(49, 90, 255, .5);
+        }
+
+        .selectedImage {
+            background-color: rgba(49, 90, 255, .5);
+        }
+
+        .imageLoader {
+            height: 40px;
+            width: 99%;
+            margin-left: .5%;
+            border-radius: 3px;
+        }
+    </style>
+    <style id="fontSpecs">
+        .foundEntriesList{font-size: 12px;}.termPronunciation,.definitionBlock{font-size: 20px; white-space: pre-line;
+}
+    </style>
+    <style id="widthSpecs">
+        .sidebarOpenedDisplay { margin-left: 150px !important; }
+        .sidebarOpenedSideBar { width: 150px; }
+    </style>
+    <style id="userSelect"></style>
+    <style id="customThemeCss"></style>
+</head>
+<body>
+<div id="dictBox">
+    <div id="tabContainer">
+        <div id="tabs"></div>
+        <div>
+            <div id="defBox"></div>
+        </div>
+    </div>
+</div>
+<script src="../scripts/dictionary.js"></script>
+<script id="initialValue"></script>
+</body>
+</html>
