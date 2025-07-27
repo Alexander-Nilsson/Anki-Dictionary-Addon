@@ -15,6 +15,13 @@ import re
 from shutil import copyfile
 import os, shutil
 from os.path import join, exists, dirname
+import ssl
+import subprocess
+try:
+    from PIL import Image
+except ImportError:
+    # Fallback for systems where PIL is not available
+    Image = None
 
 from ..utils.history import HistoryBrowser, HistoryModel
 from aqt.editor import Editor
@@ -842,13 +849,20 @@ class HoverButton(QPushButton):
 
 
 def imageResizer(img):
+    if Image is None:
+        # Return original image if PIL is not available
+        return img
     width, height = img.size
     maxh = 300
     maxw = 300
     ratio = min(maxw / width, maxh / height)
     height = int(round(ratio * height))
     width = int(round(ratio * width))
-    return img.resize((width, height), Image.ANTIALIAS)
+    try:
+        return img.resize((width, height), Image.ANTIALIAS)
+    except AttributeError:
+        # Handle newer PIL versions where ANTIALIAS is deprecated
+        return img.resize((width, height), Image.Resampling.LANCZOS)
 
 
 class ClipThread(QObject):
@@ -867,19 +881,35 @@ class ClipThread(QObject):
     pageRefreshDuringBulkMediaImport = pyqtSignal()
 
     def __init__(self, mw, path):
-        if is_mac:
-            import ssl
-            ssl._create_default_https_context = ssl._create_unverified_context
-            sys.path.insert(0, join(dirname(__file__), 'keyboardMac'))
-            from Quartz import CGEventGetIntegerValueField, kCGKeyboardEventKeycode
-            self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
-            self.CGEventGetIntegerValueField = CGEventGetIntegerValueField
-        elif is_lin:
-            sys.path.insert(0, join(dirname(__file__), 'linux'))
-        sys.path.insert(0, join(dirname(__file__)))
-        from pynput import keyboard
+        try:
+            if is_mac:
+                import ssl
+                ssl._create_default_https_context = ssl._create_unverified_context
+                sys.path.insert(0, join(dirname(__file__), 'keyboardMac'))
+                try:
+                    from Quartz import CGEventGetIntegerValueField, kCGKeyboardEventKeycode
+                    self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
+                    self.CGEventGetIntegerValueField = CGEventGetIntegerValueField
+                except ImportError:
+                    print("Warning: Quartz not available on this system")
+                    self.kCGKeyboardEventKeycode = None
+                    self.CGEventGetIntegerValueField = None
+            elif is_lin:
+                sys.path.insert(0, join(dirname(__file__), 'linux'))
+            sys.path.insert(0, join(dirname(__file__)))
+            
+            try:
+                from pynput import keyboard
+                self.keyboard = keyboard
+            except ImportError:
+                print("Warning: pynput not available - global hotkeys will not work")
+                self.keyboard = None
+                
+        except Exception as e:
+            print(f"Warning: Error initializing ClipThread: {e}")
+            self.keyboard = None
+            
         super(ClipThread, self).__init__(mw)
-        self.keyboard = keyboard
         self.addonPath = path
         self.mw = mw
         # Import here to avoid circular imports
@@ -894,6 +924,8 @@ class ClipThread(QObject):
         return True
 
     def darwinIntercept(self, event_type, event):
+        if not self.CGEventGetIntegerValueField or not self.kCGKeyboardEventKeycode:
+            return event
         keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode)
         if (
                 'Key.cmd' in self.mw.currentlyPressed or 'Key.cmd_r' in self.mw.currentlyPressed) and "'c'" in self.mw.currentlyPressed and keycode == 1:
@@ -903,16 +935,23 @@ class ClipThread(QObject):
         return event
 
     def run(self):
-        if is_win:
-            self.listener = self.keyboard.Listener(
-                on_press=self.on_press, on_release=self.on_release, dict=self.mw, suppress=True)
-        elif is_mac:
-            self.listener = self.keyboard.Listener(
-                on_press=self.on_press, on_release=self.on_release, dict=self.mw, darwin_intercept=self.darwinIntercept)
-        else:
-            self.listener = self.keyboard.Listener(
-                on_press=self.on_press, on_release=self.on_release)
-        self.listener.start()
+        if not self.keyboard:
+            print("Keyboard monitoring not available - skipping hotkey setup")
+            return
+            
+        try:
+            if is_win:
+                self.listener = self.keyboard.Listener(
+                    on_press=self.on_press, on_release=self.on_release, dict=self.mw, suppress=True)
+            elif is_mac:
+                self.listener = self.keyboard.Listener(
+                    on_press=self.on_press, on_release=self.on_release, dict=self.mw, darwin_intercept=self.darwinIntercept)
+            else:
+                self.listener = self.keyboard.Listener(
+                    on_press=self.on_press, on_release=self.on_release)
+            self.listener.start()
+        except Exception as e:
+            print(f"Warning: Could not start keyboard listener: {e}")
 
     def attemptAddCard(self):
         self.add.emit('add')
@@ -1406,8 +1445,6 @@ class DictInterface(QWidget):
             if not willSearch:
                 # Only add welcome screen if it's not empty
                 if self.welcome and self.welcome.strip():
-                    # Debug: Print welcome screen processing
-                    print(f"Processing welcome screen: willSearch={willSearch}, welcome length={len(self.welcome)}")
                     # Properly escape the HTML content for JavaScript
                     import json
                     escaped_welcome = json.dumps(self.welcome)
@@ -1417,7 +1454,6 @@ class DictInterface(QWidget):
                     )
                 # If welcome is empty, just remove the script tag to avoid showing welcome screen
                 else:
-                    print(f"Welcome screen empty or None: willSearch={willSearch}, welcome={self.welcome}")
                     html = html.replace(
                         '<script id="initialValue"></script>',
                         '<script id="initialValue">/* Welcome screen disabled */</script>'

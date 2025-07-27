@@ -128,7 +128,6 @@ def getWelcomeScreen():
     try:
         with open(htmlPath, 'r', encoding="utf-8") as fh:
             file = fh.read()
-        print(f"Loaded welcome screen from: {htmlPath}")
         return file
     except Exception as e:
         print(f"Error loading welcome screen from {htmlPath}: {e}")
@@ -140,7 +139,6 @@ def getMacWelcomeScreen():
     try:
         with open(htmlPath, 'r', encoding="utf-8") as fh:
             file = fh.read()
-        print(f"Loaded Mac welcome screen from: {htmlPath}")
         return file
     except Exception as e:
         print(f"Error loading Mac welcome screen from {htmlPath}: {e}")
@@ -173,9 +171,6 @@ def dictionaryInit(terms=False):
         welcomeScreen = getMacWelcomeScreen()
     else:
         welcomeScreen = getWelcomeScreen()
-    
-    # Debug: Print welcome screen info
-    print(f"Welcome screen loaded: {len(welcomeScreen)} characters")
     
     if not mw.ankiDictionary:
         mw.ankiDictionary = DictInterface(mw.miDictDB, mw, addon_path, welcomeScreen, terms=terms)
