@@ -67,7 +67,7 @@ class SettingsGui(QTabWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
-        self.setWindowIcon(QIcon(join(self.addonPath, 'assets', 'icons', 'miso.png')))
+        self.setWindowIcon(QIcon(join(self.addonPath, 'assets', 'icons', 'dictionary.png')))
         self.addDictGroup = QPushButton('Add Dictionary Group')
         self.addExportTemplate = QPushButton('Add Export Template')
         self.dictGroups = self.getGroupTemplateTable()
