@@ -9,4 +9,7 @@ dependencies = [
     "aqt>=25.7.4",
     "pyqt6>=6.9.1",
     "pyqt6-webengine>=6.9.0",
+    "pillow>=10.0.0",
+    "requests>=2.31.0",
+    "aiohttp>=3.8.0",
 ]

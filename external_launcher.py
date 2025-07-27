@@ -34,8 +34,12 @@ def main():
         # Step 3: Create minimal mw
         print("✅ Setting up minimal main window...")
         
-        class MinimalAnkiMainWindow:
-            def __init__(self):
+        from aqt.qt import QWidget
+        
+        class MinimalAnkiMainWindow(QWidget):
+            def __init__(self, app_instance):
+                super().__init__()
+                self.app = app_instance
                 # Load config first
                 config_path = Path('config.json')
                 if config_path.exists():
@@ -161,6 +165,23 @@ def main():
                         pass
                 
                 self.openMiDict = MinimalMenuItem()
+                
+                # Initialize dictSettings as False (as in main.py)
+                self.dictSettings = False
+                
+                # Add refreshAnkiDictConfig method
+                def refreshAnkiDictConfig():
+                    """Refresh the addon configuration - used by addon settings"""
+                    try:
+                        config_path = Path('config.json')
+                        if config_path.exists():
+                            with open(config_path, 'r') as f:
+                                self.AnkiDictConfig = json.load(f)
+                        print("✅ Configuration refreshed")
+                    except Exception as e:
+                        print(f"⚠️  Could not refresh config: {e}")
+                
+                self.refreshAnkiDictConfig = refreshAnkiDictConfig
             
             def checkpoint(self, name): pass
             def reset(self): pass
@@ -171,10 +192,7 @@ def main():
                 print("Dictionary hotkey activated")
         
         # Set global mw
-        aqt.mw = MinimalAnkiMainWindow()
-        
-        # Important: Set mw.app to the QApplication instance  
-        aqt.mw.app = app
+        aqt.mw = MinimalAnkiMainWindow(app)
         
         # Step 4: Mock addHook function
         print("✅ Mocking addon hooks...")
@@ -300,9 +318,13 @@ def main():
             ('themeEditor', 'themeEditor.py'),  # Theme editor
             ('addDictGroup', 'addDictGroup.py'), # Dictionary group editor
             ('addTemplate', 'addTemplate.py'),  # Template editor
+            ('webConfig', 'webConfig.py'),      # Web configuration
+            ('migaku_wizard', 'migaku_wizard.py'), # Base wizard classes (MiWizard, MiWizardPage)
+            ('dictionaryWebInstallWizard', 'dictionaryWebInstallWizard.py'), # Dictionary web installer
+            ('freqConjWebWindow', 'freqConjWebWindow.py'), # Frequency/conjugation window
             ('dictionaryManager', 'dictionaryManager.py'), # Dictionary manager
             ('ffmpegInstaller', 'ffmpegInstaller.py'), # FFMPEG installer
-            ('duckduckgoimages', 'duckduckgoimages.py'),  # Image search
+            ('duckduckgoimages', 'duckduckgoimages.py'),  # Image search (requires PIL)
             ('forvodl', 'forvodl.py'),          # Audio downloads
             ('miJapaneseHandler', 'miJapaneseHandler.py'),  # Japanese handling
             ('history', 'history.py'),          # History system, depends on miutils
@@ -315,6 +337,23 @@ def main():
         for module_name, module_file in module_order:
             if Path(module_file).exists():
                 try:
+                    # Special handling for duckduckgoimages - ensure PIL is available
+                    if module_name == 'duckduckgoimages':
+                        try:
+                            import PIL
+                            print(f"   ✅ PIL available for {module_name}")
+                        except ImportError:
+                            print(f"   ⚠️  PIL not available for {module_name}, attempting to install...")
+                            try:
+                                import subprocess
+                                subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pillow'])
+                                print(f"   ✅ PIL installed successfully")
+                                import PIL  # Try importing again
+                            except Exception as install_error:
+                                print(f"   ❌ Could not install PIL: {install_error}")
+                                print(f"   Skipping {module_name} for now")
+                                continue
+                    
                     loaded_modules[module_name] = load_module_with_deps(module_name, module_file)
                 except Exception as e:
                     print(f"     Failed to load {module_name}: {e}")
@@ -340,6 +379,10 @@ def main():
             ('dictionaryManager', 'midict', 'DictionaryManagerWidget'),
             ('ffmpegInstaller', 'midict', 'FFMPEGInstaller'),
             ('duckduckgoimages', 'midict', 'DuckDuckGo'),
+            ('migaku_wizard', 'dictionaryWebInstallWizard', 'MiWizard'),
+            ('migaku_wizard', 'dictionaryWebInstallWizard', 'MiWizardPage'),
+            ('dictionaryWebInstallWizard', 'dictionaryManager', 'DictionaryWebInstallWizard'),
+            ('freqConjWebWindow', 'dictionaryManager', 'FreqConjWebWindow'),
         ]
         
         for source_mod, target_mod, class_name in cross_injections:
@@ -351,45 +394,61 @@ def main():
                     print(f"   ✅ {class_name} injected from {source_mod} to {target_mod}")
                 else:
                     print(f"   ⚠️  {class_name} not found in {source_mod}")
-                    # Special handling for DuckDuckGo - try to reload the module and find the class
+                    # Special handling for DuckDuckGo - try to manually load the class
                     if class_name == 'DuckDuckGo' and source_mod == 'duckduckgoimages':
-                        print(f"   🔧 Attempting to reload {source_mod} and find {class_name}")
+                        print(f"   🔧 Attempting manual class loading for {class_name}")
                         try:
-                            # Try to reload the module more carefully
+                            # Try to re-import the module and access the class directly
                             import importlib
-                            importlib.reload(source)
+                            duckduck_module = importlib.import_module('duckduckgoimages')
                             
-                            # Check again if the class exists now
-                            if hasattr(source, class_name):
-                                real_class = getattr(source, class_name)
+                            # Check if the class exists in the module
+                            if hasattr(duckduck_module, 'DuckDuckGo'):
+                                real_class = getattr(duckduck_module, 'DuckDuckGo')
                                 setattr(target, class_name, real_class)
-                                print(f"   ✅ Real {class_name} found and injected after reload")
+                                loaded_modules[source_mod] = duckduck_module
+                                print(f"   ✅ {class_name} manually loaded and injected")
                             else:
-                                # Try to manually execute the class definition
-                                print(f"   🔧 Manually loading {class_name} from source file")
-                                with open('duckduckgoimages.py', 'r') as f:
-                                    source_code = f.read()
+                                print(f"   ❌ {class_name} still not found after manual import")
+                                # Try loading from the loaded module in our namespace
+                                source = loaded_modules[source_mod]
                                 
-                                # Extract just the DuckDuckGo class definition
-                                import re
-                                class_pattern = r'class DuckDuckGo.*?(?=\nclass|\nif __name__|\Z)'
-                                match = re.search(class_pattern, source_code, re.DOTALL)
+                                # Force re-execute the module content to ensure class definitions are loaded
+                                module_file_path = Path('duckduckgoimages.py')
+                                with open(module_file_path, 'r') as f:
+                                    module_code = f.read()
                                 
-                                if match:
-                                    class_code = match.group(0)
-                                    # Execute the class definition in the module's namespace
-                                    exec(class_code, source.__dict__)
-                                    
-                                    if hasattr(source, class_name):
-                                        real_class = getattr(source, class_name)
-                                        setattr(target, class_name, real_class)
-                                        print(f"   ✅ Real {class_name} manually loaded and injected")
-                                    else:
-                                        print(f"   ❌ Could not manually load {class_name}")
+                                # Execute the module code in the loaded module's namespace
+                                exec(module_code, source.__dict__)
+                                
+                                if hasattr(source, class_name):
+                                    real_class = getattr(source, class_name)
+                                    setattr(target, class_name, real_class)
+                                    print(f"   ✅ {class_name} force-loaded and injected")
                                 else:
-                                    print(f"   ❌ Could not find {class_name} class definition in source")
-                        except Exception as reload_error:
-                            print(f"   ❌ Failed to reload and find {class_name}: {reload_error}")
+                                    print(f"   ❌ {class_name} could not be force-loaded")
+                                    # Create a minimal placeholder class to prevent crashes
+                                    class PlaceholderDuckDuckGo:
+                                        def __init__(self):
+                                            print("Warning: Using placeholder DuckDuckGo class")
+                                        def setTermIdName(self, term, idName): pass
+                                        def setSearchRegion(self, lang_code): pass
+                                        def search(self, term, maximum=15): return []
+                                    
+                                    setattr(target, class_name, PlaceholderDuckDuckGo)
+                                    print(f"   ⚠️  Using placeholder {class_name} class to prevent crashes")
+                        except Exception as manual_error:
+                            print(f"   ❌ Manual loading failed for {class_name}: {manual_error}")
+                            # Create a minimal placeholder class to prevent crashes
+                            class PlaceholderDuckDuckGo:
+                                def __init__(self):
+                                    print("Warning: Using placeholder DuckDuckGo class")
+                                def setTermIdName(self, term, idName): pass
+                                def setSearchRegion(self, lang_code): pass
+                                def search(self, term, maximum=15): return []
+                            
+                            setattr(target, class_name, PlaceholderDuckDuckGo)
+                            print(f"   ⚠️  Using placeholder {class_name} class to prevent crashes")
             else:
                 print(f"   ⚠️  Could not inject {class_name}: {source_mod} or {target_mod} not loaded")
         
@@ -453,6 +512,10 @@ def main():
                 str(Path.cwd()), 
                 None
             )
+            
+            # Set the ankiDictionary reference on mw
+            aqt.mw.ankiDictionary = dict_interface
+            
             print("✅ DictInterface created successfully")
         except Exception as e:
             print(f"❌ Error creating DictInterface: {e}")
