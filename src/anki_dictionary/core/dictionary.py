@@ -17,6 +17,7 @@ import os, shutil
 from os.path import join, exists, dirname
 import ssl
 import subprocess
+from typing import List, Dict, Optional, Tuple, Any, Union
 try:
     from PIL import Image
 except ImportError:
@@ -440,10 +441,10 @@ class MIDict(AnkiWebView):
     def showNoImagesMessage(self):
         tooltip("No images found")
 
-    def getCleanedUrls(self, urls):
+    def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace('\\', '\\\\') for x in urls]
 
-    def getDuplicateHeaderCB(self, dictName):
+    def getDuplicateHeaderCB(self, dictName: str) -> str:
         tooltip = ''
         if self.config['tooltips']:
             tooltip = ' title="Enable this option if this dictionary has the target word\'s header within the definition. Enabling this will prevent the addon from exporting duplicate header."'
@@ -455,7 +456,7 @@ class MIDict(AnkiWebView):
                 checked = ' checked '
         return '<div class="dupHeadCB" data-dictname="' + dictName + '">Duplicate Header:<input ' + checked + tooltip + ' class="' + className + '" onclick="handleDupChange(this, \'' + className + '\')" type="checkbox"></div>'
 
-    def maybeSearchTerms(self, terms):
+    def maybeSearchTerms(self, terms: str) -> None:
         if self.terms:
             for t in self.terms:
                 self.dictInt.initSearch(t)
@@ -522,7 +523,7 @@ class MIDict(AnkiWebView):
             search_term = dAct[15:]
             self.loadMoreImages(search_term)
 
-    def loadMoreImages(self, search_term):
+    def loadMoreImages(self, search_term: str) -> None:
         """
         Load more images for a search term by performing a new search
         """
@@ -547,7 +548,7 @@ class MIDict(AnkiWebView):
         imager.signals.noResults.connect(self.showNoMoreImagesMessage)
         self.threadpool.start(imager)
 
-    def loadMoreImageResults(self, results):
+    def loadMoreImageResults(self, results: Tuple[str, str]) -> None:
         """
         Handle results from load more images request
         """
@@ -569,17 +570,17 @@ class MIDict(AnkiWebView):
             print(f"Error in loadMoreImageResults: {e}")
             self.showNoMoreImagesMessage()
 
-    def showNoMoreImagesMessage(self):
+    def showNoMoreImagesMessage(self) -> None:
         """
         Show message when no more images are available
         """
         self.eval("var btn = document.querySelector('.imageLoader'); if(btn) { btn.textContent = 'No more images'; btn.disabled = true; }")
 
-    def addImgsToExportWindow(self, word, urls):
+    def addImgsToExportWindow(self, word: str, urls: List[str]) -> None:
         self.initCardExporterIfNeeded()
         imgSeparator = ''
-        imgs = []
-        rawPaths = []
+        imgs: List[str] = []
+        rawPaths: List[str] = []
         for imgurl in urls:
             try:
                 url = re.sub(r'\?.*$', '', imgurl)
@@ -595,7 +596,7 @@ class MIDict(AnkiWebView):
         if len(imgs) > 0:
             self.addWindow.addImgs(word, imgSeparator.join(imgs), self.getThumbs(rawPaths))
 
-    def saveQImage(self, url, filename):
+    def saveQImage(self, url: str, filename: str) -> None:
         req = Request(url, headers={
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'})
         file = urlopen(req).read()
@@ -605,7 +606,7 @@ class MIDict(AnkiWebView):
                              Qt.TransformationMode.SmoothTransformation)
         image.save(filename)
 
-    def getThumbs(self, paths):
+    def getThumbs(self, paths: List[str]) -> QWidget:
         thumbCase = QWidget()
         thumbCase.setContentsMargins(0, 0, 0, 0)
         vLayout = QVBoxLayout()
@@ -628,57 +629,57 @@ class MIDict(AnkiWebView):
         thumbCase.setLayout(vLayout)
         return thumbCase
 
-    def addDefToExportWindow(self, dictName, word, text):
+    def addDefToExportWindow(self, dictName: str, word: str, text: str) -> None:
         self.initCardExporterIfNeeded()
         self.addWindow.addDefinition(dictName, word, text)
 
-    def exportImage(self, pathAndName):
+    def exportImage(self, pathAndName: Tuple[str, str]) -> None:
         self.dictInt.ensureVisible()
         path, name = pathAndName
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
         self.addWindow.exportImage(path, name)
 
-    def initCardExporterIfNeeded(self):
+    def initCardExporterIfNeeded(self) -> None:
         if not self.addWindow:
             self.addWindow = CardExporter(self.dictInt, self)
 
-    def bulkTextExport(self, cards):
+    def bulkTextExport(self, cards: List[Any]) -> None:
         self.initCardExporterIfNeeded()
         self.addWindow.bulkTextExport(cards)
 
-    def bulkMediaExport(self, card):
+    def bulkMediaExport(self, card: Any) -> None:
         self.initCardExporterIfNeeded()
         self.addWindow.bulkMediaExport(card)
 
-    def cancelBulkMediaExport(self):
+    def cancelBulkMediaExport(self) -> None:
         if self.addWindow:
             self.addWindow.bulkMediaExportCancelledByBrowserRefresh()
 
-    def exportAudio(self, audioList):
+    def exportAudio(self, audioList: Tuple[str, str, str]) -> None:
         self.dictInt.ensureVisible()
         temp, tag, name = audioList
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
         self.addWindow.exportAudio(temp, tag, name)
 
-    def exportSentence(self, sentence, secondary=""):
+    def exportSentence(self, sentence: str, secondary: str = "") -> None:
         self.dictInt.ensureVisible()
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
         self.addWindow.exportSentence(sentence)
         self.addWindow.exportSecondary(secondary)
 
-    def exportWord(self, word):
+    def exportWord(self, word: str) -> None:
         self.dictInt.ensureVisible()
         self.initCardExporterIfNeeded()
         self.addWindow.scrollArea.show()
         self.addWindow.exportWord(word)
 
-    def attemptAutoAdd(self, bulkExport):
+    def attemptAutoAdd(self, bulkExport: Any) -> None:
         self.addWindow.attemptAutoAdd(bulkExport)
 
-    def getFieldContent(self, fContent, definition, addType):
+    def getFieldContent(self, fContent: str, definition: str, addType: str) -> Union[str, bool]:
         fieldText = False
         if addType == 'overwrite':
             fieldText = definition
@@ -693,20 +694,20 @@ class MIDict(AnkiWebView):
                 fieldText = definition
         return fieldText
 
-    def addAudioToExportWindow(self, word, urls):
+    def addAudioToExportWindow(self, word: str, urls: str) -> None:
         self.initCardExporterIfNeeded()
         audioSeparator = ''
         soundFiles = self.downloadForvoAudio(json.loads(urls))
         if len(soundFiles) > 0:
             self.addWindow.addDefinition('Forvo', word, audioSeparator.join(soundFiles))
 
-    def sendAudioToField(self, urls):
+    def sendAudioToField(self, urls: str) -> None:
         audioSeparator = ''
         soundFiles = self.downloadForvoAudio(json.loads(urls))
         self.sendToField('Forvo', audioSeparator.join(soundFiles))
 
-    def downloadForvoAudio(self, urls):
-        tags = []
+    def downloadForvoAudio(self, urls: List[str]) -> List[str]:
+        tags: List[str] = []
         for url in urls:
             try:
                 req = Request(url, headers={
@@ -719,15 +720,15 @@ class MIDict(AnkiWebView):
                 continue
         return tags
 
-    def sendImgToField(self, urls):
+    def sendImgToField(self, urls: str) -> None:
         # print("sendImgToField midict.py")
         
         if (self.reviewer and self.reviewer.card) or (self.currentEditor and self.currentEditor.note):
-            urlsList = []
+            urlsList: List[str] = []
             imgSeparator = ''
-            urls = json.loads(urls)
+            urls_list = json.loads(urls)
             
-            for imgurl in urls:
+            for imgurl in urls_list:
                 try:
                     # Check if it's a local file path
                     if os.path.exists(imgurl):
@@ -762,7 +763,7 @@ class MIDict(AnkiWebView):
             tooltip("No active reviewer or editor found. Please open a card to send images to a field.")
     
 
-    def sendToField(self, name, definition): 
+    def sendToField(self, name: str, definition: str) -> None: 
         if self.reviewer and self.reviewer.card:
             if name == 'Google Images':
                 tFields = self.config['GoogleImageFields']
@@ -824,7 +825,7 @@ class MIDict(AnkiWebView):
                         )
                     )
 
-    def getOverwriteChecks(self, dictCount, dictName):
+    def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
         if dictName == 'Google Images':
             addType = self.config['GoogleImageAddType']
         elif dictName == 'Forvo':
@@ -845,7 +846,7 @@ class MIDict(AnkiWebView):
                 self.getSelectedOverwriteType(dictName, addType) + '</div>')
         return select
 
-    def getSelectedOverwriteType(self, dictName, addType):
+    def getSelectedOverwriteType(self, dictName: str, addType: str) -> str:
         count = str(self.radioCount)
         checked = ''
         if addType == 'add':
@@ -1691,19 +1692,27 @@ class DictInterface(QWidget):
         self.writeConfig('dictSizePos', posSize)
 
     def getUserGroups(self):
-        groups = self.config['DictionaryGroups']
+        groups = self.config.get('DictionaryGroups', {})
         userGroups = {}
         for name, group in groups.items():
-            dicts = group['dictionaries']
+            dicts = group.get('dictionaries', [])
             userGroups[name] = {}
             userGroups[name]['dictionaries'] = self.db.getUserGroups(dicts)
-            userGroups[name]['customFont'] = group['customFont']
-            userGroups[name]['font'] = group['font']
+            userGroups[name]['customFont'] = group.get('customFont', False)
+            userGroups[name]['font'] = group.get('font', False)
         return userGroups
 
     def getConfig(self):
         from anki_dictionary.utils.config import get_addon_config
-        return get_addon_config()
+        config = get_addon_config()
+        # Ensure required keys exist with defaults
+        if 'DictionaryGroups' not in config:
+            config['DictionaryGroups'] = {}
+        if 'currentGroup' not in config:
+            config['currentGroup'] = 'All'
+        if 'searchMode' not in config:
+            config['searchMode'] = 'Forward'
+        return config
 
     def setupView(self):
         layoutV = QVBoxLayout()
@@ -1855,55 +1864,6 @@ class DictInterface(QWidget):
             self.dict.deinflect = False
             self.writeConfig('deinflect', False)
 
-    # def refresh_application_theme(self):
-    #     self.setPalette(self.ogPalette)
-    #     if not is_win:
-    #         self.setStyleSheet(self.getMacOtherStyles())
-    #         self.dictGroups.setStyleSheet(self.getMacComboStyle())
-    #         self.sType.setStyleSheet(self.getMacComboStyle())
-    #         self.setAllIcons()
-    #
-    #     else:
-    #         self.setStyleSheet("")
-    #         self.dictGroups.setStyleSheet('')
-    #         self.sType.setStyleSheet('')
-    #         self.setAllIcons()
-    #     if self.historyBrowser:
-    #         self.historyBrowser.setColors()
-    #     if self.dict.addWindow:
-    #         self.dict.addWindow.setColors()
-    #
-    #
-    # def refresh_application_theme(self):
-    #     if not is_win:
-    #         self.setStyleSheet(self.getMacNightStyles())
-    #         self.dictGroups.setStyleSheet(self.getMacNightComboStyle())
-    #         self.sType.setStyleSheet(self.getMacNightComboStyle())
-    #     else:
-    #         self.setStyleSheet(self.getOtherStyles())
-    #         self.dictGroups.setStyleSheet(self.getComboStyle())
-    #         self.sType.setStyleSheet(self.getComboStyle())
-    #     self.setPalette(self.nightPalette)
-    #     self.setAllIcons()
-    #     if self.dict.addWindow:
-    #         self.dict.addWindow.setColors()
-    #     if self.historyBrowser:
-    #         self.historyBrowser.setColors()
-
-    # def toggleNightMode(self):
-    #     if not self.nightModeToggler.day:
-    #         self.nightModeToggler.day = True
-    #         self.writeConfig('day', True)
-    #         self.dict.eval('nightModeToggle(false)')
-    #         self.setSvg(self.nightModeToggler, 'theme')
-    #         self.refresh_application_theme()
-    #     else:
-    #         self.nightModeToggler.day = False
-    #         self.dict.eval('nightModeToggle(true)')
-    #         self.setSvg(self.nightModeToggler, 'theme')
-    #         self.writeConfig('day', False)
-    #         self.refresh_application_theme()
-
     def setTheme(self):
         self.theme_editor.exec()
         self.refresh_application_theme()
@@ -1939,12 +1899,6 @@ class DictInterface(QWidget):
         if self.tabB.singleTab:
             return 'onetab'
         return 'tabs'
-
-    # def setupNightModeToggle(self):
-    #     nightToggle = SVGPushButton(40,40)
-    #     nightToggle.day = self.config['day']
-    #     nightToggle.clicked.connect(self.toggleNightMode)
-    #     return nightToggle
 
     def setupThemes(self):
         themeButton = SVGPushButton(40, 40)
@@ -2119,14 +2073,6 @@ class DictInterface(QWidget):
             QPushButton:hover{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 white, stop: 1 silver); border-right: 2px solid black; border-bottom: 2px solid black;}"
             '''
 
-    # def getMacNightStyles(self):
-    #     return '''
-    #         QLabel {color: white;}
-    #         QLineEdit {color: black;}
-    #         QPushButton {border: 1px solid gray; border-radius: 5px; color: white; background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);}
-    #         QPushButton:hover{background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black); border: 1px solid white;}"
-    #         '''
-
     def getOtherStyles(self):
         return '''
             QLabel {color: white;}
@@ -2217,81 +2163,6 @@ QScrollBar:vertical {
         subcontrol-origin: margin;
     }'''
 
-    # def getMacNightComboStyle(self):
-    #     return  '''
-    # QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
-    # QComboBox:hover {border: 1px solid white;}
-    # QComboBox:editable {
-    #     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-    # }
-    #
-    # QComboBox:!editable, QComboBox::drop-down:editable {
-    #      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-    # }
-    # QComboBox:!editable:on, QComboBox::drop-down:editable:on {
-    #     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-    # }
-    # QComboBox:on {
-    #     padding-top: 3px;
-    #     padding-left: 4px;
-    # }
-    #
-    # QComboBox::drop-down {
-    #     subcontrol-origin: padding;
-    #     subcontrol-position: top right;
-    #     width: 15px;
-    #     border-top-right-radius: 3px;
-    #     border-bottom-right-radius: 3px;
-    # }
-    #
-    # QCombobox:selected{
-    #     background: gray;
-    # }
-    #
-    # QComboBox QAbstractItemView
-    #     {
-    #     min-width: 130px;
-    #     }
-    #
-    # QComboBox::down-arrow {
-    #     image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') +  ''');
-    # }
-    #
-    # QComboBox::down-arrow:on {
-    #     top: 1px;
-    #     left: 1px;
-    # }
-    #
-    # QComboBox QAbstractItemView{background: #272828; border: 0px;color:white; selection-background-color: gray;}
-    #
-    # QAbstractItemView:selected {
-    # background:gray;}
-    #
-    # QScrollBar:vertical {
-    #         border: 1px solid white;
-    #         background:white;
-    #         width:17px;
-    #         margin: 0px 0px 0px 0px;
-    #     }
-    #     QScrollBar::handle:vertical {
-    #         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-    #
-    #     }
-    #     QScrollBar::add-line:vertical {
-    #         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-    #
-    #         height: 0px;
-    #         subcontrol-position: bottom;
-    #         subcontrol-origin: margin;
-    #     }
-    #     QScrollBar::sub-line:vertical {
-    #         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-    #
-    #         height: 0 px;
-    #         subcontrol-position: top;
-    #         subcontrol-origin: margin;
-    #     }'''
-
     def getTableStyle(self):
         return '''
         QAbstractItemView{color:white;}
@@ -2316,82 +2187,6 @@ QScrollBar:vertical {
      }
 
         '''
-
-
-#     def getMacNightComboStyle(self):
-#         return  '''
-# QComboBox {color: white; border-radius: 3px; border: 1px solid gray;}
-# QComboBox:hover {border: 1px solid white;}
-# QComboBox:editable {
-#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-# }
-#
-# QComboBox:!editable, QComboBox::drop-down:editable {
-#      background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-# }
-# QComboBox:!editable:on, QComboBox::drop-down:editable:on {
-#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-# }
-# QComboBox:on {
-#     padding-top: 3px;
-#     padding-left: 4px;
-# }
-#
-# QComboBox::drop-down {
-#     subcontrol-origin: padding;
-#     subcontrol-position: top right;
-#     width: 15px;
-#     border-top-right-radius: 3px;
-#     border-bottom-right-radius: 3px;
-# }
-#
-# QCombobox:selected{
-#     background: gray;
-# }
-#
-# QComboBox QAbstractItemView
-#     {
-#     min-width: 130px;
-#     }
-#
-# QComboBox::down-arrow {
-#     image: url(''' + join(self.iconpath, 'down.png').replace('\\', '/') +  ''');
-# }
-#
-# QComboBox::down-arrow:on {
-#     top: 1px;
-#     left: 1px;
-# }
-#
-# QComboBox QAbstractItemView{background: #272828; border: 0px;color:white; selection-background-color: gray;}
-#
-# QAbstractItemView:selected {
-# background:gray;}
-#
-# QScrollBar:vertical {
-#         border: 1px solid white;
-#         background:white;
-#         width:17px;
-#         margin: 0px 0px 0px 0px;
-#     }
-#     QScrollBar::handle:vertical {
-#         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-#
-#     }
-#     QScrollBar::add-line:vertical {
-#         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-#
-#         height: 0px;
-#         subcontrol-position: bottom;
-#         subcontrol-origin: margin;
-#     }
-#     QScrollBar::sub-line:vertical {
-#         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #272828, stop: 1 black);
-#
-#         height: 0 px;
-#         subcontrol-position: top;
-#         subcontrol-origin: margin;
-#     }'''
 
 class DictSVG(QSvgWidget):
     clicked = pyqtSignal()
