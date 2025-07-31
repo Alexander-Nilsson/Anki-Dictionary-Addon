@@ -9,17 +9,26 @@ import os
 import sys
 import shutil
 import zipfile
-import json
 from pathlib import Path
 
 def get_version():
-    """Get version from meta.json"""
+    """Get version from pyproject.toml"""
     try:
-        with open('meta.json', 'r') as f:
-            meta = json.load(f)
-            return meta.get('human_version', '2.0.0')
-    except:
-        return '2.0.0'
+        # Try tomllib first (Python 3.11+)
+        try:
+            import tomllib
+            with open('pyproject.toml', 'rb') as f:
+                config = tomllib.load(f)
+        except ImportError:
+            # Fallback to toml library
+            import toml
+            with open('pyproject.toml', 'r') as f:
+                config = toml.load(f)
+        
+        return config['project']['version']
+    except Exception as e:
+        print(f"Warning: Could not read version from pyproject.toml: {e}")
+        return '0.1.0'
 
 def build_addon():
     """Build the addon for Anki installation"""
@@ -38,7 +47,6 @@ def build_addon():
     essential_files = [
         '__init__.py',
         'manifest.json', 
-        'meta.json',
         'config.json',
         'src/',
         'assets/',
@@ -80,7 +88,7 @@ def create_ankiaddon_package():
     package_path = build_dir / package_name
     
     with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(addon_dir):
+        for root, _, files in os.walk(addon_dir):
             for file in files:
                 file_path = Path(root) / file
                 arc_path = file_path.relative_to(addon_dir)
@@ -90,45 +98,7 @@ def create_ankiaddon_package():
     print(f"✅ Package created: {package_path}")
     return package_path
 
-def build_standalone():
-    """Build standalone version"""
-    print("🔧 Building standalone version...")
-    
-    build_dir = Path('build')
-    standalone_dir = build_dir / 'standalone'
-    
-    if standalone_dir.exists():
-        shutil.rmtree(standalone_dir)
-    standalone_dir.mkdir(parents=True)
-    
-    # Copy standalone files
-    standalone_files = [
-        'src/',
-        'assets/',
-        'vendor/',
-        'user_files/',
-        'launch_dictionary.py',
-        'standalone/',
-        'config.json',
-        'pyproject.toml',
-        'README.md',
-        'docs/'
-    ]
-    
-    for item in standalone_files:
-        src = Path(item)
-        if src.exists():
-            if src.is_dir():
-                shutil.copytree(src, standalone_dir / src.name)
-                print(f"   ✓ Copied directory: {item}")
-            else:
-                shutil.copy2(src, standalone_dir / src.name)
-                print(f"   ✓ Copied file: {item}")
-        else:
-            print(f"   ⚠️  Skipped missing: {item}")
-    
-    print(f"✅ Standalone version built in: {standalone_dir}")
-    return standalone_dir
+
 
 def clean():
     """Clean build artifacts"""
@@ -153,8 +123,7 @@ def main():
         print("Commands:")
         print("  build    - Build addon for Anki")
         print("  package  - Create .ankiaddon package")
-        print("  standalone - Build standalone version")
-        print("  all      - Build addon, package, and standalone")
+        print("  all      - Build addon and package")
         print("  clean    - Clean build artifacts")
         return
     
@@ -167,14 +136,11 @@ def main():
     elif command == 'package':
         build_addon()
         create_ankiaddon_package()
-    elif command == 'standalone':
-        build_standalone()
     elif command == 'all':
         clean()
         build_addon()
         create_ankiaddon_package()
-        build_standalone()
-        print("\n🎉 All builds completed!")
+        print("\n🎉 Build completed!")
     else:
         print(f"❌ Unknown command: {command}")
 
