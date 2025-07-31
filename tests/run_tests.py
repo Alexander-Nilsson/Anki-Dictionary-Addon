@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test runner for Anki Dictionary Addon standalone functionality
+Test runner for Anki Dictionary Addon
 
 This script runs all tests and provides a comprehensive test report.
 """
@@ -105,9 +105,10 @@ def check_test_dependencies():
         src_path = Path(__file__).parent.parent / "src"
         if src_path.exists():
             sys.path.insert(0, str(src_path))
-        
+
         # Try to import basic addon modules
         import anki_dictionary
+
         print("✅ Main module can be imported")
     except ImportError as e:
         print(f"⚠️  Import warning (this is normal for addon modules): {e}")
