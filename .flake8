@@ -1,0 +1,25 @@
+[flake8]
+exclude = 
+    .venv,
+    .git,
+    __pycache__,
+    build,
+    vendor,
+    temp,
+    .pytest_cache,
+    *.egg-info
+
+max-line-length = 88
+max-complexity = 10
+
+# E501: line too long (handled by black)
+# W503: line break before binary operator (conflicts with W504)
+ignore = E501,W503
+
+# Focus on serious errors
+select = E9,F63,F7,F82
+
+# Show source code for violations
+show-source = True
+statistics = True
+count = True

@@ -1,0 +1,96 @@
+<style>
+    /* Reset Anki's default styles */
+    *{box-sizing:border-box !important}
+    html,body{margin:0 !important;padding:0 !important;overflow-x:hidden !important}
+    .welcome-screen{user-select:none !important;margin:0 !important;padding:5px !important;font-family:Arial,sans-serif}.keys-container{max-width:1400px;margin:0 auto !important;padding:2px !important}.shortcut-section{margin-bottom:6px !important}.shortcut-section.global-section{margin-top:clamp(15px,3vh,35px) !important}.shortcut-grid{display:grid !important;grid-template-columns:repeat(auto-fit,minmax(300px,1fr)) !important;gap:4px !important;margin-bottom:6px !important}@media(min-width:1200px){.shortcut-grid{grid-template-columns:repeat(3,1fr) !important}}.shortcut-item{display:flex !important;align-items:center !important;justify-content:space-between !important;margin:2px 0 !important;padding:6px 10px !important;background:#f8f9fa !important;border-radius:4px !important;border:1px solid #e9ecef !important}.shortcut-keys{display:flex !important;align-items:center !important;gap:3px !important}.key__button{box-sizing:border-box !important;line-height:28px !important;font-size:clamp(12px,1.4vw,15px) !important;text-align:center !important;min-width:30px !important;padding:0 6px !important;color:#495057 !important;margin:0 1px !important;height:28px !important;border:1px solid #ced4da !important;border-radius:4px !important;background:linear-gradient(135deg,#fff 0%,#f8f9fa 100%) !important;font-family:monospace !important;font-weight:500 !important;display:inline-block !important;box-shadow:0 1px 2px rgba(0,0,0,0.1) !important}.key__button:hover{background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%) !important}.separator{font-size:clamp(10px,1.2vw,13px) !important;color:#6c757d !important;margin:0 2px !important}.shortcut-description{font-size:clamp(12px,1.3vw,15px) !important;color:#495057 !important;margin:0 !important;flex:1 !important;text-align:right !important;padding-left:10px !important}.section-title{font-size:clamp(16px,1.8vw,20px) !important;font-weight:600 !important;color:#343a40 !important;margin:2px 0 4px 0 !important;text-align:center !important}
+</style>
+<div class="welcome-screen">
+    <h1 align="center" style="margin:0 0 2px 0 !important;font-size:clamp(22px,3vw,28px) !important;color:#343a40 !important">Anki Dictionary Addon</h1>
+</div>
+<div class="keys-container welcome-screen">
+    <div class="shortcut-section">
+        <h2 class="section-title">Anki Hotkeys</h2>
+        <div class="shortcut-grid">
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">W</div>
+                </div>
+                <p class="shortcut-description">Open/Close dictionary</p>
+            </div>
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">S</div>
+                </div>
+                <p class="shortcut-description">Search in Dictionary</p>
+            </div>
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">Shift</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">B</div>
+                </div>
+                <p class="shortcut-description">Search in cards</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="shortcut-section global-section">
+        <h2 class="section-title">Global Hotkeys</h2>
+        <div class="shortcut-grid">
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">C</div>
+                    <span class="separator">,</span>
+                    <div class="key__button">Space</div>
+                </div>
+                <p class="shortcut-description">Search in Dictionary</p>
+            </div>
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">C</div>
+                    <span class="separator">,</span>
+                    <div class="key__button">B</div>
+                </div>
+                <p class="shortcut-description">Search in cards</p>
+            </div>
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">C</div>
+                    <span class="separator">,</span>
+                    <div class="key__button">Alt</div>
+                </div>
+                <p class="shortcut-description">Add sentence field</p>
+            </div>
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">Enter</div>
+                </div>
+                <p class="shortcut-description">Add card to deck</p>
+            </div>
+            <div class="shortcut-item">
+                <div class="shortcut-keys">
+                    <div class="key__button">Ctrl</div>
+                    <span class="separator">+</span>
+                    <div class="key__button">Shift</div>
+                    <span class="separator">,</span>
+                    <div class="key__button">V</div>
+                </div>
+                <p class="shortcut-description">Send clipboard media</p>
+            </div>
+        </div>
+    </div>
+</div>
