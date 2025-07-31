@@ -1,0 +1,94 @@
+{
+  "maxWidth": 1500,
+  "jReadingEdit": true,
+  "enableHotkeys": true,
+  "dictionaryPath": "dictionaries",
+  "theme": "demo_theme",
+  "DictionaryGroups": {
+    "zh": {
+      "dictionaries": [
+        "Moedict_Monolingual_Simplified",
+        "Google Images",
+        "\u5169\u5cb8\u8a5e\u5178",
+        "Cedict",
+        "\u6c49\u8bed\u5927\u8bcd\u5178",
+        "\u6f22\u8a9e\u5927\u8a5e\u5178",
+        "\u840c\u5178\u56fd\u8bed\u8f9e\u5178_\u7b80\u4f53\u5b57"
+      ],
+      "customFont": false,
+      "font": "SimSun"
+    },
+    "ads": {
+      "dictionaries": [
+        "Cedict"
+      ],
+      "customFont": false,
+      "font": "Adwaita Mono"
+    },
+    "test2": {
+      "dictionaries": [
+        "Thai_to_Eng"
+      ],
+      "customFont": false,
+      "font": "Adwaita Mono"
+    },
+    "hih": {
+      "dictionaries": [
+        "Cedict"
+      ],
+      "customFont": false,
+      "font": "Fira Code"
+    }
+  },
+  "ExportTemplates": {},
+  "GoogleImageFields": [],
+  "ForvoFields": [],
+  "ForvoAddType": "add",
+  "ForvoLanguage": "Japanese",
+  "GoogleImageAddType": "add",
+  "dictOnStart": false,
+  "highlightSentences": true,
+  "highlightTarget": true,
+  "maxSearch": 1000,
+  "dictSearch": 50,
+  "jReadingCards": true,
+  "googleSearchRegion": "United States",
+  "maxHeight": 400,
+  "frontBracket": "\u3010",
+  "backBracket": "\u3011",
+  "showTarget": false,
+  "day": true,
+  "currentGroup": "zh",
+  "searchMode": "Forward",
+  "currentTemplate": false,
+  "currentDeck": false,
+  "deinflect": false,
+  "onetab": true,
+  "dictSizePos": [
+    0,
+    0,
+    931,
+    1006
+  ],
+  "exporterSizePos": false,
+  "fontSizes": [
+    14,
+    24
+  ],
+  "tooltips": true,
+  "globalHotkeys": true,
+  "openOnGlobal": true,
+  "mp3Convert": false,
+  "failedFFMPEGInstallation": true,
+  "dictAlwaysOnTop": false,
+  "displayAgain": false,
+  "autoDefinitionSettings": false,
+  "autoAddDefinitions": false,
+  "autoAddCards": false,
+  "unknownsToSearch": 3,
+  "massGenerationPreferences": false,
+  "safeSearch": true,
+  "condensedAudioDirectory": false,
+  "disableCondensed": false,
+  "demo_setting": "This is a demo!"
+}
