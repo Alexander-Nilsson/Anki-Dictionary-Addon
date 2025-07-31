@@ -33,89 +33,94 @@ class ThemeColors:
     definition_text: str  # Previously "definitionBlock_color"
     pitch_accent_color: str  # Previously "altterm_color"
 
+
 class ThemeManager:
     def __init__(self, addon_path):
         self.addon_path = addon_path
-        self.themes_file = os.path.join(mw.pm.addonFolder(), addon_path, "user_files/themes", "themes.json")
-        self.active_theme_file = os.path.join(mw.pm.addonFolder(), addon_path, "user_files/themes", "active.json")
-        self.current_theme = 'light'
+        self.themes_file = os.path.join(
+            mw.pm.addonFolder(), addon_path, "user_files/themes", "themes.json"
+        )
+        self.active_theme_file = os.path.join(
+            mw.pm.addonFolder(), addon_path, "user_files/themes", "active.json"
+        )
+        self.current_theme = "light"
         self.themes = self._load_default_themes()
         self._load_user_themes()
         self._load_active_theme()
 
     def _load_default_themes(self) -> Dict[str, ThemeColors]:
         return {
-            'light': ThemeColors(
-                header_background='#FFFFFF',
-                selector='#F0F0F0',
-                header_text='#000000',
-                search_term='#444444',
-                border='#000000',
-                anki_button_background='#F0F0F0',
-                anki_button_text='#000000',
-                tab_hover='#E0E0E0',
-                current_tab_gradient_top='#FFFFFF',
-                current_tab_gradient_bottom='#C0C0C0',
-                example_highlight='#444444',
-                definition_background='#FFFFFF',
-                definition_text='#000000',
-                pitch_accent_color='#FFFFFF'
+            "light": ThemeColors(
+                header_background="#FFFFFF",
+                selector="#F0F0F0",
+                header_text="#000000",
+                search_term="#444444",
+                border="#000000",
+                anki_button_background="#F0F0F0",
+                anki_button_text="#000000",
+                tab_hover="#E0E0E0",
+                current_tab_gradient_top="#FFFFFF",
+                current_tab_gradient_bottom="#C0C0C0",
+                example_highlight="#444444",
+                definition_background="#FFFFFF",
+                definition_text="#000000",
+                pitch_accent_color="#FFFFFF",
             ),
-            'dark': ThemeColors(
-                header_background='#272828',
-                selector='#1A1A1A',
-                header_text='#FFFFFF',
-                search_term='#CCCCCC',
-                border='#FFFFFF',
-                anki_button_background='#272828',
-                anki_button_text='#FFFFFF',
-                tab_hover='#333333',
-                current_tab_gradient_top='#272828',
-                current_tab_gradient_bottom='#000000',
-                example_highlight='#CCCCCC',
-                definition_background='#FFFFFF',
-                definition_text='#000000',
-                pitch_accent_color='#FFFFFF'
+            "dark": ThemeColors(
+                header_background="#272828",
+                selector="#1A1A1A",
+                header_text="#FFFFFF",
+                search_term="#CCCCCC",
+                border="#FFFFFF",
+                anki_button_background="#272828",
+                anki_button_text="#FFFFFF",
+                tab_hover="#333333",
+                current_tab_gradient_top="#272828",
+                current_tab_gradient_bottom="#000000",
+                example_highlight="#CCCCCC",
+                definition_background="#FFFFFF",
+                definition_text="#000000",
+                pitch_accent_color="#FFFFFF",
             ),
-            'pink': ThemeColors(
-                header_background='#f4dfdf',
-                selector='#d0b3f3',
-                header_text='#000000',
-                search_term='#ab5283',
-                border='#ffffff',
-                anki_button_background='#F0F0F0',
-                anki_button_text='#000000',
-                tab_hover='#E0E0E0',
-                current_tab_gradient_top='#FFFFFF',
-                current_tab_gradient_bottom='#C0C0C0',
-                example_highlight='#d2ffff',
-                definition_background='#FFFFFF',
-                definition_text='#000000',
-                pitch_accent_color='#FFFFFF'
+            "pink": ThemeColors(
+                header_background="#f4dfdf",
+                selector="#d0b3f3",
+                header_text="#000000",
+                search_term="#ab5283",
+                border="#ffffff",
+                anki_button_background="#F0F0F0",
+                anki_button_text="#000000",
+                tab_hover="#E0E0E0",
+                current_tab_gradient_top="#FFFFFF",
+                current_tab_gradient_bottom="#C0C0C0",
+                example_highlight="#d2ffff",
+                definition_background="#FFFFFF",
+                definition_text="#000000",
+                pitch_accent_color="#FFFFFF",
             ),
-            'multi': ThemeColors(
-                header_background='#f4d3d9',
-                selector='#d0b3f3',
-                header_text='#70aab9',
-                search_term='#ab5283',
-                border='#ffffff',
-                anki_button_background='#f3867c',
-                anki_button_text='#306932',
-                tab_hover='#48e65d',
-                current_tab_gradient_top='#c3d4f8',
-                current_tab_gradient_bottom='#f8d5ed',
-                example_highlight='#d2ffff',
-                definition_background='#FFFFFF',
-                definition_text='#000000',
-                pitch_accent_color='#FFFFFF'
-            )
+            "multi": ThemeColors(
+                header_background="#f4d3d9",
+                selector="#d0b3f3",
+                header_text="#70aab9",
+                search_term="#ab5283",
+                border="#ffffff",
+                anki_button_background="#f3867c",
+                anki_button_text="#306932",
+                tab_hover="#48e65d",
+                current_tab_gradient_top="#c3d4f8",
+                current_tab_gradient_bottom="#f8d5ed",
+                example_highlight="#d2ffff",
+                definition_background="#FFFFFF",
+                definition_text="#000000",
+                pitch_accent_color="#FFFFFF",
+            ),
         }
 
     def _load_user_themes(self):
         """Load user-defined themes from themes.json"""
         if os.path.exists(self.themes_file):
             try:
-                with open(self.themes_file, 'r') as f:
+                with open(self.themes_file, "r") as f:
                     user_themes = json.load(f)
                 for name, colors in user_themes.items():
                     self.themes[name] = ThemeColors(**colors)
@@ -126,22 +131,34 @@ class ThemeManager:
         """Load the active theme from active.json"""
         if os.path.exists(self.active_theme_file):
             try:
-                with open(self.active_theme_file, 'r') as f:
+                with open(self.active_theme_file, "r") as f:
                     active_theme_data = json.load(f)
-                
+
                 # Remove any extra fields that aren't part of ThemeColors
                 valid_fields = {
-                    'header_background', 'selector', 'header_text', 'search_term', 'border',
-                    'anki_button_background', 'anki_button_text', 'tab_hover',
-                    'current_tab_gradient_top', 'current_tab_gradient_bottom',
-                    'example_highlight', 'definition_background', 'definition_text', 'pitch_accent_color'
+                    "header_background",
+                    "selector",
+                    "header_text",
+                    "search_term",
+                    "border",
+                    "anki_button_background",
+                    "anki_button_text",
+                    "tab_hover",
+                    "current_tab_gradient_top",
+                    "current_tab_gradient_bottom",
+                    "example_highlight",
+                    "definition_background",
+                    "definition_text",
+                    "pitch_accent_color",
                 }
-                filtered_data = {k: v for k, v in active_theme_data.items() if k in valid_fields}
-                
+                filtered_data = {
+                    k: v for k, v in active_theme_data.items() if k in valid_fields
+                }
+
                 # Store the theme name if it exists
-                if 'active_theme_name' in active_theme_data:
-                    self.current_theme = active_theme_data['active_theme_name']
-                
+                if "active_theme_name" in active_theme_data:
+                    self.current_theme = active_theme_data["active_theme_name"]
+
                 self.themes["active"] = ThemeColors(**filtered_data)
             except Exception as e:
                 print(f"Error loading active theme: {e}")
@@ -166,16 +183,16 @@ class ThemeManager:
         self.themes["active"] = colors
         self._save_themes()
         os.makedirs(os.path.dirname(self.active_theme_file), exist_ok=True)
-        with open(self.active_theme_file, 'w') as f:
+        with open(self.active_theme_file, "w") as f:
             # Save only the active theme colors, not all themes
             active_theme_dict = vars(colors).copy()
             if theme_name:
-                active_theme_dict['active_theme_name'] = theme_name
+                active_theme_dict["active_theme_name"] = theme_name
             json.dump(active_theme_dict, f, indent=2)
 
     def _save_themes(self):
         os.makedirs(os.path.dirname(self.themes_file), exist_ok=True)
-        with open(self.themes_file, 'w') as f:
+        with open(self.themes_file, "w") as f:
             themes_dict = {name: vars(colors) for name, colors in self.themes.items()}
             json.dump(themes_dict, f, indent=2)
 
@@ -183,7 +200,7 @@ class ThemeManager:
         """Generate CSS for the current theme"""
         theme = self.themes[theme_name or self.current_theme]
 
-        return f'''
+        return f"""
         /* Base styles */
         body {{
             color: {theme.header_text};
@@ -238,14 +255,14 @@ class ThemeManager:
         .exampleSentence {{
             background-color: {theme.example_highlight};
         }}
-        '''
+        """
 
     def get_qt_styles(self, theme_name: str = None, is_mac: bool = False) -> str:
         """Generate Qt styles for the current theme"""
         theme = self.themes[theme_name or self.current_theme]
 
         if is_mac:
-            return f'''
+            return f"""
             QLabel {{
                 color: {theme.header_text};
             }}
@@ -267,9 +284,9 @@ class ThemeManager:
                     stop: 1 {theme.current_tab_gradient_bottom});
                 border: 1px solid {theme.border};
             }}
-            '''
+            """
         else:
-            return f'''
+            return f"""
             QLabel {{
                 color: {theme.header_text};
             }}
@@ -285,13 +302,13 @@ class ThemeManager:
                     stop: 0 {theme.current_tab_gradient_top},
                     stop: 1 {theme.current_tab_gradient_bottom});
             }}
-            '''
+            """
 
     def get_combo_style(self, theme_name: str = None, is_mac: bool = False) -> str:
         """Generate Qt styles for QComboBox"""
         theme = self.themes[theme_name or self.current_theme]
 
-        return f'''
+        return f"""
         QComboBox {{
             color: {theme.header_text};
             border-radius: 3px;
@@ -305,4 +322,4 @@ class ThemeManager:
             border: none;
             background: {theme.selector};
         }}
-        '''
+        """

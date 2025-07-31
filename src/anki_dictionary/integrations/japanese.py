@@ -1,35 +1,40 @@
 # -*- coding: utf-8 -*-
-# 
+#
 from aqt import mw
-from aqt.utils import  showInfo
+from aqt.utils import showInfo
 
-class miJHandler():
 
-	def __init__(self, mw):
-		self.mw = mw
-		self.activeNotes = self.getActiveNotes()
+class miJHandler:
 
-	def getActiveNotes(self):
-		if hasattr(self.mw, 'Exporter') and hasattr(self.mw, 'CSSJSHandler'):
-			activeNotes, placeholder = self.mw.CSSJSHandler.getWrapperDict()
-			for noteType in activeNotes:
-				activeNotes[noteType] = list(dict.fromkeys([item[1] for item in activeNotes[noteType]]))
-			return activeNotes
-		return False
+    def __init__(self, mw):
+        self.mw = mw
+        self.activeNotes = self.getActiveNotes()
 
-	def attemptGenerate(self, note):
-		if self.activeNotes:
-			model = note.note_type()
-			fields = self.mw.col.models.field_names(model)
-			if model['name'] in self.activeNotes:
-				for field in fields:
-					if field in self.activeNotes[model['name']] and note[field] != '':
-						note[field] = self.mw.Exporter.fetchParsedField(note[field], note)
-		return note
+    def getActiveNotes(self):
+        if hasattr(self.mw, "Exporter") and hasattr(self.mw, "CSSJSHandler"):
+            activeNotes, placeholder = self.mw.CSSJSHandler.getWrapperDict()
+            for noteType in activeNotes:
+                activeNotes[noteType] = list(
+                    dict.fromkeys([item[1] for item in activeNotes[noteType]])
+                )
+            return activeNotes
+        return False
 
-	def attemptFieldGenerate(self, text, field, model, note):
-		if self.activeNotes:
-			if model in self.activeNotes:
-				if field in self.activeNotes[model]:
-					text = self.mw.Exporter.fetchParsedField(text, note)
-		return text
+    def attemptGenerate(self, note):
+        if self.activeNotes:
+            model = note.note_type()
+            fields = self.mw.col.models.field_names(model)
+            if model["name"] in self.activeNotes:
+                for field in fields:
+                    if field in self.activeNotes[model["name"]] and note[field] != "":
+                        note[field] = self.mw.Exporter.fetchParsedField(
+                            note[field], note
+                        )
+        return note
+
+    def attemptFieldGenerate(self, text, field, model, note):
+        if self.activeNotes:
+            if model in self.activeNotes:
+                if field in self.activeNotes[model]:
+                    text = self.mw.Exporter.fetchParsedField(text, note)
+        return text

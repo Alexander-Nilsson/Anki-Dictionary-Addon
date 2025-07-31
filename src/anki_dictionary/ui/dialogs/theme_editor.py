@@ -15,7 +15,9 @@ class ThemeEditorDialog(QDialog):
         self.theme_manager = theme_manager
         self.dict_interface = dict_interface
         self.addonPath = path
-        self.themes_file = os.path.join(self.addonPath, "user_files/themes", "themes.json")
+        self.themes_file = os.path.join(
+            self.addonPath, "user_files/themes", "themes.json"
+        )
         self.setup_ui()
 
     def setup_ui(self):
@@ -51,29 +53,46 @@ class ThemeEditorDialog(QDialog):
         for color_name, (editor, _, preview) in self.color_editors.items():
             color_value = active_colors.get(color_name, "#ffffff")
             editor.setText(color_value)
-            preview.setStyleSheet(f"background-color: {color_value}; border: 1px solid black;")
+            preview.setStyleSheet(
+                f"background-color: {color_value}; border: 1px solid black;"
+            )
 
         row = 0
         fields = [
-            "header_background", "selector", "header_text", "search_term", "border",
-            "anki_button_background", "anki_button_text", "tab_hover",
-            "current_tab_gradient_top", "current_tab_gradient_bottom",
-            "example_highlight", "definition_background", "definition_text",
-            "pitch_accent_color"
+            "header_background",
+            "selector",
+            "header_text",
+            "search_term",
+            "border",
+            "anki_button_background",
+            "anki_button_text",
+            "tab_hover",
+            "current_tab_gradient_top",
+            "current_tab_gradient_bottom",
+            "example_highlight",
+            "definition_background",
+            "definition_text",
+            "pitch_accent_color",
         ]
 
         for color_name in fields:
             # Use active_colors to initialize the color values
             color_value = active_colors.get(color_name, "#ffffff")
-            label = QLabel(color_name.replace('_', ' ').title())
+            label = QLabel(color_name.replace("_", " ").title())
             color_edit = QLineEdit(color_value)
             color_button = QPushButton("Pick Color")
             color_preview = QLabel()
             color_preview.setFixedSize(30, 30)
-            color_preview.setStyleSheet(f"background-color: {color_value}; border: 1px solid black;")
+            color_preview.setStyleSheet(
+                f"background-color: {color_value}; border: 1px solid black;"
+            )
             self.color_editors[color_name] = (color_edit, color_button, color_preview)
-            color_button.clicked.connect(lambda checked, name=color_name: self.pick_color(name))
-            color_edit.textChanged.connect(lambda new_value, name=color_name: self.update_color_preview(name))
+            color_button.clicked.connect(
+                lambda checked, name=color_name: self.pick_color(name)
+            )
+            color_edit.textChanged.connect(
+                lambda new_value, name=color_name: self.update_color_preview(name)
+            )
             grid_layout.addWidget(label, row, 0)
             grid_layout.addWidget(color_edit, row, 1)
             grid_layout.addWidget(color_button, row, 2)
@@ -130,7 +149,9 @@ class ThemeEditorDialog(QDialog):
         editor, _, preview = self.color_editors[color_name]
         color_value = editor.text()
         try:
-            preview.setStyleSheet(f"background-color: {color_value}; border: 1px solid black;")
+            preview.setStyleSheet(
+                f"background-color: {color_value}; border: 1px solid black;"
+            )
             # editor.setStyleSheet(f"background-color: {color_value}; color: white;")
         except Exception as e:
             print(f"Error updating color preview: {e}")
@@ -141,10 +162,13 @@ class ThemeEditorDialog(QDialog):
             color_value = getattr(theme, color_name)
             editor.setText(color_value)
             preview.setStyleSheet(
-                f"background-color: {color_value}; border: 1px solid black;")
+                f"background-color: {color_value}; border: 1px solid black;"
+            )
 
     def get_current_colors(self):
-        return {name: editor.text() for name, (editor, _, _) in self.color_editors.items()}
+        return {
+            name: editor.text() for name, (editor, _, _) in self.color_editors.items()
+        }
 
     def _save_active_theme(self, colors):
         try:
@@ -152,7 +176,6 @@ class ThemeEditorDialog(QDialog):
             self.theme_manager.save_active_theme(colors, theme_name)
         except Exception as e:
             print(f"Error saving active theme: {e}")
-
 
     def save_as_theme(self):
         name_dialog = QDialog(self)
@@ -195,7 +218,7 @@ class ThemeEditorDialog(QDialog):
             return self.theme_manager.current_theme
         except Exception as e:
             print(f"Error loading active theme name: {e}")
-            return 'light'
+            return "light"
 
     def load_active_theme_colors(self):
         """Load color values from the active theme."""

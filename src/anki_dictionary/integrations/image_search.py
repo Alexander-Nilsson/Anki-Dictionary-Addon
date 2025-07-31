@@ -1,6 +1,6 @@
 # Image Search with Load More Functionality
 # =======================================
-# 
+#
 # The image search now supports loading more images dynamically:
 # 1. Initial search displays first 15 images in horizontal layout
 # 2. "Load More" button triggers a new search with pagination
@@ -40,31 +40,33 @@ import json
 
 # Add comprehensive language/region codes for DuckDuckGo
 languageCodes = {
-    'zh-CN': 'cn-zh',  # Chinese (China)
-    'zh-TW': 'tw-zh',  # Chinese (Taiwan) 
-    'ja-JP': 'jp-ja',  # Japanese
-    'ko-KR': 'kr-ko',  # Korean
-    'en-US': 'us-en',  # English (US)
-    'en-GB': 'uk-en',  # English (UK)
-    'es-ES': 'es-es',  # Spanish
-    'fr-FR': 'fr-fr',  # French
-    'de-DE': 'de-de',  # German
-    'ru-RU': 'ru-ru',  # Russian
+    "zh-CN": "cn-zh",  # Chinese (China)
+    "zh-TW": "tw-zh",  # Chinese (Taiwan)
+    "ja-JP": "jp-ja",  # Japanese
+    "ko-KR": "kr-ko",  # Korean
+    "en-US": "us-en",  # English (US)
+    "en-GB": "uk-en",  # English (UK)
+    "es-ES": "es-es",  # Spanish
+    "fr-FR": "fr-fr",  # French
+    "de-DE": "de-de",  # German
+    "ru-RU": "ru-ru",  # Russian
 }
 
 # Get the root addon directory (4 levels up from this file)
 addon_path = dirname(dirname(dirname(dirname(__file__))))
-temp_dir = join(addon_path, 'temp')
+temp_dir = join(addon_path, "temp")
 os.makedirs(temp_dir, exist_ok=True)
 
 ########################################
 # DuckDuckGo Search Engine Implementation
 ########################################
 
+
 class DuckDuckGoSignals(QObject):
-    resultsFound = pyqtSignal(list) 
-    noResults = pyqtSignal(str)      
-    finished = pyqtSignal()          
+    resultsFound = pyqtSignal(list)
+    noResults = pyqtSignal(str)
+    finished = pyqtSignal()
+
 
 class DuckDuckGo(QRunnable):
     def __init__(self):
@@ -91,8 +93,8 @@ class DuckDuckGo(QRunnable):
             self.language = "us-en"
 
     def getCleanedUrls(self, urls):
-        return [x.replace('\\', '\\\\') for x in urls]
-    
+        return [x.replace("\\", "\\\\") for x in urls]
+
     def search(self, term, maximum=15, offset=0):
         """
         Search for images using DuckDuckGo
@@ -104,53 +106,57 @@ class DuckDuckGo(QRunnable):
         List of image URLs
         """
         session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Referer': 'https://duckduckgo.com',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        })
-        
+        session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Referer": "https://duckduckgo.com",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+            }
+        )
+
         try:
             # Get the initial token
             search_url = "https://duckduckgo.com/"
             response = session.get(search_url, timeout=10)
             session.cookies.update(response.cookies)
-            
+
             # Perform the search
             params = {
-                'q': term,
-                'iax': 'images',
-                'ia': 'images',
-                'kl': self.language,  # Add language/region parameter
+                "q": term,
+                "iax": "images",
+                "ia": "images",
+                "kl": self.language,  # Add language/region parameter
             }
 
             response = session.get(search_url, params=params, timeout=10)
-            
+
             # Extract the vqd token using regex
-            vqd = re.search(r'vqd=[\d-]+', response.text)
+            vqd = re.search(r"vqd=[\d-]+", response.text)
             if not vqd:
                 return []
-                
+
             # Build the API URL request
             api_url = "https://duckduckgo.com/i.js"
             params = {
-                'l': 'wt-wt',
-                'o': 'json',
-                'q': term,
-                'vqd': vqd.group().split('=')[1],
-                'f': ',,,',
-                'p': str(offset),  # Use offset for pagination
+                "l": "wt-wt",
+                "o": "json",
+                "q": term,
+                "vqd": vqd.group().split("=")[1],
+                "f": ",,,",
+                "p": str(offset),  # Use offset for pagination
             }
-            
+
             response = session.get(api_url, params=params, timeout=10)
             if response.status_code == 200:
-                results = [img['image'] for img in response.json().get('results', [])]
-                return results[:maximum]  # Limit results to maximum TODO: check if this is a legit way to do it
-                
+                results = [img["image"] for img in response.json().get("results", [])]
+                return results[
+                    :maximum
+                ]  # Limit results to maximum TODO: check if this is a legit way to do it
+
         except Exception as e:
             print(f"Error in DuckDuckGo search: {str(e)}")
         return []
@@ -160,22 +166,26 @@ class DuckDuckGo(QRunnable):
         try:
             img = Image.open(io.BytesIO(content))
             # Convert image if necessary
-            if img.mode in ('RGBA', 'P'):
-                img = img.convert('RGB')
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
             # Resize image maintaining aspect ratio
             img.thumbnail((200, 200))
             # Generate a unique filename based on the URL
             img_hash = hashlib.md5(url.encode()).hexdigest()
             filename = f"dict_img_{img_hash}.jpg"
             filepath = os.path.join(temp_dir, filename)
-            img.save(filepath, 'JPEG', quality=85)
+            img.save(filepath, "JPEG", quality=85)
             return filename
         except Exception as e:
             print(f"Error processing image from {url}: {e}")
         return None
 
-    async def download_and_process_image(self, url: str, session: aiohttp.ClientSession, 
-                                       executor: concurrent.futures.Executor) -> str:
+    async def download_and_process_image(
+        self,
+        url: str,
+        session: aiohttp.ClientSession,
+        executor: concurrent.futures.Executor,
+    ) -> str:
         """Download an image asynchronously and process it using a thread pool."""
         try:
             async with session.get(url, timeout=10) as response:
@@ -184,7 +194,8 @@ class DuckDuckGo(QRunnable):
                     loop = asyncio.get_running_loop()
                     # Offload the synchronous image processing to the executor
                     filename = await loop.run_in_executor(
-                        executor, self.process_image, url, content)
+                        executor, self.process_image, url, content
+                    )
                     return filename
         except Exception as e:
             print(f"Error downloading image from {url}: {e}")
@@ -211,10 +222,10 @@ class DuckDuckGo(QRunnable):
         """
         # Note: search_offset is now controlled by the dictionary class
         # and is set before this method is called
-        images = self.search(term, offset=self.search_offset) # Get image URLs
+        images = self.search(term, offset=self.search_offset)  # Get image URLs
         if not images or len(images) < 1:
-            return 'No Images Found. This is likely due to a connectivity error.'
-        
+            return "No Images Found. This is likely due to a connectivity error."
+
         # Download images asynchronously
         try:
             loop = asyncio.new_event_loop()
@@ -223,22 +234,23 @@ class DuckDuckGo(QRunnable):
             loop.close()
         except Exception as e:
             print(f"Error in async image download: {e}")
-            return 'Error downloading images'
+            return "Error downloading images"
 
         def generate_image_html(filename):
             # Use base64 data URL to embed the image directly in HTML
             import base64
+
             image_path = os.path.join(temp_dir, filename)
             try:
-                with open(image_path, 'rb') as img_file:
+                with open(image_path, "rb") as img_file:
                     img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                    img_base64 = base64.b64encode(img_data).decode("utf-8")
                     data_url = f"data:image/jpeg;base64,{img_base64}"
                     return (
                         '<div class="imgBox">'
                         f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
                         f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
-                        '</div>'
+                        "</div>"
                     )
             except Exception as e:
                 print(f"Error reading image {filename}: {e}")
@@ -246,17 +258,17 @@ class DuckDuckGo(QRunnable):
 
         # Create horizontal layout with all images in one container
         html = '<div class="googleCont horizontal-layout">'
-        html += ''.join(generate_image_html(img) for img in local_images)
-        html += '</div>'
-        
+        html += "".join(generate_image_html(img) for img in local_images)
+        html += "</div>"
+
         # Add Load More button that triggers a new search
         # Use JSON encoding to properly escape the term for JavaScript
         # But we need to escape the quotes for HTML attribute
-        escaped_term = json.dumps(term).replace('"', '&quot;')
+        escaped_term = json.dumps(term).replace('"', "&quot;")
         html += f'<button class="imageLoader" onclick="loadMoreImages(this, {escaped_term})">Load More</button>'
 
         return html
-    
+
     def getMoreImages(self, term):
         """
         Get more images for the load more functionality.
@@ -264,10 +276,10 @@ class DuckDuckGo(QRunnable):
         """
         # Note: search_offset is now controlled by the dictionary class
         # and is set before this method is called
-        images = self.search(term, offset=self.search_offset) # Get image URLs
+        images = self.search(term, offset=self.search_offset)  # Get image URLs
         if not images or len(images) < 1:
-            return ''  # Return empty if no more images
-        
+            return ""  # Return empty if no more images
+
         # Download images asynchronously
         try:
             loop = asyncio.new_event_loop()
@@ -276,39 +288,40 @@ class DuckDuckGo(QRunnable):
             loop.close()
         except Exception as e:
             print(f"Error in async image download: {e}")
-            return ''
+            return ""
 
         def generate_image_html(filename):
             # Use base64 data URL to embed the image directly in HTML (same as initial search)
             import base64
+
             image_path = os.path.join(temp_dir, filename)
             try:
-                with open(image_path, 'rb') as img_file:
+                with open(image_path, "rb") as img_file:
                     img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                    img_base64 = base64.b64encode(img_data).decode("utf-8")
                     data_url = f"data:image/jpeg;base64,{img_base64}"
                     return (
                         '<div class="imgBox">'
                         f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
                         f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
-                        '</div>'
+                        "</div>"
                     )
             except Exception as e:
                 print(f"Error reading image {filename}: {e}")
                 return '<div class="imgBox">Error loading image</div>'
 
         # Just return the image HTML without container wrapper
-        html = ''.join(generate_image_html(img) for img in local_images)
+        html = "".join(generate_image_html(img) for img in local_images)
         return html
-    
+
     def getPreparedResults(self, term, idName):
         html = self.getHtml(term)
         return [html, idName]
-    
+
     def run(self):
         try:
             if self.term:
-                is_load_more = (self.idName == "load_more")
+                is_load_more = self.idName == "load_more"
                 if is_load_more:
                     # For load more, just get more images
                     html = self.getMoreImages(self.term)
@@ -319,7 +332,9 @@ class DuckDuckGo(QRunnable):
                 self.signals.resultsFound.emit(resultList)
         except Exception as e:
             print(f"DuckDuckGo run error: {e}")
-            self.signals.noResults.emit('No Images Found. This is likely due to a connectivity error.')
+            self.signals.noResults.emit(
+                "No Images Found. This is likely due to a connectivity error."
+            )
         finally:
             self.signals.finished.emit()
 
@@ -328,12 +343,23 @@ class DuckDuckGo(QRunnable):
 # Search Function (using duckduckgo by default)
 ########################################
 
+
 def search(target, number):
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
     parser.add_argument("-t", "--target", help="target name", type=str, required=True)
-    parser.add_argument("-n", "--number", help="number of images", type=int, required=True)
-    parser.add_argument("-d", "--directory", help="download location", type=str, default="./data")
-    parser.add_argument("-f", "--force", help="download overwrite existing file", type=bool, default=False)
+    parser.add_argument(
+        "-n", "--number", help="number of images", type=int, required=True
+    )
+    parser.add_argument(
+        "-d", "--directory", help="download location", type=str, default="./data"
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="download overwrite existing file",
+        type=bool,
+        default=False,
+    )
     args = parser.parse_args()
 
     data_dir = "./data"
@@ -345,5 +371,3 @@ def search(target, number):
     duckduckgo = DuckDuckGo()
     results = duckduckgo.search(target_name, maximum=number)
     return results
-
-
