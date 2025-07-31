@@ -6,13 +6,14 @@ This script helps build and package the addon for distribution.
 """
 
 import os
-import sys
+import sys  
 import shutil
 import zipfile
+import json
 from pathlib import Path
 
-def get_version():
-    """Get version from pyproject.toml"""
+def get_project_config():
+    """Get project configuration from pyproject.toml"""
     try:
         # Try tomllib first (Python 3.11+)
         try:
@@ -25,10 +26,41 @@ def get_version():
             with open('pyproject.toml', 'r') as f:
                 config = toml.load(f)
         
-        return config['project']['version']
+        return config['project']
     except Exception as e:
-        print(f"Warning: Could not read version from pyproject.toml: {e}")
-        return '0.1.0'
+        print(f"Warning: Could not read config from pyproject.toml: {e}")
+        return {'version': '0.1.0', 'name': 'Anki Dictionary'}
+
+def get_version():
+    """Get version from pyproject.toml"""
+    return get_project_config().get('version', '0.1.0')
+
+def generate_manifest():
+    """Generate manifest.json from pyproject.toml data"""
+    project_config = get_project_config()
+    
+    # Extract macOS-specific requirements
+    dependencies = project_config.get('dependencies', [])
+    macos_requirements = []
+    
+    for dep in dependencies:
+        if 'pyobjc' in dep and 'darwin' in dep:
+            # Extract package name before semicolon
+            package_name = dep.split(';')[0].strip()
+            macos_requirements.append(package_name)
+    
+    manifest_data = {
+        "package": project_config.get('name', 'Anki Dictionary').replace('-', ' ').title(),
+        "name": project_config.get('name', 'Anki Dictionary').replace('-', ' ').title(),
+        "requirements": macos_requirements
+    }
+    
+    manifest_path = Path('build') / 'anki_dictionary_addon' / 'manifest.json'
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f, indent=4)
+    
+    print(f"   ✓ Generated manifest.json with requirements: {macos_requirements}")
+    return manifest_path
 
 def build_addon():
     """Build the addon for Anki installation"""
@@ -46,7 +78,6 @@ def build_addon():
     # Copy essential files for Anki addon
     essential_files = [
         '__init__.py',
-        'manifest.json', 
         'config.json',
         'src/',
         'assets/',
@@ -68,6 +99,9 @@ def build_addon():
                 print(f"   ✓ Copied file: {item}")
         else:
             print(f"   ⚠️  Skipped missing: {item}")
+    
+    # Generate manifest.json from pyproject.toml
+    generate_manifest()
     
     print(f"✅ Addon built in: {addon_dir}")
     return addon_dir
