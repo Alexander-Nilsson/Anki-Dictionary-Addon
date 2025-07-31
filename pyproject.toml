@@ -12,6 +12,8 @@ dependencies = [
     "pillow>=10.0.0",
     "requests>=2.31.0",
     "aiohttp>=3.8.0",
+    "pyobjc-core; sys_platform == 'darwin'",
+    "pyobjc-framework-cocoa; sys_platform == 'darwin'",
 ]
 
 [dependency-groups]
