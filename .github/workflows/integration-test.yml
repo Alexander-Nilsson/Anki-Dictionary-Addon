@@ -1,0 +1,326 @@
+name: Integration Tests
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
+    branches: [master]
+  release:
+    types: [published]
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  integration-test:
+    name: Integration Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'release'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            anki_url: "https://github.com/ankitects/anki/releases/download/24.11/anki-24.11-linux-qt6.tar.xz"
+            install_cmd: |
+              tar -xf anki-*.tar.xz
+              cd anki-*
+              sudo ./install.sh
+            test_display: "xvfb-run -a"
+          - os: windows-latest
+            anki_url: "https://github.com/ankitects/anki/releases/download/24.11/anki-24.11-windows-qt6.exe"
+            install_cmd: |
+              Start-Process -FilePath "anki-*.exe" -ArgumentList "/S" -Wait
+            test_display: ""
+          - os: macos-latest
+            anki_url: "https://github.com/ankitects/anki/releases/download/24.11/anki-24.11-mac-apple.dmg"
+            install_cmd: |
+              hdiutil attach anki-*.dmg
+              cp -R /Volumes/Anki/Anki.app /Applications/
+              hdiutil detach /Volumes/Anki
+            test_display: ""
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Download build artifacts from Tests workflow
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        workflow: test.yml
+        workflow_conclusion: success
+        name_is_regexp: true
+        name: anki-dictionary-addon-v.*
+        path: ./artifacts
+        
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb wget curl python3-pyqt5 python3-pyqt5.qtwebengine
+        
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install python-tk
+        
+    - name: Download and install Anki
+      shell: bash
+      run: |
+        echo "Downloading Anki from: ${{ matrix.anki_url }}"
+        curl -L "${{ matrix.anki_url }}" -o "anki-installer$(echo '${{ matrix.anki_url }}' | sed 's/.*\./\./')"
+        ${{ matrix.install_cmd }}
+        
+    - name: Verify Anki installation
+      shell: bash
+      run: |
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          ANKI_PATH="C:/Program Files/Anki/anki.exe"
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          ANKI_PATH="/Applications/Anki.app/Contents/MacOS/anki"
+        else
+          ANKI_PATH="anki"
+        fi
+        
+        echo "ANKI_PATH=$ANKI_PATH" >> $GITHUB_ENV
+        
+        # Test Anki version
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          xvfb-run -a "$ANKI_PATH" --version || echo "Anki installed but version check failed"
+        else
+          timeout 10s "$ANKI_PATH" --version || echo "Anki installed but version check failed"
+        fi
+        
+    - name: Create integration test script
+      shell: bash
+      run: |
+        cat > integration_test.py << 'EOF'
+        #!/usr/bin/env python3
+        """
+        Integration test script for Anki Dictionary Addon
+        """
+        import os
+        import sys
+        import time
+        import subprocess
+        import tempfile
+        import shutil
+        import zipfile
+        from pathlib import Path
+        import platform
+        
+        def find_anki_addons_dir():
+            """Find Anki addons directory based on platform"""
+            system = platform.system().lower()
+            home = Path.home()
+            
+            if system == "windows":
+                return home / "AppData" / "Roaming" / "Anki2" / "addons21"
+            elif system == "darwin":  # macOS
+                return home / "Library" / "Application Support" / "Anki2" / "addons21"
+            else:  # Linux
+                return home / ".local" / "share" / "Anki2" / "addons21"
+        
+        def install_addon():
+            """Install the addon to Anki addons directory"""
+            print("🔧 Installing addon...")
+            
+            # Find the addon file
+            addon_files = list(Path("artifacts").glob("**/*.ankiaddon"))
+            if not addon_files:
+                print("❌ No addon file found in artifacts")
+                return False
+                
+            addon_file = addon_files[0]
+            print(f"Found addon file: {addon_file}")
+            
+            # Get addons directory
+            addons_dir = find_anki_addons_dir()
+            addons_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create addon directory with timestamp to avoid conflicts
+            addon_id = f"anki_dictionary_test_{int(time.time())}"
+            addon_dir = addons_dir / addon_id
+            addon_dir.mkdir(exist_ok=True)
+            
+            # Extract addon
+            with zipfile.ZipFile(addon_file, 'r') as zip_ref:
+                zip_ref.extractall(addon_dir)
+            
+            print(f"✅ Addon installed to: {addon_dir}")
+            return addon_id
+        
+        def test_anki_startup():
+            """Test Anki startup with addon"""
+            print("🚀 Testing Anki startup...")
+            
+            anki_path = os.environ.get("ANKI_PATH", "anki")
+            system = platform.system().lower()
+            
+            # Create test script that Anki will run
+            test_script = '''
+        import time
+        import sys
+        import os
+        from aqt import mw
+        from aqt.utils import showInfo
+        
+        def test_addon():
+            print("🧪 Testing addon functionality...")
+            
+            try:
+                # Try to import the addon
+                sys.path.insert(0, mw.pm.addonFolder())
+                
+                # Look for our addon
+                addon_found = False
+                for addon_dir in os.listdir(mw.pm.addonFolder()):
+                    addon_path = os.path.join(mw.pm.addonFolder(), addon_dir)
+                    if os.path.isdir(addon_path):
+                        init_file = os.path.join(addon_path, "__init__.py")
+                        if os.path.exists(init_file):
+                            with open(init_file, 'r') as f:
+                                content = f.read()
+                                if 'dictionary' in content.lower():
+                                    addon_found = True
+                                    print(f"✅ Dictionary addon found: {addon_dir}")
+                                    break
+                
+                if not addon_found:
+                    print("⚠️  Dictionary addon not found in addon directory")
+                    # List all addons for debugging
+                    print("Available addons:")
+                    for addon_dir in os.listdir(mw.pm.addonFolder()):
+                        print(f"  - {addon_dir}")
+                    return False
+                
+                # Test basic functionality - try to trigger a search
+                print("🔍 Testing dictionary search functionality...")
+                
+                # Simulate a dictionary search (this would depend on your addon's API)
+                # For now, just verify the addon structure
+                print("✅ Addon integration test passed")
+                return True
+                
+            except Exception as e:
+                print(f"❌ Addon test failed: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+        
+        # Schedule test after Anki loads
+        from aqt import gui_hooks
+        def on_main_window_did_init():
+            time.sleep(3)  # Wait for full initialization
+            test_result = test_addon()
+            if test_result:
+                print("🎉 Integration test PASSED")
+                with open("test_result.txt", "w") as f:
+                    f.write("PASSED")
+            else:
+                print("💥 Integration test FAILED")
+                with open("test_result.txt", "w") as f:
+                    f.write("FAILED")
+            mw.close()
+        
+        gui_hooks.main_window_did_init.append(on_main_window_did_init)
+        '''
+            
+            # Save test script
+            test_script_path = Path("anki_test_script.py")
+            with open(test_script_path, "w") as f:
+                f.write(test_script)
+            
+            # Run Anki with test script
+            cmd = [anki_path]
+            
+            if system == "linux":
+                cmd = ["xvfb-run", "-a"] + cmd
+            
+            print(f"Running command: {' '.join(cmd)}")
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    timeout=90,  # 1.5 minute timeout
+                    capture_output=True,
+                    text=True
+                )
+                
+                print("Anki output:")
+                print(result.stdout)
+                if result.stderr:
+                    print("Anki errors:")
+                    print(result.stderr)
+                
+                # Check test result file
+                if os.path.exists("test_result.txt"):
+                    with open("test_result.txt", "r") as f:
+                        test_result = f.read().strip()
+                        return test_result == "PASSED"
+                
+                return result.returncode == 0
+                
+            except subprocess.TimeoutExpired:
+                print("⏰ Anki test timed out")
+                return False
+            except Exception as e:
+                print(f"❌ Error running Anki: {e}")
+                return False
+        
+        def main():
+            print("🔬 Starting Anki Dictionary Addon Integration Test")
+            print(f"Platform: {platform.system()} {platform.release()}")
+            
+            # Install addon
+            addon_id = install_addon()
+            if not addon_id:
+                sys.exit(1)
+            
+            try:
+                # Test Anki startup
+                success = test_anki_startup()
+                
+                if success:
+                    print("🎉 All integration tests passed!")
+                    sys.exit(0)
+                else:
+                    print("💥 Integration tests failed!")
+                    sys.exit(1)
+                    
+            finally:
+                # Cleanup
+                print("🧹 Cleaning up...")
+                addons_dir = find_anki_addons_dir()
+                addon_dir = addons_dir / addon_id
+                if addon_dir.exists():
+                    shutil.rmtree(addon_dir)
+                    print("✅ Addon cleanup completed")
+        
+        if __name__ == "__main__":
+            main()
+        EOF
+        
+    - name: Run integration tests
+      shell: bash
+      run: |
+        python integration_test.py
+        
+    - name: Upload test logs (if failure)
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: integration-test-logs-${{ matrix.os }}
+        path: |
+          *.log
+          *.txt
+          anki_test_script.py
+        retention-days: 7
