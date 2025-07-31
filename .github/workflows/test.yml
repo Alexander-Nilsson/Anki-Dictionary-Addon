@@ -49,35 +49,40 @@ jobs:
       run: |
         uv run mypy . --ignore-missing-imports || echo "Type checking completed with warnings"
         
-    - name: Test addon structure
+
+    - name: Build addon packages
+      run: |
+        python build.py all
+
+    - name: Test built addon structuxre
       run: |
         python -c "
         import os
         import sys
+        from pathlib import Path
         
-        print('🔍 Checking addon structure...')
-        
-        # Check required files
-        required_files = ['__init__.py', 'main.py', 'config.json']
+        print('🔍 Checking built addon structure...')
+        build_dir = Path('build/anki_dictionary_addon')
+        required_files = ['__init__.py', 'manifest.json', 'config.json']
         missing_files = []
         
         for file in required_files:
-            if not os.path.exists(file):
+            if not (build_dir / file).exists():
                 missing_files.append(file)
         
         if missing_files:
-            print(f'❌ Missing required files: {missing_files}')
+            print(f'❌ Missing required files in built addon: {missing_files}')
             sys.exit(1)
         else:
-            print('✅ All required addon files present')
+            print('✅ All required addon files present in build')
         
         # Check if main components can be imported
         try:
-            sys.path.insert(0, '.')
+            sys.path.insert(0, str(build_dir))
             import main
-            print('✅ Main module imports successfully')
+            print('✅ Main module imports successfully from build')
         except Exception as e:
-            print(f'⚠️  Main module import warning: {e}')
+            print(f'⚠️  Main module import warning (from build): {e}')
         "
         
     - name: Run test suite
