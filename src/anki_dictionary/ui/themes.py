@@ -1,9 +1,7 @@
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 import json
 import os
-from PyQt6.QtGui import QColor
-from PyQt6.QtCore import Qt
 from aqt import mw
 
 
@@ -35,7 +33,7 @@ class ThemeColors:
 
 
 class ThemeManager:
-    def __init__(self, addon_path):
+    def __init__(self, addon_path: str) -> None:
         self.addon_path = addon_path
         self.themes_file = os.path.join(
             mw.pm.addonFolder(), addon_path, "user_files/themes", "themes.json"
@@ -165,6 +163,17 @@ class ThemeManager:
                 # If loading fails, create a default active theme
                 self.themes["active"] = self.themes[self.current_theme]
 
+        # Validate current theme exists
+        self._validate_current_theme()
+
+    def _validate_current_theme(self):
+        """Ensure current_theme exists, reset to 'light' if not"""
+        if self.current_theme not in self.themes:
+            print(
+                f"Warning: Current theme '{self.current_theme}' not found, resetting to 'light'"
+            )
+            self.current_theme = "light"
+
     def get_active_theme(self) -> ThemeColors:
         """Get the currently active theme"""
         return self.themes.get("active", self.themes[self.current_theme])
@@ -179,7 +188,7 @@ class ThemeManager:
         self.themes[name] = colors
         self._save_themes()
 
-    def save_active_theme(self, colors: ThemeColors, theme_name: str = None):
+    def save_active_theme(self, colors: ThemeColors, theme_name: Optional[str] = None):
         self.themes["active"] = colors
         self._save_themes()
         os.makedirs(os.path.dirname(self.active_theme_file), exist_ok=True)
@@ -196,9 +205,18 @@ class ThemeManager:
             themes_dict = {name: vars(colors) for name, colors in self.themes.items()}
             json.dump(themes_dict, f, indent=2)
 
-    def get_css(self, theme_name: str = None) -> str:
+    def get_css(self, theme_name: Optional[str] = None) -> str:
         """Generate CSS for the current theme"""
-        theme = self.themes[theme_name or self.current_theme]
+        requested_theme = theme_name or self.current_theme
+
+        # Fallback to 'light' theme if the requested theme doesn't exist
+        if requested_theme not in self.themes:
+            print(
+                f"Warning: Theme '{requested_theme}' not found, falling back to 'light' theme"
+            )
+            requested_theme = "light"
+
+        theme = self.themes[requested_theme]
 
         return f"""
         /* Base styles */
@@ -257,9 +275,20 @@ class ThemeManager:
         }}
         """
 
-    def get_qt_styles(self, theme_name: str = None, is_mac: bool = False) -> str:
+    def get_qt_styles(
+        self, theme_name: Optional[str] = None, is_mac: bool = False
+    ) -> str:
         """Generate Qt styles for the current theme"""
-        theme = self.themes[theme_name or self.current_theme]
+        requested_theme = theme_name or self.current_theme
+
+        # Fallback to 'light' theme if the requested theme doesn't exist
+        if requested_theme not in self.themes:
+            print(
+                f"Warning: Theme '{requested_theme}' not found, falling back to 'light' theme"
+            )
+            requested_theme = "light"
+
+        theme = self.themes[requested_theme]
 
         if is_mac:
             return f"""
@@ -304,9 +333,20 @@ class ThemeManager:
             }}
             """
 
-    def get_combo_style(self, theme_name: str = None, is_mac: bool = False) -> str:
+    def get_combo_style(
+        self, theme_name: Optional[str] = None, is_mac: bool = False
+    ) -> str:
         """Generate Qt styles for QComboBox"""
-        theme = self.themes[theme_name or self.current_theme]
+        requested_theme = theme_name or self.current_theme
+
+        # Fallback to 'light' theme if the requested theme doesn't exist
+        if requested_theme not in self.themes:
+            print(
+                f"Warning: Theme '{requested_theme}' not found, falling back to 'light' theme"
+            )
+            requested_theme = "light"
+
+        theme = self.themes[requested_theme]
 
         return f"""
         QComboBox {{
