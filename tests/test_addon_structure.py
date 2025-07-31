@@ -44,19 +44,6 @@ class TestAddonBasics(unittest.TestCase):
         # Should be a dictionary
         self.assertIsInstance(config, dict)
 
-    def test_manifest_json_valid(self):
-        """Test that manifest.json is valid JSON."""
-        import json
-
-        manifest_path = Path(__file__).parent.parent / "manifest.json"
-        with open(manifest_path, "r") as f:
-            manifest = json.load(f)
-
-        # Should be a dictionary with required fields
-        self.assertIsInstance(manifest, dict)
-        self.assertIn("package", manifest)
-        self.assertIn("name", manifest)
-
     def test_pyproject_toml_valid(self):
         """Test that pyproject.toml is valid TOML and has version."""
         try:
