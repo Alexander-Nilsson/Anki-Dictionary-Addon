@@ -1,0 +1,558 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, pyright ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      
+    - name: Install dependencies
+      run: |
+        # Install system dependencies that might be needed
+        sudo apt-get update
+        sudo apt-get install -y xvfb
+        
+        # Install Python dependencies
+        uv sync --dev || true
+        uv pip install pytest pytest-cov flake8 black mypy || pip install pytest pytest-cov flake8 black mypy
+        
+    - name: Lint code with flake8
+      run: |
+        uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+    - name: Check code formatting with black
+      run: |
+        uv run black --check --diff . || echo "Code formatting issues found - consider running 'black .'"
+        
+    - name: Type check with mypy (optional)
+      continue-on-error: true
+      run: |
+        uv run mypy . --ignore-missing-imports || echo "Type checking completed with warnings"
+        
+    - name: Test addon structure
+      run: |
+        python -c "
+        import os
+        import sys
+        
+        print('🔍 Checking addon structure...')
+        
+        # Check required files
+        required_files = ['__init__.py', 'main.py', 'config.json']
+        missing_files = []
+        
+        for file in required_files:
+            if not os.path.exists(file):
+                missing_files.append(file)
+        
+        if missing_files:
+            print(f'❌ Missing required files: {missing_files}')
+            sys.exit(1)
+        else:
+            print('✅ All required addon files present')
+        
+        # Check if main components can be imported
+        try:
+            sys.path.insert(0, '.')
+            import main
+            print('✅ Main module imports successfully')
+        except Exception as e:
+            print(f'⚠️  Main module import warning: {e}')
+        "
+        
+    - name: Run test suite
+      run: |
+        # Use xvfb for headless GUI testing
+        xvfb-run -a python tests/run_tests.py || python tests/run_tests.py
+        
+    - name: Test standalone functionality (basic)
+      continue-on-error: true
+      run: |
+        # Test that key modules can be imported in standalone mode
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, '.')
+        
+        try:
+            # Test basic imports
+            import miutils
+            print('✅ miutils imports successfully')
+        except Exception as e:
+            print(f'⚠️  miutils import warning: {e}')
+            
+        try:
+            import dictdb
+            print('✅ dictdb imports successfully')  
+        except Exception as e:
+            print(f'⚠️  dictdb import warning: {e}')
+        "
+        
+  build:
+    name: Build Addon
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install build dependencies
+      run: |
+        pip install build wheel setuptools
+        
+    - name: Get version from pyproject.toml
+      id: version
+      run: |
+        VERSION=$(python -c "
+        import tomllib
+        with open('pyproject.toml', 'rb') as f:
+            config = tomllib.load(f)
+        print(config['project']['version'])
+        " 2>/dev/null || python -c "
+        import toml
+        with open('pyproject.toml', 'r') as f:
+            config = toml.load(f)
+        print(config['project']['version'])
+        " 2>/dev/null || echo "1.0.0")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version detected: $VERSION"
+        
+    - name: Create build script
+      run: |
+        cat > build_addon.py << 'EOF'
+        #!/usr/bin/env python3
+        """
+        Build script for Anki Dictionary Addon
+        """
+        import os
+        import shutil
+        import zipfile
+        import json
+        from pathlib import Path
+        
+        def create_addon_package():
+            """Create .ankiaddon package"""
+            print("🔧 Building Anki addon package...")
+            
+            # Create build directory
+            build_dir = Path('build')
+            addon_dir = build_dir / 'anki_dictionary_addon'
+            
+            if build_dir.exists():
+                shutil.rmtree(build_dir)
+            addon_dir.mkdir(parents=True)
+            
+            # Files/directories to include in addon
+            include_items = [
+                '__init__.py',
+                'main.py',
+                'config.json',
+                'manifest.json',
+                'miutils.py',
+                'dictdb.py', 
+                'dictionaryManager.py',
+                'launch_dictionary.py',
+                'miUpdater.py',
+                'miflix.py',
+                'ffmpegInstaller.py',
+                'icons/',
+                'js/',
+                'user_files/',
+                'vendor/',
+                '*.html',
+                '*.css'
+            ]
+            
+            # Copy files to addon directory
+            for item in include_items:
+                if item.endswith('/'):
+                    # Directory
+                    src_dir = Path(item)
+                    if src_dir.exists():
+                        shutil.copytree(src_dir, addon_dir / src_dir.name)
+                        print(f"   ✓ Copied directory: {item}")
+                elif '*' in item:
+                    # Glob pattern
+                    import glob
+                    for file_path in glob.glob(item):
+                        if os.path.isfile(file_path):
+                            shutil.copy2(file_path, addon_dir / os.path.basename(file_path))
+                            print(f"   ✓ Copied file: {file_path}")
+                else:
+                    # Single file
+                    src_file = Path(item)
+                    if src_file.exists():
+                        shutil.copy2(src_file, addon_dir / src_file.name)
+                        print(f"   ✓ Copied file: {item}")
+                    else:
+                        print(f"   ⚠️  Skipped missing: {item}")
+            
+            # Create .ankiaddon file
+            addon_zip = build_dir / 'anki_dictionary_addon.ankiaddon'
+            with zipfile.ZipFile(addon_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for root, dirs, files in os.walk(addon_dir):
+                    for file in files:
+                        file_path = Path(root) / file
+                        arc_path = file_path.relative_to(addon_dir)
+                        zf.write(file_path, arc_path)
+            
+            print(f"✅ Addon package created: {addon_zip}")
+            return addon_zip
+            
+        def create_standalone_package():
+            """Create standalone package"""
+            print("🔧 Building standalone package...")
+            
+            build_dir = Path('build')
+            standalone_dir = build_dir / 'standalone'
+            standalone_dir.mkdir(exist_ok=True)
+            
+            # Files for standalone version
+            standalone_items = [
+                'launch_dictionary.py',
+                'standalone_wrapper.py',
+                'miutils.py',
+                'dictdb.py',
+                'dictionaryManager.py',
+                'miUpdater.py',
+                'config.json',
+                'pyproject.toml',
+                'README.md',
+                'icons/',
+                'js/',
+                'user_files/',
+                'vendor/',
+                '*.html',
+                '*.css'
+            ]
+            
+            # Copy files
+            for item in standalone_items:
+                if item.endswith('/'):
+                    src_dir = Path(item)
+                    if src_dir.exists():
+                        dest_dir = standalone_dir / src_dir.name
+                        if dest_dir.exists():
+                            shutil.rmtree(dest_dir)
+                        shutil.copytree(src_dir, dest_dir)
+                        print(f"   ✓ Copied directory: {item}")
+                elif '*' in item:
+                    import glob
+                    for file_path in glob.glob(item):
+                        if os.path.isfile(file_path):
+                            shutil.copy2(file_path, standalone_dir / os.path.basename(file_path))
+                            print(f"   ✓ Copied file: {file_path}")
+                else:
+                    src_file = Path(item)
+                    if src_file.exists():
+                        shutil.copy2(src_file, standalone_dir / src_file.name)
+                        print(f"   ✓ Copied file: {item}")
+            
+            # Create standalone zip
+            standalone_zip = build_dir / 'anki_dictionary_standalone.zip'
+            with zipfile.ZipFile(standalone_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for root, dirs, files in os.walk(standalone_dir):
+                    for file in files:
+                        file_path = Path(root) / file
+                        arc_path = file_path.relative_to(build_dir)
+                        zf.write(file_path, arc_path)
+            
+            print(f"✅ Standalone package created: {standalone_zip}")
+            return standalone_zip
+        
+        if __name__ == '__main__':
+            create_addon_package()
+            create_standalone_package()
+            print("🎉 Build completed successfully!")
+        EOF
+        
+    - name: Build addon packages
+      run: |
+        python build_addon.py
+        
+    - name: List build artifacts
+      run: |
+        echo "📦 Build artifacts:"
+        ls -la build/
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: anki-dictionary-addon-v${{ steps.version.outputs.version }}
+        path: |
+          build/*.ankiaddon
+          build/*.zip
+        retention-days: 30
+        
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install build dependencies
+      run: |
+        pip install build wheel setuptools
+        
+    - name: Create build script (for release)
+      run: |
+        cat > build_addon.py << 'EOF'
+        #!/usr/bin/env python3
+        """
+        Build script for Anki Dictionary Addon
+        """
+        import os
+        import shutil
+        import zipfile
+        import json
+        from pathlib import Path
+        
+        def create_addon_package():
+            """Create .ankiaddon package"""
+            print("🔧 Building Anki addon package...")
+            
+            # Create build directory
+            build_dir = Path('build')
+            addon_dir = build_dir / 'anki_dictionary_addon'
+            
+            if build_dir.exists():
+                shutil.rmtree(build_dir)
+            addon_dir.mkdir(parents=True)
+            
+            # Files/directories to include in addon
+            include_items = [
+                '__init__.py',
+                'main.py',
+                'config.json',
+                'manifest.json',
+                'miutils.py',
+                'dictdb.py', 
+                'dictionaryManager.py',
+                'launch_dictionary.py',
+                'miUpdater.py',
+                'miflix.py',
+                'ffmpegInstaller.py',
+                'icons/',
+                'js/',
+                'user_files/',
+                'vendor/',
+                '*.html',
+                '*.css'
+            ]
+            
+            # Copy files to addon directory
+            for item in include_items:
+                if item.endswith('/'):
+                    # Directory
+                    src_dir = Path(item)
+                    if src_dir.exists():
+                        shutil.copytree(src_dir, addon_dir / src_dir.name)
+                        print(f"   ✓ Copied directory: {item}")
+                elif '*' in item:
+                    # Glob pattern
+                    import glob
+                    for file_path in glob.glob(item):
+                        if os.path.isfile(file_path):
+                            shutil.copy2(file_path, addon_dir / os.path.basename(file_path))
+                            print(f"   ✓ Copied file: {file_path}")
+                else:
+                    # Single file
+                    src_file = Path(item)
+                    if src_file.exists():
+                        shutil.copy2(src_file, addon_dir / src_file.name)
+                        print(f"   ✓ Copied file: {item}")
+                    else:
+                        print(f"   ⚠️  Skipped missing: {item}")
+            
+            # Create .ankiaddon file
+            addon_zip = build_dir / 'anki_dictionary_addon.ankiaddon'
+            with zipfile.ZipFile(addon_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for root, dirs, files in os.walk(addon_dir):
+                    for file in files:
+                        file_path = Path(root) / file
+                        arc_path = file_path.relative_to(addon_dir)
+                        zf.write(file_path, arc_path)
+            
+            print(f"✅ Addon package created: {addon_zip}")
+            return addon_zip
+            
+        def create_standalone_package():
+            """Create standalone package"""
+            print("🔧 Building standalone package...")
+            
+            build_dir = Path('build')
+            standalone_dir = build_dir / 'standalone'
+            standalone_dir.mkdir(exist_ok=True)
+            
+            # Files for standalone version
+            standalone_items = [
+                'launch_dictionary.py',
+                'standalone_wrapper.py',
+                'miutils.py',
+                'dictdb.py',
+                'dictionaryManager.py',
+                'miUpdater.py',
+                'config.json',
+                'pyproject.toml',
+                'README.md',
+                'icons/',
+                'js/',
+                'user_files/',
+                'vendor/',
+                '*.html',
+                '*.css'
+            ]
+            
+            # Copy files
+            for item in standalone_items:
+                if item.endswith('/'):
+                    src_dir = Path(item)
+                    if src_dir.exists():
+                        dest_dir = standalone_dir / src_dir.name
+                        if dest_dir.exists():
+                            shutil.rmtree(dest_dir)
+                        shutil.copytree(src_dir, dest_dir)
+                        print(f"   ✓ Copied directory: {item}")
+                elif '*' in item:
+                    import glob
+                    for file_path in glob.glob(item):
+                        if os.path.isfile(file_path):
+                            shutil.copy2(file_path, standalone_dir / os.path.basename(file_path))
+                            print(f"   ✓ Copied file: {file_path}")
+                else:
+                    src_file = Path(item)
+                    if src_file.exists():
+                        shutil.copy2(src_file, standalone_dir / src_file.name)
+                        print(f"   ✓ Copied file: {item}")
+            
+            # Create standalone zip
+            standalone_zip = build_dir / 'anki_dictionary_standalone.zip'
+            with zipfile.ZipFile(standalone_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for root, dirs, files in os.walk(standalone_dir):
+                    for file in files:
+                        file_path = Path(root) / file
+                        arc_path = file_path.relative_to(build_dir)
+                        zf.write(file_path, arc_path)
+            
+            print(f"✅ Standalone package created: {standalone_zip}")
+            return standalone_zip
+        
+        if __name__ == '__main__':
+            create_addon_package()
+            create_standalone_package()
+            print("🎉 Build completed successfully!")
+        EOF
+        
+    - name: Build release packages
+      run: |
+        python build_addon.py
+        
+    - name: Get version and release info
+      id: release_info
+      run: |
+        VERSION=$(python -c "
+        import tomllib
+        with open('pyproject.toml', 'rb') as f:
+            config = tomllib.load(f)
+        print(config['project']['version'])
+        " 2>/dev/null || python -c "
+        import toml
+        with open('pyproject.toml', 'r') as f:
+            config = toml.load(f)
+        print(config['project']['version'])
+        " 2>/dev/null || echo "1.0.0")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Find built files
+        ANKIADDON_FILE=$(find build/ -name "*.ankiaddon" -type f | head -n1)
+        STANDALONE_FILE=$(find build/ -name "*standalone*.zip" -type f | head -n1)
+        
+        echo "ankiaddon_file=$ANKIADDON_FILE" >> $GITHUB_OUTPUT
+        echo "standalone_file=$STANDALONE_FILE" >> $GITHUB_OUTPUT
+        
+        echo "Found files:"
+        echo "  Addon: $ANKIADDON_FILE"
+        echo "  Standalone: $STANDALONE_FILE"
+        
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ${{ steps.release_info.outputs.ankiaddon_file }}
+          ${{ steps.release_info.outputs.standalone_file }}
+        body: |
+          ## Anki Dictionary Addon v${{ steps.release_info.outputs.version }}
+          
+          ### Installation Options
+          
+          **🎯 For Anki Users (Recommended):**
+          1. Download the `.ankiaddon` file below
+          2. Double-click the file to install in Anki
+          3. Restart Anki
+          4. The addon will be available in your Tools menu
+          
+          **🔧 For Standalone Use:**
+          1. Download the `standalone.zip` file
+          2. Extract the contents to a folder
+          3. Run `python launch_dictionary.py`
+          4. Requires Python 3.8+ and PyQt6
+          
+          ### Features in this Release
+          - Dictionary lookup functionality
+          - Multi-language support
+          - Image search integration
+          - Audio pronunciation support
+          - Customizable themes
+          - Export capabilities
+          
+          ### System Requirements
+          - **For Anki addon**: Anki 24.11+ 
+          - **For standalone**: Python 3.8+, PyQt6, PyQt6-WebEngine
+          
+          ### Support
+          - 🐛 Report issues: [GitHub Issues](https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/issues)
+          - 📖 Documentation: [README](https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/blob/main/README.md)
+          
+          ---
+          
+          **Full Changelog**: https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/compare/v${{ github.event.release.tag_name }}...v${{ steps.release_info.outputs.version }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,7 +4,7 @@ Consolidated wizard components for the Dictionary Addon.
 
 This module contains:
 - MiWizard: Generic wizard dialog framework
-- MiWizardPage: Base wizard page class  
+- MiWizardPage: Base wizard page class
 - Message functions for brand/update messages
 - Video content fetching for welcome screens
 """
@@ -37,15 +37,15 @@ class MiWizardPage(QWidget):
         self.subtitle = None
         self.pixmap = None
 
-        self.back_text = '< Back'
+        self.back_text = "< Back"
         self.back_enabled = True
         self.back_visible = True
 
-        self.next_text = 'Next >'
+        self.next_text = "Next >"
         self.next_enabled = True
         self.next_visible = True
-        
-        self.cancel_text = 'Cancel'
+
+        self.cancel_text = "Cancel"
         self.cancel_enabled = True
         self.cancel_visible = True
 
@@ -77,7 +77,7 @@ class MiWizardPage(QWidget):
 
 class MiWizard(QDialog):
     """Generic wizard dialog framework."""
-    
+
     def __init__(self, parent=None):
         super(MiWizard, self).__init__(parent)
 
@@ -95,7 +95,9 @@ class MiWizard(QDialog):
 
         # Main page frame
         page_frame = QFrame()
-        page_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        page_frame.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         page_frame.setBackgroundRole(QPalette.ColorRole.Base)
         page_frame.setAutoFillBackground(True)
         lyt.addWidget(page_frame)
@@ -107,9 +109,11 @@ class MiWizard(QDialog):
         page_hlyt.addLayout(pixmap_lyt)
 
         self._pixmap_lbl = QLabel()
-        self._pixmap_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._pixmap_lbl.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
         pixmap_lyt.addWidget(self._pixmap_lbl)
-        pixmap_lyt.addStretch()        
+        pixmap_lyt.addStretch()
 
         # Page content layout
         page_vlyt = QVBoxLayout()
@@ -126,10 +130,12 @@ class MiWizard(QDialog):
         btn_lyt = QHBoxLayout()
         lyt.addLayout(btn_lyt)
         style = self.style()
-        margins = (style.pixelMetric(QStyle.PixelMetric.PM_LayoutLeftMargin), 
-                   style.pixelMetric(QStyle.PixelMetric.PM_LayoutTopMargin),
-                   style.pixelMetric(QStyle.PixelMetric.PM_LayoutRightMargin), 
-                   style.pixelMetric(QStyle.PixelMetric.PM_LayoutBottomMargin))
+        margins = (
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutLeftMargin),
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutTopMargin),
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutRightMargin),
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutBottomMargin),
+        )
         btn_lyt.setContentsMargins(*margins)
 
         btn_lyt.addStretch()
@@ -229,15 +235,15 @@ class MiWizard(QDialog):
     def refresh_states(self):
         """Refresh the wizard button states and header."""
         if self._current_page:
-            header_text = ''
+            header_text = ""
 
             title = self._current_page.title
             if title:
-                header_text += '<h2>%s</h2>' % title
+                header_text += "<h2>%s</h2>" % title
 
             subtitle = self._current_page.subtitle
             if subtitle:
-                header_text += '<h4>%s</h4>' % subtitle
+                header_text += "<h4>%s</h4>" % subtitle
 
             if header_text:
                 self._header_lbl.setText(header_text)
@@ -272,7 +278,7 @@ class MiWizard(QDialog):
 # Message and video functions
 def attemptOpenLink(cmd):
     """Attempt to open a link."""
-    if cmd.startswith('openLink:'):
+    if cmd.startswith("openLink:"):
         openLink(cmd[9:])
 
 
@@ -289,11 +295,13 @@ def saveConfiguration(newConf):
 def getLatestVideos(config) -> Tuple[Optional[str], Optional[str]]:
     """Fetch latest videos from YouTube channel."""
     try:
-        resp = req.get("https://www.youtube.com/channel/UCQFe3x4WAgm7joN5daMm5Ew/videos")
+        resp = req.get(
+            "https://www.youtube.com/channel/UCQFe3x4WAgm7joN5daMm5Ew/videos"
+        )
         pattern = r'\{"videoId":"(.*?)"'
         matches = re.findall(pattern, resp.text)
         videoIds = list(dict.fromkeys(matches))
-        
+
         videoEmbeds = []
         count = 0
         for vid in videoIds:
@@ -302,11 +310,15 @@ def getLatestVideos(config) -> Tuple[Optional[str], Optional[str]]:
             count += 1
             if count == 1:
                 videoEmbeds.append("<h2>Check Out Our Latest Release:</h2>")
-                videoEmbeds.append(f'<div class="iframe-wrapper"><div class="clickable-video-link" data-vid="{vid}"></div><iframe width="640" height="360" src="https://www.youtube.com/embed/{vid}" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>')
+                videoEmbeds.append(
+                    f'<div class="iframe-wrapper"><div class="clickable-video-link" data-vid="{vid}"></div><iframe width="640" height="360" src="https://www.youtube.com/embed/{vid}" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
+                )
             else:
                 if count == 2:
                     videoEmbeds.append("<h2>Previous Videos:</h2>")
-                videoEmbeds.append(f'<div class="iframe-wrapper" style="display:inline-block"><div class="clickable-video-link" data-vid="{vid}"></div><iframe width="320" height="180" src="https://www.youtube.com/embed/{vid}" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>')
+                videoEmbeds.append(
+                    f'<div class="iframe-wrapper" style="display:inline-block"><div class="clickable-video-link" data-vid="{vid}"></div><iframe width="320" height="180" src="https://www.youtube.com/embed/{vid}" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
+                )
         return "".join(videoEmbeds), videoIds[0] if videoIds else None
     except Exception:
         return None, None
@@ -317,31 +329,35 @@ def miMessage(text, parent=False):
     title = "Migaku"
     if parent is False:
         parent = aqt.mw.app.activeWindow() or aqt.mw
-    
+
     # Get addon path
     addon_path = dirname(dirname(dirname(dirname(__file__))))
-    icon = QIcon(join(addon_path, 'assets', 'icons', 'dictionary.png'))
-    
+    icon = QIcon(join(addon_path, "assets", "icons", "dictionary.png"))
+
     mb = QMessageBox(parent)
     mb.setWindowIcon(icon)
     mb.setWindowTitle(title)
     cb = QCheckBox("Don't show me the welcome screen again.")
     wv = AnkiWebView()
-    
+
     # Set up bridge for handling link clicks
     # Use a robust approach that works across Anki versions
     try:
         # Modern Anki bridge setup
-        if hasattr(wv, 'set_bridge_command'):
+        if hasattr(wv, "set_bridge_command"):
             # Newest Anki versions
-            wv.set_bridge_command(attemptOpenLink, 'openLink')
-        elif hasattr(wv, 'bridge') and hasattr(wv.bridge, 'onCmd'):
+            wv.set_bridge_command(attemptOpenLink, "openLink")
+        elif hasattr(wv, "bridge") and hasattr(wv.bridge, "onCmd"):
             # Modern approach
             wv.bridge.onCmd = attemptOpenLink
-        elif hasattr(wv.page(), 'bridge') and hasattr(wv.page().bridge, 'onCmd'):
+        elif hasattr(wv.page(), "bridge") and hasattr(wv.page().bridge, "onCmd"):
             # Alternative modern approach
             wv.page().bridge.onCmd = attemptOpenLink
-        elif hasattr(wv, '_page') and hasattr(wv._page, '_bridge') and hasattr(wv._page._bridge, 'onCmd'):
+        elif (
+            hasattr(wv, "_page")
+            and hasattr(wv._page, "_bridge")
+            and hasattr(wv._page._bridge, "onCmd")
+        ):
             # Legacy approach (keep as fallback)
             wv._page._bridge.onCmd = attemptOpenLink
         else:
@@ -351,7 +367,7 @@ def miMessage(text, parent=False):
         # If bridge setup fails, continue without it
         # The dialog will still work, just without clickable links
         pass
-    
+
     wv.setFixedSize(680, 450)
     wv.page().setHtml(text)
     wide = QWidget()
@@ -369,7 +385,7 @@ def miMessage(text, parent=False):
 
 
 # HTML template for Migaku message
-migakuMessage = '''
+migakuMessage = """
 <style>
     body{
     margin:0px;
@@ -434,7 +450,7 @@ migakuMessage = '''
         }
 </script>
 </body>
-'''
+"""
 
 
 def disableMessage(config):
@@ -449,15 +465,15 @@ def displayMessageMaybeDisableMessage(content, config):
     """Display message and maybe disable it."""
     if miMessage(migakuMessage % content):
         disableMessage(config)
-     
+
 
 def attemptShowDictBrandUpdateMessage():
     """Attempt to show Dictionary addon update message."""
     config = getConfig()
-    
+
     # The config utility returns empty dict if None, so we can safely use get()
     shouldShow = config.get("displayAgain", False)
-    
+
     if shouldShow and not hasattr(mw, "DictShouldNotShowMessage"):
         videoIds, videoId = getLatestVideos(config)
         if videoIds:

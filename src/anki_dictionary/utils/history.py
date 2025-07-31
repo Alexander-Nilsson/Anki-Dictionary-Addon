@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 
+#
 
 import json
 
@@ -24,7 +24,6 @@ class HistoryModel(QAbstractTableModel):
     def columnCount(self, index=QModelIndex()):
         return 2
 
-
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
@@ -48,7 +47,9 @@ class HistoryModel(QAbstractTableModel):
             return section + 1
         return None
 
-    def insertRows(self, position= False, rows=1, index=QModelIndex(), term = False, date = False):
+    def insertRows(
+        self, position=False, rows=1, index=QModelIndex(), term=False, date=False
+    ):
         if not position:
             position = self.rowCount()
         self.beginInsertRows(QModelIndex(), position, position)
@@ -66,7 +67,7 @@ class HistoryModel(QAbstractTableModel):
 
     def removeRows(self, position, rows=1, index=QModelIndex()):
         self.beginRemoveRows(QModelIndex(), position, position + rows - 1)
-        del self.history[position:position+rows]
+        del self.history[position : position + rows]
         self.endRemoveRows()
         self.dictInt.saveHistory()
         return True
@@ -82,7 +83,7 @@ class HistoryBrowser(QWidget):
         self.model = historyModel
         self.dictInt = parent
         self.tableView.setModel(self.model)
-        self.clearHistory = QPushButton('Clear History')
+        self.clearHistory = QPushButton("Clear History")
         self.clearHistory.clicked.connect(self.deleteHistory)
         self.tableView.doubleClicked.connect(self.searchAgain)
         self.setupTable()
@@ -106,12 +107,16 @@ class HistoryBrowser(QWidget):
         tableHeader = self.tableView.horizontalHeader()
         tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.tableView.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tableView.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.tableView.horizontalHeader().hide()
 
     def searchAgain(self):
         date = str(datetime.date.today())
-        term = self.model.index(self.tableView.selectionModel().currentIndex().row(), 0).data()
+        term = self.model.index(
+            self.tableView.selectionModel().currentIndex().row(), 0
+        ).data()
         self.model.insertRows(term=term, date=date)
         self.dictInt.initSearch(term)
 
@@ -128,11 +133,15 @@ class HistoryBrowser(QWidget):
 
         # Apply the palette to the history browser
         self.setPalette(palette)
-        self.setStyleSheet(self.dictInt.theme_manager.get_qt_styles(is_mac=is_mac))  # Reapply stylesheet
+        self.setStyleSheet(
+            self.dictInt.theme_manager.get_qt_styles(is_mac=is_mac)
+        )  # Reapply stylesheet
         self.update()  # Force the widget to repaint
 
     def deleteHistory(self):
-        if miAsk('Clearing your history cannot be undone. Would you like to proceed?', self):
+        if miAsk(
+            "Clearing your history cannot be undone. Would you like to proceed?", self
+        ):
             self.model.removeRows(0, len(self.model.history))
 
     def getLayout(self):
