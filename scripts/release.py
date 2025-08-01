@@ -139,9 +139,9 @@ def push_changes(tag_name):
 
 def check_github_actions():
     """Check if GitHub Actions workflow exists"""
-    workflow_file = Path(".github/workflows/ci-cd.yml")
+    workflow_file = Path(".github/workflows/release.yml")
     if not workflow_file.exists():
-        print("⚠️  GitHub Actions workflow not found at .github/workflows/ci-cd.yml")
+        print("⚠️  GitHub Actions workflow not found at .github/workflows/release.yml")
         print("   The release process may not work automatically.")
         return False
     return True
@@ -238,8 +238,8 @@ def main():
     print()
     print("Next steps:")
     print("  1. GitHub Actions will now build the addon automatically")
-    print("  2. Go to GitHub → Releases to create the release from the tag")
-    print("  3. The built .ankiaddon and standalone.zip will be attached")
+    print("  2. A GitHub release will be created automatically from the tag")
+    print("  3. The built .ankiaddon file will be attached to the release")
     print()
     print("Links:")
     print(

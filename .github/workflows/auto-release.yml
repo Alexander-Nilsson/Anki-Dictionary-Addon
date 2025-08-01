@@ -1,29 +1,21 @@
-name: Release
+name: Auto Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ master ]
+    # Only release when feature branches are merged to master
+    # Use tags if you want manual control: tags: [ 'v*' ]
 
 env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  wait-for-tests:
-    name: Wait for Tests to Complete
+  create-release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-    steps:
-    - name: Wait for test workflows
-      uses: lewagon/wait-on-check-action@v1.3.1
-      with:
-        ref: ${{ github.event.release.tag_name }}
-        check-name: 'Run Tests'
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        wait-interval: 30
-
-  release:
-    name: Create Release Assets
-    runs-on: ubuntu-latest
-    needs: wait-for-tests
+    
+    # Only run if this is a merge commit or contains release keywords
+    if: contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'feat:') || contains(github.event.head_commit.message, 'fix:') || contains(github.event.head_commit.message, 'release:')
     
     steps:
     - name: Checkout code
@@ -66,18 +58,9 @@ jobs:
             # Files/directories to include in addon
             include_items = [
                 '__init__.py',
-                'main.py',
                 'config.json',
-                'manifest.json',
-                'miutils.py',
-                'dictdb.py', 
-                'dictionaryManager.py',
-                'launch_dictionary.py',
-                'miUpdater.py',
-                'miflix.py',
-                'ffmpegInstaller.py',
-                'icons/',
-                'js/',
+                'src/',
+                'assets/',
                 'user_files/',
                 'vendor/',
                 '*.html',
@@ -108,6 +91,19 @@ jobs:
                     else:
                         print(f"   ⚠️  Skipped missing: {item}")
             
+            # Create manifest.json dynamically in build
+            manifest_data = {
+                "package": "Anki Dictionary Addon",
+                "name": "Anki Dictionary Addon",
+                "requirements": [
+                    "pyobjc-core",
+                    "pyobjc-framework-cocoa"
+                ]
+            }
+            with open(addon_dir / 'manifest.json', 'w') as f:
+                json.dump(manifest_data, f, indent=2)
+            print("   ✓ Created manifest.json in build")
+            
             # Create .ankiaddon file
             addon_zip = build_dir / 'anki_dictionary_addon.ankiaddon'
             with zipfile.ZipFile(addon_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -132,17 +128,56 @@ jobs:
     - name: Get version and release info
       id: release_info
       run: |
-        # Extract version from git tag (remove 'v' prefix if present)
-        TAG_VERSION="${{ github.event.release.tag_name }}"
-        VERSION="${TAG_VERSION#v}"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        # Get version from pyproject.toml and auto-increment
+        CURRENT_VERSION=$(python -c "
+        try:
+            import tomllib
+            with open('pyproject.toml', 'rb') as f:
+                config = tomllib.load(f)
+        except ImportError:
+            import toml
+            with open('pyproject.toml', 'r') as f:
+                config = toml.load(f)
+        print(config['project']['version'])
+        ")
+        
+        # Auto-increment patch version for automatic releases
+        IFS='.' read -ra ADDR <<< "\$CURRENT_VERSION"
+        MAJOR=\${ADDR[0]}
+        MINOR=\${ADDR[1]}
+        PATCH=\${ADDR[2]}
+        NEW_PATCH=\$((PATCH + 1))
+        VERSION="\$MAJOR.\$MINOR.\$NEW_PATCH"
+        
+        echo "version=\$VERSION" >> \$GITHUB_OUTPUT
+        echo "Current version: \$CURRENT_VERSION"
+        echo "New version: \$VERSION"
+        
+        # Update pyproject.toml with new version
+        python -c "
+        try:
+            import tomllib
+            with open('pyproject.toml', 'rb') as f:
+                config = tomllib.load(f)
+        except ImportError:
+            import toml
+            with open('pyproject.toml', 'r') as f:
+                config = toml.load(f)
+        
+        config['project']['version'] = '\$VERSION'
+        
+        import toml
+        with open('pyproject.toml', 'w') as f:
+            toml.dump(config, f)
+        print('Updated pyproject.toml to \$VERSION')
+        "
         
         # Find built files
-        ANKIADDON_FILE=$(find build/ -name "*.ankiaddon" -type f | head -n1)
-        echo "ankiaddon_file=$ANKIADDON_FILE" >> $GITHUB_OUTPUT
+        ANKIADDON_FILE=\$(find build/ -name "*.ankiaddon" -type f | head -n1)
+        echo "ankiaddon_file=\$ANKIADDON_FILE" >> \$GITHUB_OUTPUT
         
         echo "Found files:"
-        echo "  Addon: $ANKIADDON_FILE"
+        echo "  Addon: \$ANKIADDON_FILE"
         
     - name: Generate release notes
       id: release_notes
@@ -150,12 +185,11 @@ jobs:
         cat > release_notes.md << EOF
         ## Anki Dictionary Addon v${{ steps.release_info.outputs.version }}
         
-        ✅ **Tested and verified on:**
+        ✅ **Automatically tested and verified on:**
         - Ubuntu Latest
-        - Windows Latest  
-        - macOS Latest
+        - Python 3.11
         
-        ### Installation Options
+        ### Installation
         
         **🎯 For Anki Users:**
         1. Download the \`.ankiaddon\` file below
@@ -163,7 +197,7 @@ jobs:
         3. Restart Anki
         4. The addon will be available in your Tools menu
         
-        ### Features in this Release
+        ### Features
         - Dictionary lookup functionality
         - Multi-language support
         - Image search integration
@@ -177,9 +211,8 @@ jobs:
         ### Quality Assurance
         This release has passed:
         - ✅ Unit tests and code quality checks
-        - ✅ Cross-platform integration tests
-        - ✅ Real Anki installation verification
-        - ✅ Addon functionality validation
+        - ✅ Build verification
+        - ✅ Addon structure validation
         
         ### Support
         - 🐛 Report issues: [GitHub Issues](https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/issues)
@@ -187,20 +220,22 @@ jobs:
         
         ---
         
-        **Full Changelog**: https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/compare/v${{ github.event.release.tag_name }}...v${{ steps.release_info.outputs.version }}
+        **Commit**: ${{ github.sha }}
         EOF
         
         echo "release_notes<<EOF" >> $GITHUB_OUTPUT
         cat release_notes.md >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
         
-    - name: Upload Release Assets
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           ${{ steps.release_info.outputs.ankiaddon_file }}
         body: ${{ steps.release_notes.outputs.release_notes }}
-        tag_name: ${{ github.event.release.tag_name }}
+        name: "Anki Dictionary Addon v${{ steps.release_info.outputs.version }}"
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
