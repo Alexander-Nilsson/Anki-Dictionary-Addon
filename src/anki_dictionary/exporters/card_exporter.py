@@ -278,9 +278,29 @@ Please review your template and notetype combination."""
     def getDecks(self):
         decksRaw = self.mw.col.decks
         decks = {}
-        for did, deck in decksRaw.items():
-            if not deck["dyn"]:
-                decks[deck["name"]] = did
+        
+        # Try the newer Anki API first
+        try:
+            # all_names_and_ids() returns a list of NamedInt objects with .name and .id attributes
+            decks_list = decksRaw.all_names_and_ids()
+            for deck_info in decks_list:
+                # Check if deck is not dynamic (filtered)
+                deck = decksRaw.get(deck_info.id)
+                if deck and not deck.get("dyn", False):
+                    decks[deck_info.name] = deck_info.id
+        except (AttributeError, TypeError):
+            # Fallback for older Anki versions that still have .items()
+            try:
+                for did, deck in decksRaw.items():
+                    if not deck["dyn"]:
+                        decks[deck["name"]] = did
+            except AttributeError:
+                # Final fallback using all() method
+                all_decks = decksRaw.all()
+                for deck in all_decks:
+                    if not deck.get("dyn", False):
+                        decks[deck["name"]] = deck["id"]
+        
         return decks
 
     def getDeckCB(self):

@@ -153,3 +153,6 @@ ankiDict/.idea
 temp/
 
 user_files/media/_searchHistory.json
+user_files/themes/active.json
+user_files/themes/themes.json
+meta.json
