@@ -327,7 +327,6 @@ class SettingsGui(QTabWidget):
         self.maxImgWidth.setRange(0, 9999)
         self.maxImgHeight = QSpinBox()
         self.maxImgHeight.setRange(0, 9999)
-        self.safeSearch = QCheckBox()
         self.imageSearchCountry = QComboBox()
         self.imageSearchCountry.addItems(self.imageSearchCountries)
         self.condensedAudioDirectoryLabel = QLabel("Condensed Audio Save Location:")
@@ -432,9 +431,6 @@ class SettingsGui(QTabWidget):
         self.globalOpen.setToolTip(
             "If enabled the dictionary will be opened on a global search."
         )
-        self.safeSearch.setToolTip(
-            "Whether or not to enable Safe Search for image search."
-        )
         self.convertToMp3.setToolTip(
             "When enabled will convert extension WAV files into MP3 files.\nMP3 files are supported across every Anki platform and are much smaller than WAV files.\nWe recommend enabling this option."
         )
@@ -463,7 +459,6 @@ class SettingsGui(QTabWidget):
         self.tooltipCB.setChecked(config["tooltips"])
         self.globalHotkeys.setChecked(config["globalHotkeys"])
         self.globalOpen.setChecked(config["openOnGlobal"])
-        self.safeSearch.setChecked(config["safeSearch"])
         self.convertToMp3.setChecked(config["mp3Convert"])
         self.disableCondensedMessages.setChecked(config["disableCondensed"])
         self.dictOnTop.setChecked(config["dictAlwaysOnTop"])
@@ -492,7 +487,6 @@ class SettingsGui(QTabWidget):
         nc["openOnGlobal"] = self.globalOpen.isChecked()
         nc["mp3Convert"] = self.convertToMp3.isChecked()
         nc["disableCondensed"] = self.disableCondensedMessages.isChecked()
-        nc["safeSearch"] = self.safeSearch.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
         if self.chooseAudioDirectory.text() != "Choose Directory":
             nc["condensedAudioDirectory"] = self.chooseAudioDirectory.text()
@@ -802,11 +796,6 @@ class SettingsGui(QTabWidget):
         countryLay.addWidget(self.imageSearchCountry)
         self.imageSearchCountry.setFixedWidth(160)
         optLay2.addLayout(countryLay)
-
-        safeLay = QHBoxLayout()
-        safeLay.addWidget(self.miQLabel("Safe Search:", 323))
-        safeLay.addWidget(self.safeSearch)
-        optLay2.addLayout(safeLay)
 
         optLay2.addStretch()
 
