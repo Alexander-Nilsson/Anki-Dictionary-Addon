@@ -2405,9 +2405,15 @@ class DictInterface(QWidget):
             if exists(path):
                 with open(path, "r", encoding="utf-8") as histFile:
                     return json.loads(histFile.read())
-        except:
+            else:
+                # Create empty search history file if it doesn't exist
+                empty_history = []
+                with codecs.open(path, "w", "utf-8") as outfile:
+                    json.dump(empty_history, outfile, ensure_ascii=False)
+                return empty_history
+        except Exception as e:
+            print(f"Warning: Could not load search history: {e}")
             return []
-        return []
 
     def updateFieldsSetting(self, dictName, fields):
         self.db.setFieldsSetting(dictName, json.dumps(fields, ensure_ascii=False))
