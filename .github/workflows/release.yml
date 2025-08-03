@@ -5,7 +5,7 @@ on:
     types: [published]
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.13'
 
 jobs:
   wait-for-tests:
@@ -205,7 +205,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Upload build artifacts for archival
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: release-anki-dictionary-addon-v${{ steps.release_info.outputs.version }}
         path: |
