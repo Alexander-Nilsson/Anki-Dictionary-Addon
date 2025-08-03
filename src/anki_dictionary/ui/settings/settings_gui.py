@@ -62,7 +62,7 @@ class SettingsGui(QTabWidget):
         self.ffmpegInstaller = FFMPEGInstaller(self.mw)
         self.reboot = reboot
         # TODO update this to use the new config system
-        self.googleCountries = [
+        self.imageSearchCountries = [
             "Afghanistan",
             "Albania",
             "Algeria",
@@ -401,8 +401,8 @@ class SettingsGui(QTabWidget):
         self.maxImgHeight = QSpinBox()
         self.maxImgHeight.setRange(0, 9999)
         self.safeSearch = QCheckBox()
-        self.googleCountry = QComboBox()
-        self.googleCountry.addItems(self.googleCountries)
+        self.imageSearchCountry = QComboBox()
+        self.imageSearchCountry.addItems(self.imageSearchCountries)
         self.forvoLang = QComboBox()
         self.forvoLang.addItems(self.forvoLanguages)
         self.condensedAudioDirectoryLabel = QLabel("Condensed Audio Save Location:")
@@ -469,8 +469,8 @@ class SettingsGui(QTabWidget):
         )
         self.maxImgWidth.setToolTip("Images will be scaled according to this width.")
         self.maxImgHeight.setToolTip("Images will be scaled according to this height.")
-        self.googleCountry.setToolTip(
-            "Select the country or region to search Google Images from, the search region\ngreatly impacts search results so choose a location where your target language is spoken."
+        self.imageSearchCountry.setToolTip(
+            "Select the country or region for image search, the search region\ngreatly impacts search results so choose a location where your target language is spoken."
         )
         self.forvoLang.setToolTip(
             "Select the language to be used with the Forvo Dictionary."
@@ -511,7 +511,7 @@ class SettingsGui(QTabWidget):
             "If enabled the dictionary will be opened on a global search."
         )
         self.safeSearch.setToolTip(
-            "Whether or not to enable Safe Search for Google Images."
+            "Whether or not to enable Safe Search for image search."
         )
         self.convertToMp3.setToolTip(
             "When enabled will convert extension WAV files into MP3 files.\nMP3 files are supported across every Anki platform and are much smaller than WAV files.\nWe recommend enabling this option."
@@ -532,7 +532,7 @@ class SettingsGui(QTabWidget):
         self.dictDefs.setValue(config["dictSearch"])
         self.genJSExport.setChecked(config["jReadingCards"])
         self.genJSEdit.setChecked(config["jReadingEdit"])
-        self.googleCountry.setCurrentText(config["googleSearchRegion"])
+        self.imageSearchCountry.setCurrentText(config["imageSearchRegion"])
         self.forvoLang.setCurrentText(config["ForvoLanguage"])
         self.maxImgWidth.setValue(config["maxWidth"])
         self.maxImgHeight.setValue(config["maxHeight"])
@@ -560,7 +560,7 @@ class SettingsGui(QTabWidget):
         nc["dictSearch"] = self.dictDefs.value()
         nc["jReadingCards"] = self.genJSExport.isChecked()
         nc["jReadingEdit"] = self.genJSEdit.isChecked()
-        nc["googleSearchRegion"] = self.googleCountry.currentText()
+        nc["imageSearchRegion"] = self.imageSearchCountry.currentText()
         nc["ForvoLanguage"] = self.forvoLang.currentText()
         nc["maxWidth"] = self.maxImgWidth.value()
         nc["maxHeight"] = self.maxImgHeight.value()
@@ -878,9 +878,9 @@ class SettingsGui(QTabWidget):
         optLay2.addLayout(genJSEditLay)
 
         countryLay = QHBoxLayout()
-        countryLay.addWidget(self.miQLabel("Google Images Search Region:", 180))
-        countryLay.addWidget(self.googleCountry)
-        self.googleCountry.setFixedWidth(160)
+        countryLay.addWidget(self.miQLabel("Image Search Region:", 180))
+        countryLay.addWidget(self.imageSearchCountry)
+        self.imageSearchCountry.setFixedWidth(160)
         optLay2.addLayout(countryLay)
 
         safeLay = QHBoxLayout()

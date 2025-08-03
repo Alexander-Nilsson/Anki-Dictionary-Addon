@@ -49,7 +49,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
 warnings.filterwarnings("ignore", message=".*Palette images with Transparency.*")
 warnings.filterwarnings("ignore", message=".*should be converted to RGBA images.*")
 
-# Map Google country names and ISO language codes to DuckDuckGo region codes
+# Map country names and ISO language codes to DuckDuckGo region codes
 # Sorted alphabetically for easier maintenance
 countryToDuckDuckGo = {
     "Afghanistan": "af-fa",
@@ -392,8 +392,8 @@ class DuckDuckGo(QRunnable):
                     data_url = f"data:image/jpeg;base64,{img_base64}"
                     return (
                         '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
-                        f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
+                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                        f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
                         "</div>"
                     )
             except Exception as e:
@@ -401,7 +401,7 @@ class DuckDuckGo(QRunnable):
                 return '<div class="imgBox">Error loading image</div>'
 
         # Create horizontal layout with all images in one container
-        html = '<div class="googleCont horizontal-layout">'
+        html = '<div class="imageCont horizontal-layout">'
         html += "".join(generate_image_html(img) for img in local_images)
         html += "</div>"
 
@@ -446,8 +446,8 @@ class DuckDuckGo(QRunnable):
                     data_url = f"data:image/jpeg;base64,{img_base64}"
                     return (
                         '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
-                        f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
+                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                        f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
                         "</div>"
                     )
             except Exception as e:
