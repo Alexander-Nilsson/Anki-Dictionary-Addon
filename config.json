@@ -84,7 +84,6 @@
   "autoAddCards": false,
   "unknownsToSearch": 3,
   "massGenerationPreferences": false,
-  "safeSearch": true,
   "condensedAudioDirectory": false,
   "disableCondensed": false,
   "demo_setting": "This is a demo!"
