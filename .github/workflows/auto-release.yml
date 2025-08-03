@@ -14,8 +14,8 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     
-    # Only run if this is a merge commit or contains release keywords
-    if: contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'feat:') || contains(github.event.head_commit.message, 'fix:') || contains(github.event.head_commit.message, 'release:')
+    # Run on every push to master (remove keyword requirement)
+    # if: contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'feat:') || contains(github.event.head_commit.message, 'fix:') || contains(github.event.head_commit.message, 'release:')
     
     steps:
     - name: Checkout code
