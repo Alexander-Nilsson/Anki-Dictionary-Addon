@@ -10,6 +10,7 @@ import sys
 import shutil
 import zipfile
 import json
+import subprocess
 from pathlib import Path
 
 def get_project_config():
@@ -102,6 +103,44 @@ def build_addon():
     
     # Generate manifest.json from pyproject.toml
     generate_manifest()
+    
+    # Create empty database using separate script instead of copying existing one
+    db_path = addon_dir / 'user_files' / 'db' / 'dictionaries.sqlite'
+    print("   Creating empty database...")
+    try:
+        subprocess.run([
+            sys.executable, 
+            'scripts/create_empty_db.py', 
+            str(db_path)
+        ], check=True, capture_output=True, text=True)
+        print("   ✓ Database creation completed")
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ Error creating database: {e}")
+        print(f"   Output: {e.stdout}")
+        print(f"   Error: {e.stderr}")
+        raise
+    
+    # Create default themes.json using separate script
+    themes_path = addon_dir / 'user_files' / 'themes' / 'themes.json'
+    print("   Creating default themes.json...")
+    try:
+        subprocess.run([
+            sys.executable, 
+            'scripts/create_default_themes.py', 
+            str(themes_path)
+        ], check=True, capture_output=True, text=True)
+        print("   ✓ Themes.json creation completed")
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ Error creating themes.json: {e}")
+        print(f"   Output: {e.stdout}")
+        print(f"   Error: {e.stderr}")
+        raise
+    
+    # Remove search history file if it exists (should be created by addon at runtime)
+    search_history_path = addon_dir / 'user_files' / 'media' / '_searchHistory.json'
+    if search_history_path.exists():
+        search_history_path.unlink()
+        print(f"   ✓ Removed _searchHistory.json (will be created at runtime)")
     
     print(f"✅ Addon built in: {addon_dir}")
     return addon_dir
