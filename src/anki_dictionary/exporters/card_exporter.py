@@ -691,14 +691,14 @@ Please review your template and notetype combination."""
 
     def addImgs(self, word, imgs, thumbs):
         self.focusWindow()
-        defEntry = ["Google Images", False, imgs, imgs]
+        defEntry = ["Images", False, imgs, imgs]
         if defEntry in self.definitionList:
             miInfo("A card cannot contain duplicate definitions.", level="not")
             return
         self.definitionList.append(defEntry)
         rc = self.definitions.rowCount()
         self.definitions.setRowCount(rc + 1)
-        self.definitions.setItem(rc, 0, QTableWidgetItem("Google Images"))
+        self.definitions.setItem(rc, 0, QTableWidgetItem("Images"))
         self.definitions.setCellWidget(rc, 1, thumbs)
         deleteButton = QPushButton("X")
         deleteButton.setFixedWidth(40)
@@ -721,7 +721,7 @@ Please review your template and notetype combination."""
 
     def removeImgFromDefinitionList(self, imgs):
         for idx, entry in enumerate(self.definitionList):
-            if entry[0] == "Google Images" and entry[3] == imgs:
+            if entry[0] == "Images" and entry[3] == imgs:
                 self.definitionList.pop(idx)
                 break
 
@@ -816,7 +816,7 @@ Please review your template and notetype combination."""
         dictToTable = collections.OrderedDict()
         dictToTable["None"] = "None"
         dictToTable["Forvo"] = "Forvo"
-        dictToTable["Google Images"] = "Google Images"
+        dictToTable["Images"] = "Images"
         for dictTableName in sorted(self.mw.miDictDB.getAllDicts()):
             dictName = self.mw.miDictDB.cleanDictName(dictTableName)
             dictToTable[dictName] = dictTableName
