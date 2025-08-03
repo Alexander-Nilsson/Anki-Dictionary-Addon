@@ -12,8 +12,10 @@ from aqt.utils import (
 import json
 import sys
 import math
+import base64
 from anki.hooks import runHook
 from aqt.qt import *
+from PyQt6.QtCore import QUrl
 from aqt.utils import openLink, tooltip
 from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
@@ -146,6 +148,25 @@ class MIDict(AnkiWebView):
 
     def loadHTMLURL(self, html, url):
         self.page().setHtml(html, url)
+
+    def getBase64Icon(self, icon_name):
+        """Convert icon to base64 data URL for embedding in HTML"""
+        try:
+            icon_path = join(self.addon_root, "assets", "icons", icon_name)
+            with open(icon_path, "rb") as icon_file:
+                icon_data = icon_file.read()
+                icon_base64 = base64.b64encode(icon_data).decode('utf-8')
+                # Determine MIME type based on file extension
+                if icon_name.endswith('.png'):
+                    mime_type = 'image/png'
+                elif icon_name.endswith('.svg'):
+                    mime_type = 'image/svg+xml'
+                else:
+                    mime_type = 'image/png'  # Default fallback
+                return f"data:{mime_type};base64,{icon_base64}"
+        except Exception as e:
+            print(f"Error loading icon {icon_name}: {e}")
+            return ""
 
     def formatTermHeaders(self, ths):
         formattedHeaders = {}
@@ -475,7 +496,7 @@ class MIDict(AnkiWebView):
                         + dictName
                         + '\')" class="ankiExportButton"><img '
                         + imgTooltip
-                        + ' ankiDict="icons/anki.png"></div><div onclick="clipText(event)" '
+                        + ' src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" '
                         + clipTooltip
                         + ' class="clipper">✂</div><div '
                         + sendTooltip
@@ -493,7 +514,7 @@ class MIDict(AnkiWebView):
 
         else:
             html = (
-                '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img ankiDict="icons/searchzero.svg" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
+                '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="' + self.getBase64Icon("searchzero.svg") + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
                 + term
                 + '".</h3> </div></div>'
             )
@@ -549,7 +570,7 @@ class MIDict(AnkiWebView):
             + bracketBack
             + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
+            + '\')" class="ankiExportButton"><img src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
             + dictName
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div id="'
             + idName
@@ -587,7 +608,7 @@ class MIDict(AnkiWebView):
             + bracketBack
             + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton"><img ankiDict="icons/anki.png"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
+            + '\')" class="ankiExportButton"><img src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
             + dictName
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
@@ -1579,8 +1600,9 @@ class DictInterface(QWidget):
         # Update the stylesheet for child widgets (e.g., combo boxes, buttons, etc.)
         self.update_child_widget_styles()
 
-        # Re-render the dictionary interface
-        self.reload_dictionary_interface()
+        # Simple reload - just reload the dictionary interface completely
+        html, url = self.getHTMLURL(False)
+        self.dict.setHtml(html, url)
 
         # Update the history browser colors if it exists
         if hasattr(self, "historyBrowser") and self.historyBrowser:
@@ -1597,16 +1619,6 @@ class DictInterface(QWidget):
         # Update button styles
         for button in self.findChildren(QPushButton):
             button.setStyleSheet(self.theme_manager.get_qt_styles())
-
-    def reload_dictionary_interface(self):
-        """
-        Re-render the dictionary interface to apply the new theme.
-        """
-        # Generate the HTML with the updated theme
-        html, url = self.getHTMLURL(False)
-
-        # Reload the content in the web view
-        self.dict.setHtml(html, url)
 
     def getPalette(self, color):
         pal = QPalette()
