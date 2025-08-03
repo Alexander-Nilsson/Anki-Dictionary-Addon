@@ -130,7 +130,7 @@ class ForvoSignals(QObject):
 class Forvo(QRunnable):
     def __init__(self, language):
         super(Forvo, self).__init__()
-        self.selLang = "English"  # language
+        self.selLang = language if language in languages else "English"
         self.term = False
         self.signals = ForvoSignals()
         self.langShortCut = languages[self.selLang]
