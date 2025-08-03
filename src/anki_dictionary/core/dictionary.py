@@ -66,7 +66,6 @@ from ..integrations import image_search as duckduckgoimages
 from ..ui.settings.settings_gui import SettingsGui
 import datetime
 import codecs
-from ..integrations.forvo import Forvo
 import ntpath
 from ..utils.common import miInfo
 from PyQt6.QtSvgWidgets import QSvgWidget
@@ -112,9 +111,6 @@ class MIDict(AnkiWebView):
         self.maxW = self.config["maxWidth"]
         self.maxH = self.config["maxHeight"]
 
-    def showGoogleForvoMessage(self, message):
-        miInfo(message, level="err")
-
     def loadImageResults(self, results):
         """
         Loads image search results into the dictionary window
@@ -126,7 +122,7 @@ class MIDict(AnkiWebView):
         # Use json.dumps to safely encode the HTML for JavaScript
         escaped_html = json.dumps(html)
         escaped_idName = json.dumps(idName)
-        self.eval("loadImageForvoHtml(%s, %s);" % (escaped_html, escaped_idName))
+        self.eval("loadImageHtml(%s, %s);" % (escaped_html, escaped_idName))
 
     def downloadImage(self, url):
         try:
@@ -329,7 +325,7 @@ class MIDict(AnkiWebView):
         dictCount = 0
         entryCount = 0
         for dictName, dictResults in results.items():
-            if dictName == "Images" or dictName == "Forvo":
+            if dictName == "Images":
                 html += (
                     '<div data-index="'
                     + str(dictCount)
@@ -405,7 +401,7 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-        if not self.termHeaders or (dictName == "Images" or dictName == "Forvo"):
+        if not self.termHeaders or dictName == "Images":
             if sb:
                 header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
             else:
@@ -444,13 +440,6 @@ class MIDict(AnkiWebView):
             for dictName, dictResults in results.items():
                 if dictName == "Images":
                     html += self.getGoogleDictionaryResults(
-                        term, dictCount, frontBracket, backBracket, entryCount, font
-                    )
-                    dictCount += 1
-                    entryCount += 1
-                    continue
-                if dictName == "Forvo":
-                    html += self.getForvoDictionaryResults(
                         term, dictCount, frontBracket, backBracket, entryCount, font
                     )
                     dictCount += 1
@@ -519,66 +508,6 @@ class MIDict(AnkiWebView):
                 + '".</h3> </div></div>'
             )
         return html.replace("'", "\\'")
-
-    def attemptFetchForvo(self, term, idName):
-        forvo = Forvo(self.config["ForvoLanguage"])
-        forvo.setTermIdName(term, idName)
-        forvo.signals.resultsFound.connect(self.loadForvoResults)
-        forvo.signals.noResults.connect(self.showGoogleForvoMessage)
-        self.threadpool.start(forvo)
-        return "Loading..."
-
-    def loadForvoResults(self, results):
-        forvoData, idName = results
-        if forvoData:
-            html = "<div class=\\'forvo\\'  data-urls=\\'" + forvoData + "\\'></div>"
-        else:
-            html = '<div class="no-forvo">No Results Found.</div>'
-        self.eval(
-            "loadImageForvoHtml('%s', '%s');loadForvoDict(false, '%s');"
-            % (html.replace('"', '\\"'), idName, idName)
-        )
-
-    def getForvoDictionaryResults(
-        self, term, dictCount, bracketFront, bracketBack, entryCount, font
-    ):
-        dictName = "Forvo"
-        overwrite = self.getOverwriteChecks(dictCount, dictName)
-        select = self.getFieldChecks(dictName)
-        idName = "fcon" + str(time.time())
-        self.attemptFetchForvo(term, idName)
-        html = (
-            '<div data-index="'
-            + str(dictCount)
-            + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">'
-            + dictName
-            + '</div><div class="dictionarySettings">'
-            + overwrite
-            + select
-            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-        )
-        html += (
-            '<div  data-index="'
-            + str(entryCount)
-            + '"  class="termPronunciation"><span class="tpCont">'
-            + bracketFront
-            + "<span "
-            + font
-            + ' class="terms">'
-            + self.highlightTarget(term, term)
-            + "</span>"
-            + bracketBack
-            + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
-            + dictName
-            + '\')" class="ankiExportButton"><img src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
-            + dictName
-            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div id="'
-            + idName
-            + '" class="definitionBlock">'
-        )
-        html += "Loading..."
-        html += "</div>"
-        return html
 
     def getGoogleDictionaryResults(
         self, term, dictCount, bracketFront, bracketBack, entryCount, font
@@ -679,9 +608,6 @@ class MIDict(AnkiWebView):
     def handleDictAction(self, dAct):
         if dAct.startswith("AnkiDictionaryLoaded"):
             self.maybeSearchTerms(dAct)
-        elif dAct.startswith("forvo:"):
-            urls = json.loads(dAct[6:])
-            self.downloadForvoAudio(urls)
         elif dAct.startswith("updateTerm:"):
             term = dAct[11:]
             self.dictInt.search.setText(term)
@@ -697,16 +623,12 @@ class MIDict(AnkiWebView):
             fields = json.loads(dAct[14:])
             if fields["dictName"] == "Images":
                 self.dictInt.writeConfig("ImageFields", fields["fields"])
-            elif fields["dictName"] == "Forvo":
-                self.dictInt.writeConfig("ForvoFields", fields["fields"])
             else:
                 self.dictInt.updateFieldsSetting(fields["dictName"], fields["fields"])
         elif dAct.startswith("overwriteSetting:"):
             addType = json.loads(dAct[17:])
             if addType["name"] == "Images":
                 self.dictInt.writeConfig("ImageAddType", addType["type"])
-            elif addType["name"] == "Forvo":
-                self.dictInt.writeConfig("ForvoAddType", addType["type"])
             else:
                 self.dictInt.updateAddType(addType["name"], addType["type"])
         elif dAct.startswith("clipped:"):
@@ -929,36 +851,6 @@ class MIDict(AnkiWebView):
                 fieldText = definition
         return fieldText
 
-    def addAudioToExportWindow(self, word: str, urls: str) -> None:
-        self.initCardExporterIfNeeded()
-        audioSeparator = ""
-        soundFiles = self.downloadForvoAudio(json.loads(urls))
-        if len(soundFiles) > 0:
-            self.addWindow.addDefinition("Forvo", word, audioSeparator.join(soundFiles))
-
-    def sendAudioToField(self, urls: str) -> None:
-        audioSeparator = ""
-        soundFiles = self.downloadForvoAudio(json.loads(urls))
-        self.sendToField("Forvo", audioSeparator.join(soundFiles))
-
-    def downloadForvoAudio(self, urls: List[str]) -> List[str]:
-        tags: List[str] = []
-        for url in urls:
-            try:
-                req = Request(
-                    url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-                    },
-                )
-                file = urlopen(req).read()
-                filename = str(time.time()) + ".mp3"
-                open(join(self.dictInt.mw.col.media.dir(), filename), "wb").write(file)
-                tags.append("[sound:" + filename + "]")
-            except:
-                continue
-        return tags
-
     def sendImgToField(self, urls: str) -> None:
         # print("sendImgToField midict.py")
 
@@ -1015,9 +907,6 @@ class MIDict(AnkiWebView):
             if name == "Images":
                 tFields = self.config["ImageFields"]
                 addType = self.config["ImageAddType"]
-            elif name == "Forvo":
-                tFields = self.config["ForvoFields"]
-                addType = self.config["ForvoAddType"]
             else:
                 tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.reviewer.card.note()
@@ -1055,9 +944,6 @@ class MIDict(AnkiWebView):
             if name == "Images":
                 tFields = self.config["ImageFields"]
                 addType = self.config["ImageAddType"]
-            elif name == "Forvo":
-                tFields = self.config["ForvoFields"]
-                addType = self.config["ForvoAddType"]
             else:
                 tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.currentEditor.note
@@ -1083,8 +969,8 @@ class MIDict(AnkiWebView):
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
         if dictName == "Images":
             addType = self.config["ImageAddType"]
-        elif dictName == "Forvo":
-            addType = self.config["ForvoAddType"]
+        elif dictName == "Images":
+            addType = self.config["ImageAddType"]
         else:
             addType = self.db.getAddType(dictName)
         tooltip = ""
@@ -1163,8 +1049,6 @@ class MIDict(AnkiWebView):
     def getFieldChecks(self, dictName):
         if dictName == "Images":
             selF = self.config["ImageFields"]
-        elif dictName == "Forvo":
-            selF = self.config["ForvoFields"]
         else:
             selF = self.db.getFieldsSetting(dictName)
         tooltip = ""
@@ -2317,7 +2201,7 @@ class DictInterface(QWidget):
         dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
-        defaults = ["All", "Images", "Forvo"]
+        defaults = ["All", "Images"]
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
@@ -2366,12 +2250,6 @@ class DictInterface(QWidget):
         if cur == "Images":
             return {
                 "dictionaries": [{"dict": "Images", "lang": ""}],
-                "customFont": False,
-                "font": False,
-            }
-        if cur == "Forvo":
-            return {
-                "dictionaries": [{"dict": "Forvo", "lang": ""}],
                 "customFont": False,
                 "font": False,
             }

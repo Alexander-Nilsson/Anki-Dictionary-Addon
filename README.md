@@ -62,7 +62,6 @@ See [docs/REORGANIZATION_GUIDE.md](docs/REORGANIZATION_GUIDE.md) for a complete 
 
 ## 🚧 Status
 
-- **Forvo Integration:** Currently non-functional. Attempting to use it may cause application crashes.
 - **Image Search:** Uses DuckDuckGo for image search functionality.
 - **Platform Compatibility:** Tested only on **Linux**.
 - **Anki Version Compatibility:** Confirmed working with Anki version **24.11**.

@@ -27,7 +27,6 @@ from ..ui.themes import *
 from ..ui.dialogs.theme_editor import *
 from ..ui.settings.settings_gui import SettingsGui
 from ..utils.common import miInfo, miAsk
-from ..integrations.forvo import Forvo
 from ..integrations import image_search as duckduckgoimages
 
 # Global variables

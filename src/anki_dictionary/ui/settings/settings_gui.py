@@ -306,79 +306,6 @@ class SettingsGui(QTabWidget):
             "Zambia",
             "Zimbabwe",
         ]
-        self.forvoLanguages = [
-            "Afrikaans",
-            "Ancient Greek",
-            "Arabic",
-            "Armenian",
-            "Azerbaijani",
-            "Bashkir",
-            "Basque",
-            "Belarusian",
-            "Bengali",
-            "Bulgarian",
-            "Cantonese",
-            "Catalan",
-            "Chuvash",
-            "Croatian",
-            "Czech",
-            "Danish",
-            "Dutch",
-            "English",
-            "Esperanto",
-            "Estonian",
-            "Finnish",
-            "French",
-            "Galician",
-            "German",
-            "Greek",
-            "Hakka",
-            "Hebrew",
-            "Hindi",
-            "Hungarian",
-            "Icelandic",
-            "Indonesian",
-            "Interlingua",
-            "Irish",
-            "Italian",
-            "Japanese",
-            "Kabardian",
-            "Korean",
-            "Kurdish",
-            "Latin",
-            "Latvian",
-            "Lithuanian",
-            "Low German",
-            "Luxembourgish",
-            "Mandarin Chinese",
-            "Mari",
-            "Min Nan",
-            "Northern Sami",
-            "Norwegian Bokmål",
-            "Persian",
-            "Polish",
-            "Portuguese",
-            "Punjabi",
-            "Romanian",
-            "Russian",
-            "Serbian",
-            "Slovak",
-            "Slovenian",
-            "Spanish",
-            "Swedish",
-            "Tagalog",
-            "Tatar",
-            "Thai",
-            "Turkish",
-            "Ukrainian",
-            "Urdu",
-            "Uyghur",
-            "Venetian",
-            "Vietnamese",
-            "Welsh",
-            "Wu Chinese",
-            "Yiddish",
-        ]
         self.setMinimumSize(850, 550)
         if not is_win:
             self.resize(1034, 550)
@@ -403,8 +330,6 @@ class SettingsGui(QTabWidget):
         self.safeSearch = QCheckBox()
         self.imageSearchCountry = QComboBox()
         self.imageSearchCountry.addItems(self.imageSearchCountries)
-        self.forvoLang = QComboBox()
-        self.forvoLang.addItems(self.forvoLanguages)
         self.condensedAudioDirectoryLabel = QLabel("Condensed Audio Save Location:")
         self.chooseAudioDirectory = QPushButton("Choose Directory")
         self.convertToMp3 = QCheckBox()
@@ -472,9 +397,6 @@ class SettingsGui(QTabWidget):
         self.imageSearchCountry.setToolTip(
             "Select the country or region for image search, the search region\ngreatly impacts search results so choose a location where your target language is spoken."
         )
-        self.forvoLang.setToolTip(
-            "Select the language to be used with the Forvo Dictionary."
-        )
         self.showTarget.setToolTip(
             "Show/Hide the Target Identifier from the dictionary window. The Target Identifier\nlets you know which window is currently selected and will be used when sending\ndefinitions to a target field."
         )
@@ -533,7 +455,6 @@ class SettingsGui(QTabWidget):
         self.genJSExport.setChecked(config["jReadingCards"])
         self.genJSEdit.setChecked(config["jReadingEdit"])
         self.imageSearchCountry.setCurrentText(config["imageSearchRegion"])
-        self.forvoLang.setCurrentText(config["ForvoLanguage"])
         self.maxImgWidth.setValue(config["maxWidth"])
         self.maxImgHeight.setValue(config["maxHeight"])
         self.frontBracket.setText(config["frontBracket"])
@@ -561,7 +482,6 @@ class SettingsGui(QTabWidget):
         nc["jReadingCards"] = self.genJSExport.isChecked()
         nc["jReadingEdit"] = self.genJSEdit.isChecked()
         nc["imageSearchRegion"] = self.imageSearchCountry.currentText()
-        nc["ForvoLanguage"] = self.forvoLang.currentText()
         nc["maxWidth"] = self.maxImgWidth.value()
         nc["maxHeight"] = self.maxImgHeight.value()
         nc["frontBracket"] = self.frontBracket.text()
@@ -909,11 +829,6 @@ class SettingsGui(QTabWidget):
         backBracketLay.addWidget(self.miQLabel("Surround Term (Back):", 140))
         backBracketLay.addWidget(self.backBracket)
         optLay3.addLayout(backBracketLay)
-
-        forvoLay = QHBoxLayout()
-        forvoLay.addWidget(self.miQLabel("Forvo Language:", 140))
-        forvoLay.addWidget(self.forvoLang)
-        optLay3.addLayout(forvoLay)
 
         dictOnTopLay = QHBoxLayout()
         dictOnTopLay.addWidget(self.miQLabel("Always on Top:", 323))

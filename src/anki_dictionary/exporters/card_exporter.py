@@ -815,7 +815,6 @@ Please review your template and notetype combination."""
 
         dictToTable = collections.OrderedDict()
         dictToTable["None"] = "None"
-        dictToTable["Forvo"] = "Forvo"
         dictToTable["Images"] = "Images"
         for dictTableName in sorted(self.mw.miDictDB.getAllDicts()):
             dictName = self.mw.miDictDB.cleanDictName(dictTableName)
