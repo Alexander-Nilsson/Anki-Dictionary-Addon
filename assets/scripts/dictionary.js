@@ -12,18 +12,25 @@ var sidebarOpened = false;
 var tabs = [];
 
 /**
- * Load image and Forvo HTML content
+ * Load image HTML content
+ * @param {string} html - The HTML content to load
+ * @param {string} idName - The ID name for the content
  */
-function loadImageForvoHtml(html, idName) {
+/**
+ * Load image HTML content
+ * @param {string} html - The HTML content to load
+ * @param {string} idName - The ID name for the content
+ */
+function loadImageHtml(html, idName) {
     try {
-        const element = document.getElementById(idName);
-        if (element) {
-            element.innerHTML = html;
+        var target = document.getElementById(idName);
+        if (target) {
+            target.innerHTML = html;
         } else {
-            console.warn('Element not found:', idName);
+            console.warn('Target element not found:', idName);
         }
     } catch (error) {
-        console.error('Error in loadImageForvoHtml:', error);
+        console.error('Error in loadImageHtml:', error);
     }
 }
 
@@ -127,23 +134,6 @@ function getDefExport(event, dictName) {
 }
 
 /**
- * Export audio to Anki
- */
-function getAudioExport(event, dictName) {
-    var termTitle = event.target.parentElement.parentElement.parentElement
-    var defBlock = termTitle.nextElementSibling;
-    var toExport = [];
-    var word = cleanTermDef(termTitle.querySelector('.terms').innerHTML)
-    var audio = defBlock.getElementsByTagName('input');
-    for (var i = 0; i < audio.length; i++) {
-        if (audio[i].checked) {
-            toExport.push(audio[i].parentElement.getElementsByClassName('forvo-play')[0].currentSrc);
-        }
-    }
-    pycmd('audioExport:' + word + '◳◴' + JSON.stringify(toExport));
-}
-
-/**
  * Export images to Anki
  */
 function getImageExport(event, dictName) {
@@ -167,8 +157,6 @@ function getImageExport(event, dictName) {
 function ankiExport(ev, dictName) {
     if (dictName == 'Images') {
         getImageExport(event, dictName)
-    } else if (dictName == 'Forvo') {
-        getAudioExport(event, dictName)
     } else {
         getDefExport(event, dictName.replace(/ /g, '_'))
     }
@@ -253,28 +241,11 @@ function getImageForField(event, dictName) {
 }
 
 /**
- * Send audio to field
- */
-function getAudioForField(event, dictName) {
-    var defBlock = event.target.parentElement.parentElement.nextElementSibling;
-    var toExport = [];
-    var audio = defBlock.getElementsByTagName('input');
-    for (var i = 0; i < audio.length; i++) {
-        if (audio[i].checked) {
-            toExport.push(audio[i].parentElement.getElementsByClassName('forvo-play')[0].currentSrc);
-        }
-    }
-    pycmd('sendAudioToField:' + JSON.stringify(toExport));
-}
-
-/**
  * Main send to field function
  */
 function sendToField(event, dictName) {
     if (dictName == 'Images') {
         getImageForField(event, dictName)
-    } else if (dictName == 'Forvo') {
-        getAudioForField(event, dictName)
     } else {
         getDefForField(event, dictName.replace(/ /g, '_'))
     }
@@ -742,26 +713,6 @@ function attemptCloseFirstTab() {
 }
 
 /**
- * Load more Forvo pronunciations
- */
-function loadMoreForvos(button) {
-    var forvoParent = button.parentElement;
-    var forvos = forvoParent.getElementsByClassName('hidden-forvo');
-
-    if (forvos.length < 1) {
-        return;
-    }
-    var max = 3;
-    if (forvos.length < 3) {
-        max = forvos.length;
-    }
-    for (var i = 0; i < max; i++) {
-        forvos[0].classList.remove('hidden-forvo')
-    }
-    return
-}
-
-/**
  * Load more images for a search term
  * Called when the Load More button is clicked
  */
@@ -1173,80 +1124,6 @@ function openSidebar() {
         }
     } catch (error) {
         console.error('Error in openSidebar:', error);
-    }
-}
-
-/**
- * Load Forvo audio dictionary functionality
- */
-function loadForvoDict(autoplay, idName) {
-    try {
-        console.log('Loading Forvo dictionary:', idName, 'autoplay:', autoplay);
-        
-        const container = document.getElementById(idName);
-        if (!container) {
-            console.warn('Forvo container not found:', idName);
-            return;
-        }
-        
-        // Initialize Forvo audio elements
-        const forvoElements = container.querySelectorAll('.forvo');
-        forvoElements.forEach(element => {
-            const urls = element.getAttribute('data-urls');
-            if (urls) {
-                try {
-                    const audioUrls = JSON.parse(urls);
-                    createForvoAudioPlayer(element, audioUrls, autoplay);
-                } catch (e) {
-                    console.error('Error parsing Forvo URLs:', e);
-                }
-            }
-        });
-        
-    } catch (error) {
-        console.error('Error in loadForvoDict:', error);
-    }
-}
-
-/**
- * Create Forvo audio player interface
- */
-function createForvoAudioPlayer(container, audioUrls, autoplay) {
-    try {
-        container.innerHTML = '';
-        
-        audioUrls.forEach((url, index) => {
-            const audioContainer = document.createElement('div');
-            audioContainer.className = 'forvo-audio-item';
-            audioContainer.style.cssText = 'margin: 5px 0; padding: 5px; border: 1px solid #ccc; border-radius: 3px;';
-            
-            const audio = document.createElement('audio');
-            audio.src = url;
-            audio.controls = true;
-            audio.style.cssText = 'width: 100%; max-width: 200px;';
-            
-            if (autoplay && index === 0) {
-                audio.autoplay = true;
-            }
-            
-            const playButton = document.createElement('button');
-            playButton.textContent = '▶';
-            playButton.style.cssText = 'margin-right: 10px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer;';
-            playButton.onclick = () => {
-                if (audio.paused) {
-                    audio.play();
-                } else {
-                    audio.pause();
-                }
-            };
-            
-            audioContainer.appendChild(playButton);
-            audioContainer.appendChild(audio);
-            container.appendChild(audioContainer);
-        });
-        
-    } catch (error) {
-        console.error('Error creating Forvo audio player:', error);
     }
 }
 
