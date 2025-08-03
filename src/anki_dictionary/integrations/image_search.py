@@ -37,19 +37,117 @@ import hashlib
 import concurrent.futures
 from PIL import Image
 import json
+import ssl
+import urllib3
+import warnings
 
-# Add comprehensive language/region codes for DuckDuckGo
-languageCodes = {
-    "zh-CN": "cn-zh",  # Chinese (China)
-    "zh-TW": "tw-zh",  # Chinese (Taiwan)
-    "ja-JP": "jp-ja",  # Japanese
-    "ko-KR": "kr-ko",  # Korean
-    "en-US": "us-en",  # English (US)
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Suppress PIL warnings globally
+warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
+warnings.filterwarnings("ignore", message=".*Palette images with Transparency.*")
+warnings.filterwarnings("ignore", message=".*should be converted to RGBA images.*")
+
+# Map Google country names and ISO language codes to DuckDuckGo region codes
+# Sorted alphabetically for easier maintenance
+countryToDuckDuckGo = {
+    "Afghanistan": "af-fa",
+    "Algeria": "dz-ar",
+    "Argentina": "ar-es",
+    "Armenia": "am-hy",
+    "Australia": "au-en",
+    "Austria": "at-de",
+    "Azerbaijan": "az-az",
+    "Bangladesh": "bd-bn",
+    "Belarus": "by-be",
+    "Belgium": "be-fr",
+    "Brazil": "br-pt",
+    "Bulgaria": "bg-bg",
+    "Cambodia": "kh-km",
+    "Canada": "ca-en",
+    "Chile": "cl-es",
+    "China": "cn-zh",
+    "Colombia": "co-es",
+    "Croatia": "hr-hr",
+    "Croatia (Hrvatska)": "hr-hr",
+    "Czech Republic": "cz-cs",
+    "Denmark": "dk-da",
+    "Egypt": "eg-ar",
+    "Estonia": "ee-et",
+    "Finland": "fi-fi",
+    "France": "fr-fr",
+    "Georgia": "ge-ka",
+    "Germany": "de-de",
+    "Greece": "gr-el",
+    "Hong Kong": "hk-tzh",
+    "Hungary": "hu-hu",
+    "India": "in-en",
+    "Indonesia": "id-id",
+    "Iran, Islamic Republic of": "ir-fa",
+    "Iraq": "iq-ar",
+    "Ireland": "ie-en",
+    "Israel": "il-he",
+    "Italy": "it-it",
+    "Japan": "jp-ja",
+    "Jordan": "jo-ar",
+    "Kazakhstan": "kz-kk",
+    "Korea, Republic of": "kr-ko",
+    "Kyrgyzstan": "kg-ky",
+    "Laos": "la-lo",
+    "Latvia": "lv-lv",
+    "Lebanon": "lb-ar",
+    "Lithuania": "lt-lt",
+    "Malaysia": "my-ms",
+    "Mexico": "mx-es",
+    "Mongolia": "mn-mn",
+    "Morocco": "ma-ar",
+    "Myanmar": "mm-my",
+    "Netherlands": "nl-nl",
+    "New Zealand": "nz-en",
+    "Norway": "no-no",
+    "Pakistan": "pk-ur",
+    "Peru": "pe-es",
+    "Philippines": "ph-en",
+    "Poland": "pl-pl",
+    "Portugal": "pt-pt",
+    "Romania": "ro-ro",
+    "Russia": "ru-ru",
+    "Russian Federation": "ru-ru",
+    "Saudi Arabia": "sa-ar",
+    "Singapore": "sg-en",
+    "Slovakia": "sk-sk",
+    "Slovenia": "si-sl",
+    "South Africa": "za-en",
+    "South Korea": "kr-ko",
+    "Spain": "es-es",
+    "Sri Lanka": "lk-si",
+    "Sweden": "se-sv",
+    "Switzerland": "ch-de",
+    "Taiwan": "tw-zh",
+    "Tajikistan": "tj-tg",
+    "Thailand": "th-th",
+    "Tunisia": "tn-ar",
+    "Turkey": "tr-tr",
+    "Turkmenistan": "tm-tk",
+    "Ukraine": "ua-uk",
+    "United Arab Emirates": "ae-ar",
+    "United Kingdom": "uk-en",
+    "United States": "us-en",
+    "Uzbekistan": "uz-uz",
+    "Venezuela": "ve-es",
+    "Vietnam": "vn-vi",
+    # ISO language codes for backward compatibility
+    "de-DE": "de-de",  # German
     "en-GB": "uk-en",  # English (UK)
+    "en-US": "us-en",  # English (US)
     "es-ES": "es-es",  # Spanish
     "fr-FR": "fr-fr",  # French
-    "de-DE": "de-de",  # German
+    "ja-JP": "jp-ja",  # Japanese
+    "ko-KR": "kr-ko",  # Korean
     "ru-RU": "ru-ru",  # Russian
+    "zh-CN": "cn-zh",  # Chinese (China)
+    "zh-TW": "tw-zh",  # Chinese (Taiwan)
 }
 
 # Get the root addon directory (4 levels up from this file)
@@ -74,7 +172,7 @@ class DuckDuckGo(QRunnable):
         self.signals = DuckDuckGoSignals()
         self.term = ""
         self.idName = ""
-        self.language = "cn-zh"  # Default to US English
+        self.language = "us-en"  # Default to US English
         self.search_offset = 0  # Track search pagination
 
     def setTermIdName(self, term, idName):
@@ -84,12 +182,13 @@ class DuckDuckGo(QRunnable):
         if idName != "load_more":
             self.search_offset = 0
 
-    def setSearchRegion(self, lang_code):
-        """Set search language/region. Use ISO codes like 'zh-CN' for Chinese"""
-        if lang_code in languageCodes:
-            self.language = languageCodes[lang_code]
+    def setSearchRegion(self, region_or_code):
+        """Set search language/region. Can accept country names or ISO codes like 'zh-CN'"""
+        # Try to find the region/code in our unified mapping
+        if region_or_code in countryToDuckDuckGo:
+            self.language = countryToDuckDuckGo[region_or_code]
         else:
-            print(f"Warning: Unsupported language code {lang_code}, using default")
+            print(f"Warning: Unsupported region/language '{region_or_code}', using default US English")
             self.language = "us-en"
 
     def getCleanedUrls(self, urls):
@@ -106,6 +205,8 @@ class DuckDuckGo(QRunnable):
         List of image URLs
         """
         session = requests.Session()
+        # Disable SSL verification to handle problematic certificates
+        session.verify = False
         session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -121,7 +222,7 @@ class DuckDuckGo(QRunnable):
         try:
             # Get the initial token
             search_url = "https://duckduckgo.com/"
-            response = session.get(search_url, timeout=10)
+            response = session.get(search_url, timeout=30)
             session.cookies.update(response.cookies)
 
             # Perform the search
@@ -132,7 +233,7 @@ class DuckDuckGo(QRunnable):
                 "kl": self.language,  # Add language/region parameter
             }
 
-            response = session.get(search_url, params=params, timeout=10)
+            response = session.get(search_url, params=params, timeout=30)
 
             # Extract the vqd token using regex
             vqd = re.search(r"vqd=[\d-]+", response.text)
@@ -150,7 +251,7 @@ class DuckDuckGo(QRunnable):
                 "p": str(offset),  # Use offset for pagination
             }
 
-            response = session.get(api_url, params=params, timeout=10)
+            response = session.get(api_url, params=params, timeout=30)
             if response.status_code == 200:
                 results = [img["image"] for img in response.json().get("results", [])]
                 return results[
@@ -163,22 +264,31 @@ class DuckDuckGo(QRunnable):
 
     def process_image(self, url: str, content: bytes) -> str:
         """Process the image: open, convert, resize, and save to disk."""
-        try:
-            img = Image.open(io.BytesIO(content))
-            # Convert image if necessary
-            if img.mode in ("RGBA", "P"):
-                img = img.convert("RGB")
-            # Resize image maintaining aspect ratio
-            img.thumbnail((200, 200))
-            # Generate a unique filename based on the URL
-            img_hash = hashlib.md5(url.encode()).hexdigest()
-            filename = f"dict_img_{img_hash}.jpg"
-            filepath = os.path.join(temp_dir, filename)
-            img.save(filepath, "JPEG", quality=85)
-            return filename
-        except Exception as e:
-            print(f"Error processing image from {url}: {e}")
-        return None
+        import warnings
+        
+        # Suppress all PIL warnings at the beginning
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
+            warnings.filterwarnings("ignore", message=".*Palette images with Transparency.*")
+            
+            try:
+                img = Image.open(io.BytesIO(content))
+                # Convert image if necessary
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                # Resize image maintaining aspect ratio
+                img.thumbnail((200, 200))
+                # Generate a unique filename based on the URL
+                img_hash = hashlib.md5(url.encode()).hexdigest()
+                filename = f"dict_img_{img_hash}.jpg"
+                filepath = os.path.join(temp_dir, filename)
+                img.save(filepath, "JPEG", quality=85)
+                return filename
+            except Exception as e:
+                # Only log serious errors, not common issues like corrupted images
+                if "cannot identify image file" not in str(e):
+                    print(f"Error processing image from {url}: {e}")
+        return ""
 
     async def download_and_process_image(
         self,
@@ -188,7 +298,9 @@ class DuckDuckGo(QRunnable):
     ) -> str:
         """Download an image asynchronously and process it using a thread pool."""
         try:
-            async with session.get(url, timeout=10) as response:
+            # Create a specific timeout for this request
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with session.get(url, timeout=timeout) as response:
                 if response.status == 200:
                     content = await response.read()
                     loop = asyncio.get_running_loop()
@@ -198,14 +310,46 @@ class DuckDuckGo(QRunnable):
                     )
                     return filename
         except Exception as e:
-            print(f"Error downloading image from {url}: {e}")
-        return None
+            # Only log serious connection errors, not common SSL issues
+            error_str = str(e)
+            if not any(x in error_str.lower() for x in [
+                'certificate verify failed', 
+                'ssl:', 
+                'server disconnected',
+                'cannot connect to host',
+                'timeout'
+            ]):
+                print(f"Error downloading image from {url}: {e}")
+        return ""
 
     async def download_all_images(self, urls: list) -> list:
         """Download and process all images concurrently."""
+        # Create SSL context that doesn't verify certificates
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Create connector with SSL context and increased timeout
+        connector = aiohttp.TCPConnector(
+            ssl=ssl_context,
+            limit=100,
+            limit_per_host=30,
+            ttl_dns_cache=300,
+            use_dns_cache=True,
+        )
+        
+        # Create timeout configuration
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        
         # Create a thread pool for image processing
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(
+                connector=connector, 
+                timeout=timeout,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                }
+            ) as session:
                 tasks = [
                     self.download_and_process_image(url, session, executor)
                     for url in urls

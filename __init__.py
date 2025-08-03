@@ -65,7 +65,7 @@ def initialize_addon() -> None:
     addon_name = os.path.basename(addon_root)
 
     # Initialize configuration
-    raw_config = mw.addonManager.getConfig(__name__)
+    raw_config = mw.addonManager.getConfig(addon_name)
     if raw_config is None:
         # Try to load default config from file
         import json
@@ -128,6 +128,11 @@ def initialize_addon() -> None:
         # Setup the addon
         setup_hooks()
         setup_gui_menu()
+        
+        # The configuration is already loaded in state.config above,
+        # just make sure it's available in the legacy location
+        if hasattr(mw, "__dict__"):
+            mw.__dict__["AnkiDictConfig"] = state.config
     except ImportError as e:
         print(f"Warning: Could not initialize addon components: {e}")
 

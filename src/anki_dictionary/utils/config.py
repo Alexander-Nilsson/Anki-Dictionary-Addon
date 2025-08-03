@@ -6,7 +6,7 @@ This module provides safe access to addon configuration that works
 regardless of the module path or Anki version.
 """
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 from aqt import mw
 
 
@@ -54,15 +54,14 @@ def get_addon_config() -> Dict[str, Any]:
         if isinstance(config_dict, dict):
             return config_dict  # type: ignore
 
-    # Fallback: try to get config using common addon names
-    possible_names: List[str] = ["Anki-Dictionary-Addon", "anki_dictionary"]
-    for name in possible_names:
-        try:
-            config = mw.addonManager.getConfig(name)
-            if config is not None:
-                return config
-        except Exception:
-            continue
+    # Fallback: try to get config using correct addon name
+    addon_name = "Anki-Dictionary-Addon"
+    try:
+        config = mw.addonManager.getConfig(addon_name)
+        if config is not None:
+            return config
+    except Exception:
+        pass
 
     # Last resort: Load default config from file
     try:
@@ -135,13 +134,11 @@ def save_addon_config(config: Optional[Dict[str, Any]]) -> None:
         mw.__dict__["AnkiDictConfig"] = config
 
     # Also save using addon manager
-    possible_names: List[str] = ["Anki-Dictionary-Addon", "anki_dictionary"]
-    for name in possible_names:
-        try:
-            mw.addonManager.writeConfig(name, config)  # type: ignore
-            break
-        except Exception:
-            continue
+    addon_name = "Anki-Dictionary-Addon"
+    try:
+        mw.addonManager.writeConfig(addon_name, config)  # type: ignore
+    except Exception as e:
+        print(f"Warning: Could not save config to addon manager: {e}")
 
 
 def get_config_value(key: str, default: Any = None) -> Any:

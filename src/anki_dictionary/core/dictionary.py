@@ -633,8 +633,8 @@ class MIDict(AnkiWebView):
         imager.setTermIdName(term, idName)
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[term]
-        # imager.setSearchRegion(self.config['googleSearchRegion'])
-        # imager.setSafeSearch(self.config["safeSearch"])
+        # Set search region based on configuration
+        imager.setSearchRegion(self.config.get('googleSearchRegion', 'United States'))
         imager.signals.resultsFound.connect(self.loadImageResults)
         imager.signals.noResults.connect(self.showNoImagesMessage)
         self.threadpool.start(imager)
@@ -757,6 +757,8 @@ class MIDict(AnkiWebView):
         imager.setTermIdName(search_term, "load_more")
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[search_term]
+        # Set search region based on configuration
+        imager.setSearchRegion(self.config.get('googleSearchRegion', 'United States'))
         # Connect to a different handler for load more results
         imager.signals.resultsFound.connect(self.loadMoreImageResults)
         imager.signals.noResults.connect(self.showNoMoreImagesMessage)
