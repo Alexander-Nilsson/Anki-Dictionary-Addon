@@ -2171,14 +2171,20 @@ class DictInterface(QWidget):
         return TabMode
 
     def toggleTabMode(self):
-        if self.tabB.singleTab:
-            self.tabB.singleTab = False
-            self.setSvg(self.tabB, "tabs")
-            self.writeConfig("onetab", False)
-        else:
-            self.tabB.singleTab = True
-            self.setSvg(self.tabB, "onetab")
-            self.writeConfig("onetab", True)
+        try:
+            if self.tabB.singleTab:
+                self.tabB.singleTab = False
+                self.setSvg(self.tabB, "tabs")
+                self.writeConfig("onetab", False)
+            else:
+                self.tabB.singleTab = True
+                self.setSvg(self.tabB, "onetab")
+                self.writeConfig("onetab", True)
+
+        except Exception as e:
+            print(f"Error in toggleTabMode: {e}")
+            import traceback
+            traceback.print_exc()
 
     def setupConjugationMode(self):
         conjugationMode = SVGPushButton(40, 40)

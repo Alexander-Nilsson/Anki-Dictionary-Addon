@@ -669,7 +669,7 @@ function fetchCurrentTab(term) {
     } else {
         var curTabs = document.getElementsByClassName('tablinks')
         if (curTabs.length > 0) {
-            newTab = curTabs[curtabs.length - 1]
+            newTab = curTabs[curTabs.length - 1]
             newTab.innerHTML = term;
         } else {
             newTab = false;
@@ -692,7 +692,14 @@ function fetchCurrentTabContent(html) {
                 break;
             }
         }
-    } else {
+        // If no active content found, use the last one
+        if (!content && contents.length > 0) {
+            content = contents[contents.length - 1];
+            content.innerHTML = html;
+        }
+    }
+    
+    if (!content) {
         content = fetchNewTabContent(html)
     }
     return content
@@ -887,8 +894,6 @@ document.addEventListener('DOMContentLoaded', awaitPycmdToLoad, false);
  */
 function addNewTab(html, term, singleTab) {
     try {
-        // console.log('addNewTab called with term:', term, 'singleTab:', singleTab);
-        
         // Handle undefined parameters gracefully
         if (typeof html === 'undefined' || html === null) {
             console.warn('addNewTab called with undefined html, skipping');
@@ -904,28 +909,55 @@ function addNewTab(html, term, singleTab) {
             singleTab = true; // Default to single tab mode
         }
         
-        // Find or create the main content container
-        let contentArea = document.querySelector('#defBox');
-        
-        if (!contentArea) {
-            // Create the main structure if it doesn't exist
-            contentArea = document.createElement('div');
-            contentArea.id = 'defBox';
-            contentArea.style.cssText = 'position: absolute; top: 50px; left: 0; overflow-x: hidden; overflow-y: auto; height: calc(100% - 50px); width: 100%; white-space: pre-line;';
-            document.body.appendChild(contentArea);
+        // Convert singleTab to boolean if it's a string
+        if (typeof singleTab === 'string') {
+            singleTab = singleTab === 'true';
         }
         
-        // Clear previous content and add new content
-        contentArea.innerHTML = html;
+        // Ensure required DOM elements exist
+        let tabsContainer = document.getElementById('tabs');
+        let defBox = document.getElementById('defBox');
         
-        // Ensure scrolling is enabled on the content area
-        contentArea.style.overflowY = 'auto';
-        contentArea.style.overflowX = 'hidden';
+        if (!tabsContainer || !defBox) {
+            console.error('Required tab elements not found in DOM');
+            return;
+        }
+        
+        if (singleTab) {
+            // Single tab mode: replace current content
+            let currentTab = fetchCurrentTab(term);
+            let currentContent = fetchCurrentTabContent(html);
+            
+            if (!currentTab) {
+                // No tabs exist, create the first one
+                let newTab = fetchNewTab(term);
+                let newContent = fetchNewTabContent(html);
+                
+                tabsContainer.appendChild(newTab);
+                defBox.appendChild(newContent);
+                
+                tabs.push([newTab, newContent, 0]);
+                focusTab(newTab);
+            }
+        } else {
+            // Multi-tab mode: create new tab
+            attemptCloseFirstTab();
+            
+            let newTab = fetchNewTab(term);
+            let newContent = fetchNewTabContent(html);
+            
+            tabsContainer.appendChild(newTab);
+            defBox.appendChild(newContent);
+            
+            tabs.push([newTab, newContent, 0]);
+            removeFocus();
+            focusTab(newTab);
+        }
         
         // Initialize any interactive elements
         initializeInteractiveElements();
         
-        // Call resizer to ensure proper layout - with a small delay to ensure DOM is ready
+        // Call resizer to ensure proper layout
         if (typeof resizer === 'function') {
             setTimeout(() => {
                 try {
