@@ -5,24 +5,27 @@
   </a>
 </p>
 
-> **Note:** This project has been completely reorganized to follow Python best practices and modern project structure. See [REORGANIZATION_GUIDE.md](docs/REORGANIZATION_GUIDE.md) for details.
+> **Note:** This project has been completely reorganized to follow Python best practices and modern project structure.
 
 ---
 
 ## 📖 Overview
 
-The **Anki Dictionary Addon** is a successor to the [Migaku Dictionary Addon](https://github.com/migaku-official/Migaku-Dictionary-Addon). It aims to:
+The **Anki Dictionary Addon** is a modern successor to the [Migaku Dictionary Addon](https://github.com/migaku-official/Migaku-Dictionary-Addon), updated for **Anki 25.07** compatibility. This project aims to:
 
-- Port the original addon to support newer Anki versions.
-- Fix existing bugs and improve stability.
-- Introduce new features and enhancements.
-- Modernize the codebase with proper project structure.
+- **Support Latest Anki:** Updated to work seamlessly with Anki version 25.07.
+- **Enhanced User Experience:** Improved styling and interface design for better usability.
+- **Modern Architecture:** Completely reorganized codebase following Python best practices.
+- **Reliable Services:** Migrated to DuckDuckGo for image search, ensuring better privacy and reliability.
+- **Bug Fixes:** Resolved stability issues and improved overall performance.
 
-With this addon, users can:
+### Key Features
 
-- Look up word definitions, frequency data, and audio pronunciations.
-- Export this information to Anki cards in real-time.
-- Use the dictionary in standalone mode without Anki.
+- Look up word definitions, frequency data, and pronunciations across multiple languages.
+- Export dictionary information to Anki cards in real-time with improved formatting.
+- Enhanced image search functionality using DuckDuckGo.
+- Standalone mode for dictionary use outside of Anki.
+- Modern, responsive user interface with better visual design.
 
 ---
 
@@ -62,9 +65,22 @@ See [docs/REORGANIZATION_GUIDE.md](docs/REORGANIZATION_GUIDE.md) for a complete 
 
 ## 🚧 Status
 
-- **Image Search:** Uses DuckDuckGo for image search functionality.
-- **Platform Compatibility:** Tested only on **Linux**.
-- **Anki Version Compatibility:** Confirmed working with Anki version **24.11**.
+### ✅ Recent Updates (v0.1.0)
+
+- **Anki 25.07 Compatibility:** Updated and tested to work with the latest Anki version **25.07**.
+- **Image Search Improvement:** Migrated from Google Images to **DuckDuckGo** for better reliability and privacy.
+- **Enhanced Styling:** Improved user interface with better visual design and user experience.
+- **Code Structure:** Completely reorganized codebase following modern Python practices for better maintainability.
+
+### Current Features
+
+- **Image Search:** Uses DuckDuckGo for image search functionality with dynamic loading and pagination.
+- **Forvo Audio Service:** Currently not working - audio functionality is temporarily unavailable.
+
+### Compatibility
+
+- **Platform Compatibility:** Tested primarily on **Linux**.
+- **Anki Version Compatibility:** Confirmed working with Anki version **25.07** (latest).
 
 ---
 
