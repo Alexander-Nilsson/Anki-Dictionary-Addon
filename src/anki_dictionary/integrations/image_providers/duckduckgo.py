@@ -1,126 +1,29 @@
-# Image Search with Extensible Provider System
-# =============================================
+# DuckDuckGo Image Provider
+# =========================
 #
-# This module provides a backwards-compatible interface to the new extensible
-# image provider system. The image search functionality now supports:
-# 1. Multiple image providers (DuckDuckGo, future: Google, Baidu, etc.)
-# 2. Easy addition of new providers by adding .py files
-# 3. Load more functionality with pagination
-# 4. Horizontal layout with responsive design
-#
-# The DuckDuckGoSignals and DuckDuckGo classes are maintained for backward 
-# compatibility, but internally use the new provider system.
+# This module provides image search functionality using DuckDuckGo's image search API.
+# It implements the ImageProvider interface to allow easy integration with the 
+# dictionary addon's image search system.
 
-# -*- coding: utf-8 -*-
-from .image_providers import get_provider
-from .image_providers.base import ImageProviderSignals
-from aqt.qt import QRunnable
-
-
-# Backward compatibility aliases
-class DuckDuckGoSignals(ImageProviderSignals):
-    """Backward compatibility alias for DuckDuckGoSignals"""
-    pass
-
-
-class DuckDuckGo(QRunnable):
-    """Backward compatibility wrapper for the DuckDuckGo provider"""
-    
-    def __init__(self):
-        super().__init__()
-        self.signals = DuckDuckGoSignals()
-        self._provider = get_provider('duckduckgo')
-        # Copy signals from the provider
-        self._provider.signals.resultsFound.connect(self.signals.resultsFound.emit)
-        self._provider.signals.noResults.connect(self.signals.noResults.emit)
-        self._provider.signals.finished.connect(self.signals.finished.emit)
-    
-    def setTermIdName(self, term, idName):
-        """Set term and ID name - delegates to provider"""
-        self._provider.setTermIdName(term, idName)
-        # Also set on this object for backward compatibility
-        self.term = term
-        self.idName = idName
-    
-    def setSearchRegion(self, region_or_code):
-        """Set search region - delegates to provider"""
-        self._provider.setSearchRegion(region_or_code)
-        self.language = self._provider.language
-    
-    @property
-    def search_offset(self):
-        """Get search offset from provider"""
-        return self._provider.search_offset
-    
-    @search_offset.setter
-    def search_offset(self, value):
-        """Set search offset on provider"""
-        self._provider.search_offset = value
-    
-    def getCleanedUrls(self, urls):
-        """Get cleaned URLs - delegates to provider"""
-        return self._provider.getCleanedUrls(urls)
-    
-    def search(self, term, maximum=15, offset=0):
-        """Search for images - delegates to provider"""
-        return self._provider.search(term, maximum, offset)
-    
-    def process_image(self, url, content):
-        """Process image - delegates to provider"""
-        return self._provider.process_image(url, content)
-    
-    async def download_and_process_image(self, url, session, executor):
-        """Download and process image - delegates to provider"""
-        return await self._provider.download_and_process_image(url, session, executor)
-    
-    async def download_all_images(self, urls):
-        """Download all images - delegates to provider"""
-        return await self._provider.download_all_images(urls)
-    
-    def getHtml(self, term, is_load_more=False):
-        """Get HTML - delegates to provider"""
-        return self._provider.getHtml(term, is_load_more)
-    
-    def getMoreImages(self, term):
-        """Get more images - delegates to provider"""
-        return self._provider.getMoreImages(term)
-    
-    def getPreparedResults(self, term, idName):
-        """Get prepared results - delegates to provider"""
-        return self._provider.getPreparedResults(term, idName)
-    
-    def run(self):
-        """Run the provider in thread"""
-        self._provider.run()
-
-
-# Legacy function for backward compatibility
-def search(target, number):
-    """Legacy search function for backward compatibility"""
-    provider = get_provider('duckduckgo')
-    results = provider.search(target, maximum=number)
-    return results
 import argparse
 import os
 from os.path import dirname, join
 import requests
 import re
-from aqt.qt import QRunnable, QObject, pyqtSignal
-from PIL import Image
-import io
 import hashlib
 from aqt import mw
-import os
 import io
 import asyncio
 import aiohttp
-import hashlib
 import concurrent.futures
 from PIL import Image
 import json
 import ssl
 import urllib3
 import warnings
+from typing import List
+
+from .base import ImageProvider
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -130,8 +33,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
 warnings.filterwarnings("ignore", message=".*Palette images with Transparency.*")
 warnings.filterwarnings("ignore", message=".*should be converted to RGBA images.*")
 
-# Map Google country names and ISO language codes to DuckDuckGo region codes
-# Sorted alphabetically for easier maintenance
+# Get the temp directory for storing images
+temp_dir = join(dirname(dirname(dirname(__file__))), '..', '..', '..', 'temp')
+if not os.path.exists(temp_dir):
+    os.makedirs(temp_dir)
+
+# Map country names and ISO language codes to DuckDuckGo region codes
 countryToDuckDuckGo = {
     "Afghanistan": "af-fa",
     "Algeria": "dz-ar",
@@ -231,51 +138,43 @@ countryToDuckDuckGo = {
     "zh-TW": "tw-zh",  # Chinese (Taiwan)
 }
 
-# Get the root addon directory (4 levels up from this file)
-addon_path = dirname(dirname(dirname(dirname(__file__))))
-temp_dir = join(addon_path, "temp")
-os.makedirs(temp_dir, exist_ok=True)
 
-########################################
-# DuckDuckGo Search Engine Implementation
-########################################
-
-
-class DuckDuckGoSignals(QObject):
-    resultsFound = pyqtSignal(list)
-    noResults = pyqtSignal(str)
-    finished = pyqtSignal()
-
-
-class DuckDuckGo(QRunnable):
+class DuckDuckGoProvider(ImageProvider):
+    """DuckDuckGo image search provider"""
+    
     def __init__(self):
         super().__init__()
-        self.signals = DuckDuckGoSignals()
-        self.term = ""
-        self.idName = ""
         self.language = "us-en"  # Default to US English
         self.search_offset = 0  # Track search pagination
 
-    def setTermIdName(self, term, idName):
+    def setTermIdName(self, term: str, idName: str) -> None:
+        """Set the search term and ID name for this search"""
         self.term = term
         self.idName = idName
         # Reset offset for new searches (but not for load more)
         if idName != "load_more":
             self.search_offset = 0
 
-    def setSearchRegion(self, region_or_code):
+    def setSearchRegion(self, region_or_code: str) -> None:
         """Set search language/region. Can accept country names or ISO codes like 'zh-CN'"""
-        # Try to find the region/code in our unified mapping
         if region_or_code in countryToDuckDuckGo:
             self.language = countryToDuckDuckGo[region_or_code]
         else:
-            print(f"Warning: Unsupported region/language '{region_or_code}', using default US English")
+            # Default to US English if region not found
             self.language = "us-en"
 
-    def getCleanedUrls(self, urls):
-        return [x.replace("\\", "\\\\") for x in urls]
+    def getCleanedUrls(self, urls: List[str]) -> List[str]:
+        """Clean and filter image URLs"""
+        cleaned = []
+        for url in urls:
+            if url and isinstance(url, str):
+                # Remove query parameters and fragments
+                clean_url = re.sub(r'[?#].*$', '', url)
+                if clean_url:
+                    cleaned.append(clean_url)
+        return cleaned
 
-    def search(self, term, maximum=15, offset=0):
+    def search(self, term: str, maximum: int = 15, offset: int = 0) -> List[str]:
         """
         Search for images using DuckDuckGo
         Args:
@@ -403,7 +302,7 @@ class DuckDuckGo(QRunnable):
                 print(f"Error downloading image from {url}: {e}")
         return ""
 
-    async def download_all_images(self, urls: list) -> list:
+    async def download_all_images(self, urls: List[str]) -> List[str]:
         """Download and process all images concurrently."""
         # Create SSL context that doesn't verify certificates
         ssl_context = ssl.create_default_context()
@@ -440,7 +339,7 @@ class DuckDuckGo(QRunnable):
                 # Filter out any None results
                 return [filename for filename in results if filename]
 
-    def getHtml(self, term, is_load_more=False):
+    def getHtml(self, term: str, is_load_more: bool = False) -> str:
         """
         Generate HTML using the images from the search results.
         Downloads images to the temp folder.
@@ -473,16 +372,15 @@ class DuckDuckGo(QRunnable):
                     data_url = f"data:image/jpeg;base64,{img_base64}"
                     return (
                         '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
-                        f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
+                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                        f'<img class="imageImg" src="{data_url}" ankiDict="{image_path}">'
                         "</div>"
                     )
             except Exception as e:
                 print(f"Error reading image {filename}: {e}")
                 return '<div class="imgBox">Error loading image</div>'
-
         # Create horizontal layout with all images in one container
-        html = '<div class="googleCont horizontal-layout">'
+        html = '<div class="imageCont horizontal-layout">'
         html += "".join(generate_image_html(img) for img in local_images)
         html += "</div>"
 
@@ -494,7 +392,7 @@ class DuckDuckGo(QRunnable):
 
         return html
 
-    def getMoreImages(self, term):
+    def getMoreImages(self, term: str) -> str:
         """
         Get more images for the load more functionality.
         Returns HTML for additional images without container wrapper.
@@ -527,72 +425,21 @@ class DuckDuckGo(QRunnable):
                     data_url = f"data:image/jpeg;base64,{img_base64}"
                     return (
                         '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="googleHighlight"></div>'
-                        f'<img class="googleImage" src="{data_url}" ankiDict="{image_path}">'
+                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                        f'<img class="imageImg" src="{data_url}" ankiDict="{image_path}">'
                         "</div>"
                     )
             except Exception as e:
                 print(f"Error reading image {filename}: {e}")
                 return '<div class="imgBox">Error loading image</div>'
-
         # Just return the image HTML without container wrapper
         html = "".join(generate_image_html(img) for img in local_images)
         return html
 
-    def getPreparedResults(self, term, idName):
-        html = self.getHtml(term)
-        return [html, idName]
 
-    def run(self):
-        try:
-            if self.term:
-                is_load_more = self.idName == "load_more"
-                if is_load_more:
-                    # For load more, just get more images
-                    html = self.getMoreImages(self.term)
-                    resultList = [html, self.idName]
-                else:
-                    # For initial search, get normal results
-                    resultList = self.getPreparedResults(self.term, self.idName)
-                self.signals.resultsFound.emit(resultList)
-        except Exception as e:
-            print(f"DuckDuckGo run error: {e}")
-            self.signals.noResults.emit(
-                "No Images Found. This is likely due to a connectivity error."
-            )
-        finally:
-            self.signals.finished.emit()
-
-
-########################################
-# Search Function (using duckduckgo by default)
-########################################
-
-
+# Legacy function for backward compatibility
 def search(target, number):
-    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
-    parser.add_argument("-t", "--target", help="target name", type=str, required=True)
-    parser.add_argument(
-        "-n", "--number", help="number of images", type=int, required=True
-    )
-    parser.add_argument(
-        "-d", "--directory", help="download location", type=str, default="./data"
-    )
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="download overwrite existing file",
-        type=bool,
-        default=False,
-    )
-    args = parser.parse_args()
-
-    data_dir = "./data"
-    target_name = target
-
-    os.makedirs(data_dir, exist_ok=True)
-    os.makedirs(os.path.join(data_dir, target_name), exist_ok=args.force)
-
-    duckduckgo = DuckDuckGo()
-    results = duckduckgo.search(target_name, maximum=number)
+    """Legacy search function for backward compatibility"""
+    provider = DuckDuckGoProvider()
+    results = provider.search(target, maximum=number)
     return results

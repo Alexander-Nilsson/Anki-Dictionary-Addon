@@ -275,7 +275,7 @@ class DictGroupEditor(QDialog):
             checkBox.setStyleSheet("QCheckBox{padding-left:10px;}")
             self.dictionaries.setCellWidget(rc, 2, checkBox)
             checkBox.clicked.connect(self.setOrder(rc))
-        self.addDefaultDict("Google Images")
+        self.addDefaultDict("Images")
         self.addDefaultDict("Forvo")
 
     def addDefaultDict(self, name):

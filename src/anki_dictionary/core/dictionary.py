@@ -62,7 +62,7 @@ from ..integrations.japanese import miJHandler
 from urllib.request import Request, urlopen
 import requests
 import urllib.request
-from ..integrations import image_search as duckduckgoimages
+from ..integrations.image_search import DuckDuckGo as duckduckgoimages
 from ..ui.settings.settings_gui import SettingsGui
 import datetime
 import codecs
@@ -329,7 +329,7 @@ class MIDict(AnkiWebView):
         dictCount = 0
         entryCount = 0
         for dictName, dictResults in results.items():
-            if dictName == "Google Images" or dictName == "Forvo":
+            if dictName == "Images" or dictName == "Forvo":
                 html += (
                     '<div data-index="'
                     + str(dictCount)
@@ -405,7 +405,7 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-        if not self.termHeaders or (dictName == "Google Images" or dictName == "Forvo"):
+        if not self.termHeaders or (dictName == "Images" or dictName == "Forvo"):
             if sb:
                 header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
             else:
@@ -442,8 +442,8 @@ class MIDict(AnkiWebView):
                 clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
                 sendTooltip = " title=\"Send this definition, or any selected text and this definition's header to the card exporter to this dictionary's target fields. It will send it to the current target window, be it an Editor window, or the Review window.\" "
             for dictName, dictResults in results.items():
-                if dictName == "Google Images":
-                    html += self.getGoogleDictionaryResults(
+                if dictName == "Images":
+                    html += self.getImageDictionaryResults(
                         term, dictCount, frontBracket, backBracket, entryCount, font
                     )
                     dictCount += 1
@@ -580,17 +580,17 @@ class MIDict(AnkiWebView):
         html += "</div>"
         return html
 
-    def getGoogleDictionaryResults(
+    def getImageDictionaryResults(
         self, term, dictCount, bracketFront, bracketBack, entryCount, font
     ):
-        dictName = "Google Images"
+        dictName = "Images"
         overwrite = self.getOverwriteChecks(dictCount, dictName)
         select = self.getFieldChecks(dictName)
         idName = "gcon" + str(time.time())
         html = (
             '<div data-index="'
             + str(dictCount)
-            + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">Google Images</div><div class="dictionarySettings">'
+            + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">Images</div><div class="dictionarySettings">'
             + overwrite
             + select
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
@@ -629,12 +629,12 @@ class MIDict(AnkiWebView):
 
         # Always create a new DuckDuckGo instance for each search
         # to avoid QRunnable reuse issues
-        imager = duckduckgoimages.DuckDuckGo()
+        imager = duckduckgoimages()
         imager.setTermIdName(term, idName)
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[term]
         # Set search region based on configuration
-        imager.setSearchRegion(self.config.get('googleSearchRegion', 'United States'))
+        imager.setSearchRegion(self.config.get('imageSearchRegion', 'United States'))
         imager.signals.resultsFound.connect(self.loadImageResults)
         imager.signals.noResults.connect(self.showNoImagesMessage)
         self.threadpool.start(imager)
@@ -695,16 +695,16 @@ class MIDict(AnkiWebView):
             self.dupHeaders = self.db.getDupHeaders()
         elif dAct.startswith("fieldsSetting:"):
             fields = json.loads(dAct[14:])
-            if fields["dictName"] == "Google Images":
-                self.dictInt.writeConfig("GoogleImageFields", fields["fields"])
+            if fields["dictName"] == "Images":
+                self.dictInt.writeConfig("ImageFields", fields["fields"])
             elif fields["dictName"] == "Forvo":
                 self.dictInt.writeConfig("ForvoFields", fields["fields"])
             else:
                 self.dictInt.updateFieldsSetting(fields["dictName"], fields["fields"])
         elif dAct.startswith("overwriteSetting:"):
             addType = json.loads(dAct[17:])
-            if addType["name"] == "Google Images":
-                self.dictInt.writeConfig("GoogleImageAddType", addType["type"])
+            if addType["name"] == "Images":
+                self.dictInt.writeConfig("ImageAddType", addType["type"])
             elif addType["name"] == "Forvo":
                 self.dictInt.writeConfig("ForvoAddType", addType["type"])
             else:
@@ -753,12 +753,12 @@ class MIDict(AnkiWebView):
 
         # Always create a new DuckDuckGo instance for each search
         # to avoid QRunnable reuse issues
-        imager = duckduckgoimages.DuckDuckGo()
+        imager = duckduckgoimages()
         imager.setTermIdName(search_term, "load_more")
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[search_term]
         # Set search region based on configuration
-        imager.setSearchRegion(self.config.get('googleSearchRegion', 'United States'))
+        imager.setSearchRegion(self.config.get('imageSearchRegion', 'United States'))
         # Connect to a different handler for load more results
         imager.signals.resultsFound.connect(self.loadMoreImageResults)
         imager.signals.noResults.connect(self.showNoMoreImagesMessage)
@@ -1002,7 +1002,7 @@ class MIDict(AnkiWebView):
                     print(f"Error: {str(e)}")
                     continue
             if len(urlsList) > 0:
-                self.sendToField("Google Images", imgSeparator.join(urlsList))
+                self.sendToField("Images", imgSeparator.join(urlsList))
 
         else:
             print("no reviewer or editor")
@@ -1012,9 +1012,9 @@ class MIDict(AnkiWebView):
 
     def sendToField(self, name: str, definition: str) -> None:
         if self.reviewer and self.reviewer.card:
-            if name == "Google Images":
-                tFields = self.config["GoogleImageFields"]
-                addType = self.config["GoogleImageAddType"]
+            if name == "Images":
+                tFields = self.config["ImageFields"]
+                addType = self.config["ImageAddType"]
             elif name == "Forvo":
                 tFields = self.config["ForvoFields"]
                 addType = self.config["ForvoAddType"]
@@ -1052,9 +1052,9 @@ class MIDict(AnkiWebView):
             if hasattr(self.dictInt.mw, "DictReloadEditorAndBrowser"):
                 self.dictInt.mw.DictReloadEditorAndBrowser(note)
         if self.currentEditor and self.currentEditor.note:
-            if name == "Google Images":
-                tFields = self.config["GoogleImageFields"]
-                addType = self.config["GoogleImageAddType"]
+            if name == "Images":
+                tFields = self.config["ImageFields"]
+                addType = self.config["ImageAddType"]
             elif name == "Forvo":
                 tFields = self.config["ForvoFields"]
                 addType = self.config["ForvoAddType"]
@@ -1081,8 +1081,8 @@ class MIDict(AnkiWebView):
                     )
 
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
-        if dictName == "Google Images":
-            addType = self.config["GoogleImageAddType"]
+        if dictName == "Images":
+            addType = self.config["ImageAddType"]
         elif dictName == "Forvo":
             addType = self.config["ForvoAddType"]
         else:
@@ -1161,8 +1161,8 @@ class MIDict(AnkiWebView):
         return checks
 
     def getFieldChecks(self, dictName):
-        if dictName == "Google Images":
-            selF = self.config["GoogleImageFields"]
+        if dictName == "Images":
+            selF = self.config["ImageFields"]
         elif dictName == "Forvo":
             selF = self.config["ForvoFields"]
         else:
@@ -2311,7 +2311,7 @@ class DictInterface(QWidget):
         dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
-        defaults = ["All", "Google Images", "Forvo"]
+        defaults = ["All", "Images", "Forvo"]
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
@@ -2357,9 +2357,9 @@ class DictInterface(QWidget):
             return self.userGroups[cur]
         if cur == "All":
             return self.allGroups
-        if cur == "Google Images":
+        if cur == "Images":
             return {
-                "dictionaries": [{"dict": "Google Images", "lang": ""}],
+                "dictionaries": [{"dict": "Images", "lang": ""}],
                 "customFont": False,
                 "font": False,
             }

@@ -237,7 +237,7 @@ class TemplateEditor(QDialog):
 
     def loadDictionaries(self):
         self.dictionaries.addItems(self.dictionaryNames)
-        self.dictionaries.addItem("Google Images")
+        self.dictionaries.addItem("Images")
         self.dictionaries.addItem("Forvo")
 
     def initialNoteFieldsLoad(self, loadFields=True):

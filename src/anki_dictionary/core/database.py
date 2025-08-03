@@ -246,9 +246,9 @@ class DictDB:
         currentDicts = self.getDictToTable()
         foundDicts: List[Dict[str, str]] = []
         for d in dicts:
-            if d in currentDicts or d in ["Google Images", "Forvo"]:
-                if d == "Google Images":
-                    foundDicts.append({"dict": "Google Images", "lang": ""})
+            if d in currentDicts or d in ["Images", "Forvo"]:
+                if d == "Images":
+                    foundDicts.append({"dict": "Images", "lang": ""})
                 elif d == "Forvo":
                     foundDicts.append({"dict": "Forvo", "lang": ""})
                 else:
@@ -446,8 +446,8 @@ class DictDB:
         terms.append(term.capitalize())
         terms = list(set(terms))
         for dic in group:
-            if dic["dict"] == "Google Images":
-                results["Google Images"] = True
+            if dic["dict"] == "Images":
+                results["Images"] = True
                 continue
             elif dic["dict"] == "Forvo":
                 results["Forvo"] = True

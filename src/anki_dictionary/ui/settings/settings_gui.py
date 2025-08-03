@@ -470,7 +470,7 @@ class SettingsGui(QTabWidget):
         self.maxImgWidth.setToolTip("Images will be scaled according to this width.")
         self.maxImgHeight.setToolTip("Images will be scaled according to this height.")
         self.googleCountry.setToolTip(
-            "Select the country or region to search Google Images from, the search region\ngreatly impacts search results so choose a location where your target language is spoken."
+            "Select the country or region to search Images from, the search region\ngreatly impacts search results so choose a location where your target language is spoken."
         )
         self.forvoLang.setToolTip(
             "Select the language to be used with the Forvo Dictionary."
@@ -511,7 +511,7 @@ class SettingsGui(QTabWidget):
             "If enabled the dictionary will be opened on a global search."
         )
         self.safeSearch.setToolTip(
-            "Whether or not to enable Safe Search for Google Images."
+            "Whether or not to enable Safe Search for Images."
         )
         self.convertToMp3.setToolTip(
             "When enabled will convert extension WAV files into MP3 files.\nMP3 files are supported across every Anki platform and are much smaller than WAV files.\nWe recommend enabling this option."
@@ -878,7 +878,7 @@ class SettingsGui(QTabWidget):
         optLay2.addLayout(genJSEditLay)
 
         countryLay = QHBoxLayout()
-        countryLay.addWidget(self.miQLabel("Google Images Search Region:", 180))
+        countryLay.addWidget(self.miQLabel("Images Search Region:", 180))
         countryLay.addWidget(self.googleCountry)
         self.googleCountry.setFixedWidth(160)
         optLay2.addLayout(countryLay)

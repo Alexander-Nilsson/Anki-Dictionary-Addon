@@ -165,7 +165,7 @@ function getImageExport(event, dictName) {
  * Main export function - routes to appropriate export method
  */
 function ankiExport(ev, dictName) {
-    if (dictName == 'Google Images') {
+    if (dictName == 'Images') {
         getImageExport(event, dictName)
     } else if (dictName == 'Forvo') {
         getAudioExport(event, dictName)
@@ -271,7 +271,7 @@ function getAudioForField(event, dictName) {
  * Main send to field function
  */
 function sendToField(event, dictName) {
-    if (dictName == 'Google Images') {
+    if (dictName == 'Images') {
         getImageForField(event, dictName)
     } else if (dictName == 'Forvo') {
         getAudioForField(event, dictName)
@@ -401,7 +401,7 @@ function loadNewImages(htmlContent, button) {
         
         if (newImages.length > 0) {
             // Find the existing image container
-            var existingContainer = defBox.querySelector('.googleCont.horizontal-layout');
+            var existingContainer = defBox.querySelector('.imageCont.horizontal-layout, .googleCont.horizontal-layout');
             
             if (existingContainer) {
                 // Append new images to existing container
@@ -411,7 +411,7 @@ function loadNewImages(htmlContent, button) {
             } else {
                 // Create new container if none exists
                 var newContainer = document.createElement('div');
-                newContainer.className = 'googleCont horizontal-layout';
+                newContainer.className = 'imageCont horizontal-layout';
                 newImages.forEach(function(imgBox) {
                     newContainer.appendChild(imgBox.cloneNode(true));
                 });
@@ -790,7 +790,7 @@ function appendNewImages(html) {
         // console.log('appendNewImages called');
         
         // Find the image container
-        const container = document.querySelector('.googleCont.horizontal-layout');
+        const container = document.querySelector('.imageCont.horizontal-layout, .googleCont.horizontal-layout');
         if (!container) {
             console.error('Image container not found');
             return false;
