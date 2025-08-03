@@ -2,247 +2,111 @@ name: Auto Release
 
 on:
   push:
-    branches: [ master ]
-    # Only release when feature branches are merged to master
-    # Use tags if you want manual control: tags: [ 'v*' ]
+    branches: [master]
+    # Trigger on every push to master (including merges)
 
 env:
   PYTHON_VERSION: '3.13'
 
 jobs:
-  create-release:
-    name: Create GitHub Release
+  release:
+    name: Create Release
     runs-on: ubuntu-latest
     
-    # Run on every push to master (remove keyword requirement)
-    # if: contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'feat:') || contains(github.event.head_commit.message, 'fix:') || contains(github.event.head_commit.message, 'release:')
+    # Only run on merge commits (when PRs are merged)
+    if: contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'Merge branch')
     
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
-      
-    - name: Set up Python
+      with:
+        fetch-depth: 0
+
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        
-    - name: Install build dependencies
+
+    - name: Get current version and bump
+      id: version
       run: |
-        pip install build wheel setuptools
-        
-    - name: Create build script
-      run: |
-        cat > build_addon.py << 'EOF'
-        #!/usr/bin/env python3
-        """
-        Build script for Anki Dictionary Addon
-        """
-        import os
-        import shutil
-        import zipfile
-        import json
-        from pathlib import Path
-        
-        def create_addon_package():
-            """Create .ankiaddon package"""
-            print("🔧 Building Anki addon package...")
-            
-            # Create build directory
-            build_dir = Path('build')
-            addon_dir = build_dir / 'anki_dictionary_addon'
-            
-            if build_dir.exists():
-                shutil.rmtree(build_dir)
-            addon_dir.mkdir(parents=True)
-            
-            # Files/directories to include in addon
-            include_items = [
-                '__init__.py',
-                'config.json',
-                'src/',
-                'assets/',
-                'user_files/',
-                'vendor/',
-                '*.html',
-                '*.css'
-            ]
-            
-            # Copy files to addon directory
-            for item in include_items:
-                if item.endswith('/'):
-                    # Directory
-                    src_dir = Path(item)
-                    if src_dir.exists():
-                        shutil.copytree(src_dir, addon_dir / src_dir.name)
-                        print(f"   ✓ Copied directory: {item}")
-                elif '*' in item:
-                    # Glob pattern
-                    import glob
-                    for file_path in glob.glob(item):
-                        if os.path.isfile(file_path):
-                            shutil.copy2(file_path, addon_dir / os.path.basename(file_path))
-                            print(f"   ✓ Copied file: {file_path}")
-                else:
-                    # Single file
-                    src_file = Path(item)
-                    if src_file.exists():
-                        shutil.copy2(src_file, addon_dir / src_file.name)
-                        print(f"   ✓ Copied file: {item}")
-                    else:
-                        print(f"   ⚠️  Skipped missing: {item}")
-            
-            # Create manifest.json dynamically in build
-            manifest_data = {
-                "package": "Anki Dictionary Addon",
-                "name": "Anki Dictionary Addon",
-                "requirements": [
-                    "pyobjc-core",
-                    "pyobjc-framework-cocoa"
-                ]
-            }
-            with open(addon_dir / 'manifest.json', 'w') as f:
-                json.dump(manifest_data, f, indent=2)
-            print("   ✓ Created manifest.json in build")
-            
-            # Create .ankiaddon file
-            addon_zip = build_dir / 'anki_dictionary_addon.ankiaddon'
-            with zipfile.ZipFile(addon_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for root, dirs, files in os.walk(addon_dir):
-                    for file in files:
-                        file_path = Path(root) / file
-                        arc_path = file_path.relative_to(addon_dir)
-                        zf.write(file_path, arc_path)
-            
-            print(f"✅ Addon package created: {addon_zip}")
-            return addon_zip
-        
-        if __name__ == '__main__':
-            create_addon_package()
-            print("🎉 Build completed successfully!")
-        EOF
-        
-    - name: Build release packages
-      run: |
-        python build_addon.py
-        
-    - name: Get version and release info
-      id: release_info
-      run: |
-        # Get version from pyproject.toml and auto-increment
+        # Get current version from pyproject.toml
         CURRENT_VERSION=$(python -c "
-        try:
-            import tomllib
-            with open('pyproject.toml', 'rb') as f:
-                config = tomllib.load(f)
-        except ImportError:
-            import toml
-            with open('pyproject.toml', 'r') as f:
-                config = toml.load(f)
+        import tomllib
+        with open('pyproject.toml', 'rb') as f:
+            config = tomllib.load(f)
         print(config['project']['version'])
-        ")
+        " 2>/dev/null || echo "0.1.0")
         
-        # Auto-increment patch version for automatic releases
-        IFS='.' read -ra ADDR <<< "\$CURRENT_VERSION"
-        MAJOR=\${ADDR[0]}
-        MINOR=\${ADDR[1]}
-        PATCH=\${ADDR[2]}
-        NEW_PATCH=\$((PATCH + 1))
-        VERSION="\$MAJOR.\$MINOR.\$NEW_PATCH"
+        echo "Current version: $CURRENT_VERSION"
         
-        echo "version=\$VERSION" >> \$GITHUB_OUTPUT
-        echo "Current version: \$CURRENT_VERSION"
-        echo "New version: \$VERSION"
+        # Simple patch version bump (0.1.0 -> 0.1.1)
+        IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+        MAJOR=${VERSION_PARTS[0]}
+        MINOR=${VERSION_PARTS[1]}
+        PATCH=${VERSION_PARTS[2]}
+        NEW_PATCH=$((PATCH + 1))
+        NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
         
-        # Update pyproject.toml with new version
-        python -c "
-        try:
-            import tomllib
-            with open('pyproject.toml', 'rb') as f:
-                config = tomllib.load(f)
-        except ImportError:
-            import toml
-            with open('pyproject.toml', 'r') as f:
-                config = toml.load(f)
-        
-        config['project']['version'] = '\$VERSION'
-        
-        import toml
-        with open('pyproject.toml', 'w') as f:
-            toml.dump(config, f)
-        print('Updated pyproject.toml to \$VERSION')
-        "
-        
-        # Find built files
-        ANKIADDON_FILE=\$(find build/ -name "*.ankiaddon" -type f | head -n1)
-        echo "ankiaddon_file=\$ANKIADDON_FILE" >> \$GITHUB_OUTPUT
-        
-        echo "Found files:"
-        echo "  Addon: \$ANKIADDON_FILE"
-        
-    - name: Generate release notes
-      id: release_notes
+        echo "New version: $NEW_VERSION"
+        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Update version in pyproject.toml
       run: |
-        cat > release_notes.md << EOF
-        ## Anki Dictionary Addon v${{ steps.release_info.outputs.version }}
+        python -c "
+        import tomllib
+        import re
         
-        ✅ **Automatically tested and verified on:**
-        - Ubuntu Latest
-        - Python 3.11
+        # Read current file
+        with open('pyproject.toml', 'r') as f:
+            content = f.read()
         
-        ### Installation
+        # Replace version
+        new_content = re.sub(
+            r'version = \"[^\"]+\"',
+            f'version = \"${{ steps.version.outputs.version }}\"',
+            content
+        )
         
-        **🎯 For Anki Users:**
-        1. Download the \`.ankiaddon\` file below
-        2. Double-click the file to install in Anki
-        3. Restart Anki
-        4. The addon will be available in your Tools menu
-        
-        ### Features
-        - Dictionary lookup functionality
-        - Multi-language support
-        - Image search integration
-        - Audio pronunciation support
-        - Customizable themes
-        - Export capabilities
-        
-        ### System Requirements
-        - **For Anki addon**: Anki 24.11+
-        
-        ### Quality Assurance
-        This release has passed:
-        - ✅ Unit tests and code quality checks
-        - ✅ Build verification
-        - ✅ Addon structure validation
-        
-        ### Support
-        - 🐛 Report issues: [GitHub Issues](https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/issues)
-        - 📖 Documentation: [README](https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/blob/main/README.md)
-        
-        ---
-        
-        **Commit**: ${{ github.sha }}
-        EOF
-        
-        echo "release_notes<<EOF" >> $GITHUB_OUTPUT
-        cat release_notes.md >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
+        # Write back
+        with open('pyproject.toml', 'w') as f:
+            f.write(new_content)
+        "
+
+    - name: Build addon
+      run: |
+        python build.py all
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: "Anki Dictionary Addon v${{ steps.version.outputs.version }}"
+        body: |
+          ## 🎉 New Release v${{ steps.version.outputs.version }}
+          
+          **Changes in this release:**
+          - ${{ github.event.head_commit.message }}
+          
+          **Installation:**
+          1. Download the `.ankiaddon` file below
+          2. Open Anki
+          3. Go to Tools → Add-ons → Install from file
+          4. Select the downloaded file
+          
+          **Files:**
+          - 📦 `anki_dictionary_addon_v${{ steps.version.outputs.version }}.ankiaddon` - Main addon file
         files: |
-          ${{ steps.release_info.outputs.ankiaddon_file }}
-        body: ${{ steps.release_notes.outputs.release_notes }}
-        name: "Anki Dictionary Addon v${{ steps.release_info.outputs.version }}"
+          build/*.ankiaddon
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Upload build artifacts for archival
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-anki-dictionary-addon-v${{ steps.release_info.outputs.version }}
-        path: |
-          build/*
-        retention-days: 90
+
+    - name: Commit version bump
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add pyproject.toml
+        git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]" || echo "No changes to commit"
+        git push || echo "Nothing to push"
