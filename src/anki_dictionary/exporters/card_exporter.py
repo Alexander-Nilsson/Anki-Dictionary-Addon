@@ -728,9 +728,9 @@ Please review your template and notetype combination."""
     def addDefinition(self, dictName, word, definition):
         self.focusWindow()
         if len(definition) > 40:
-            shortDef = definition.replace("<br>", " ")[:40] + "..."
+            shortDef = re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)[:40] + "..."
         else:
-            shortDef = definition.replace("<br>", " ")
+            shortDef = re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)
         defEntry = [dictName, shortDef, definition, False]
         if defEntry in self.definitionList:
             miInfo("A card can not contain duplicate definitions.", level="not")
