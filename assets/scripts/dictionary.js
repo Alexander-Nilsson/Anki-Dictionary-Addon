@@ -61,7 +61,8 @@ function getTermDefText(el, clip = false) {
  * Clean term definition text
  */
 function cleanTermDef(text, rep) {
-    text = text.replace(/<br>/g, '---NL---');
+    // Handle all variants of <br> tags (case insensitive, with or without closing slash)
+    text = text.replace(/<br\s*\/?>/gi, '---NL---');
     text = text.replace(/<[^>]+>/g, '').replace('✂', '').replace('➠', '').replace('▲', '').replace('▼', '');
     return text.replace(/---NL---/g, rep);
 }
