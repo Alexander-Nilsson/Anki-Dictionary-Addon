@@ -948,6 +948,9 @@ function initializeInteractiveElements() {
     // Initialize image selection
     initializeImageSelection();
     
+    // Initialize sidebar listeners
+    addSidebarListeners(document);
+    
     // Initialize any other interactive elements as needed
     // This can be expanded based on what functionality is needed
 }
@@ -1108,11 +1111,32 @@ function scaleFont(increase) {
 function openSidebar() {
     try {
         const sidebar = document.querySelector('.definitionSideBar');
+        
         if (sidebar) {
-            if (sidebar.style.display === 'none') {
+            // Check both computed style and inline style to determine visibility
+            const computedStyle = window.getComputedStyle(sidebar);
+            const isHidden = computedStyle.display === 'none' || sidebar.style.display === 'none';
+            
+            if (isHidden) {
+                // Show sidebar
                 sidebar.style.display = 'block';
+                sidebar.classList.add('sidebarOpenedSideBar');
+                
+                // Apply layout adjustment to main content
+                const mainDisplay = document.querySelector('.mainDictDisplay');
+                if (mainDisplay) {
+                    mainDisplay.classList.add('sidebarOpenedDisplay');
+                }
             } else {
+                // Hide sidebar
                 sidebar.style.display = 'none';
+                sidebar.classList.remove('sidebarOpenedSideBar');
+                
+                // Remove layout adjustment from main content
+                const mainDisplay = document.querySelector('.mainDictDisplay');
+                if (mainDisplay) {
+                    mainDisplay.classList.remove('sidebarOpenedDisplay');
+                }
             }
         }
     } catch (error) {
