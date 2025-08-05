@@ -2,6 +2,38 @@
 <html>
 <head>
     <style>
+        /* CSS animations for modern image display */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
         body {
             background-color: var(--background);
             color: var(--text);
@@ -267,76 +299,296 @@
             z-index: 10;
             width: 100%;
             height: 100%;
+            display: flex;
+            justify-content: center;
         }
 
         .imageCont.horizontal-layout {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            overflow-x: auto;
-            padding: 10px 0;
-            max-width: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(20vw, 160px), 1fr));
+            gap: 8px;
+            padding: 10px;
+            max-width: 98vw;
+            width: 100%;
+            margin: 5px auto 0 auto;
+            justify-content: center;
+            justify-items: center;
+            place-items: center;
         }
 
-        /* For smaller screens, allow horizontal scroll for single row */
+        /* For smaller screens, switch to flex layout for better mobile experience */
         @media (max-width: 768px) {
             .imageCont.horizontal-layout {
+                grid-template-columns: repeat(auto-fit, minmax(min(40vw, 150px), 1fr));
+                gap: 6px;
+                padding: 8px;
+                max-width: 99vw;
+                justify-content: center;
+                justify-items: center;
+            }
+            
+            .imgBox {
+                max-width: min(40vw, 200px);
+                min-width: 120px;
+            }
+        }
+
+        /* For very small screens, allow horizontal scroll */
+        @media (max-width: 480px) {
+            .imageCont.horizontal-layout {
+                display: flex;
                 flex-wrap: nowrap;
-                overflow-x: scroll;
+                overflow-x: auto;
+                justify-content: flex-start;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: thin;
+                scrollbar-color: var(--border) transparent;
+                grid-template-columns: none;
+                padding: 6px;
+                gap: 4px;
+            }
+            
+            .imgBox {
+                flex-shrink: 0;
+                width: min(60vw, 180px);
+                max-width: none;
+                min-width: 140px;
+            }
+            
+            .imageCont.horizontal-layout::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .imageCont.horizontal-layout::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            
+            .imageCont.horizontal-layout::-webkit-scrollbar-thumb {
+                background-color: var(--border);
+                border-radius: 2px;
+            }
+        }
+
+        /* For large screens, more images per row */
+        @media (min-width: 1200px) {
+            .imageCont.horizontal-layout {
+                grid-template-columns: repeat(auto-fit, minmax(min(16vw, 180px), 1fr));
+                justify-content: center;
+                justify-items: center;
+            }
+            
+            .imgBox {
+                max-width: min(16vw, 200px);
+            }
+        }
+
+        /* For medium screens */
+        @media (max-width: 1199px) and (min-width: 769px) {
+            .imageCont.horizontal-layout {
+                grid-template-columns: repeat(auto-fit, minmax(min(22vw, 170px), 1fr));
+                justify-content: center;
+                justify-items: center;
+            }
+            
+            .imgBox {
+                max-width: min(22vw, 190px);
             }
         }
 
         .imgBox {
-            margin: 5px;
-            display: inline-block;
             position: relative;
-            border: 1px solid black;
-            width: 160px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--background);
+            border: 1px solid rgba(0, 0, 0, 0.08);
             flex-shrink: 0;
+            width: 100%;
+            max-width: min(20vw, 220px);
+            min-width: 140px;
+            aspect-ratio: 4/3;
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
+            margin: 0 auto;
+        }
+        
+        /* Staggered animation for newly loaded images */
+        .imgBox:nth-child(1) { animation-delay: 0.1s; }
+        .imgBox:nth-child(2) { animation-delay: 0.2s; }
+        .imgBox:nth-child(3) { animation-delay: 0.3s; }
+        .imgBox:nth-child(4) { animation-delay: 0.4s; }
+        .imgBox:nth-child(5) { animation-delay: 0.5s; }
+        .imgBox:nth-child(n+6) { animation-delay: 0.6s; }
+
+        .imgBox:hover {
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+            border-color: rgba(66, 165, 245, 0.3);
+        }
+
+        .imgBox.selected {
+            border-color: #42a5f5;
+            box-shadow: 0 0 0 2px rgba(66, 165, 245, 0.4), 0 4px 16px rgba(0, 0, 0, 0.18);
+            transform: translateY(-1px);
         }
 
         .searchImage {
-            width: 160px;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
             display: block;
-            height: auto;
+            transition: transform 0.3s ease, filter 0.3s ease;
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+        }
+
+        /* Loading state for images */
+        .searchImage:not([src]) {
+            background: linear-gradient(90deg, #f8f9fa 25%, #e9ecef 50%, #f8f9fa 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        .imgBox:hover .searchImage {
+            transform: scale(1.02);
+            filter: brightness(1.05) contrast(1.02);
         }
 
         .imageHighlight {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            position: absolute;
-            z-index: 100;
+            z-index: 10;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border-radius: 8px;
         }
 
         .imageHighlight:hover {
-            background-color: rgba(49, 90, 255, .5);
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .imageHighlight:active {
+            background-color: rgba(66, 165, 245, 0.15);
         }
 
         .selectedImage {
-            background-color: rgba(49, 90, 255, .5);
+            background-color: rgba(66, 165, 245, 0.25) !important;
+        }
+
+        /* Add a subtle selection indicator */
+        .imgBox.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: #42a5f5;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 20;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            animation: scaleIn 0.3s ease-out;
+        }
+
+        /* Dark mode adaptations */
+        @media (prefers-color-scheme: dark) {
+            .imageCont.horizontal-layout::before {
+                background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.02) 1px, transparent 0);
+            }
+            
+            .searchImage:not([src]) {
+                background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+                background-size: 200% 100%;
+            }
+        }
+
+        /* Focus styles for better accessibility */
+        .imageHighlight:focus {
+            outline: 2px solid #42a5f5;
+            outline-offset: 2px;
+        }
+
+        /* Reduced motion for accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .imgBox {
+                animation: none;
+                transition: none;
+            }
+            
+            .imgBox:hover {
+                transform: none;
+            }
+            
+            .searchImage {
+                transition: none;
+            }
+            
+            .imgBox:hover .searchImage {
+                transform: none;
+            }
         }
 
         .imageLoader {
-            height: 40px;
-            width: 99%;
-            margin-left: .5%;
-            border-radius: 3px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
+            display: block;
+            width: calc(100% - 20px);
+            max-width: 200px;
+            margin: 16px auto;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #42a5f5 0%, #1976d2 100%);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 3px 8px rgba(66, 165, 245, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .imageLoader:hover:not(:disabled) {
-            background-color: #e0e0e0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(66, 165, 245, 0.4);
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+        }
+
+        .imageLoader:active:not(:disabled) {
+            transform: translateY(0);
+            transition: transform 0.1s;
         }
 
         .imageLoader:disabled {
-            background-color: #ccc;
+            background: linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%);
+            color: #9e9e9e;
             cursor: not-allowed;
-            opacity: 0.6;
+            opacity: 0.7;
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .imageLoader:disabled:hover {
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
     </style>
     <style id="fontSpecs">
