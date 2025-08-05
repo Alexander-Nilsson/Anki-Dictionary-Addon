@@ -13,8 +13,8 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     
-    # Only run on merge commits (when PRs are merged)
-    if: contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'Merge branch')
+    # Only run on merge commits (when PRs are merged to master)
+    if: ${{ contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'Merge branch') }}
     
     steps:
     - name: Checkout
@@ -30,13 +30,8 @@ jobs:
     - name: Get current version and bump
       id: version
       run: |
-        # Get current version from pyproject.toml
-        CURRENT_VERSION=$(python -c "
-        import tomllib
-        with open('pyproject.toml', 'rb') as f:
-            config = tomllib.load(f)
-        print(config['project']['version'])
-        " 2>/dev/null || echo "0.1.0")
+        # Get current version from pyproject.toml using sed/grep
+        CURRENT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/' || echo "0.1.0")
         
         echo "Current version: $CURRENT_VERSION"
         
@@ -53,25 +48,9 @@ jobs:
 
     - name: Update version in pyproject.toml
       run: |
-        python -c "
-        import tomllib
-        import re
-        
-        # Read current file
-        with open('pyproject.toml', 'r') as f:
-            content = f.read()
-        
-        # Replace version
-        new_content = re.sub(
-            r'version = \"[^\"]+\"',
-            f'version = \"${{ steps.version.outputs.version }}\"',
-            content
-        )
-        
-        # Write back
-        with open('pyproject.toml', 'w') as f:
-            f.write(new_content)
-        "
+        # Use sed to replace the version in pyproject.toml
+        sed -i 's/version = "[^"]*"/version = "${{ steps.version.outputs.version }}"/' pyproject.toml
+        echo "Updated version to ${{ steps.version.outputs.version }}"
 
     - name: Build addon
       run: |
