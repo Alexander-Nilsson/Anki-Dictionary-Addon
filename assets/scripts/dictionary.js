@@ -231,13 +231,19 @@ function getDefForField(event, dictName) {
  */
 function getImageForField(event, dictName) {
     var defBlock = event.target.parentElement.parentElement.nextElementSibling;
-    var selImgs = defBlock.getElementsByClassName('selectedImage')
+    // Look for both selected images and selected imgBox containers
+    var selImgs = defBlock.querySelectorAll('.selectedImage, .imgBox.selected .imageHighlight');
     var urls = []
     if (selImgs.length > 0) {
         for (var i = 0; i < selImgs.length; i++) {
-            urls.push(selImgs[i].dataset.url)
+            var url = selImgs[i].dataset.url;
+            if (url && urls.indexOf(url) === -1) { // Avoid duplicates
+                urls.push(url);
+            }
         }
-        pycmd('sendImgToField:' + JSON.stringify(urls));
+        if (urls.length > 0) {
+            pycmd('sendImgToField:' + JSON.stringify(urls));
+        }
     }
 }
 
@@ -767,7 +773,9 @@ function appendNewImages(html) {
         const newImages = tempDiv.querySelectorAll('.imgBox');
         
         // Append new images to the existing container
-        newImages.forEach(img => {
+        newImages.forEach((img, index) => {
+            // Reset animation for new images
+            img.style.animationDelay = `${(index + 1) * 0.1}s`;
             container.appendChild(img);
         });
         
@@ -965,10 +973,12 @@ function toggleImageSelect(element) {
         
         if (imgBox.classList.contains('selected')) {
             imgBox.classList.remove('selected');
-            element.style.background = 'rgba(0,0,0,0.3)';
+            element.classList.remove('selectedImage');
+            // Clear any inline background styles
+            element.style.background = '';
         } else {
             imgBox.classList.add('selected');
-            element.style.background = 'rgba(66, 165, 245, 0.7)';
+            element.classList.add('selectedImage');
         }
     } catch (error) {
         console.error('Error in toggleImageSelect:', error);
