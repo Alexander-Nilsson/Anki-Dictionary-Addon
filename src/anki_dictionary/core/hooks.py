@@ -41,11 +41,16 @@ def closeDictionary():
 def dictOnStart():
     """Initialize dictionary when profile is loaded."""
     from ..ui.main_window import removeTempFiles, initGlobalHotkeys
+    from anki_dictionary.utils.config import get_addon_config
 
     removeTempFiles()
-    # Uncomment if global hotkeys are enabled
-    # if mw.addonManager.getConfig(__name__)['globalHotkeys']:
-    #     initGlobalHotkeys()
+    # Initialize global hotkeys if enabled
+    try:
+        config = get_addon_config()
+        if config and config.get('globalHotkeys', False):
+            initGlobalHotkeys()
+    except Exception as e:
+        print(f"Warning: Could not initialize global hotkeys: {e}")
 
 
 def addToContextMenu(webview, menu):
@@ -182,7 +187,7 @@ def addHotkeysToPreview(self):
     self._web.hotkeyS.activated.connect(lambda: searchTerm(self._web))
     self._web.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), self._web)
     self._web.hotkeyS.activated.connect(lambda: searchCol(self._web))
-    self._web.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self._web)
+    self._web.hotkeyW = QShortcut(QKeySequence("Ctrl+D"), self._web)  # Changed from Ctrl+W to Ctrl+D
     self._web.hotkeyW.activated.connect(dictionaryInit)
 
 

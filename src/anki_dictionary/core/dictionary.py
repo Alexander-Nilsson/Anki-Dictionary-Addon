@@ -1267,14 +1267,12 @@ class ClipThread(QObject):
                 self.listener = self.keyboard.Listener(
                     on_press=self.on_press,
                     on_release=self.on_release,
-                    dict=self.mw,
-                    suppress=True,
+                    suppress=False,  # Changed from True to False for Windows compatibility
                 )
             elif is_mac:
                 self.listener = self.keyboard.Listener(
                     on_press=self.on_press,
                     on_release=self.on_release,
-                    dict=self.mw,
                     darwin_intercept=self.darwinIntercept,
                 )
             else:
@@ -1538,8 +1536,8 @@ class DictInterface(QWidget):
         self.hotkeyW.activated.connect(self.mw.dictionaryInit)
         self.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self)
         self.hotkeyS.activated.connect(lambda: self.mw.searchTerm(self.dict.page()))
-        self.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchCol(self.dict.page()))
+        self.hotkeyShiftB = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
+        self.hotkeyShiftB.activated.connect(lambda: self.mw.searchCol(self.dict.page()))
 
     def getFontColor(self, color):
         pal = QPalette()

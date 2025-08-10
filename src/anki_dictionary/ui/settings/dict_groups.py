@@ -207,6 +207,10 @@ class DictGroupEditor(QDialog):
         }
         curGroups[gn] = dictGroup
         save_addon_config(newConfig)
+        # Import here to avoid circular imports
+        from aqt import mw
+        if hasattr(mw, 'refreshAnkiDictConfig'):
+            mw.refreshAnkiDictConfig()
         self.settings.loadTemplateTable()
         self.settings.loadGroupTable()
         self.hide()

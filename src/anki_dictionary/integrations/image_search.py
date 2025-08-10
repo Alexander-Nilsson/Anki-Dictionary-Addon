@@ -22,27 +22,55 @@
 import argparse
 import os
 from os.path import dirname, join
-import requests
+
+# Optional requests import
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    requests = None
+
 import re
 from aqt.qt import QRunnable, QObject, pyqtSignal
-from PIL import Image
+
+# Optional PIL import
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    Image = None
+
 import io
 import hashlib
 from aqt import mw
 import os
 import io
 import asyncio
-import aiohttp
+
+# Optional aiohttp import
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    aiohttp = None
+
 import hashlib
 import concurrent.futures
-from PIL import Image
 import json
 import ssl
-import urllib3
-import warnings
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Optional urllib3 import
+try:
+    import urllib3
+    # Disable SSL warnings
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except ImportError:
+    pass  # urllib3 not available, warnings won't be disabled
+
+import warnings
 
 # Suppress PIL warnings globally
 warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
@@ -204,6 +232,10 @@ class DuckDuckGo(QRunnable):
         Returns:
         List of image URLs
         """
+        if not REQUESTS_AVAILABLE:
+            print("Warning: requests not available, image search disabled")
+            return []
+            
         session = requests.Session()
         # Disable SSL verification to handle problematic certificates
         session.verify = False
@@ -262,8 +294,12 @@ class DuckDuckGo(QRunnable):
             print(f"Error in DuckDuckGo search: {str(e)}")
         return []
 
-    def process_image(self, url: str, content: bytes) -> str:
+    def process_image(self, url: str, content: bytes) -> str | None:
         """Process the image: open, convert, resize, and save to disk."""
+        if not PIL_AVAILABLE:
+            print("Warning: PIL not available, image processing disabled")
+            return None
+            
         import warnings
         
         # Suppress all PIL warnings at the beginning
@@ -293,10 +329,13 @@ class DuckDuckGo(QRunnable):
     async def download_and_process_image(
         self,
         url: str,
-        session: aiohttp.ClientSession,
+        session,  # Remove type hint since aiohttp might not be available
         executor: concurrent.futures.Executor,
-    ) -> str:
+    ) -> str | None:
         """Download an image asynchronously and process it using a thread pool."""
+        if not AIOHTTP_AVAILABLE:
+            return None
+            
         try:
             # Create a specific timeout for this request
             timeout = aiohttp.ClientTimeout(total=30)
@@ -309,6 +348,7 @@ class DuckDuckGo(QRunnable):
                         executor, self.process_image, url, content
                     )
                     return filename
+                return None
         except Exception as e:
             # Only log serious connection errors, not common SSL issues
             error_str = str(e)
@@ -324,6 +364,10 @@ class DuckDuckGo(QRunnable):
 
     async def download_all_images(self, urls: list) -> list:
         """Download and process all images concurrently."""
+        if not AIOHTTP_AVAILABLE:
+            print("Warning: aiohttp not available, image downloading disabled")
+            return []
+            
         # Create SSL context that doesn't verify certificates
         ssl_context = ssl.create_default_context()
         ssl_context.check_hostname = False

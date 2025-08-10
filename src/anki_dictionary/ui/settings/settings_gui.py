@@ -589,6 +589,7 @@ class SettingsGui(QTabWidget):
             groupName = self.dictGroups.item(row, 0).text()
             del dictGroups[groupName]
             save_addon_config(newConfig)
+            self.mw.refreshAnkiDictConfig()
             self.dictGroups.removeRow(row)
             self.loadGroupTable()
 
@@ -626,6 +627,7 @@ class SettingsGui(QTabWidget):
             templateName = self.exportTemplates.item(row, 0).text()
             del exportTemplates[templateName]
             save_addon_config(newConfig)
+            self.mw.refreshAnkiDictConfig()
             self.exportTemplates.removeRow(row)
             self.loadTemplateTable()
 
@@ -670,6 +672,7 @@ class SettingsGui(QTabWidget):
         ):
             conf = self.mw.addonManager.addonConfigDefaults(dirname(__file__))
             save_addon_config(conf)
+            self.mw.refreshAnkiDictConfig()
             # self.userGuideTab.close()
             # self.userGuideTab.deleteLater()
             self.close()

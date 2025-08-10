@@ -22,10 +22,13 @@ from aqt.qt import *
 from aqt.utils import showInfo
 import aqt.utils
 
-from ..core.dictionary import DictInterface, ClipThread
-from ..ui.themes import *
-from ..ui.dialogs.theme_editor import *
-from ..ui.settings.settings_gui import SettingsGui
+# Removed circular import - these will be imported inside functions that need them
+# from ..core.dictionary import DictInterface, ClipThread
+# Removed theme imports that may cause circular imports
+# from ..ui.themes import *
+# from ..ui.dialogs.theme_editor import *
+# Moved SettingsGui import to function to avoid circular imports
+# from ..ui.settings.settings_gui import SettingsGui
 from ..utils.common import miInfo, miAsk
 from ..integrations import image_search as duckduckgoimages
 
@@ -42,10 +45,14 @@ progressBar = False
 
 def refresh_anki_dict_config(config=False):
     """Refresh the addon configuration."""
-    if config:
+    if config and isinstance(config, dict):
         # Direct config provided - use it
         if hasattr(mw, "__dict__"):
             mw.__dict__["AnkiDictConfig"] = config
+        
+        # Also save it to make sure it persists
+        from anki_dictionary.utils.config import save_addon_config
+        save_addon_config(config)
         return
     
     # Import here to avoid circular imports
@@ -53,17 +60,15 @@ def refresh_anki_dict_config(config=False):
 
     new_config = get_addon_config()
     
-    # Only update if configuration has actually changed or doesn't exist
-    current_config = getattr(mw, 'AnkiDictConfig', None)
-    if current_config is None or current_config != new_config:
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = new_config
-        
-        # If dictionary exists and is visible, update its configuration
-        if (hasattr(mw, 'ankiDictionary') and 
-            mw.ankiDictionary and 
-            hasattr(mw.ankiDictionary, 'resetConfiguration')):
-            mw.ankiDictionary.resetConfiguration(new_config)
+    # Always update configuration to ensure it's current
+    if hasattr(mw, "__dict__"):
+        mw.__dict__["AnkiDictConfig"] = new_config
+    
+    # If dictionary exists and is visible, update its configuration
+    if (hasattr(mw, 'ankiDictionary') and 
+        mw.ankiDictionary and 
+        hasattr(mw.ankiDictionary, 'resetConfiguration')):
+        mw.ankiDictionary.resetConfiguration(new_config)
 
 
 def removeTempFiles():
@@ -199,35 +204,55 @@ def showAfterGlobalSearch():
 
 def dictionaryInit(terms=False):
     """Initialize or toggle the dictionary window."""
-    if terms and isinstance(terms, str):
-        terms = [terms]
+    try:
+        # Import here to avoid circular import
+        from ..core.dictionary import DictInterface
+        
+        if terms and isinstance(terms, str):
+            terms = [terms]
 
-    shortcut = "(Ctrl+W)"
-    if is_mac:
-        shortcut = "⌘W"
+        shortcut = "(Ctrl+W)"
+        if is_mac:
+            shortcut = "⌘W"
 
-    # Get welcome screen - Show shortcuts and help inside dictionary
-    if is_mac:
-        welcomeScreen = getMacWelcomeScreen()
-    else:
-        welcomeScreen = getWelcomeScreen()
+        # Get welcome screen - Show shortcuts and help inside dictionary
+        if is_mac:
+            welcomeScreen = getMacWelcomeScreen()
+        else:
+            welcomeScreen = getWelcomeScreen()
 
-    if not mw.ankiDictionary:
-        mw.ankiDictionary = DictInterface(
-            mw.miDictDB, mw, addon_path, welcomeScreen, terms=terms
-        )
-        mw.openMiDict.setText("Close Dictionary " + shortcut)
-        showAfterGlobalSearch()
-    elif not mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.show()
-        mw.openMiDict.setText("Close Dictionary " + shortcut)
-        showAfterGlobalSearch()
-    else:
-        mw.ankiDictionary.hide()
+        # Check if dictionary exists and is valid
+        if not hasattr(mw, 'ankiDictionary') or not mw.ankiDictionary:
+            mw.ankiDictionary = DictInterface(
+                mw.miDictDB, mw, addon_path, welcomeScreen, terms=terms
+            )
+            if hasattr(mw, 'openMiDict'):
+                mw.openMiDict.setText("Close Dictionary " + shortcut)
+            showAfterGlobalSearch()
+        elif not mw.ankiDictionary.isVisible():
+            mw.ankiDictionary.show()
+            if hasattr(mw, 'openMiDict'):
+                mw.openMiDict.setText("Close Dictionary " + shortcut)
+            showAfterGlobalSearch()
+        else:
+            mw.ankiDictionary.hide()
+            if hasattr(mw, 'openMiDict'):
+                mw.openMiDict.setText("Open Dictionary " + shortcut)
+                
+    except Exception as e:
+        print(f"Error in dictionaryInit: {e}")
+        # Try to show error to user
+        try:
+            showInfo(f"Dictionary initialization error: {str(e)}")
+        except:
+            pass
 
 
 def openDictionarySettings():
     """Open dictionary settings window."""
+    # Import here to avoid circular import
+    from ..ui.settings.settings_gui import SettingsGui
+    
     if not mw.dictSettings:
         mw.dictSettings = SettingsGui(mw, addon_path, openDictionarySettings)
     mw.dictSettings.show()
@@ -239,6 +264,10 @@ def openDictionarySettings():
 
 def setup_gui_menu():
     """Setup GUI menu items."""
+    # Initialize mw.ankiDictionary if it doesn't exist
+    if not hasattr(mw, 'ankiDictionary'):
+        mw.ankiDictionary = None
+        
     addMenu = False
     if not hasattr(mw, "DictMainMenu"):
         mw.DictMainMenu = QMenu("Dict", mw)
@@ -266,14 +295,15 @@ def setup_gui_menu():
     if addMenu:
         mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.DictMainMenu)
 
-    # Setup global hotkeys
+    # Setup global hotkeys with debugging
+    print("Setting up global hotkey Ctrl+W")
     mw.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), mw)
-    mw.hotkeyW.activated.connect(dictionaryInit)
+    mw.hotkeyW.activated.connect(lambda: print("Ctrl+W activated!") or dictionaryInit())
 
     mw.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), mw)
     mw.hotkeyS.activated.connect(lambda: searchTerm(mw.web))
-    mw.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), mw)
-    mw.hotkeyS.activated.connect(lambda: searchCol(mw.web))
+    mw.hotkeyShiftB = QShortcut(QKeySequence("Ctrl+Shift+B"), mw)
+    mw.hotkeyShiftB.activated.connect(lambda: searchCol(mw.web))
 
 
 def searchTermList(terms):
@@ -297,6 +327,9 @@ def extensionFileNotFound():
 
 def initGlobalHotkeys():
     """Initialize global hotkey thread."""
+    # Import here to avoid circular import
+    from ..core.dictionary import ClipThread
+    
     mw.hkThread = ClipThread(mw, addon_path)
     mw.hkThread.sentence.connect(exportSentence)
     mw.hkThread.search.connect(trySearch)

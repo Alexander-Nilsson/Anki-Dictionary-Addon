@@ -369,7 +369,7 @@ class DictionaryInstallPage(MiWizardPage):
             return url
 
         def run(self):
-            from .dictionaryManager import importDict
+            from ..ui.dialogs.dictionary_manager import importDict
 
             client = HttpClient()
 
