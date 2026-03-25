@@ -63,6 +63,7 @@ from urllib.request import Request, urlopen
 import requests
 import urllib.request
 from ..integrations import image_search as duckduckgoimages
+from ..integrations import llm as llm_integration
 from ..ui.settings.settings_gui import SettingsGui
 import datetime
 import codecs
@@ -226,6 +227,11 @@ class MIDict(AnkiWebView):
         font = self.getFontFamily(selectedGroup)
         dictDefs = self.config["dictSearch"]
         maxDefs = self.config["maxSearch"]
+
+        # Trigger LLM search if enabled
+        if self.config.get("llm_enabled", False):
+            self.triggerLLMSearch(cleaned)
+
         html = self.prepareResults(
             self.db.searchTerm(
                 term,
@@ -441,6 +447,11 @@ class MIDict(AnkiWebView):
                 imgTooltip = ' title="Add this definition, or any selected text and this definition\'s header to the card exporter (opens the card exporter if it is not yet opened)." '
                 clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
                 sendTooltip = " title=\"Send this definition, or any selected text and this definition's header to the card exporter to this dictionary's target fields. It will send it to the current target window, be it an Editor window, or the Review window.\" "
+
+            # Add LLM placeholder if enabled
+            if self.config.get("llm_enabled", False):
+                html += '<div id="llm-loader"><div class="definitionBlock"><i>Loading LLM definition...</i></div></div>'
+
             for dictName, dictResults in results.items():
                 if dictName == "Images":
                     html += self.getGoogleDictionaryResults(
@@ -585,6 +596,94 @@ class MIDict(AnkiWebView):
 
     def showNoImagesMessage(self):
         tooltip("No images found")
+
+    def triggerLLMSearch(self, term):
+        """Initiate an asynchronous LLM search."""
+        worker = llm_integration.LLMWorker(term, self.config)
+        worker.signals.result_ready.connect(self.loadLLMResults)
+        worker.signals.error_occurred.connect(self.showLLMError)
+        self.threadpool.start(worker)
+
+    def loadLLMResults(self, result):
+        """Handle result from LLM and inject into the UI."""
+        # We need to construct the HTML for the LLM result
+        # similar to how normal entries are rendered
+        dictName = "LLM API"
+        font = self.getFontFamily({"font": False, "customFont": False})
+        frontBracket = self.config["frontBracket"]
+        backBracket = self.config["backBracket"]
+
+        # Re-use prepareResults-like logic but for a single entry
+        html = (
+            '<div class="dictionaryTitleBlock"><div '
+            + font
+            + ' class="dictionaryTitle">'
+            + dictName
+            + '</div><div class="dictionarySettings">'
+            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+        )
+
+        imgTooltip = ""
+        clipTooltip = ""
+        sendTooltip = ""
+        if self.config["tooltips"]:
+            imgTooltip = ' title="Add this definition, or any selected text and this definition\'s header to the card exporter." '
+            clipTooltip = ' title="Copy this definition to the clipboard." '
+            sendTooltip = ' title="Send this definition to the card exporter." '
+
+        html += (
+            '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.getPreparedTermHeader(
+                dictName,
+                frontBracket,
+                backBracket,
+                result["term"],
+                result["term"],
+                result["altterm"],
+                result["pronunciation"],
+            )
+            + ' <span class="starcount">'
+            + result["starCount"]
+            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + dictName
+            + '\')" class="ankiExportButton"><img '
+            + imgTooltip
+            + ' src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" '
+            + clipTooltip
+            + ' class="clipper">✂</div><div '
+            + sendTooltip
+            + " onclick=\"sendToField(event, '"
+            + dictName
+            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div'
+            + font
+            + ' class="definitionBlock">'
+            + self.highlightTarget(
+                self.processDefinitionHTML(
+                    self.highlightExamples(result["definition"])
+                ),
+                result["term"],
+            )
+            + "</div>"
+        )
+
+        escaped_html = json.dumps(html)
+        # We'll use a specific ID to replace the loading indicator
+        self.eval(
+            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_html}; }}"
+        )
+
+    def showLLMError(self, error_msg):
+        """Show LLM error in the UI."""
+        escaped_msg = json.dumps(
+            f'<div class="definitionBlock" style="color: red;">{error_msg}</div>'
+        )
+        self.eval(
+            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
+        )
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]
