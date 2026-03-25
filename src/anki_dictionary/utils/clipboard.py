@@ -57,7 +57,6 @@ import warnings
 
 from ctypes import c_size_t, sizeof, c_wchar_p, get_errno, c_wchar
 
-
 # `import PyQt4` sys.exit()s if DISPLAY is not in the environment.
 # Thus, we need to detect the presence of $DISPLAY manually
 # and not load PyQt4 if it is absent.

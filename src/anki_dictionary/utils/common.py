@@ -6,7 +6,6 @@ from aqt.qt import *
 from os.path import dirname, join
 from aqt.webview import AnkiWebView
 
-
 addon_path = dirname(dirname(dirname(dirname(__file__))))
 
 

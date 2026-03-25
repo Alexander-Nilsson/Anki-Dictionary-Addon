@@ -8,7 +8,6 @@ import aqt
 from ..ui.dialogs.wizard import MiWizard, MiWizardPage
 from . import config as webConfig
 
-
 addon_path = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 )
