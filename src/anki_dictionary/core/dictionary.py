@@ -151,14 +151,14 @@ class MIDict(AnkiWebView):
             icon_path = join(self.addon_root, "assets", "icons", icon_name)
             with open(icon_path, "rb") as icon_file:
                 icon_data = icon_file.read()
-                icon_base64 = base64.b64encode(icon_data).decode('utf-8')
+                icon_base64 = base64.b64encode(icon_data).decode("utf-8")
                 # Determine MIME type based on file extension
-                if icon_name.endswith('.png'):
-                    mime_type = 'image/png'
-                elif icon_name.endswith('.svg'):
-                    mime_type = 'image/svg+xml'
+                if icon_name.endswith(".png"):
+                    mime_type = "image/png"
+                elif icon_name.endswith(".svg"):
+                    mime_type = "image/svg+xml"
                 else:
-                    mime_type = 'image/png'  # Default fallback
+                    mime_type = "image/png"  # Default fallback
                 return f"data:{mime_type};base64,{icon_base64}"
         except Exception as e:
             print(f"Error loading icon {icon_name}: {e}")
@@ -324,18 +324,18 @@ class MIDict(AnkiWebView):
         """Process HTML tags in dictionary definitions for proper display."""
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
-        
+
         # Handle <br> tags that might be in definitions
         # Convert any existing <br> or <br/> or <BR> tags to proper HTML line breaks
-        text = re.sub(r'<br\s*/?>', '<br>', text, flags=re.IGNORECASE)
-        
+        text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
+
         # Handle other common HTML entities that might appear in definitions
-        text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
-        
+        text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
         # Ensure proper line spacing for better readability
         # Replace multiple consecutive <br> tags with proper spacing
-        text = re.sub(r'(<br>\s*){2,}', '<br><br>', text)
-        
+        text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
+
         return text
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
@@ -503,7 +503,9 @@ class MIDict(AnkiWebView):
                         + dictName
                         + '\')" class="ankiExportButton"><img '
                         + imgTooltip
-                        + ' src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" '
+                        + ' src="'
+                        + self.getBase64Icon("anki.png")
+                        + '"></div><div onclick="clipText(event)" '
                         + clipTooltip
                         + ' class="clipper">✂</div><div '
                         + sendTooltip
@@ -515,7 +517,8 @@ class MIDict(AnkiWebView):
                         + self.highlightTarget(
                             self.processDefinitionHTML(
                                 self.highlightExamples(entry["definition"])
-                            ), term
+                            ),
+                            term,
                         )
                         + "</div>"
                     )
@@ -523,7 +526,9 @@ class MIDict(AnkiWebView):
 
         else:
             html = (
-                '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="' + self.getBase64Icon("searchzero.svg") + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
+                '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="'
+                + self.getBase64Icon("searchzero.svg")
+                + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
                 + term
                 + '".</h3> </div></div>'
             )
@@ -557,7 +562,9 @@ class MIDict(AnkiWebView):
             + bracketBack
             + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton"><img src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
+            + '\')" class="ankiExportButton"><img src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
             + dictName
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
@@ -583,7 +590,7 @@ class MIDict(AnkiWebView):
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[term]
         # Set search region based on configuration
-        imager.setSearchRegion(self.config.get('imageSearchRegion', 'United States'))
+        imager.setSearchRegion(self.config.get("imageSearchRegion", "United States"))
         imager.signals.resultsFound.connect(self.loadImageResults)
         imager.signals.noResults.connect(self.showNoImagesMessage)
         self.threadpool.start(imager)
@@ -700,7 +707,7 @@ class MIDict(AnkiWebView):
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[search_term]
         # Set search region based on configuration
-        imager.setSearchRegion(self.config.get('imageSearchRegion', 'United States'))
+        imager.setSearchRegion(self.config.get("imageSearchRegion", "United States"))
         # Connect to a different handler for load more results
         imager.signals.resultsFound.connect(self.loadMoreImageResults)
         imager.signals.noResults.connect(self.showNoMoreImagesMessage)
@@ -1193,7 +1200,7 @@ class ClipThread(QObject):
                 import ssl
 
                 ssl._create_default_https_context = ssl._create_unverified_context
-                sys.path.insert(0, join(dirname(__file__), "keyboardMac"))
+                # sys.path.insert(0, join(dirname(__file__), "keyboardMac"))
                 try:
                     from Quartz import (
                         CGEventGetIntegerValueField,
@@ -1207,7 +1214,8 @@ class ClipThread(QObject):
                     self.kCGKeyboardEventKeycode = None
                     self.CGEventGetIntegerValueField = None
             elif is_lin:
-                sys.path.insert(0, join(dirname(__file__), "linux"))
+                # sys.path.insert(0, join(dirname(__file__), "linux"))
+                pass
             sys.path.insert(0, join(dirname(__file__)))
 
             try:
@@ -2088,6 +2096,7 @@ class DictInterface(QWidget):
         except Exception as e:
             print(f"Error in toggleTabMode: {e}")
             import traceback
+
             traceback.print_exc()
 
     def setupConjugationMode(self):

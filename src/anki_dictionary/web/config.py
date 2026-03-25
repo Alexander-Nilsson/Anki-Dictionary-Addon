@@ -1,7 +1,6 @@
 import json
 from anki.httpclient import HttpClient
 
-
 DEFAULT_SERVER = "dicts.migaku.io"
 
 

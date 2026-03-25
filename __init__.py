@@ -128,7 +128,7 @@ def initialize_addon() -> None:
         # Setup the addon
         setup_hooks()
         setup_gui_menu()
-        
+
         # The configuration is already loaded in state.config above,
         # just make sure it's available in the legacy location
         if hasattr(mw, "__dict__"):

@@ -10,12 +10,7 @@
 # Technical Implementation:
 # - DuckDuckGo API pagination using offset parameter
 # - Persistent search instances to maintain state across load more requests
-# - Async image downloading and base64 embedding for better performance
-# - CSS flexbox layout with responsive design
-
-# -*- coding: utf-8 -*-
-# - Persistent search instances to maintain state across load more requests
-# - Async image downloading and base64 embedding for better performance
+# - Synchronous image downloading with ThreadPoolExecutor for better performance
 # - CSS flexbox layout with responsive design
 
 # -*- coding: utf-8 -*-
@@ -29,13 +24,7 @@ from PIL import Image
 import io
 import hashlib
 from aqt import mw
-import os
-import io
-import asyncio
-import aiohttp
-import hashlib
 import concurrent.futures
-from PIL import Image
 import json
 import ssl
 import urllib3
@@ -188,7 +177,9 @@ class DuckDuckGo(QRunnable):
         if region_or_code in countryToDuckDuckGo:
             self.language = countryToDuckDuckGo[region_or_code]
         else:
-            print(f"Warning: Unsupported region/language '{region_or_code}', using default US English")
+            print(
+                f"Warning: Unsupported region/language '{region_or_code}', using default US English"
+            )
             self.language = "us-en"
 
     def getCleanedUrls(self, urls):
@@ -265,12 +256,14 @@ class DuckDuckGo(QRunnable):
     def process_image(self, url: str, content: bytes) -> str:
         """Process the image: open, convert, resize, and save to disk."""
         import warnings
-        
+
         # Suppress all PIL warnings at the beginning
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
-            warnings.filterwarnings("ignore", message=".*Palette images with Transparency.*")
-            
+            warnings.filterwarnings(
+                "ignore", message=".*Palette images with Transparency.*"
+            )
+
             try:
                 img = Image.open(io.BytesIO(content))
                 # Convert image if necessary
@@ -290,74 +283,57 @@ class DuckDuckGo(QRunnable):
                     print(f"Error processing image from {url}: {e}")
         return ""
 
-    async def download_and_process_image(
-        self,
-        url: str,
-        session: aiohttp.ClientSession,
-        executor: concurrent.futures.Executor,
-    ) -> str:
-        """Download an image asynchronously and process it using a thread pool."""
+    def download_and_process_image_sync(self, url: str) -> str:
+        """Download and process an image synchronously (to be run in thread)."""
         try:
-            # Create a specific timeout for this request
-            timeout = aiohttp.ClientTimeout(total=30)
-            async with session.get(url, timeout=timeout) as response:
-                if response.status == 200:
-                    content = await response.read()
-                    loop = asyncio.get_running_loop()
-                    # Offload the synchronous image processing to the executor
-                    filename = await loop.run_in_executor(
-                        executor, self.process_image, url, content
-                    )
-                    return filename
+            # Use requests for sync download
+            # Disable SSL verification to match previous implementation
+            response = requests.get(
+                url,
+                timeout=30,
+                verify=False,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                },
+            )
+            if response.status_code == 200:
+                return self.process_image(url, response.content)
         except Exception as e:
             # Only log serious connection errors, not common SSL issues
             error_str = str(e)
-            if not any(x in error_str.lower() for x in [
-                'certificate verify failed', 
-                'ssl:', 
-                'server disconnected',
-                'cannot connect to host',
-                'timeout'
-            ]):
+            if not any(
+                x in error_str.lower()
+                for x in [
+                    "certificate verify failed",
+                    "ssl:",
+                    "server disconnected",
+                    "cannot connect to host",
+                    "timeout",
+                ]
+            ):
                 print(f"Error downloading image from {url}: {e}")
         return ""
 
-    async def download_all_images(self, urls: list) -> list:
-        """Download and process all images concurrently."""
-        # Create SSL context that doesn't verify certificates
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        
-        # Create connector with SSL context and increased timeout
-        connector = aiohttp.TCPConnector(
-            ssl=ssl_context,
-            limit=100,
-            limit_per_host=30,
-            ttl_dns_cache=300,
-            use_dns_cache=True,
-        )
-        
-        # Create timeout configuration
-        timeout = aiohttp.ClientTimeout(total=30, connect=10)
-        
-        # Create a thread pool for image processing
+    def download_all_images(self, urls: list) -> list:
+        """Download and process all images concurrently using threads."""
+        # Create a thread pool for parallel downloading and processing
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            async with aiohttp.ClientSession(
-                connector=connector, 
-                timeout=timeout,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-                }
-            ) as session:
-                tasks = [
-                    self.download_and_process_image(url, session, executor)
-                    for url in urls
-                ]
-                # Gather all tasks concurrently
-                results = await asyncio.gather(*tasks)
-                # Filter out any None results
-                return [filename for filename in results if filename]
+            # Submit all tasks
+            future_to_url = {
+                executor.submit(self.download_and_process_image_sync, url): url
+                for url in urls
+            }
+
+            results = []
+            for future in concurrent.futures.as_completed(future_to_url):
+                try:
+                    filename = future.result()
+                    if filename:
+                        results.append(filename)
+                except Exception as e:
+                    print(f"Error processing image: {e}")
+
+            return results
 
     def getHtml(self, term, is_load_more=False):
         """
@@ -370,14 +346,11 @@ class DuckDuckGo(QRunnable):
         if not images or len(images) < 1:
             return "No Images Found. This is likely due to a connectivity error."
 
-        # Download images asynchronously
+        # Download images concurrently
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            local_images = loop.run_until_complete(self.download_all_images(images))
-            loop.close()
+            local_images = self.download_all_images(images)
         except Exception as e:
-            print(f"Error in async image download: {e}")
+            print(f"Error in image download: {e}")
             return "Error downloading images"
 
         def generate_image_html(filename):
@@ -424,14 +397,11 @@ class DuckDuckGo(QRunnable):
         if not images or len(images) < 1:
             return ""  # Return empty if no more images
 
-        # Download images asynchronously
+        # Download images concurrently
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            local_images = loop.run_until_complete(self.download_all_images(images))
-            loop.close()
+            local_images = self.download_all_images(images)
         except Exception as e:
-            print(f"Error in async image download: {e}")
+            print(f"Error in image download: {e}")
             return ""
 
         def generate_image_html(filename):

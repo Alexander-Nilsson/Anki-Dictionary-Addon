@@ -366,7 +366,7 @@ class DictDB:
         try:
             result = cursor.fetchone()
             if result:
-                (duplicateHeader, termHeader) = result
+                duplicateHeader, termHeader = result
                 return duplicateHeader, json.loads(termHeader)
             return None
         except:
@@ -500,21 +500,21 @@ class DictDB:
         """Process HTML tags in dictionary definitions for proper display."""
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
-        
+
         # First convert any newlines to <br> tags
         text = text.replace("\n", "<br>")
-        
+
         # Handle <br> tags that might already be in definitions
         # Convert any existing <br> or <br/> or <BR> tags to proper HTML line breaks
-        text = re.sub(r'<br\s*/?>', '<br>', text, flags=re.IGNORECASE)
-        
+        text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
+
         # Handle other common HTML entities that might appear in definitions
-        text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
-        
+        text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
         # Ensure proper line spacing for better readability
         # Replace multiple consecutive <br> tags with proper spacing
-        text = re.sub(r'(<br>\s*){2,}', '<br><br>', text)
-        
+        text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
+
         return text
 
     def resultToDict(self, r):

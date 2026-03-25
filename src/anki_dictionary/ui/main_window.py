@@ -47,22 +47,24 @@ def refresh_anki_dict_config(config=False):
         if hasattr(mw, "__dict__"):
             mw.__dict__["AnkiDictConfig"] = config
         return
-    
+
     # Import here to avoid circular imports
     from anki_dictionary.utils.config import get_addon_config
 
     new_config = get_addon_config()
-    
+
     # Only update if configuration has actually changed or doesn't exist
-    current_config = getattr(mw, 'AnkiDictConfig', None)
+    current_config = getattr(mw, "AnkiDictConfig", None)
     if current_config is None or current_config != new_config:
         if hasattr(mw, "__dict__"):
             mw.__dict__["AnkiDictConfig"] = new_config
-        
+
         # If dictionary exists and is visible, update its configuration
-        if (hasattr(mw, 'ankiDictionary') and 
-            mw.ankiDictionary and 
-            hasattr(mw.ankiDictionary, 'resetConfiguration')):
+        if (
+            hasattr(mw, "ankiDictionary")
+            and mw.ankiDictionary
+            and hasattr(mw.ankiDictionary, "resetConfiguration")
+        ):
             mw.ankiDictionary.resetConfiguration(new_config)
 
 
