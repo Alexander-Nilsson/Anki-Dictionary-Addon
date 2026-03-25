@@ -29,6 +29,7 @@ import json
 import ssl
 import urllib3
 import warnings
+from ..utils.constants import COUNTRY_TO_DDG
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -40,104 +41,7 @@ warnings.filterwarnings("ignore", message=".*should be converted to RGBA images.
 
 # Map country names and ISO language codes to DuckDuckGo region codes
 # Sorted alphabetically for easier maintenance
-countryToDuckDuckGo = {
-    "Afghanistan": "af-fa",
-    "Algeria": "dz-ar",
-    "Argentina": "ar-es",
-    "Armenia": "am-hy",
-    "Australia": "au-en",
-    "Austria": "at-de",
-    "Azerbaijan": "az-az",
-    "Bangladesh": "bd-bn",
-    "Belarus": "by-be",
-    "Belgium": "be-fr",
-    "Brazil": "br-pt",
-    "Bulgaria": "bg-bg",
-    "Cambodia": "kh-km",
-    "Canada": "ca-en",
-    "Chile": "cl-es",
-    "China": "cn-zh",
-    "Colombia": "co-es",
-    "Croatia": "hr-hr",
-    "Croatia (Hrvatska)": "hr-hr",
-    "Czech Republic": "cz-cs",
-    "Denmark": "dk-da",
-    "Egypt": "eg-ar",
-    "Estonia": "ee-et",
-    "Finland": "fi-fi",
-    "France": "fr-fr",
-    "Georgia": "ge-ka",
-    "Germany": "de-de",
-    "Greece": "gr-el",
-    "Hong Kong": "hk-tzh",
-    "Hungary": "hu-hu",
-    "India": "in-en",
-    "Indonesia": "id-id",
-    "Iran, Islamic Republic of": "ir-fa",
-    "Iraq": "iq-ar",
-    "Ireland": "ie-en",
-    "Israel": "il-he",
-    "Italy": "it-it",
-    "Japan": "jp-ja",
-    "Jordan": "jo-ar",
-    "Kazakhstan": "kz-kk",
-    "Korea, Republic of": "kr-ko",
-    "Kyrgyzstan": "kg-ky",
-    "Laos": "la-lo",
-    "Latvia": "lv-lv",
-    "Lebanon": "lb-ar",
-    "Lithuania": "lt-lt",
-    "Malaysia": "my-ms",
-    "Mexico": "mx-es",
-    "Mongolia": "mn-mn",
-    "Morocco": "ma-ar",
-    "Myanmar": "mm-my",
-    "Netherlands": "nl-nl",
-    "New Zealand": "nz-en",
-    "Norway": "no-no",
-    "Pakistan": "pk-ur",
-    "Peru": "pe-es",
-    "Philippines": "ph-en",
-    "Poland": "pl-pl",
-    "Portugal": "pt-pt",
-    "Romania": "ro-ro",
-    "Russia": "ru-ru",
-    "Russian Federation": "ru-ru",
-    "Saudi Arabia": "sa-ar",
-    "Singapore": "sg-en",
-    "Slovakia": "sk-sk",
-    "Slovenia": "si-sl",
-    "South Africa": "za-en",
-    "South Korea": "kr-ko",
-    "Spain": "es-es",
-    "Sri Lanka": "lk-si",
-    "Sweden": "se-sv",
-    "Switzerland": "ch-de",
-    "Taiwan": "tw-zh",
-    "Tajikistan": "tj-tg",
-    "Thailand": "th-th",
-    "Tunisia": "tn-ar",
-    "Turkey": "tr-tr",
-    "Turkmenistan": "tm-tk",
-    "Ukraine": "ua-uk",
-    "United Arab Emirates": "ae-ar",
-    "United Kingdom": "uk-en",
-    "United States": "us-en",
-    "Uzbekistan": "uz-uz",
-    "Venezuela": "ve-es",
-    "Vietnam": "vn-vi",
-    # ISO language codes for backward compatibility
-    "de-DE": "de-de",  # German
-    "en-GB": "uk-en",  # English (UK)
-    "en-US": "us-en",  # English (US)
-    "es-ES": "es-es",  # Spanish
-    "fr-FR": "fr-fr",  # French
-    "ja-JP": "jp-ja",  # Japanese
-    "ko-KR": "kr-ko",  # Korean
-    "ru-RU": "ru-ru",  # Russian
-    "zh-CN": "cn-zh",  # Chinese (China)
-    "zh-TW": "tw-zh",  # Chinese (Taiwan)
-}
+countryToDuckDuckGo = COUNTRY_TO_DDG
 
 # Get the root addon directory (4 levels up from this file)
 addon_path = dirname(dirname(dirname(dirname(__file__))))
