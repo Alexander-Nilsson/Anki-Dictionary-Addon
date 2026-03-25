@@ -105,14 +105,27 @@ class SettingsGui(QTabWidget):
         self.openOnStart = QCheckBox()
         self.globalHotkeys = QCheckBox()
         self.globalOpen = QCheckBox()
+
+        # LLM Settings
+        self.llmEnabled = QCheckBox()
+        self.llmApiKey = QLineEdit()
+        self.llmApiKey.setEchoMode(QLineEdit.EchoMode.Password)
+        self.llmBaseUrl = QLineEdit()
+        self.llmModel = QLineEdit()
+        self.llmPrompt = QTextEdit()
+        self.llmPrompt.setAcceptRichText(False)
+        self.llmPrompt.setFixedHeight(100)
+
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
         self.layout = QVBoxLayout()
         self.settingsTab = QWidget(self)
+        self.llmTab = self.getLLMTab()
         # self.userGuideTab = self.getUserGuideTab()
         self.setupLayout()
         self.addTab(self.settingsTab, "Settings")
+        self.addTab(self.llmTab, "LLM API")
         self.addTab(DictionaryManagerWidget(), "Dictionaries")
         # self.addTab(self.userGuideTab, "User Guide")
         # self.addTab(self.getAboutTab(), "About")
@@ -219,6 +232,21 @@ class SettingsGui(QTabWidget):
         self.convertToMp3.setChecked(config["mp3Convert"])
         self.disableCondensedMessages.setChecked(config["disableCondensed"])
         self.dictOnTop.setChecked(config["dictAlwaysOnTop"])
+
+        # Load LLM settings
+        self.llmEnabled.setChecked(config.get("llm_enabled", False))
+        self.llmApiKey.setText(config.get("llm_api_key", ""))
+        self.llmBaseUrl.setText(
+            config.get("llm_base_url", "https://api.openai.com/v1/chat/completions")
+        )
+        self.llmModel.setText(config.get("llm_model", "gpt-3.5-turbo"))
+        self.llmPrompt.setPlainText(
+            config.get(
+                "llm_prompt",
+                "Provide a concise dictionary definition for the word: {term}",
+            )
+        )
+
         if config.get("condensedAudioDirectory", False) is not False:
             self.chooseAudioDirectory.setText(config["condensedAudioDirectory"])
         else:
@@ -245,6 +273,14 @@ class SettingsGui(QTabWidget):
         nc["mp3Convert"] = self.convertToMp3.isChecked()
         nc["disableCondensed"] = self.disableCondensedMessages.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
+
+        # Save LLM settings
+        nc["llm_enabled"] = self.llmEnabled.isChecked()
+        nc["llm_api_key"] = self.llmApiKey.text()
+        nc["llm_base_url"] = self.llmBaseUrl.text()
+        nc["llm_model"] = self.llmModel.text()
+        nc["llm_prompt"] = self.llmPrompt.toPlainText()
+
         if self.chooseAudioDirectory.text() != "Choose Directory":
             nc["condensedAudioDirectory"] = self.chooseAudioDirectory.text()
         else:
@@ -619,6 +655,37 @@ class SettingsGui(QTabWidget):
         widget = AnkiSVG(join(self.addonPath, "icons", name))
         widget.setFixedSize(27, 27)
         return widget
+
+    def getLLMTab(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        infoLabel = QLabel(
+            "Configure an OpenAI-compatible LLM API to get AI-generated definitions."
+        )
+        infoLabel.setWordWrap(True)
+        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
+        layout.addWidget(infoLabel)
+
+        formGroup = QGroupBox("LLM Configuration")
+        formLayout = QFormLayout()
+
+        formLayout.addRow("Enable LLM Dictionary:", self.llmEnabled)
+        formLayout.addRow("API Key:", self.llmApiKey)
+        formLayout.addRow("Base URL:", self.llmBaseUrl)
+        formLayout.addRow("Model:", self.llmModel)
+        formLayout.addRow("Prompt Template:", self.llmPrompt)
+
+        promptHint = QLabel("Use {term} as a placeholder for the word being searched.")
+        promptHint.setStyleSheet("font-size: 10px; color: gray;")
+        formLayout.addRow("", promptHint)
+
+        formGroup.setLayout(formLayout)
+        layout.addWidget(formGroup)
+        layout.addStretch()
+
+        tab.setLayout(layout)
+        return tab
 
     def getHTML(self):
         htmlPath = join(self.addonPath, "guide.html")
