@@ -8,6 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from aqt.utils import showInfo
 from aqt import mw
 from ..utils.common import miInfo
+from ..utils.logger import get_logger
+
+# Initialize logger
+logger = get_logger("database")
 
 # Get the root addon path (go up from src/anki_dictionary/core to root)
 addon_path = os.path.dirname(
@@ -56,6 +60,7 @@ class DictDB:
             self.c.execute("PRAGMA foreign_keys = ON")
             self.c.execute("PRAGMA case_sensitive_like=ON;")
         except sqlite3.OperationalError as e:
+            logger.error(f"Database error: {e} - Path: {db_file}")
             miInfo(f"Database error: {e}\nAttempted path: {db_file}", level="err")
             raise
 
