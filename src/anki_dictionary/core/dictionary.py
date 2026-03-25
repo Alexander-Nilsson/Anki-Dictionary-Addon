@@ -68,6 +68,7 @@ import datetime
 import codecs
 import ntpath
 from ..utils.common import miInfo
+from ..web.icons import get_base64_icon
 from PyQt6.QtSvgWidgets import QSvgWidget
 from ..ui.dialogs.theme_editor import *
 from ..ui.themes import *
@@ -147,22 +148,7 @@ class MIDict(AnkiWebView):
 
     def getBase64Icon(self, icon_name):
         """Convert icon to base64 data URL for embedding in HTML"""
-        try:
-            icon_path = join(self.addon_root, "assets", "icons", icon_name)
-            with open(icon_path, "rb") as icon_file:
-                icon_data = icon_file.read()
-                icon_base64 = base64.b64encode(icon_data).decode("utf-8")
-                # Determine MIME type based on file extension
-                if icon_name.endswith(".png"):
-                    mime_type = "image/png"
-                elif icon_name.endswith(".svg"):
-                    mime_type = "image/svg+xml"
-                else:
-                    mime_type = "image/png"  # Default fallback
-                return f"data:{mime_type};base64,{icon_base64}"
-        except Exception as e:
-            print(f"Error loading icon {icon_name}: {e}")
-            return ""
+        return get_base64_icon(icon_name)
 
     def formatTermHeaders(self, ths):
         formattedHeaders = {}

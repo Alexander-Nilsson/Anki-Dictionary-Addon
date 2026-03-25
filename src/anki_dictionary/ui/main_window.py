@@ -355,42 +355,63 @@ mw.searchTerm = searchTerm
 mw.searchCol = searchCol
 
 
-# TODO: These functions need to be implemented or imported from other modules
-def exportSentence(*args):
-    """Export sentence - placeholder."""
-    pass
+# Implementation of global exporter functions
+def exportSentence(sentence):
+    """Export sentence to the card exporter."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.exportSentence(sentence)
 
 
-def trySearch(*args):
-    """Try search - placeholder."""
-    pass
+def trySearch(text):
+    """Try to search text in the dictionary."""
+    if mw.ankiDictionary:
+        mw.ankiDictionary.initSearch(text)
 
 
-def exportImage(*args):
-    """Export image - placeholder."""
-    pass
+def exportImage(path, name):
+    """Export image to the card exporter."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.exportImage(path, name)
 
 
-def extensionBulkTextExport(*args):
-    """Extension bulk text export - placeholder."""
-    pass
+def extensionBulkTextExport(cards):
+    """Handle bulk text export from extension."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.bulkTextExport(cards)
 
 
-def attemptAddCard(*args):
-    """Attempt add card - placeholder."""
-    pass
+def attemptAddCard():
+    """Attempt to add a card from exporter."""
+    if (
+        mw.ankiDictionary
+        and mw.ankiDictionary.dict
+        and mw.ankiDictionary.dict.addWindow
+    ):
+        mw.ankiDictionary.dict.addWindow.addCard()
 
 
-def cancelBulkMediaExport(*args):
-    """Cancel bulk media export - placeholder."""
-    pass
+def cancelBulkMediaExport():
+    """Cancel ongoing bulk media export."""
+    if (
+        mw.ankiDictionary
+        and mw.ankiDictionary.dict
+        and mw.ankiDictionary.dict.addWindow
+    ):
+        mw.ankiDictionary.dict.addWindow.bulkMediaExportCancelledByBrowserRefresh()
 
 
-def extensionBulkMediaExport(*args):
-    """Extension bulk media export - placeholder."""
-    pass
+def extensionBulkMediaExport(card):
+    """Handle bulk media export from extension."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.bulkMediaExport(card)
 
 
-def extensionCardExport(*args):
-    """Extension card export - placeholder."""
-    pass
+def extensionCardExport(card):
+    """Handle single card export from extension."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.addMediaCard(card)

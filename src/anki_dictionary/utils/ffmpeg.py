@@ -21,14 +21,14 @@ class FFMPEGInstaller:
         self.ffmpegFilename = "ffmpeg"
         if is_win:
             self.ffmpegFilename += ".exe"
-            # TODO: Setup alternative FFmpeg distribution for Windows
-            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/windows"
+            # FFmpeg distribution for Windows
+            self.downloadURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
         elif is_lin:
-            # TODO: Setup alternative FFmpeg distribution for Linux
-            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/linux"
+            # FFmpeg distribution for Linux
+            self.downloadURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
         elif is_mac:
-            # TODO: Setup alternative FFmpeg distribution for macOS
-            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/macos"
+            # FFmpeg distribution for macOS
+            self.downloadURL = "https://evermeet.cx/ffmpeg/getrelease/zip"
         self.ffmpegPath = join(self.ffmpegDir, self.ffmpegFilename)
         self.tempPath = join(self.addonPath, "temp", "ffmpeg")
 
