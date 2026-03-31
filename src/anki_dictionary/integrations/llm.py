@@ -55,7 +55,6 @@ class LLMWorker(QRunnable):
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
-                "think": self.config.get("llm_think", False),
                 "temperature": 0.3,
             }
 
@@ -124,7 +123,6 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
             "messages": [{"role": "user", "content": "Hello, respond with only the word 'OK'."}],
             "max_tokens": 10,
             "stream": False,
-            "think": config.get("llm_think", False),
             "temperature": 0.1,
         }
 

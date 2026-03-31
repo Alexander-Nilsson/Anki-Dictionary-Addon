@@ -108,7 +108,6 @@ class SettingsGui(QTabWidget):
 
         # LLM Settings
         self.llmEnabled = QCheckBox()
-        self.llmThink = QCheckBox()
         self.llmApiKey = QLineEdit()
         self.llmApiKey.setEchoMode(QLineEdit.EchoMode.Password)
         self.llmBaseUrl = QLineEdit()
@@ -241,7 +240,6 @@ class SettingsGui(QTabWidget):
 
         # Load LLM settings
         self.llmEnabled.setChecked(config.get("llm_enabled", False))
-        self.llmThink.setChecked(config.get("llm_think", False))
         self.llmApiKey.setText(config.get("llm_api_key", ""))
         self.llmBaseUrl.setText(
             config.get("llm_base_url", "https://api.openai.com/v1/chat/completions")
@@ -283,7 +281,6 @@ class SettingsGui(QTabWidget):
 
         # Save LLM settings
         nc["llm_enabled"] = self.llmEnabled.isChecked()
-        nc["llm_think"] = self.llmThink.isChecked()
         nc["llm_api_key"] = self.llmApiKey.text()
         nc["llm_base_url"] = self.llmBaseUrl.text()
         nc["llm_model"] = self.llmModel.text()
@@ -679,7 +676,6 @@ class SettingsGui(QTabWidget):
         formLayout = QFormLayout()
 
         formLayout.addRow("Enable LLM Dictionary:", self.llmEnabled)
-        formLayout.addRow("Enable Thinking (Ollama):", self.llmThink)
         formLayout.addRow("API Key:", self.llmApiKey)
         formLayout.addRow("Base URL:", self.llmBaseUrl)
         formLayout.addRow("Model:", self.llmModel)
@@ -715,7 +711,6 @@ class SettingsGui(QTabWidget):
             "llm_api_key": self.llmApiKey.text().strip(),
             "llm_base_url": self.llmBaseUrl.text().strip(),
             "llm_model": self.llmModel.text().strip(),
-            "llm_think": self.llmThink.isChecked(),
         }
 
         from ...integrations.llm import test_llm_config

@@ -251,9 +251,11 @@ class DictDB:
         currentDicts = self.getDictToTable()
         foundDicts: List[Dict[str, str]] = []
         for d in dicts:
-            if d in currentDicts or d in ["Images"]:
+            if d in currentDicts or d in ["Images", "LLM API"]:
                 if d == "Images":
                     foundDicts.append({"dict": "Images", "lang": ""})
+                elif d == "LLM API":
+                    foundDicts.append({"dict": "LLM API", "lang": ""})
                 else:
                     foundDicts.append(currentDicts[d])
         return foundDicts
@@ -451,6 +453,9 @@ class DictDB:
         for dic in group:
             if dic["dict"] == "Images":
                 results["Images"] = True
+                continue
+            if dic["dict"] == "LLM API":
+                results["LLM API"] = True
                 continue
             if deinflect:
                 if dic["lang"] in alreadyConjTyped:
