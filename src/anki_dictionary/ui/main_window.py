@@ -40,32 +40,6 @@ dictWidget = False
 progressBar = False
 
 
-def refresh_anki_dict_config(config=False):
-    """Refresh the addon configuration."""
-    if config:
-        # Direct config provided - use it
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = config
-        return
-    
-    # Import here to avoid circular imports
-    from anki_dictionary.utils.config import get_addon_config
-
-    new_config = get_addon_config()
-    
-    # Only update if configuration has actually changed or doesn't exist
-    current_config = getattr(mw, 'AnkiDictConfig', None)
-    if current_config is None or current_config != new_config:
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = new_config
-        
-        # If dictionary exists and is visible, update its configuration
-        if (hasattr(mw, 'ankiDictionary') and 
-            mw.ankiDictionary and 
-            hasattr(mw.ankiDictionary, 'resetConfiguration')):
-            mw.ankiDictionary.resetConfiguration(new_config)
-
-
 def removeTempFiles():
     """Remove temporary files from temp directory."""
     # Create directory if it doesn't exist
@@ -237,45 +211,6 @@ def openDictionarySettings():
     mw.dictSettings.activateWindow()
 
 
-def setup_gui_menu():
-    """Setup GUI menu items."""
-    addMenu = False
-    if not hasattr(mw, "DictMainMenu"):
-        mw.DictMainMenu = QMenu("Dict", mw)
-        addMenu = True
-    if not hasattr(mw, "DictMenuSettings"):
-        mw.DictMenuSettings = []
-    if not hasattr(mw, "DictMenuActions"):
-        mw.DictMenuActions = []
-
-    setting = QAction("Dictionary Settings", mw)
-    setting.triggered.connect(openDictionarySettings)
-    mw.DictMenuSettings.append(setting)
-
-    mw.openMiDict = QAction("Open Dictionary (Ctrl+W)", mw)
-    mw.openMiDict.triggered.connect(dictionaryInit)
-    mw.DictMenuActions.append(mw.openMiDict)
-
-    mw.DictMainMenu.clear()
-    for act in mw.DictMenuSettings:
-        mw.DictMainMenu.addAction(act)
-    mw.DictMainMenu.addSeparator()
-    for act in mw.DictMenuActions:
-        mw.DictMainMenu.addAction(act)
-
-    if addMenu:
-        mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.DictMainMenu)
-
-    # Setup global hotkeys
-    mw.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), mw)
-    mw.hotkeyW.activated.connect(dictionaryInit)
-
-    mw.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), mw)
-    mw.hotkeyS.activated.connect(lambda: searchTerm(mw.web))
-    mw.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), mw)
-    mw.hotkeyS.activated.connect(lambda: searchCol(mw.web))
-
-
 def searchTermList(terms):
     """Search for a list of terms."""
     limit = mw.AnkiDictConfig.get("unknownsToSearch", 3)
@@ -322,9 +257,10 @@ def selectedText(page):
 
 def searchTerm(webview):
     """Search selected text in dictionary."""
-    from ..core.hooks import getTarget
+    from ..utils.common import getTarget
 
     text = selectedText(webview)
+
     if text:
         text = re.sub(r"\[[^\]]+?\]", "", text)
         text = text.strip()
@@ -353,42 +289,63 @@ mw.searchTerm = searchTerm
 mw.searchCol = searchCol
 
 
-# TODO: These functions need to be implemented or imported from other modules
-def exportSentence(*args):
-    """Export sentence - placeholder."""
-    pass
+# Implementation of global exporter functions
+def exportSentence(sentence):
+    """Export sentence to the card exporter."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.exportSentence(sentence)
 
 
-def trySearch(*args):
-    """Try search - placeholder."""
-    pass
+def trySearch(text):
+    """Try to search text in the dictionary."""
+    if mw.ankiDictionary:
+        mw.ankiDictionary.initSearch(text)
 
 
-def exportImage(*args):
-    """Export image - placeholder."""
-    pass
+def exportImage(path, name):
+    """Export image to the card exporter."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.exportImage(path, name)
 
 
-def extensionBulkTextExport(*args):
-    """Extension bulk text export - placeholder."""
-    pass
+def extensionBulkTextExport(cards):
+    """Handle bulk text export from extension."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.bulkTextExport(cards)
 
 
-def attemptAddCard(*args):
-    """Attempt add card - placeholder."""
-    pass
+def attemptAddCard():
+    """Attempt to add a card from exporter."""
+    if (
+        mw.ankiDictionary
+        and mw.ankiDictionary.dict
+        and mw.ankiDictionary.dict.addWindow
+    ):
+        mw.ankiDictionary.dict.addWindow.addCard()
 
 
-def cancelBulkMediaExport(*args):
-    """Cancel bulk media export - placeholder."""
-    pass
+def cancelBulkMediaExport():
+    """Cancel ongoing bulk media export."""
+    if (
+        mw.ankiDictionary
+        and mw.ankiDictionary.dict
+        and mw.ankiDictionary.dict.addWindow
+    ):
+        mw.ankiDictionary.dict.addWindow.bulkMediaExportCancelledByBrowserRefresh()
 
 
-def extensionBulkMediaExport(*args):
-    """Extension bulk media export - placeholder."""
-    pass
+def extensionBulkMediaExport(card):
+    """Handle bulk media export from extension."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.bulkMediaExport(card)
 
 
-def extensionCardExport(*args):
-    """Extension card export - placeholder."""
-    pass
+def extensionCardExport(card):
+    """Handle single card export from extension."""
+    if mw.ankiDictionary and mw.ankiDictionary.dict:
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()
+        mw.ankiDictionary.dict.addWindow.addMediaCard(card)

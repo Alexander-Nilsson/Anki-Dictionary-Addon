@@ -41,6 +41,7 @@ class AddonState:
 
 # Global state instance
 _addon_state: Optional[AddonState] = None
+_initialized = False
 
 
 def get_addon_state() -> AddonState:
@@ -54,9 +55,12 @@ def get_addon_state() -> AddonState:
 # Initialize addon configuration and global state
 def initialize_addon() -> None:
     """Initialize the addon when Anki starts."""
-    if not mw:
+    global _initialized
+    if not mw or _initialized:
         return
 
+    _initialized = True
+    print("--- Anki Dictionary: Starting Initialization ---")
     # Initialize state container
     state = get_addon_state()
 
@@ -115,11 +119,9 @@ def initialize_addon() -> None:
 
     # Setup hooks and UI
     try:
-        from anki_dictionary.core.hooks import setup_hooks
-        from anki_dictionary.ui.main_window import (
-            setup_gui_menu,
-            refresh_anki_dict_config,
-        )
+        from anki_dictionary.core.hooks import setup_hooks, setup_gui_menu
+        from anki_dictionary.utils.config import refresh_anki_dict_config
+        from anki_dictionary.utils.ffmpeg import setup_ffmpeg
 
         # Make refresh function globally available (legacy compatibility)
         if hasattr(mw, "__dict__"):
@@ -128,7 +130,8 @@ def initialize_addon() -> None:
         # Setup the addon
         setup_hooks()
         setup_gui_menu()
-        
+        setup_ffmpeg()
+
         # The configuration is already loaded in state.config above,
         # just make sure it's available in the legacy location
         if hasattr(mw, "__dict__"):

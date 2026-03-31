@@ -8,6 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from aqt.utils import showInfo
 from aqt import mw
 from ..utils.common import miInfo
+from ..utils.logger import get_logger
+
+# Initialize logger
+logger = get_logger("database")
 
 # Get the root addon path (go up from src/anki_dictionary/core to root)
 addon_path = os.path.dirname(
@@ -56,6 +60,7 @@ class DictDB:
             self.c.execute("PRAGMA foreign_keys = ON")
             self.c.execute("PRAGMA case_sensitive_like=ON;")
         except sqlite3.OperationalError as e:
+            logger.error(f"Database error: {e} - Path: {db_file}")
             miInfo(f"Database error: {e}\nAttempted path: {db_file}", level="err")
             raise
 
@@ -246,9 +251,11 @@ class DictDB:
         currentDicts = self.getDictToTable()
         foundDicts: List[Dict[str, str]] = []
         for d in dicts:
-            if d in currentDicts or d in ["Images"]:
+            if d in currentDicts or d in ["Images", "LLM API"]:
                 if d == "Images":
                     foundDicts.append({"dict": "Images", "lang": ""})
+                elif d == "LLM API":
+                    foundDicts.append({"dict": "LLM API", "lang": ""})
                 else:
                     foundDicts.append(currentDicts[d])
         return foundDicts
@@ -366,7 +373,7 @@ class DictDB:
         try:
             result = cursor.fetchone()
             if result:
-                (duplicateHeader, termHeader) = result
+                duplicateHeader, termHeader = result
                 return duplicateHeader, json.loads(termHeader)
             return None
         except:
@@ -447,6 +454,9 @@ class DictDB:
             if dic["dict"] == "Images":
                 results["Images"] = True
                 continue
+            if dic["dict"] == "LLM API":
+                results["LLM API"] = True
+                continue
             if deinflect:
                 if dic["lang"] in alreadyConjTyped:
                     terms = alreadyConjTyped[dic["lang"]]
@@ -500,21 +510,21 @@ class DictDB:
         """Process HTML tags in dictionary definitions for proper display."""
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
-        
+
         # First convert any newlines to <br> tags
         text = text.replace("\n", "<br>")
-        
+
         # Handle <br> tags that might already be in definitions
         # Convert any existing <br> or <br/> or <BR> tags to proper HTML line breaks
-        text = re.sub(r'<br\s*/?>', '<br>', text, flags=re.IGNORECASE)
-        
+        text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
+
         # Handle other common HTML entities that might appear in definitions
-        text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
-        
+        text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
         # Ensure proper line spacing for better readability
         # Replace multiple consecutive <br> tags with proper spacing
-        text = re.sub(r'(<br>\s*){2,}', '<br><br>', text)
-        
+        text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
+
         return text
 
     def resultToDict(self, r):

@@ -12,12 +12,12 @@ import sys
 
 def create_default_themes_json(themes_path: str) -> None:
     """Create the default themes.json file."""
-    
+
     # Ensure the directory exists
     themes_dir = os.path.dirname(themes_path)
     if not os.path.exists(themes_dir):
         os.makedirs(themes_dir, exist_ok=True)
-    
+
     # Default themes data matching the current structure
     default_themes = {
         "light": {
@@ -34,7 +34,7 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#ffd3e3",
             "definition_background": "#FFFFFF",
             "definition_text": "#000000",
-            "pitch_accent_color": "#FFFFFF"
+            "pitch_accent_color": "#FFFFFF",
         },
         "dark": {
             "header_background": "#272828",
@@ -50,7 +50,7 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#CCCCCC",
             "definition_background": "#FFFFFF",
             "definition_text": "#000000",
-            "pitch_accent_color": "#FFFFFF"
+            "pitch_accent_color": "#FFFFFF",
         },
         "pink": {
             "header_background": "#f4dfdf",
@@ -66,7 +66,7 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#d2ffff",
             "definition_background": "#FFFFFF",
             "definition_text": "#000000",
-            "pitch_accent_color": "#FFFFFF"
+            "pitch_accent_color": "#FFFFFF",
         },
         "multi": {
             "header_background": "#f4d3d9",
@@ -82,7 +82,7 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#d2ffff",
             "definition_background": "#c8f3f2",
             "definition_text": "#f7b72f",
-            "pitch_accent_color": "#ffd582"
+            "pitch_accent_color": "#ffd582",
         },
         "pastel_dream": {
             "header_background": "#e6f3ff",
@@ -98,7 +98,7 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#e4d7fe",
             "definition_background": "#fff0f7",
             "definition_text": "#4a5d7e",
-            "pitch_accent_color": "#bb60fc"
+            "pitch_accent_color": "#bb60fc",
         },
         "catpuccino_frappe": {
             "header_background": "#51576d",
@@ -114,7 +114,7 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#414559",
             "definition_background": "#51576d",
             "definition_text": "#c6d0f5",
-            "pitch_accent_color": "#eebebe"
+            "pitch_accent_color": "#eebebe",
         },
         "kdeWall": {
             "header_background": "#efe1e2",
@@ -130,17 +130,17 @@ def create_default_themes_json(themes_path: str) -> None:
             "example_highlight": "#608EA6",
             "definition_background": "#C4ABB4",
             "definition_text": "#0C0F14",
-            "pitch_accent_color": "#F19CB0"
-        }
+            "pitch_accent_color": "#F19CB0",
+        },
     }
-    
+
     try:
         # Write the themes file
-        with open(themes_path, 'w', encoding='utf-8') as f:
+        with open(themes_path, "w", encoding="utf-8") as f:
             json.dump(default_themes, f, indent=2, ensure_ascii=False)
-        
+
         print(f"   ✓ Created default themes.json: {themes_path}")
-        
+
     except Exception as e:
         print(f"   ❌ Error creating themes.json: {e}")
         raise
@@ -151,12 +151,12 @@ def main():
     if len(sys.argv) != 2:
         print("Usage: python create_default_themes.py <themes_path>")
         sys.exit(1)
-    
+
     themes_path = sys.argv[1]
     print(f"Creating default themes.json: {themes_path}")
     create_default_themes_json(themes_path)
     print("✅ Themes.json creation completed")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
