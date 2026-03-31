@@ -115,6 +115,11 @@ class SettingsGui(QTabWidget):
         self.llmPrompt = QTextEdit()
         self.llmPrompt.setAcceptRichText(False)
         self.llmPrompt.setFixedHeight(100)
+        self.testLLMButton = QPushButton("Test API Connection")
+        self.testLLMButton.clicked.connect(self.testLLM)
+        self.llmStatusLabel = QLabel("")
+        self.llmStatusLabel.setWordWrap(True)
+        self.llmStatusLabel.setStyleSheet("font-weight: bold;")
 
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
@@ -682,12 +687,76 @@ class SettingsGui(QTabWidget):
 
         formGroup.setLayout(formLayout)
         layout.addWidget(formGroup)
+        
+        buttonLayout = QHBoxLayout()
+        buttonLayout.addWidget(self.testLLMButton)
+        buttonLayout.addWidget(self.llmStatusLabel)
+        buttonLayout.addStretch()
+        layout.addLayout(buttonLayout)
+        
         layout.addStretch()
 
         tab.setLayout(layout)
         return tab
 
+    def testLLM(self):
+        """Test the LLM API configuration."""
+        self.testLLMButton.setEnabled(False)
+        self.testLLMButton.setText("Testing...")
+        self.llmStatusLabel.setText("Testing...")
+        self.llmStatusLabel.setStyleSheet("color: blue; font-weight: bold;")
+
+        # Get current settings from UI
+        config = {
+            "llm_api_key": self.llmApiKey.text().strip(),
+            "llm_base_url": self.llmBaseUrl.text().strip(),
+            "llm_model": self.llmModel.text().strip(),
+        }
+
+        from ...integrations.llm import test_llm_config
+
+        # Define a wrapper for taskman that includes the callback
+        def run_test():
+            result_data = {"success": False, "message": ""}
+
+            def test_callback(success, message):
+                result_data["success"] = success
+                result_data["message"] = message
+
+            test_llm_config(config, test_callback)
+            return result_data
+
+        # Use Anki's task manager for background operations
+        self.mw.taskman.run_in_background(
+            run_test,
+            self.on_test_finished
+        )
+
+    def on_test_finished(self, future):
+        """Handle the completion of the background test."""
+        self.testLLMButton.setEnabled(True)
+        self.testLLMButton.setText("Test API Connection")
+
+        try:
+            result = future.result()
+            success = result["success"]
+            message = result["message"]
+
+            if success:
+                self.llmStatusLabel.setText("Success!")
+                self.llmStatusLabel.setStyleSheet("color: green; font-weight: bold;")
+                showInfo(message, self)
+            else:
+                self.llmStatusLabel.setText("Failed!")
+                self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
+                miInfo(message, self)
+        except Exception as e:
+            self.llmStatusLabel.setText("Error!")
+            self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
+            miInfo(f"Test crashed with error: {str(e)}", self)
+
     def getHTML(self):
+
         htmlPath = join(self.addonPath, "guide.html")
         url = QUrl.fromLocalFile(htmlPath)
         with open(htmlPath, "r", encoding="utf-8") as fh:

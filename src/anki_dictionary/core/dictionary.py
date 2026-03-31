@@ -606,14 +606,23 @@ class MIDict(AnkiWebView):
 
     def loadLLMResults(self, result):
         """Handle result from LLM and inject into the UI."""
-        # We need to construct the HTML for the LLM result
-        # similar to how normal entries are rendered
-        dictName = "LLM API"
+        # result now contains 'dictName' from LLMWorker
+        dictName = result.get("dictName", "LLM API")
         font = self.getFontFamily({"font": False, "customFont": False})
         frontBracket = self.config["frontBracket"]
         backBracket = self.config["backBracket"]
 
-        # Re-use prepareResults-like logic but for a single entry
+        # Use shared formatting logic
+        html = self.formatSingleEntry(result, dictName, font, frontBracket, backBracket)
+        
+        # Inject into the webview by replacing the loader
+        escaped_html = json.dumps(html)
+        self.eval(
+            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_html}; }}"
+        )
+
+    def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
+        """Helper to format a single dictionary entry (LLM or other) to HTML."""
         html = (
             '<div class="dictionaryTitleBlock"><div '
             + font
@@ -641,11 +650,11 @@ class MIDict(AnkiWebView):
                 backBracket,
                 result["term"],
                 result["term"],
-                result["altterm"],
-                result["pronunciation"],
+                result.get("altterm", ""),
+                result.get("pronunciation", ""),
             )
             + ' <span class="starcount">'
-            + result["starCount"]
+            + str(result.get("starCount", ""))
             + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
             + '\')" class="ankiExportButton"><img '
@@ -658,7 +667,11 @@ class MIDict(AnkiWebView):
             + sendTooltip
             + " onclick=\"sendToField(event, '"
             + dictName
-            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div'
+            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
+        )
+
+        html += (
+            '<div'
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
@@ -669,12 +682,8 @@ class MIDict(AnkiWebView):
             )
             + "</div>"
         )
+        return html
 
-        escaped_html = json.dumps(html)
-        # We'll use a specific ID to replace the loading indicator
-        self.eval(
-            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_html}; }}"
-        )
 
     def showLLMError(self, error_msg):
         """Show LLM error in the UI."""
