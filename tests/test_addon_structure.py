@@ -19,7 +19,9 @@ class TestAddonBasics(unittest.TestCase):
         build_dir = Path(__file__).parent.parent / "build" / "anki_dictionary_addon"
 
         # Check if build directory exists
-        self.assertTrue(build_dir.exists(), "Build directory does not exist - run build first")
+        self.assertTrue(
+            build_dir.exists(), "Build directory does not exist - run build first"
+        )
 
         # Check essential files exist in build directory
         self.assertTrue((build_dir / "__init__.py").exists())
@@ -27,14 +29,23 @@ class TestAddonBasics(unittest.TestCase):
         self.assertTrue((build_dir / "manifest.json").exists())
 
         # Check main directories exist in build
-        self.assertTrue((build_dir / "src").exists(), "src directory missing from build")
-        self.assertTrue((build_dir / "assets").exists(), "assets directory missing from build")
+        self.assertTrue(
+            (build_dir / "src").exists(), "src directory missing from build"
+        )
+        self.assertTrue(
+            (build_dir / "assets").exists(), "assets directory missing from build"
+        )
 
     def test_config_json_valid(self):
         """Test that config.json is valid JSON."""
         import json
 
-        config_path = Path(__file__).parent.parent / "build" / "anki_dictionary_addon" / "config.json"
+        config_path = (
+            Path(__file__).parent.parent
+            / "build"
+            / "anki_dictionary_addon"
+            / "config.json"
+        )
         with open(config_path, "r") as f:
             config = json.load(f)
 
@@ -67,16 +78,20 @@ class TestAddonImports(unittest.TestCase):
         build_dir = Path(__file__).parent.parent / "build" / "anki_dictionary_addon"
         if not build_dir.exists():
             self.skipTest("Build directory does not exist - run build first")
-            
+
         # Add src directory from build to path for import test
         import sys
+
         src_path = str(build_dir / "src")
         sys.path.insert(0, src_path)
-        
+
         try:
             # Test if anki_dictionary module can be imported from build
             import anki_dictionary  # noqa: F401
-            self.assertTrue(True, "anki_dictionary module imported successfully from build")
+
+            self.assertTrue(
+                True, "anki_dictionary module imported successfully from build"
+            )
         except ImportError as e:
             # This might be expected if dependencies are missing
             if "anki" in str(e).lower():
@@ -91,7 +106,7 @@ class TestAddonImports(unittest.TestCase):
     def test_addon_structure_integrity(self):
         """Test that addon module structure is intact in build."""
         build_dir = Path(__file__).parent.parent / "build" / "anki_dictionary_addon"
-        
+
         if not build_dir.exists():
             self.skipTest("Build directory does not exist - run build first")
 
@@ -99,13 +114,30 @@ class TestAddonImports(unittest.TestCase):
         essential_files = ["__init__.py", "config.json", "manifest.json"]
         for file_name in essential_files:
             file_path = build_dir / file_name
-            self.assertTrue(file_path.exists(), f"Essential file {file_name} missing from build")
+            self.assertTrue(
+                file_path.exists(), f"Essential file {file_name} missing from build"
+            )
 
         # Test that build directory contains expected directories
-        expected_dirs = ["src", "assets", "user_files", "vendor"]
-        for dir_name in expected_dirs:
+        # Check copied directories first, then dynamically created ones.
+        copied_dirs = ["src", "assets"]
+        created_dirs = ["user_files", "vendor"]
+
+        for dir_name in copied_dirs:
             dir_path = build_dir / dir_name
-            self.assertTrue(dir_path.exists(), f"Expected directory {dir_name} missing from build")
+            self.assertTrue(
+                dir_path.exists(), f"Expected copied directory {dir_name} missing from build"
+            )
+            
+        for dir_name in created_dirs:
+            dir_path = build_dir / dir_name
+            # Add a small retry mechanism in case of timing issues with dynamic creation
+            # This is generally not ideal for tests, but can help in complex build environments.
+            # Ideally, the build process should guarantee creation before tests run.
+            # For simplicity here, we'll just check existence. If it fails, it implies build is not ready.
+            self.assertTrue(
+                dir_path.exists(), f"Expected dynamically created directory {dir_name} missing from build"
+            )
 
         # Test that build directory contains expected structure
         self.assertTrue(len(list(build_dir.iterdir())) > 0, "Build directory is empty")

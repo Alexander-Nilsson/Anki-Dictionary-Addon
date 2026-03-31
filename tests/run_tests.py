@@ -52,7 +52,9 @@ def discover_and_run_tests():
         )
         print(f"❌ Failures: {len(result.failures)}")
         print(f"💥 Errors: {len(result.errors)}")
-        print(f"⏭️  Skipped: {len(result.skipped) if hasattr(result, 'skipped') else 0}")
+        print(
+            f"⏭️  Skipped: {len(result.skipped) if hasattr(result, 'skipped') else 0}"
+        )
 
         if result.failures:
             print("\n🔴 FAILURES:")

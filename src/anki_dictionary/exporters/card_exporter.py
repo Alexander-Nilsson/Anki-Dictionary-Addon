@@ -262,12 +262,10 @@ class CardExporter:
         cards = self.mw.col.addNote(note)
         if not cards:
             miInfo(
-                (
-                    """\
+                ("""\
 The current input and template combination \
 will lead to a blank card and therefore has not been added. \
-Please review your template and notetype combination."""
-                ),
+Please review your template and notetype combination."""),
                 level="wrn",
             )
             return False
@@ -278,7 +276,7 @@ Please review your template and notetype combination."""
     def getDecks(self):
         decksRaw = self.mw.col.decks
         decks = {}
-        
+
         # Try the newer Anki API first
         try:
             # all_names_and_ids() returns a list of NamedInt objects with .name and .id attributes
@@ -300,7 +298,7 @@ Please review your template and notetype combination."""
                 for deck in all_decks:
                     if not deck.get("dyn", False):
                         decks[deck["name"]] = deck["id"]
-        
+
         return decks
 
     def getDeckCB(self):
@@ -728,7 +726,9 @@ Please review your template and notetype combination."""
     def addDefinition(self, dictName, word, definition):
         self.focusWindow()
         if len(definition) > 40:
-            shortDef = re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)[:40] + "..."
+            shortDef = (
+                re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)[:40] + "..."
+            )
         else:
             shortDef = re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)
         defEntry = [dictName, shortDef, definition, False]

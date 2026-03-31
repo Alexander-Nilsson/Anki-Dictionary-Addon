@@ -63,11 +63,13 @@ from urllib.request import Request, urlopen
 import requests
 import urllib.request
 from ..integrations import image_search as duckduckgoimages
+from ..integrations import llm as llm_integration
 from ..ui.settings.settings_gui import SettingsGui
 import datetime
 import codecs
 import ntpath
 from ..utils.common import miInfo
+from ..web.icons import get_base64_icon
 from PyQt6.QtSvgWidgets import QSvgWidget
 from ..ui.dialogs.theme_editor import *
 from ..ui.themes import *
@@ -147,22 +149,7 @@ class MIDict(AnkiWebView):
 
     def getBase64Icon(self, icon_name):
         """Convert icon to base64 data URL for embedding in HTML"""
-        try:
-            icon_path = join(self.addon_root, "assets", "icons", icon_name)
-            with open(icon_path, "rb") as icon_file:
-                icon_data = icon_file.read()
-                icon_base64 = base64.b64encode(icon_data).decode('utf-8')
-                # Determine MIME type based on file extension
-                if icon_name.endswith('.png'):
-                    mime_type = 'image/png'
-                elif icon_name.endswith('.svg'):
-                    mime_type = 'image/svg+xml'
-                else:
-                    mime_type = 'image/png'  # Default fallback
-                return f"data:{mime_type};base64,{icon_base64}"
-        except Exception as e:
-            print(f"Error loading icon {icon_name}: {e}")
-            return ""
+        return get_base64_icon(icon_name)
 
     def formatTermHeaders(self, ths):
         formattedHeaders = {}
@@ -240,6 +227,13 @@ class MIDict(AnkiWebView):
         font = self.getFontFamily(selectedGroup)
         dictDefs = self.config["dictSearch"]
         maxDefs = self.config["maxSearch"]
+
+        # Trigger LLM search if enabled and in selected group
+        if self.config.get("llm_enabled", False):
+            group_dicts = [d["dict"] for d in selectedGroup["dictionaries"]]
+            if "LLM API" in group_dicts:
+                self.triggerLLMSearch(cleaned)
+
         html = self.prepareResults(
             self.db.searchTerm(
                 term,
@@ -324,18 +318,18 @@ class MIDict(AnkiWebView):
         """Process HTML tags in dictionary definitions for proper display."""
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
-        
+
         # Handle <br> tags that might be in definitions
         # Convert any existing <br> or <br/> or <BR> tags to proper HTML line breaks
-        text = re.sub(r'<br\s*/?>', '<br>', text, flags=re.IGNORECASE)
-        
+        text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
+
         # Handle other common HTML entities that might appear in definitions
-        text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
-        
+        text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
         # Ensure proper line spacing for better readability
         # Replace multiple consecutive <br> tags with proper spacing
-        text = re.sub(r'(<br>\s*){2,}', '<br><br>', text)
-        
+        text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
+
         return text
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
@@ -366,6 +360,11 @@ class MIDict(AnkiWebView):
                 )
                 entryCount += 1
                 dictCount += 1
+                continue
+            if dictName == "LLM API":
+                # Skip from sidebar for now as it's loaded asynchronously
+                dictCount += 1
+                entryCount += 1
                 continue
             html += (
                 '<div data-index="'
@@ -419,11 +418,11 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-        if not self.termHeaders or dictName == "Images":
+        if not self.termHeaders or dictName == "Images" or dictName == "LLM API":
             if sb:
-                header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
-            else:
                 header = '◳f<span class="listTerm">◳t</span>◳b◳x<span class="listAltTerm">◳a</span>◳y<span class="listPronunciation">◳p</span>'
+            else:
+                header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
         else:
             if sb:
                 header = self.termHeaders[dictName][1]
@@ -455,11 +454,32 @@ class MIDict(AnkiWebView):
                 imgTooltip = ' title="Add this definition, or any selected text and this definition\'s header to the card exporter (opens the card exporter if it is not yet opened)." '
                 clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
                 sendTooltip = " title=\"Send this definition, or any selected text and this definition's header to the card exporter to this dictionary's target fields. It will send it to the current target window, be it an Editor window, or the Review window.\" "
+
             for dictName, dictResults in results.items():
                 if dictName == "Images":
                     html += self.getGoogleDictionaryResults(
                         term, dictCount, frontBracket, backBracket, entryCount, font
                     )
+                    dictCount += 1
+                    entryCount += 1
+                    continue
+                if dictName == "LLM API":
+                    if self.config.get("llm_enabled", False):
+                        duplicateHeader = self.getDuplicateHeaderCB(dictName)
+                        overwrite = self.getOverwriteChecks(dictCount, dictName)
+                        select = self.getFieldChecks(dictName)
+                        html += (
+                            '<div id="llm-loader">'
+                            '<div class="dictionaryTitleBlock"><div '
+                            + font
+                            + ' class="dictionaryTitle">LLM API</div><div class="dictionarySettings">'
+                            + duplicateHeader
+                            + overwrite
+                            + select
+                            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+                            '<div class="definitionBlock"><i>Loading LLM definition...</i></div>'
+                            '</div>'
+                        )
                     dictCount += 1
                     entryCount += 1
                     continue
@@ -503,7 +523,9 @@ class MIDict(AnkiWebView):
                         + dictName
                         + '\')" class="ankiExportButton"><img '
                         + imgTooltip
-                        + ' src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" '
+                        + ' src="'
+                        + self.getBase64Icon("anki.png")
+                        + '"></div><div onclick="clipText(event)" '
                         + clipTooltip
                         + ' class="clipper">✂</div><div '
                         + sendTooltip
@@ -515,7 +537,8 @@ class MIDict(AnkiWebView):
                         + self.highlightTarget(
                             self.processDefinitionHTML(
                                 self.highlightExamples(entry["definition"])
-                            ), term
+                            ),
+                            term,
                         )
                         + "</div>"
                     )
@@ -523,7 +546,9 @@ class MIDict(AnkiWebView):
 
         else:
             html = (
-                '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="' + self.getBase64Icon("searchzero.svg") + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
+                '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="'
+                + self.getBase64Icon("searchzero.svg")
+                + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
                 + term
                 + '".</h3> </div></div>'
             )
@@ -557,7 +582,9 @@ class MIDict(AnkiWebView):
             + bracketBack
             + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton"><img src="' + self.getBase64Icon("anki.png") + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
+            + '\')" class="ankiExportButton"><img src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
             + dictName
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
@@ -583,7 +610,7 @@ class MIDict(AnkiWebView):
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[term]
         # Set search region based on configuration
-        imager.setSearchRegion(self.config.get('imageSearchRegion', 'United States'))
+        imager.setSearchRegion(self.config.get("imageSearchRegion", "United States"))
         imager.signals.resultsFound.connect(self.loadImageResults)
         imager.signals.noResults.connect(self.showNoImagesMessage)
         self.threadpool.start(imager)
@@ -592,6 +619,166 @@ class MIDict(AnkiWebView):
 
     def showNoImagesMessage(self):
         tooltip("No images found")
+
+    def triggerLLMSearch(self, term):
+        """Initiate an asynchronous LLM search."""
+        worker = llm_integration.LLMWorker(term, self.config)
+        worker.signals.result_ready.connect(self.loadLLMResults)
+        worker.signals.error_occurred.connect(self.showLLMError)
+        self.threadpool.start(worker)
+
+    def loadLLMResults(self, result):
+        """Handle result from LLM and inject into the UI."""
+        dictName = result.get("dictName", "LLM API")
+        font = self.getFontFamily({"font": False, "customFont": False})
+
+        # Format just the content part (without header and title block)
+        imgTooltip = ""
+        clipTooltip = ""
+        sendTooltip = ""
+        if self.config["tooltips"]:
+            imgTooltip = ' title="Add this definition to the card exporter." '
+            clipTooltip = ' title="Copy this definition to the clipboard." '
+            sendTooltip = ' title="Send this definition to the card exporter." '
+
+        frontBracket = self.config["frontBracket"]
+        backBracket = self.config["backBracket"]
+
+        html = (
+            '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.getPreparedTermHeader(
+                dictName,
+                frontBracket,
+                backBracket,
+                result["term"],
+                result["term"],
+                result.get("altterm", ""),
+                result.get("pronunciation", ""),
+            )
+            + ' <span class="starcount">'
+            + str(result.get("starCount", ""))
+            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + dictName
+            + '\')" class="ankiExportButton"><img '
+            + imgTooltip
+            + ' src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" '
+            + clipTooltip
+            + ' class="clipper">✂</div><div '
+            + sendTooltip
+            + " onclick=\"sendToField(event, '"
+            + dictName
+            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
+        )
+
+        html += (
+            '<div'
+            + font
+            + ' class="definitionBlock">'
+            + self.highlightTarget(
+                self.processDefinitionHTML(
+                    self.highlightExamples(result["definition"])
+                ),
+                result["term"],
+            )
+            + "</div>"
+        )
+
+        # Inject into the webview by replacing only the loading placeholder
+        escaped_html = json.dumps(html)
+        self.eval(
+            f"var loader = document.getElementById('llm-loader'); "
+            f"if(loader) {{ "
+            f"  var oldContent = loader.querySelector('.definitionBlock'); "
+            f"  if(oldContent) oldContent.remove(); "
+            f"  loader.querySelector('.dictionaryTitleBlock').insertAdjacentHTML('afterend', {escaped_html}); "
+            f"}}"
+        )
+
+    def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
+        """Helper to format a single dictionary entry (LLM or other) to HTML."""
+        # result now contains 'dictName' from LLMWorker
+        dictCount = 999  # Large index to avoid conflict
+        duplicateHeader = self.getDuplicateHeaderCB(dictName)
+        overwrite = self.getOverwriteChecks(dictCount, dictName)
+        select = self.getFieldChecks(dictName)
+
+        html = (
+            '<div class="dictionaryTitleBlock"><div '
+            + font
+            + ' class="dictionaryTitle">'
+            + dictName
+            + '</div><div class="dictionarySettings">'
+            + duplicateHeader
+            + overwrite
+            + select
+            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+        )
+
+        imgTooltip = ""
+        clipTooltip = ""
+        sendTooltip = ""
+        if self.config["tooltips"]:
+            imgTooltip = ' title="Add this definition, or any selected text and this definition\'s header to the card exporter." '
+            clipTooltip = ' title="Copy this definition to the clipboard." '
+            sendTooltip = ' title="Send this definition to the card exporter." '
+
+        html += (
+            '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.getPreparedTermHeader(
+                dictName,
+                frontBracket,
+                backBracket,
+                result["term"],
+                result["term"],
+                result.get("altterm", ""),
+                result.get("pronunciation", ""),
+            )
+            + ' <span class="starcount">'
+            + str(result.get("starCount", ""))
+            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + dictName
+            + '\')" class="ankiExportButton"><img '
+            + imgTooltip
+            + ' src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" '
+            + clipTooltip
+            + ' class="clipper">✂</div><div '
+            + sendTooltip
+            + " onclick=\"sendToField(event, '"
+            + dictName
+            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
+        )
+
+        html += (
+            '<div'
+            + font
+            + ' class="definitionBlock">'
+            + self.highlightTarget(
+                self.processDefinitionHTML(
+                    self.highlightExamples(result["definition"])
+                ),
+                result["term"],
+            )
+            + "</div>"
+        )
+        return html
+
+
+    def showLLMError(self, error_msg):
+        """Show LLM error in the UI."""
+        escaped_msg = json.dumps(
+            f'<div class="definitionBlock" style="color: red;">{error_msg}</div>'
+        )
+        self.eval(
+            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
+        )
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]
@@ -700,7 +887,7 @@ class MIDict(AnkiWebView):
         # Set the search offset for pagination
         imager.search_offset = self.image_offsets[search_term]
         # Set search region based on configuration
-        imager.setSearchRegion(self.config.get('imageSearchRegion', 'United States'))
+        imager.setSearchRegion(self.config.get("imageSearchRegion", "United States"))
         # Connect to a different handler for load more results
         imager.signals.resultsFound.connect(self.loadMoreImageResults)
         imager.signals.noResults.connect(self.showNoMoreImagesMessage)
@@ -988,20 +1175,23 @@ class MIDict(AnkiWebView):
 
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
         if dictName == "Images":
-            addType = self.config["ImageAddType"]
-        elif dictName == "Images":
-            addType = self.config["ImageAddType"]
+            addType = self.config.get("ImageAddType", "add")
+        elif dictName == "LLM API":
+            addType = "add"  # Default for LLM
         else:
-            addType = self.db.getAddType(dictName)
+            addType = self.db.getAddType(dictName) or "add"
+
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = " title=\"This determines the conditions for sending a definition (or a Google Image) to a field. Overwrite the target field's content. Add to the target field's current contents. Only add definitions to the target field if it is empty.\""
-        if addType == "add":
-            typeName = "&nbsp;Add"
-        elif addType == "overwrite":
+        
+        typeName = "&nbsp;Add"  # Default
+        if addType == "overwrite":
             typeName = "&nbsp;Overwrite"
         elif addType == "no":
             typeName = "&nbsp;If Empty"
+        elif addType == "add":
+            typeName = "&nbsp;Add"
         select = (
             '<div class="overwriteSelectCont"><div '
             + tooltip
@@ -1068,9 +1258,12 @@ class MIDict(AnkiWebView):
 
     def getFieldChecks(self, dictName):
         if dictName == "Images":
-            selF = self.config["ImageFields"]
+            selF = self.config.get("ImageFields", [])
+        elif dictName == "LLM API":
+            selF = []  # Default for LLM
         else:
-            selF = self.db.getFieldsSetting(dictName)
+            selF = self.db.getFieldsSetting(dictName) or []
+        
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = ' title="Select this dictionary\'s target fields for when sending a definition(or a Google Image) to a card. If a field does not exist in the target card, then it is ignored, otherwise the definition is added to all fields that exist within the target card."'
@@ -1193,7 +1386,7 @@ class ClipThread(QObject):
                 import ssl
 
                 ssl._create_default_https_context = ssl._create_unverified_context
-                sys.path.insert(0, join(dirname(__file__), "keyboardMac"))
+                # sys.path.insert(0, join(dirname(__file__), "keyboardMac"))
                 try:
                     from Quartz import (
                         CGEventGetIntegerValueField,
@@ -1207,7 +1400,8 @@ class ClipThread(QObject):
                     self.kCGKeyboardEventKeycode = None
                     self.CGEventGetIntegerValueField = None
             elif is_lin:
-                sys.path.insert(0, join(dirname(__file__), "linux"))
+                # sys.path.insert(0, join(dirname(__file__), "linux"))
+                pass
             sys.path.insert(0, join(dirname(__file__)))
 
             try:
@@ -1463,6 +1657,7 @@ class DictInterface(QWidget):
 
         self.startUp(terms)
         self.setHotkeys()
+        self.threadpool = QThreadPool() # Initialize QThreadPool
         ensureWidgetInScreenBoundaries(self)
 
     def load_theme_color(self, color_key):
@@ -1532,14 +1727,9 @@ class DictInterface(QWidget):
         return pal
 
     def setHotkeys(self):
+        """Set up keyboard shortcuts for the dictionary window."""
         self.hotkeyEsc = QShortcut(QKeySequence("Esc"), self)
         self.hotkeyEsc.activated.connect(self.hide)
-        self.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self)
-        self.hotkeyW.activated.connect(self.mw.dictionaryInit)
-        self.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchTerm(self.dict.page()))
-        self.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), self)
-        self.hotkeyS.activated.connect(lambda: self.mw.searchCol(self.dict.page()))
 
     def getFontColor(self, color):
         pal = QPalette()
@@ -1571,8 +1761,8 @@ class DictInterface(QWidget):
         willSearch = False
         if terms is not False:
             willSearch = True
-        self.allGroups = self.getAllGroups()
         self.config = self.getConfig()
+        self.allGroups = self.getAllGroups()
         self.defaultGroups = self.db.getDefaultGroups()
         self.userGroups = self.getUserGroups()
         self.searchOptions = [
@@ -1838,7 +2028,11 @@ class DictInterface(QWidget):
 
     def getAllGroups(self):
         allGroups = {}
-        allGroups["dictionaries"] = self.db.getAllDictsWithLang()
+        dicts = self.db.getAllDictsWithLang()
+        dicts.append({"dict": "Images", "lang": ""})
+        if self.config.get("llm_enabled", False):
+            dicts.append({"dict": "LLM API", "lang": ""})
+        allGroups["dictionaries"] = dicts
         allGroups["customFont"] = False
         allGroups["font"] = False
         return allGroups
@@ -2088,6 +2282,7 @@ class DictInterface(QWidget):
         except Exception as e:
             print(f"Error in toggleTabMode: {e}")
             import traceback
+
             traceback.print_exc()
 
     def setupConjugationMode(self):
@@ -2222,6 +2417,8 @@ class DictInterface(QWidget):
             Qt.AlignmentFlag.AlignCenter
         )
         defaults = ["All", "Images"]
+        if self.config.get("llm_enabled", False):
+            defaults.append("LLM API")
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
@@ -2270,6 +2467,12 @@ class DictInterface(QWidget):
         if cur == "Images":
             return {
                 "dictionaries": [{"dict": "Images", "lang": ""}],
+                "customFont": False,
+                "font": False,
+            }
+        if cur == "LLM API":
+            return {
+                "dictionaries": [{"dict": "LLM API", "lang": ""}],
                 "customFont": False,
                 "font": False,
             }

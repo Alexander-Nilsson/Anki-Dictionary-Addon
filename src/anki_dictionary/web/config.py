@@ -1,7 +1,6 @@
 import json
 from anki.httpclient import HttpClient
 
-
 DEFAULT_SERVER = "dicts.migaku.io"
 
 
@@ -24,5 +23,5 @@ def download_index(server_url=DEFAULT_SERVER):
     if resp.status_code != 200:
         return None
 
-    data = client.streamContent(resp)
+    data = client.stream_content(resp)
     return json.loads(data)

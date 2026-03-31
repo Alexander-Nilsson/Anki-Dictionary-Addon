@@ -2,16 +2,16 @@ import os
 import stat
 import requests
 from anki.utils import is_mac, is_win, is_lin
-from anki.hooks import addHook
 from os.path import join, exists, dirname
 from .common import miInfo
 from .config import get_addon_config, save_addon_config
 from aqt.qt import *
-from aqt import mw
 import zipfile
+import shutil
 
 
 class FFMPEGInstaller:
+    _ffmpeg_checked = False
 
     def __init__(self, mw):
         self.mw = mw
@@ -21,16 +21,16 @@ class FFMPEGInstaller:
         self.ffmpegFilename = "ffmpeg"
         if is_win:
             self.ffmpegFilename += ".exe"
-            # TODO: Setup alternative FFmpeg distribution for Windows
-            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/windows"
+            # FFmpeg distribution for Windows
+            self.downloadURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
         elif is_lin:
-            # TODO: Setup alternative FFmpeg distribution for Linux
-            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/linux"
+            # FFmpeg distribution for Linux
+            self.downloadURL = "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-linux-64.zip"
         elif is_mac:
-            # TODO: Setup alternative FFmpeg distribution for macOS
-            self.downloadURL = None  # "http://dicts.migaku.io/ffmpeg/macos"
+            # FFmpeg distribution for macOS
+            self.downloadURL = "https://evermeet.cx/ffmpeg/getrelease/zip"
         self.ffmpegPath = join(self.ffmpegDir, self.ffmpegFilename)
-        self.tempPath = join(self.addonPath, "temp", "ffmpeg")
+        self.tempPath = join(self.addonPath, "temp", "ffmpeg.zip")
 
     def getFFMPEGProgressBar(self, title, initialText):
         progressWidget = QWidget(None)
@@ -123,8 +123,7 @@ class FFMPEGInstaller:
         os.remove(self.ffmpegPath)
 
     def unzipFFMPEG(self):
-        with zipfile.ZipFile(self.tempPath) as zf:
-            zf.extractall(self.ffmpegDir)
+        shutil.unpack_archive(self.tempPath, self.ffmpegDir)
 
     def couldNotInstall(self):
         self.toggleMP3Conversion(False)
@@ -178,9 +177,17 @@ class FFMPEGInstaller:
                 print("Could not unzip FFMPEG.")
                 self.couldNotInstall()
         else:
-            print("FFMPEG already installed or conversion disabled.")
+            if not FFMPEGInstaller._ffmpeg_checked:
+                print("FFMPEG already installed or conversion disabled.")
+                FFMPEGInstaller._ffmpeg_checked = True
 
 
-ffmpegInstaller = FFMPEGInstaller(mw)
 
-addHook("profileLoaded", ffmpegInstaller.installFFMPEG)
+def setup_ffmpeg():
+    """Setup FFMPEG installer hook."""
+    from aqt import mw
+    from anki.hooks import addHook
+    
+    installer = FFMPEGInstaller(mw)
+    addHook("profileLoaded", installer.installFFMPEG)
+

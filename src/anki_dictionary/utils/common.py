@@ -6,7 +6,6 @@ from aqt.qt import *
 from os.path import dirname, join
 from aqt.webview import AnkiWebView
 
-
 addon_path = dirname(dirname(dirname(dirname(__file__))))
 
 
@@ -61,3 +60,20 @@ def miAsk(text, parent=None, day=True, customText=False):
         return True
     else:
         return False
+
+
+def getTarget(name):
+    """Get target window type."""
+    if name == "AddCards":
+        return "Add"
+    elif name == "EditCurrent" or name == "DictEditCurrent":
+        return "Edit"
+    elif name == "Browser":
+        return name
+    return name
+
+
+def gt(obj):
+    """Get type name of object."""
+    return type(obj).__name__
+

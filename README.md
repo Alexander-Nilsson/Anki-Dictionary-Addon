@@ -24,14 +24,13 @@ The **Anki Dictionary Addon** is a modern successor to the [Migaku Dictionary Ad
 - Look up word definitions, frequency data, and pronunciations across multiple languages.
 - Export dictionary information to Anki cards in real-time with improved formatting.
 - Enhanced image search functionality using DuckDuckGo.
-- Standalone mode for dictionary use outside of Anki.
 - Modern, responsive user interface with better visual design.
 
 ---
 
 ## 🏗️ Project Structure
 
-The addon has been completely reorganized with a modular architecture:
+The addon follows a modular architecture. Source files are located in `src/`, while external dependencies and user data are managed by the build system.
 
 ```
 src/anki_dictionary/     # Main package
@@ -43,11 +42,11 @@ src/anki_dictionary/     # Main package
 └── web/                # Web-related components
 
 assets/                  # Asset files (templates, styles, scripts, icons)
-standalone/              # Standalone launcher components
-docs/                   # Documentation
+scripts/                # Build and maintenance scripts
+tests/                  # Test suite
 ```
 
-See [docs/REORGANIZATION_GUIDE.md](docs/REORGANIZATION_GUIDE.md) for a complete overview of the new structure.
+**Note:** The `vendor/` and `user_files/` directories are no longer tracked in version control. They are automatically created and populated during the build process.
 
 ---
 
@@ -114,70 +113,49 @@ The addon follows modern Python development practices with a clean, modular stru
    git clone <repository-url>
    cd anki-dictionary-addon
    
-   # Install dependencies (using uv for fast package management)
+   # Install development dependencies (using uv)
    uv sync
    
-   # Or use pip if you prefer
-   pip install -e .
+   # Or use the development helper
+   python dev.py install
    ```
 
-2. **Project Structure:**
-   - `src/anki_dictionary/` - Main package with all source code
-   - `assets/` - Templates, styles, scripts, and icons
-   - `standalone/` - Standalone launcher components
-   - `docs/` - Documentation and guides
-   - `tests/` - Test suite (to be expanded)
-
-3. **Development Workflow:**
+2. **Development Workflow:**
    ```bash
-   # Test the package structure
-   python test_structure.py
+   # Run CI checks (linting + tests)
+   python dev.py ci
    
-   # Run standalone mode for testing
-   python launch_dictionary.py
+   # Build the addon for testing
+   python dev.py build
    
-   # Run with specific Python environment
-   uv run python launch_dictionary.py
+   # Format code
+   python dev.py format
    ```
 
-4. **Code Organization:**
+3. **Code Organization:**
    - Follow the package structure for new features
    - Keep related functionality grouped together
    - Use absolute imports within the package
    - Document new functions and classes
 
-See [docs/REORGANIZATION_GUIDE.md](docs/REORGANIZATION_GUIDE.md) for detailed information about the project structure.
-
 ---
 
 ## 📦 Building
 
-The addon includes a comprehensive build system for creating distribution packages:
+The addon includes an automated build system that handles dependency bundling and environment setup:
 
 ```bash
-# Build Anki addon package (.ankiaddon)
-python build.py package
-
-# Build standalone distribution
-python build.py standalone
-
-# Build everything (addon + standalone)
-python build.py all
+# Build everything (addon + .ankiaddon package)
+python dev.py build
 
 # Clean build artifacts
-python build.py clean
+python dev.py clean
 ```
 
-**Build Outputs:**
-- `build/anki_dictionary_addon/` - Anki addon files
-- `build/anki_dictionary_addon_v{version}.ankiaddon` - Installable Anki package
-- `build/standalone/` - Standalone version for non-Anki use
-
-**Package Contents:**
-- All source code in `src/anki_dictionary/`
-- Required assets and templates
-- Configuration files
-- Vendor dependencies
+**Build Process Highlights:**
+- **Dependency Bundling:** Automatically installs and bundles required libraries (e.g., `pynput`) into the `vendor/` directory.
+- **Environment Setup:** Creates the necessary `user_files/` structure, including default themes and an empty database.
+- **Packaging:** Generates a ready-to-install `.ankiaddon` file in the `build/` directory.
 
 ---
 

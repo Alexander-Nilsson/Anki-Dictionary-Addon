@@ -26,10 +26,14 @@ from aqt.reviewer import Reviewer
 from aqt.previewer import Previewer
 import aqt.editor
 
-from ..utils.common import miInfo
+from ..utils.common import miInfo, getTarget, gt
 
 # Get addon path
 addon_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+# Store the original link handler - will be set on first hook setup
+_original_link_handler = None
+_hooks_setup = False
 
 
 def closeDictionary():
@@ -108,22 +112,6 @@ def searchTerm(webview):
         showAfterGlobalSearch()
 
 
-def getTarget(name):
-    """Get target window type."""
-    if name == "AddCards":
-        return "Add"
-    elif name == "EditCurrent" or name == "DictEditCurrent":
-        return "Edit"
-    elif name == "Browser":
-        return name
-    return name
-
-
-def gt(obj):
-    """Get type name of object."""
-    return type(obj).__name__
-
-
 def announceParent(self, event=False):
     """Announce parent window to dictionary."""
     if mw.ankiDictionary and mw.ankiDictionary.isVisible():
@@ -161,29 +149,22 @@ def addBodyClick(self):
 
 
 def addHotkeys(self):
-    """Add hotkeys to editor."""
-    from ..ui.main_window import dictionaryInit
-
-    self.parentWindow.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self.parentWindow)
-    self.parentWindow.hotkeyS.activated.connect(lambda: searchTerm(self.web))
-    self.parentWindow.hotkeyS = QShortcut(
-        QKeySequence("Ctrl+Shift+B"), self.parentWindow
-    )
-    self.parentWindow.hotkeyS.activated.connect(lambda: searchCol(self.web))
-    self.parentWindow.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self.parentWindow)
-    self.parentWindow.hotkeyW.activated.connect(dictionaryInit)
+    """Add hotkeys to editor window."""
+    # Note: Global shortcuts (Ctrl+W, Ctrl+S, Ctrl+Shift+B) are handled
+    # by the menu actions in setup_gui_menu() with ApplicationShortcut context.
+    # We don't need to duplicate them here as WidgetShortcuts, which would
+    # cause "Ambiguous shortcut" warnings when the dictionary window is focused.
+    pass
 
 
 def addHotkeysToPreview(self):
     """Add hotkeys to preview window."""
-    from ..ui.main_window import dictionaryInit
+    # Note: Global shortcuts (Ctrl+W, Ctrl+S, Ctrl+Shift+B) are handled
+    # by the menu actions in setup_gui_menu() with ApplicationShortcut context.
+    # We don't need to duplicate them here as WidgetShortcuts, which would
+    # cause "Ambiguous shortcut" warnings when the dictionary window is focused.
+    pass
 
-    self._web.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self._web)
-    self._web.hotkeyS.activated.connect(lambda: searchTerm(self._web))
-    self._web.hotkeyS = QShortcut(QKeySequence("Ctrl+Shift+B"), self._web)
-    self._web.hotkeyS.activated.connect(lambda: searchCol(self._web))
-    self._web.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self._web)
-    self._web.hotkeyW.activated.connect(dictionaryInit)
 
 
 def addEditorFunctionality(self):
@@ -197,12 +178,17 @@ def miLinks(self, cmd):
     """Handle reviewer links."""
     if mw.ankiDictionary and mw.ankiDictionary.isVisible():
         mw.ankiDictionary.dict.setReviewer(self)
-    return ogLinks(self, cmd)
+    return _original_link_handler(self, cmd)
 
 
 def setup_hooks():
     """Setup all Anki hooks and wrapping."""
-    global ogLinks
+    global _original_link_handler, _hooks_setup
+
+    # Prevent double-wrapping
+    if _hooks_setup:
+        return
+    _hooks_setup = True
 
     # Profile hooks
     addHook("unloadProfile", closeDictionary)
@@ -242,7 +228,87 @@ def setup_hooks():
     # Wrap preview
     Previewer.open = wrap(Previewer.open, addHotkeysToPreview)
 
-    # Wrap reviewer
-    ogLinks = Reviewer._linkHandler
+    # Wrap reviewer - store original BEFORE wrapping
+    _original_link_handler = Reviewer._linkHandler
     Reviewer._linkHandler = miLinks
     Reviewer.show = wrap(Reviewer.show, addBodyClick)
+
+
+def setup_gui_menu():
+    """Setup GUI menu items."""
+    print("--- Anki Dictionary: Setting up GUI menu ---")
+    
+    # Defer imports of main_window functions to avoid circularity during initialization
+    def trigger_dictionary_init(terms=False):
+        print("Action triggered: Opening Dictionary")
+        from ..ui.main_window import dictionaryInit
+        dictionaryInit(terms)
+        
+    def trigger_open_settings():
+        print("Action triggered: Opening Settings")
+        from ..ui.main_window import openDictionarySettings
+        openDictionarySettings()
+        
+    def trigger_search_term():
+        print("Action triggered: Search Term")
+        from ..ui.main_window import searchTerm
+        searchTerm(mw.web)
+        
+    def trigger_search_col():
+        print("Action triggered: Search Collection")
+        from ..ui.main_window import searchCol
+        searchCol(mw.web)
+
+    # Use a more stable location for the menu to avoid issues with standard shortcuts
+    if not hasattr(mw, "DictMainMenu"):
+        print("Creating new DictMainMenu")
+        mw.DictMainMenu = QMenu("Anki Dictionary", mw)
+        # Insert before Help menu
+        mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.DictMainMenu)
+    else:
+        print("Updating existing DictMainMenu")
+        mw.DictMainMenu.clear()
+
+    # Dictionary Settings Action
+    setting_action = QAction("Settings...", mw)
+    setting_action.triggered.connect(trigger_open_settings)
+    mw.DictMainMenu.addAction(setting_action)
+    
+    mw.DictMainMenu.addSeparator()
+
+    # Open Dictionary Action with Shortcut
+    open_action = QAction("Open Dictionary", mw)
+    open_action.setShortcut(QKeySequence("Ctrl+W"))
+    # Ensure the shortcut works throughout the application
+    open_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+    open_action.triggered.connect(lambda: trigger_dictionary_init())
+    mw.DictMainMenu.addAction(open_action)
+    
+    # Store actions on mw to prevent garbage collection
+    # Also set legacy openMiDict attribute for toggle functionality in main_window.py
+    mw.openMiDict = open_action
+    mw.dict_actions = {
+        "settings": setting_action,
+        "open": open_action
+    }
+
+    # Search Actions
+    search_term_action = QAction("Search Selected Term", mw)
+    search_term_action.setShortcut(QKeySequence("Ctrl+S"))
+    search_term_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+    search_term_action.triggered.connect(trigger_search_term)
+    mw.DictMainMenu.addAction(search_term_action)
+    mw.dict_actions["search_term"] = search_term_action
+
+    search_col_action = QAction("Search in Collection", mw)
+    search_col_action.setShortcut(QKeySequence("Ctrl+Shift+B"))
+    search_col_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+    search_col_action.triggered.connect(trigger_search_col)
+    mw.DictMainMenu.addAction(search_col_action)
+    mw.dict_actions["search_col"] = search_col_action
+
+    print("Menu setup completed with shortcuts: Ctrl+W, Ctrl+S, Ctrl+Shift+B")
+
+
+
+

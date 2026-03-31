@@ -20,6 +20,7 @@ from ...utils.common import miInfo, miAsk
 from ..dialogs.dictionary_manager import DictionaryManagerWidget
 from ...utils.ffmpeg import FFMPEGInstaller
 from ...utils.config import get_addon_config, save_addon_config
+from ...utils.constants import COUNTRY_LIST
 
 try:
     from PyQt5.QtSvg import QSvgWidget
@@ -61,251 +62,7 @@ class SettingsGui(QTabWidget):
         self.mw = mw
         self.ffmpegInstaller = FFMPEGInstaller(self.mw)
         self.reboot = reboot
-        # TODO update this to use the new config system
-        self.imageSearchCountries = [
-            "Afghanistan",
-            "Albania",
-            "Algeria",
-            "American Samoa",
-            "Andorra",
-            "Angola",
-            "Anguilla",
-            "Antarctica",
-            "Antigua and Barbuda",
-            "Argentina",
-            "Armenia",
-            "Aruba",
-            "Australia",
-            "Austria",
-            "Azerbaijan",
-            "Bahamas",
-            "Bahrain",
-            "Bangladesh",
-            "Barbados",
-            "Belarus",
-            "Belgium",
-            "Belize",
-            "Benin",
-            "Bermuda",
-            "Bhutan",
-            "Bolivia",
-            "Bosnia and Herzegovina",
-            "Botswana",
-            "Bouvet Island",
-            "Brazil",
-            "British Indian Ocean Territory",
-            "Brunei Darussalam",
-            "Bulgaria",
-            "Burkina Faso",
-            "Burundi",
-            "Cambodia",
-            "Cameroon",
-            "Canada",
-            "Cape Verde",
-            "Cayman Islands",
-            "Central African Republic",
-            "Chad",
-            "Chile",
-            "China",
-            "Christmas Island",
-            "Cocos (Keeling) Islands",
-            "Colombia",
-            "Comoros",
-            "Congo",
-            "Congo, the Democratic Republic of the",
-            "Cook Islands",
-            "Costa Rica",
-            "Cote D'ivoire",
-            "Croatia (Hrvatska)",
-            "Cuba",
-            "Cyprus",
-            "Czech Republic",
-            "Denmark",
-            "Djibouti",
-            "Dominica",
-            "Dominican Republic",
-            "East Timor",
-            "Ecuador",
-            "Egypt",
-            "El Salvador",
-            "Equatorial Guinea",
-            "Eritrea",
-            "Estonia",
-            "Ethiopia",
-            "European Union",
-            "Falkland Islands (Malvinas)",
-            "Faroe Islands",
-            "Fiji",
-            "Finland",
-            "France",
-            "France, Metropolitan",
-            "French Guiana",
-            "French Polynesia",
-            "French Southern Territories",
-            "Gabon",
-            "Gambia",
-            "Georgia",
-            "Germany",
-            "Ghana",
-            "Gibraltar",
-            "Greece",
-            "Greenland",
-            "Grenada",
-            "Guadeloupe",
-            "Guam",
-            "Guatemala",
-            "Guinea",
-            "Guinea-Bissau",
-            "Guyana",
-            "Haiti",
-            "Heard Island and Mcdonald Islands",
-            "Holy See (Vatican City State)",
-            "Honduras",
-            "Hong Kong",
-            "Hungary",
-            "Iceland",
-            "India",
-            "Indonesia",
-            "Iran, Islamic Republic of",
-            "Iraq",
-            "Ireland",
-            "Israel",
-            "Italy",
-            "Jamaica",
-            "Japan",
-            "Jordan",
-            "Kazakhstan",
-            "Kenya",
-            "Kiribati",
-            "Korea, Democratic People's Republic of",
-            "Korea, Republic of",
-            "Kuwait",
-            "Kyrgyzstan",
-            "Lao People's Democratic Republic",
-            "Latvia",
-            "Lebanon",
-            "Lesotho",
-            "Liberia",
-            "Libyan Arab Jamahiriya",
-            "Liechtenstein",
-            "Lithuania",
-            "Luxembourg",
-            "Macao",
-            "Macedonia, the Former Yugosalv Republic of",
-            "Madagascar",
-            "Malawi",
-            "Malaysia",
-            "Maldives",
-            "Mali",
-            "Malta",
-            "Marshall Islands",
-            "Martinique",
-            "Mauritania",
-            "Mauritius",
-            "Mayotte",
-            "Mexico",
-            "Micronesia, Federated States of",
-            "Moldova, Republic of",
-            "Monaco",
-            "Mongolia",
-            "Montserrat",
-            "Morocco",
-            "Mozambique",
-            "Myanmar",
-            "Namibia",
-            "Nauru",
-            "Nepal",
-            "Netherlands",
-            "Netherlands Antilles",
-            "New Caledonia",
-            "New Zealand",
-            "Nicaragua",
-            "Niger",
-            "Nigeria",
-            "Niue",
-            "Norfolk Island",
-            "Northern Mariana Islands",
-            "Norway",
-            "Oman",
-            "Pakistan",
-            "Palau",
-            "Palestinian Territory",
-            "Panama",
-            "Papua New Guinea",
-            "Paraguay",
-            "Peru",
-            "Philippines",
-            "Pitcairn",
-            "Poland",
-            "Portugal",
-            "Puerto Rico",
-            "Qatar",
-            "Reunion",
-            "Romania",
-            "Russian Federation",
-            "Rwanda",
-            "Saint Helena",
-            "Saint Kitts and Nevis",
-            "Saint Lucia",
-            "Saint Pierre and Miquelon",
-            "Saint Vincent and the Grenadines",
-            "Samoa",
-            "San Marino",
-            "Sao Tome and Principe",
-            "Saudi Arabia",
-            "Senegal",
-            "Serbia and Montenegro",
-            "Seychelles",
-            "Sierra Leone",
-            "Singapore",
-            "Slovakia",
-            "Slovenia",
-            "Solomon Islands",
-            "Somalia",
-            "South Africa",
-            "South Georgia and the South Sandwich Islands",
-            "Spain",
-            "Sri Lanka",
-            "Sudan",
-            "Suriname",
-            "Svalbard and Jan Mayen",
-            "Swaziland",
-            "Sweden",
-            "Switzerland",
-            "Syrian Arab Republic",
-            "Taiwan",
-            "Tajikistan",
-            "Tanzania, United Republic of",
-            "Thailand",
-            "Togo",
-            "Tokelau",
-            "Tonga",
-            "Trinidad and Tobago",
-            "Tunisia",
-            "Turkey",
-            "Turkmenistan",
-            "Turks and Caicos Islands",
-            "Tuvalu",
-            "Uganda",
-            "Ukraine",
-            "United Arab Emirates",
-            "United Kingdom",
-            "United States",
-            "United States Minor Outlying Islands",
-            "Uruguay",
-            "Uzbekistan",
-            "Vanuatu",
-            "Venezuela",
-            "Vietnam",
-            "Virgin Islands, British",
-            "Virgin Islands, U.S.",
-            "Wallis and Futuna",
-            "Western Sahara",
-            "Yemen",
-            "Yugoslavia",
-            "Zambia",
-            "Zimbabwe",
-        ]
+        self.imageSearchCountries = COUNTRY_LIST
         self.setMinimumSize(850, 550)
         if not is_win:
             self.resize(1034, 550)
@@ -348,14 +105,32 @@ class SettingsGui(QTabWidget):
         self.openOnStart = QCheckBox()
         self.globalHotkeys = QCheckBox()
         self.globalOpen = QCheckBox()
+
+        # LLM Settings
+        self.llmEnabled = QCheckBox()
+        self.llmApiKey = QLineEdit()
+        self.llmApiKey.setEchoMode(QLineEdit.EchoMode.Password)
+        self.llmBaseUrl = QLineEdit()
+        self.llmModel = QLineEdit()
+        self.llmPrompt = QTextEdit()
+        self.llmPrompt.setAcceptRichText(False)
+        self.llmPrompt.setFixedHeight(100)
+        self.testLLMButton = QPushButton("Test API Connection")
+        self.testLLMButton.clicked.connect(self.testLLM)
+        self.llmStatusLabel = QLabel("")
+        self.llmStatusLabel.setWordWrap(True)
+        self.llmStatusLabel.setStyleSheet("font-weight: bold;")
+
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
         self.layout = QVBoxLayout()
         self.settingsTab = QWidget(self)
+        self.llmTab = self.getLLMTab()
         # self.userGuideTab = self.getUserGuideTab()
         self.setupLayout()
         self.addTab(self.settingsTab, "Settings")
+        self.addTab(self.llmTab, "LLM API")
         self.addTab(DictionaryManagerWidget(), "Dictionaries")
         # self.addTab(self.userGuideTab, "User Guide")
         # self.addTab(self.getAboutTab(), "About")
@@ -462,6 +237,21 @@ class SettingsGui(QTabWidget):
         self.convertToMp3.setChecked(config["mp3Convert"])
         self.disableCondensedMessages.setChecked(config["disableCondensed"])
         self.dictOnTop.setChecked(config["dictAlwaysOnTop"])
+
+        # Load LLM settings
+        self.llmEnabled.setChecked(config.get("llm_enabled", False))
+        self.llmApiKey.setText(config.get("llm_api_key", ""))
+        self.llmBaseUrl.setText(
+            config.get("llm_base_url", "https://api.openai.com/v1/chat/completions")
+        )
+        self.llmModel.setText(config.get("llm_model", "gpt-3.5-turbo"))
+        self.llmPrompt.setPlainText(
+            config.get(
+                "llm_prompt",
+                "Provide a concise dictionary definition for the word: {term}",
+            )
+        )
+
         if config.get("condensedAudioDirectory", False) is not False:
             self.chooseAudioDirectory.setText(config["condensedAudioDirectory"])
         else:
@@ -488,6 +278,14 @@ class SettingsGui(QTabWidget):
         nc["mp3Convert"] = self.convertToMp3.isChecked()
         nc["disableCondensed"] = self.disableCondensedMessages.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
+
+        # Save LLM settings
+        nc["llm_enabled"] = self.llmEnabled.isChecked()
+        nc["llm_api_key"] = self.llmApiKey.text()
+        nc["llm_base_url"] = self.llmBaseUrl.text()
+        nc["llm_model"] = self.llmModel.text()
+        nc["llm_prompt"] = self.llmPrompt.toPlainText()
+
         if self.chooseAudioDirectory.text() != "Choose Directory":
             nc["condensedAudioDirectory"] = self.chooseAudioDirectory.text()
         else:
@@ -653,6 +451,15 @@ class SettingsGui(QTabWidget):
             dictName = self.cleanDictName(dictionary["dict"])
             if dictName not in dictionaryList:
                 dictionaryList.append(dictName)
+        
+        # Add special entries
+        if "Images" not in dictionaryList:
+            dictionaryList.append("Images")
+        
+        # Check current UI state for LLM enabled
+        if self.llmEnabled.isChecked() and "LLM API" not in dictionaryList:
+            dictionaryList.append("LLM API")
+            
         dictionaryList = sorted(dictionaryList, key=str.casefold)
         return dictionaryList
 
@@ -863,7 +670,102 @@ class SettingsGui(QTabWidget):
         widget.setFixedSize(27, 27)
         return widget
 
+    def getLLMTab(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        infoLabel = QLabel(
+            "Configure an OpenAI-compatible LLM API to get AI-generated definitions."
+        )
+        infoLabel.setWordWrap(True)
+        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
+        layout.addWidget(infoLabel)
+
+        formGroup = QGroupBox("LLM Configuration")
+        formLayout = QFormLayout()
+
+        formLayout.addRow("Enable LLM Dictionary:", self.llmEnabled)
+        formLayout.addRow("API Key:", self.llmApiKey)
+        formLayout.addRow("Base URL:", self.llmBaseUrl)
+        formLayout.addRow("Model:", self.llmModel)
+        formLayout.addRow("Prompt Template:", self.llmPrompt)
+
+        promptHint = QLabel("Use {term} as a placeholder for the word being searched.")
+        promptHint.setStyleSheet("font-size: 10px; color: gray;")
+        formLayout.addRow("", promptHint)
+
+        formGroup.setLayout(formLayout)
+        layout.addWidget(formGroup)
+        
+        buttonLayout = QHBoxLayout()
+        buttonLayout.addWidget(self.testLLMButton)
+        buttonLayout.addWidget(self.llmStatusLabel)
+        buttonLayout.addStretch()
+        layout.addLayout(buttonLayout)
+        
+        layout.addStretch()
+
+        tab.setLayout(layout)
+        return tab
+
+    def testLLM(self):
+        """Test the LLM API configuration."""
+        self.testLLMButton.setEnabled(False)
+        self.testLLMButton.setText("Testing...")
+        self.llmStatusLabel.setText("Testing...")
+        self.llmStatusLabel.setStyleSheet("color: blue; font-weight: bold;")
+
+        # Get current settings from UI
+        config = {
+            "llm_api_key": self.llmApiKey.text().strip(),
+            "llm_base_url": self.llmBaseUrl.text().strip(),
+            "llm_model": self.llmModel.text().strip(),
+        }
+
+        from ...integrations.llm import test_llm_config
+
+        # Define a wrapper for taskman that includes the callback
+        def run_test():
+            result_data = {"success": False, "message": ""}
+
+            def test_callback(success, message):
+                result_data["success"] = success
+                result_data["message"] = message
+
+            test_llm_config(config, test_callback)
+            return result_data
+
+        # Use Anki's task manager for background operations
+        self.mw.taskman.run_in_background(
+            run_test,
+            self.on_test_finished
+        )
+
+    def on_test_finished(self, future):
+        """Handle the completion of the background test."""
+        self.testLLMButton.setEnabled(True)
+        self.testLLMButton.setText("Test API Connection")
+
+        try:
+            result = future.result()
+            success = result["success"]
+            message = result["message"]
+
+            if success:
+                self.llmStatusLabel.setText("Success!")
+                self.llmStatusLabel.setStyleSheet("color: green; font-weight: bold;")
+                showInfo(message, self)
+            else:
+                self.llmStatusLabel.setText("Failed!")
+                self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
+                miInfo(message, self)
+        except Exception as e:
+            self.llmStatusLabel.setText("Error!")
+            self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
+            miInfo(f"Test crashed with error: {str(e)}", self)
+
     def getHTML(self):
+
         htmlPath = join(self.addonPath, "guide.html")
         url = QUrl.fromLocalFile(htmlPath)
         with open(htmlPath, "r", encoding="utf-8") as fh:

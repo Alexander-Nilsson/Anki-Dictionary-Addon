@@ -620,16 +620,16 @@ def getAdjustedDefinition(definition):
     # First handle newlines and special characters
     definition = definition.replace("\n", "<br>")
     definition = definition.replace("◟", "<br>")
-    
+
     # Normalize all <br> variants to standard <br> (case insensitive, with or without closing slash)
     definition = re.sub(r"<br\s*/?>", "<br>", definition, flags=re.IGNORECASE)
-    
+
     # Handle HTML entities
     definition = definition.replace("<", "&lt;").replace(">", "&gt;")
-    
+
     # But keep our normalized <br> tags as HTML
     definition = definition.replace("&lt;br&gt;", "<br>")
-    
+
     # Remove trailing <br> tags
     definition = re.sub(r"<br>$", "", definition)
     return definition

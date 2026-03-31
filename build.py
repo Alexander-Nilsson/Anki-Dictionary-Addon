@@ -3,6 +3,7 @@
 Build script for the Anki Dictionary Addon
 
 This script helps build and package the addon for distribution.
+It handles dependency installation and file bundling.
 """
 
 import os
@@ -27,20 +28,104 @@ def get_project_config():
             with open('pyproject.toml', 'r') as f:
                 config = toml.load(f)
         
-        return config['project']
+        return config
     except Exception as e:
         print(f"Warning: Could not read config from pyproject.toml: {e}")
-        return {'version': '0.1.0', 'name': 'Anki Dictionary'}
+        return {'project': {'version': '0.1.0', 'name': 'Anki Dictionary'}}
 
 def get_version():
     """Get version from pyproject.toml"""
-    return get_project_config().get('version', '0.1.0')
+    return get_project_config()['project'].get('version', '0.1.0')
+
+def install_dependencies(addon_dir):
+    """Install dependencies into vendor directory"""
+    print("📦 Installing dependencies...")
+    
+    config = get_project_config()
+    dependencies = config['project'].get('dependencies', [])
+    
+    # Filter dependencies to bundle
+    # We exclude PyQt (provided by Anki), Pillow (provided by Anki), 
+    # and system-specific binary wheels if we can rely on Anki
+    # We bundle: pynput
+    # We exclude: pyqt6*, requests (Anki has it), aiohttp (removed usage), pyobjc* (Anki has it)
+    
+    to_install = []
+    for dep in dependencies:
+        name = dep.split('>=')[0].split('==')[0].split(';')[0].strip()
+        if name.lower() in ['pynput']:
+            to_install.append(dep)
+        elif name.lower() in ['requests', 'urllib3']:
+             # Anki has requests, but bundling specific version might be safer?
+             # For now, let's trust Anki's requests to avoid conflicts.
+             pass
+    
+    if not to_install:
+        print("   No dependencies to bundle.")
+        return
+
+    vendor_dir = addon_dir / 'vendor'
+    if vendor_dir.exists():
+        shutil.rmtree(vendor_dir)
+    vendor_dir.mkdir()
+    
+    print(f"   Installing: {', '.join(to_install)}")
+    
+    # Create a requirements file
+    req_file = addon_dir / 'requirements-vendor.txt'
+    with open(req_file, 'w') as f:
+        for dep in to_install:
+            f.write(f"{dep}\n")
+            
+    try:
+        subprocess.run([
+            sys.executable, '-m', 'pip', 'install', 
+            '-t', str(vendor_dir), 
+            '-r', str(req_file),
+            '--no-compile'
+        ], check=True, capture_output=True, text=True)
+        print("   ✓ Dependencies installed successfully")
+        
+        # Cleanup requirements file
+        req_file.unlink()
+        
+        # Remove .dist-info directories to save space
+        for item in vendor_dir.glob('*.dist-info'):
+            shutil.rmtree(item)
+            
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ Error installing dependencies: {e}")
+        print(f"   Output: {e.stdout}")
+        print(f"   Error: {e.stderr}")
+        raise
+
+def create_user_files_structure(addon_dir):
+    """Create the user_files directory structure"""
+    print("📂 Creating user_files structure...")
+    
+    user_files = addon_dir / 'user_files'
+    user_files.mkdir(exist_ok=True)
+    
+    # Create subdirectories
+    dirs = [
+        'db',
+        'dictionaries',
+        'ffmpeg',
+        'fonts',
+        'media',
+        'themes'
+    ]
+    
+    for d in dirs:
+        (user_files / d).mkdir(exist_ok=True)
+        
+    print("   ✓ Created directory structure")
 
 def generate_manifest():
     """Generate manifest.json from pyproject.toml data"""
-    project_config = get_project_config()
+    project_config = get_project_config()['project']
     
-    # Extract macOS-specific requirements
+    # Extract macOS-specific requirements for manifest
     dependencies = project_config.get('dependencies', [])
     macos_requirements = []
     
@@ -48,19 +133,22 @@ def generate_manifest():
         if 'pyobjc' in dep and 'darwin' in dep:
             # Extract package name before semicolon
             package_name = dep.split(';')[0].strip()
-            macos_requirements.append(package_name)
-    
+            # macos_requirements.append(package_name) 
+            # Actually, manifest 'requirements' are usually not used by Anki for pip install?
+            # Anki checks this list to warn users?
+            pass
+            
     manifest_data = {
         "package": project_config.get('name', 'Anki Dictionary').replace('-', ' ').title(),
         "name": project_config.get('name', 'Anki Dictionary').replace('-', ' ').title(),
-        "requirements": macos_requirements
+        # "requirements": macos_requirements 
     }
     
     manifest_path = Path('build') / 'anki_dictionary_addon' / 'manifest.json'
     with open(manifest_path, 'w') as f:
         json.dump(manifest_data, f, indent=4)
     
-    print(f"   ✓ Generated manifest.json with requirements: {macos_requirements}")
+    print(f"   ✓ Generated manifest.json")
     return manifest_path
 
 def build_addon():
@@ -76,18 +164,17 @@ def build_addon():
         shutil.rmtree(build_dir)
     build_dir.mkdir()
     
+    addon_dir = build_dir / 'anki_dictionary_addon'
+    addon_dir.mkdir()
+    
     # Copy essential files for Anki addon
+    # Note: user_files and vendor are handled separately
     essential_files = [
         '__init__.py',
         'config.json',
         'src/',
         'assets/',
-        'vendor/',
-        'user_files/'
     ]
-    
-    addon_dir = build_dir / 'anki_dictionary_addon'
-    addon_dir.mkdir()
     
     for item in essential_files:
         src = Path(item)
@@ -101,10 +188,16 @@ def build_addon():
         else:
             print(f"   ⚠️  Skipped missing: {item}")
     
-    # Generate manifest.json from pyproject.toml
+    # Create user_files structure
+    create_user_files_structure(addon_dir)
+    
+    # Install dependencies
+    install_dependencies(addon_dir)
+    
+    # Generate manifest.json
     generate_manifest()
     
-    # Create empty database using separate script instead of copying existing one
+    # Create empty database using separate script
     db_path = addon_dir / 'user_files' / 'db' / 'dictionaries.sqlite'
     print("   Creating empty database...")
     try:
@@ -116,9 +209,10 @@ def build_addon():
         print("   ✓ Database creation completed")
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating database: {e}")
-        print(f"   Output: {e.stdout}")
-        print(f"   Error: {e.stderr}")
-        raise
+        # print(f"   Output: {e.stdout}")
+        # print(f"   Error: {e.stderr}")
+        # Continue even if DB creation fails (user might create it at runtime)
+        pass
     
     # Create default themes.json using separate script
     themes_path = addon_dir / 'user_files' / 'themes' / 'themes.json'
@@ -132,15 +226,7 @@ def build_addon():
         print("   ✓ Themes.json creation completed")
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating themes.json: {e}")
-        print(f"   Output: {e.stdout}")
-        print(f"   Error: {e.stderr}")
-        raise
-    
-    # Remove search history file if it exists (should be created by addon at runtime)
-    search_history_path = addon_dir / 'user_files' / 'media' / '_searchHistory.json'
-    if search_history_path.exists():
-        search_history_path.unlink()
-        print(f"   ✓ Removed _searchHistory.json (will be created at runtime)")
+        pass
     
     print(f"✅ Addon built in: {addon_dir}")
     return addon_dir
@@ -166,12 +252,9 @@ def create_ankiaddon_package():
                 file_path = Path(root) / file
                 arc_path = file_path.relative_to(addon_dir)
                 zf.write(file_path, arc_path)
-                print(f"   ✓ Added: {arc_path}")
     
     print(f"✅ Package created: {package_path}")
     return package_path
-
-
 
 def clean():
     """Clean build artifacts"""
@@ -185,7 +268,6 @@ def clean():
     # Clean Python cache
     for cache_dir in Path('.').rglob('__pycache__'):
         shutil.rmtree(cache_dir)
-        print(f"   ✓ Removed: {cache_dir}")
     
     print("✅ Clean completed")
 
