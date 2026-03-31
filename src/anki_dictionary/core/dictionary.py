@@ -411,11 +411,11 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-        if not self.termHeaders or dictName == "Images":
+        if not self.termHeaders or dictName == "Images" or dictName == "LLM API":
             if sb:
-                header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
-            else:
                 header = '◳f<span class="listTerm">◳t</span>◳b◳x<span class="listAltTerm">◳a</span>◳y<span class="listPronunciation">◳p</span>'
+            else:
+                header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
         else:
             if sb:
                 header = self.termHeaders[dictName][1]
@@ -623,12 +623,21 @@ class MIDict(AnkiWebView):
 
     def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
         """Helper to format a single dictionary entry (LLM or other) to HTML."""
+        # result now contains 'dictName' from LLMWorker
+        dictCount = 999  # Large index to avoid conflict
+        duplicateHeader = self.getDuplicateHeaderCB(dictName)
+        overwrite = self.getOverwriteChecks(dictCount, dictName)
+        select = self.getFieldChecks(dictName)
+
         html = (
             '<div class="dictionaryTitleBlock"><div '
             + font
             + ' class="dictionaryTitle">'
             + dictName
             + '</div><div class="dictionarySettings">'
+            + duplicateHeader
+            + overwrite
+            + select
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
         )
 
@@ -1089,20 +1098,23 @@ class MIDict(AnkiWebView):
 
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
         if dictName == "Images":
-            addType = self.config["ImageAddType"]
-        elif dictName == "Images":
-            addType = self.config["ImageAddType"]
+            addType = self.config.get("ImageAddType", "add")
+        elif dictName == "LLM API":
+            addType = "add"  # Default for LLM
         else:
-            addType = self.db.getAddType(dictName)
+            addType = self.db.getAddType(dictName) or "add"
+
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = " title=\"This determines the conditions for sending a definition (or a Google Image) to a field. Overwrite the target field's content. Add to the target field's current contents. Only add definitions to the target field if it is empty.\""
-        if addType == "add":
-            typeName = "&nbsp;Add"
-        elif addType == "overwrite":
+        
+        typeName = "&nbsp;Add"  # Default
+        if addType == "overwrite":
             typeName = "&nbsp;Overwrite"
         elif addType == "no":
             typeName = "&nbsp;If Empty"
+        elif addType == "add":
+            typeName = "&nbsp;Add"
         select = (
             '<div class="overwriteSelectCont"><div '
             + tooltip
@@ -1169,9 +1181,12 @@ class MIDict(AnkiWebView):
 
     def getFieldChecks(self, dictName):
         if dictName == "Images":
-            selF = self.config["ImageFields"]
+            selF = self.config.get("ImageFields", [])
+        elif dictName == "LLM API":
+            selF = []  # Default for LLM
         else:
-            selF = self.db.getFieldsSetting(dictName)
+            selF = self.db.getFieldsSetting(dictName) or []
+        
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = ' title="Select this dictionary\'s target fields for when sending a definition(or a Google Image) to a card. If a field does not exist in the target card, then it is ignored, otherwise the definition is added to all fields that exist within the target card."'
