@@ -368,7 +368,7 @@ class DictionaryInstallPage(MiWizardPage):
             return url
 
         def run(self):
-            from .dictionaryManager import importDict
+            from ..ui.dialogs.dictionary_manager import importDict
 
             client = HttpClient()
 
@@ -419,7 +419,7 @@ class DictionaryInstallPage(MiWizardPage):
                         furl = self.construct_url(furl)
                         dl_resp = client.get(furl)
                         if dl_resp.status_code == 200:
-                            fdata = client.streamContent(dl_resp)
+                            fdata = client.stream_content(dl_resp)
                             dst_path = os.path.join(freq_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
                                 f.write(fdata)
@@ -438,7 +438,7 @@ class DictionaryInstallPage(MiWizardPage):
                         curl = self.construct_url(curl)
                         dl_resp = client.get(curl)
                         if dl_resp.status_code == 200:
-                            cdata = client.streamContent(dl_resp)
+                            cdata = client.stream_content(dl_resp)
                             dst_path = os.path.join(conj_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
                                 f.write(cdata)
@@ -463,7 +463,7 @@ class DictionaryInstallPage(MiWizardPage):
                     if dl_resp.status_code == 200:
                         update_dict_progress(0.5)
                         self.log_update.emit(" Importing...")
-                        ddata = client.streamContent(dl_resp)
+                        ddata = client.stream_content(dl_resp)
                         try:
                             importDict(lname, io.BytesIO(ddata), dname)
                         except ValueError as e:

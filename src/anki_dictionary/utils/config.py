@@ -6,6 +6,9 @@ This module provides safe access to addon configuration that works
 regardless of the module path or Anki version.
 """
 
+import os
+import sys
+import json
 from typing import Any, Dict, Optional
 from aqt import mw
 
@@ -19,10 +22,6 @@ def get_addon_config() -> Dict[str, Any]:
     """
     # Try to get config from our state manager first
     try:
-        # Import here to avoid circular imports
-        import sys
-        import os
-
         # Add the addon root to path temporarily
         addon_root = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -44,7 +43,7 @@ def get_addon_config() -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Fallback: try to get config from mw.AnkiDictConfig (legacy compatibility)
+    # Fallback 1: try to get config from mw.AnkiDictConfig (legacy compatibility)
     if (
         hasattr(mw, "__dict__")
         and "AnkiDictConfig" in mw.__dict__
@@ -52,9 +51,9 @@ def get_addon_config() -> Dict[str, Any]:
     ):
         config_dict = mw.__dict__["AnkiDictConfig"]
         if isinstance(config_dict, dict):
-            return config_dict  # type: ignore
+            return config_dict
 
-    # Fallback: try to get config using correct addon name
+    # Fallback 2: try to get config using correct addon name
     addon_name = "Anki-Dictionary-Addon"
     try:
         config = mw.addonManager.getConfig(addon_name)
@@ -63,11 +62,8 @@ def get_addon_config() -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Last resort: Load default config from file
+    # Fallback 3: Load default config from file
     try:
-        import json
-        import os
-
         addon_root = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         )
@@ -78,7 +74,7 @@ def get_addon_config() -> Dict[str, Any]:
     except Exception:
         pass
 
-    # If all else fails, return default dictionary groups to prevent errors
+    # If all else fails, return basic defaults
     return {
         "DictionaryGroups": {},
         "maxWidth": 1500,
@@ -88,28 +84,47 @@ def get_addon_config() -> Dict[str, Any]:
         "onetab": True,
         "dictSizePos": [0, 0, 800, 600],
         "tooltips": True,
-        "showTarget": False,
-        "day": True,
-        "maxSearch": 1000,
-        "dictSearch": 50,
     }
 
 
-def save_addon_config(config: Optional[Dict[str, Any]]) -> None:
+def refresh_anki_dict_config(config=False):
+    """Refresh the addon configuration."""
+    if config:
+        # Direct config provided - use it
+        if hasattr(mw, "__dict__"):
+            mw.__dict__["AnkiDictConfig"] = config
+        return
+
+    new_config = get_addon_config()
+
+    # Only update if configuration has actually changed or doesn't exist
+    current_config = getattr(mw, "AnkiDictConfig", None)
+    if current_config is None or current_config != new_config:
+        if hasattr(mw, "__dict__"):
+            mw.__dict__["AnkiDictConfig"] = new_config
+
+        # If dictionary exists and is visible, update its configuration
+        if (
+            hasattr(mw, "ankiDictionary")
+            and mw.ankiDictionary
+            and hasattr(mw.ankiDictionary, "resetConfiguration")
+        ):
+            mw.ankiDictionary.activateWindow()
+            mw.ankiDictionary.resetConfiguration(new_config)
+
+
+def save_addon_config(config: Dict[str, Any]) -> bool:
     """
     Save addon configuration safely.
 
     Args:
-        config: The configuration to save.
+        config (dict): The configuration to save.
+
+    Returns:
+        bool: True if saved successfully, False otherwise.
     """
-    if config is None:
-        return
-
-    # Try to update our state manager first
+    # 1. Update our state manager
     try:
-        import sys
-        import os
-
         addon_root = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         )
@@ -129,41 +144,24 @@ def save_addon_config(config: Optional[Dict[str, Any]]) -> None:
     except Exception:
         pass
 
-    # Legacy compatibility: Try to save to mw.AnkiDictConfig
-    if hasattr(mw, "__dict__") and "AnkiDictConfig" in mw.__dict__:
+    # 2. Update legacy location
+    if hasattr(mw, "__dict__"):
         mw.__dict__["AnkiDictConfig"] = config
 
-    # Also save using addon manager
-    addon_name = "Anki-Dictionary-Addon"
+    # 3. Save to Anki's config manager
     try:
-        mw.addonManager.writeConfig(addon_name, config)  # type: ignore
-    except Exception as e:
-        print(f"Warning: Could not save config to addon manager: {e}")
+        addon_name = "Anki-Dictionary-Addon"
+        mw.addonManager.writeConfig(addon_name, config)
+    except Exception:
+        # If writing by name fails, try using the directory name
+        try:
+            addon_dir = os.path.basename(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                )
+            )
+            mw.addonManager.writeConfig(addon_dir, config)
+        except Exception:
+            return False
 
-
-def get_config_value(key: str, default: Any = None) -> Any:
-    """
-    Get a specific configuration value safely.
-
-    Args:
-        key: The configuration key to retrieve.
-        default: The default value to return if key is not found.
-
-    Returns:
-        The configuration value or the default.
-    """
-    config = get_addon_config()
-    return config.get(key, default)
-
-
-def set_config_value(key: str, value: Any) -> None:
-    """
-    Set a specific configuration value safely.
-
-    Args:
-        key: The configuration key to set.
-        value: The value to set.
-    """
-    config = get_addon_config()
-    config[key] = value
-    save_addon_config(config)
+    return True
