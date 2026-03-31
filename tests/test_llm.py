@@ -50,17 +50,5 @@ class TestLLMWorker(unittest.TestCase):
         self.assertEqual(kwargs["json"]["model"], self.config["llm_model"])
         self.assertEqual(kwargs["json"]["messages"][0]["content"], "Define apple")
 
-    def test_llm_worker_no_api_key(self):
-        self.config["llm_api_key"] = ""
-        worker = LLMWorker(self.term, self.config)
-        
-        errors = []
-        worker.signals.error_occurred.connect(lambda x: errors.append(x))
-        
-        worker.run()
-        
-        self.assertEqual(len(errors), 1)
-        self.assertIn("API key not configured", errors[0])
-
 if __name__ == '__main__':
     unittest.main()

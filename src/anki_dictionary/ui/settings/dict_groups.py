@@ -276,6 +276,7 @@ class DictGroupEditor(QDialog):
             self.dictionaries.setCellWidget(rc, 2, checkBox)
             checkBox.clicked.connect(self.setOrder(rc))
         self.addDefaultDict("Images")
+        self.addDefaultDict("LLM API")
 
     def addDefaultDict(self, name):
         rc = self.dictionaries.rowCount()

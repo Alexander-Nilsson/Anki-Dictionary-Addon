@@ -228,9 +228,11 @@ class MIDict(AnkiWebView):
         dictDefs = self.config["dictSearch"]
         maxDefs = self.config["maxSearch"]
 
-        # Trigger LLM search if enabled
+        # Trigger LLM search if enabled and in selected group
         if self.config.get("llm_enabled", False):
-            self.triggerLLMSearch(cleaned)
+            group_dicts = [d["dict"] for d in selectedGroup["dictionaries"]]
+            if "LLM API" in group_dicts:
+                self.triggerLLMSearch(cleaned)
 
         html = self.prepareResults(
             self.db.searchTerm(
@@ -448,10 +450,6 @@ class MIDict(AnkiWebView):
                 clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
                 sendTooltip = " title=\"Send this definition, or any selected text and this definition's header to the card exporter to this dictionary's target fields. It will send it to the current target window, be it an Editor window, or the Review window.\" "
 
-            # Add LLM placeholder if enabled
-            if self.config.get("llm_enabled", False):
-                html += '<div id="llm-loader"><div class="definitionBlock"><i>Loading LLM definition...</i></div></div>'
-
             for dictName, dictResults in results.items():
                 if dictName == "Images":
                     html += self.getGoogleDictionaryResults(
@@ -459,6 +457,10 @@ class MIDict(AnkiWebView):
                     )
                     dictCount += 1
                     entryCount += 1
+                    continue
+                if dictName == "LLM API":
+                    if self.config.get("llm_enabled", False):
+                        html += '<div id="llm-loader"><div class="definitionBlock"><i>Loading LLM definition...</i></div></div>'
                     continue
                 duplicateHeader = self.getDuplicateHeaderCB(dictName)
                 overwrite = self.getOverwriteChecks(dictCount, dictName)
@@ -1955,7 +1957,11 @@ class DictInterface(QWidget):
 
     def getAllGroups(self):
         allGroups = {}
-        allGroups["dictionaries"] = self.db.getAllDictsWithLang()
+        dicts = self.db.getAllDictsWithLang()
+        dicts.append({"dict": "Images", "lang": ""})
+        if self.config.get("llm_enabled", False):
+            dicts.append({"dict": "LLM API", "lang": ""})
+        allGroups["dictionaries"] = dicts
         allGroups["customFont"] = False
         allGroups["font"] = False
         return allGroups
@@ -2340,6 +2346,8 @@ class DictInterface(QWidget):
             Qt.AlignmentFlag.AlignCenter
         )
         defaults = ["All", "Images"]
+        if self.config.get("llm_enabled", False):
+            defaults.append("LLM API")
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
@@ -2388,6 +2396,12 @@ class DictInterface(QWidget):
         if cur == "Images":
             return {
                 "dictionaries": [{"dict": "Images", "lang": ""}],
+                "customFont": False,
+                "font": False,
+            }
+        if cur == "LLM API":
+            return {
+                "dictionaries": [{"dict": "LLM API", "lang": ""}],
                 "customFont": False,
                 "font": False,
             }
