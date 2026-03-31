@@ -451,6 +451,15 @@ class SettingsGui(QTabWidget):
             dictName = self.cleanDictName(dictionary["dict"])
             if dictName not in dictionaryList:
                 dictionaryList.append(dictName)
+        
+        # Add special entries
+        if "Images" not in dictionaryList:
+            dictionaryList.append("Images")
+        
+        # Check current UI state for LLM enabled
+        if self.llmEnabled.isChecked() and "LLM API" not in dictionaryList:
+            dictionaryList.append("LLM API")
+            
         dictionaryList = sorted(dictionaryList, key=str.casefold)
         return dictionaryList
 

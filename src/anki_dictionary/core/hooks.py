@@ -31,6 +31,10 @@ from ..utils.common import miInfo, getTarget, gt
 # Get addon path
 addon_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
+# Store the original link handler - will be set on first hook setup
+_original_link_handler = None
+_hooks_setup = False
+
 
 def closeDictionary():
     """Close dictionary when profile is unloaded."""
@@ -204,12 +208,17 @@ def miLinks(self, cmd):
     """Handle reviewer links."""
     if mw.ankiDictionary and mw.ankiDictionary.isVisible():
         mw.ankiDictionary.dict.setReviewer(self)
-    return ogLinks(self, cmd)
+    return _original_link_handler(self, cmd)
 
 
 def setup_hooks():
     """Setup all Anki hooks and wrapping."""
-    global ogLinks
+    global _original_link_handler, _hooks_setup
+
+    # Prevent double-wrapping
+    if _hooks_setup:
+        return
+    _hooks_setup = True
 
     # Profile hooks
     addHook("unloadProfile", closeDictionary)
@@ -249,8 +258,8 @@ def setup_hooks():
     # Wrap preview
     Previewer.open = wrap(Previewer.open, addHotkeysToPreview)
 
-    # Wrap reviewer
-    ogLinks = Reviewer._linkHandler
+    # Wrap reviewer - store original BEFORE wrapping
+    _original_link_handler = Reviewer._linkHandler
     Reviewer._linkHandler = miLinks
     Reviewer.show = wrap(Reviewer.show, addBodyClick)
 

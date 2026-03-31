@@ -275,19 +275,6 @@ class DictGroupEditor(QDialog):
             checkBox.setStyleSheet("QCheckBox{padding-left:10px;}")
             self.dictionaries.setCellWidget(rc, 2, checkBox)
             checkBox.clicked.connect(self.setOrder(rc))
-        self.addDefaultDict("Images")
-        self.addDefaultDict("LLM API")
-
-    def addDefaultDict(self, name):
-        rc = self.dictionaries.rowCount()
-        self.dictionaries.setRowCount(rc + 1)
-        self.dictionaries.setItem(rc, 0, QTableWidgetItem(name))
-        self.dictionaries.setItem(rc, 1, QTableWidgetItem(""))
-        checkBox = QCheckBox()
-        checkBox.setFixedWidth(40)
-        checkBox.setStyleSheet("QCheckBox{padding-left:10px;}")
-        checkBox.clicked.connect(self.setOrder(rc))
-        self.dictionaries.setCellWidget(rc, 2, checkBox)
 
     def setupDictionaries(self):
         macLin = False

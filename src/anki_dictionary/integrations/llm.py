@@ -26,6 +26,8 @@ class LLMWorker(QRunnable):
         self.term = term
         self.config = config
         self.signals = LLMWorkerSignals()
+        # Allow custom timeout via config, default to 15 seconds
+        self.timeout = config.get("llm_timeout", 15)
 
     def run(self):
         """Execute the API call."""
@@ -56,11 +58,12 @@ class LLMWorker(QRunnable):
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
                 "temperature": 0.3,
+                "think": False,  # Disable extended thinking for faster responses
             }
 
             # Use requests for the API call
             response = requests.post(
-                base_url, headers=headers, json=payload, timeout=30
+                base_url, headers=headers, json=payload, timeout=self.timeout
             )
             response.raise_for_status()
 
@@ -93,7 +96,9 @@ class LLMWorker(QRunnable):
             self.signals.result_ready.emit(result)
 
         except Exception as e:
-            self.signals.error_occurred.emit(f"LLM Error: {str(e)}")
+            error_msg = f"LLM Error: {str(e)}"
+            print(f"[LLM] {error_msg}")
+            self.signals.error_occurred.emit(error_msg)
         finally:
             self.signals.finished.emit()
 

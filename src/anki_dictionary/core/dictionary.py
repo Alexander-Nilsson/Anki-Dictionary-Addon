@@ -361,6 +361,11 @@ class MIDict(AnkiWebView):
                 entryCount += 1
                 dictCount += 1
                 continue
+            if dictName == "LLM API":
+                # Skip from sidebar for now as it's loaded asynchronously
+                dictCount += 1
+                entryCount += 1
+                continue
             html += (
                 '<div data-index="'
                 + str(dictCount)
@@ -460,7 +465,23 @@ class MIDict(AnkiWebView):
                     continue
                 if dictName == "LLM API":
                     if self.config.get("llm_enabled", False):
-                        html += '<div id="llm-loader"><div class="definitionBlock"><i>Loading LLM definition...</i></div></div>'
+                        duplicateHeader = self.getDuplicateHeaderCB(dictName)
+                        overwrite = self.getOverwriteChecks(dictCount, dictName)
+                        select = self.getFieldChecks(dictName)
+                        html += (
+                            '<div id="llm-loader">'
+                            '<div class="dictionaryTitleBlock"><div '
+                            + font
+                            + ' class="dictionaryTitle">LLM API</div><div class="dictionarySettings">'
+                            + duplicateHeader
+                            + overwrite
+                            + select
+                            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+                            '<div class="definitionBlock"><i>Loading LLM definition...</i></div>'
+                            '</div>'
+                        )
+                    dictCount += 1
+                    entryCount += 1
                     continue
                 duplicateHeader = self.getDuplicateHeaderCB(dictName)
                 overwrite = self.getOverwriteChecks(dictCount, dictName)
@@ -608,19 +629,73 @@ class MIDict(AnkiWebView):
 
     def loadLLMResults(self, result):
         """Handle result from LLM and inject into the UI."""
-        # result now contains 'dictName' from LLMWorker
         dictName = result.get("dictName", "LLM API")
         font = self.getFontFamily({"font": False, "customFont": False})
+
+        # Format just the content part (without header and title block)
+        imgTooltip = ""
+        clipTooltip = ""
+        sendTooltip = ""
+        if self.config["tooltips"]:
+            imgTooltip = ' title="Add this definition to the card exporter." '
+            clipTooltip = ' title="Copy this definition to the clipboard." '
+            sendTooltip = ' title="Send this definition to the card exporter." '
+
         frontBracket = self.config["frontBracket"]
         backBracket = self.config["backBracket"]
 
-        # Use shared formatting logic
-        html = self.formatSingleEntry(result, dictName, font, frontBracket, backBracket)
-        
-        # Inject into the webview by replacing the loader
+        html = (
+            '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.getPreparedTermHeader(
+                dictName,
+                frontBracket,
+                backBracket,
+                result["term"],
+                result["term"],
+                result.get("altterm", ""),
+                result.get("pronunciation", ""),
+            )
+            + ' <span class="starcount">'
+            + str(result.get("starCount", ""))
+            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + dictName
+            + '\')" class="ankiExportButton"><img '
+            + imgTooltip
+            + ' src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" '
+            + clipTooltip
+            + ' class="clipper">✂</div><div '
+            + sendTooltip
+            + " onclick=\"sendToField(event, '"
+            + dictName
+            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
+        )
+
+        html += (
+            '<div'
+            + font
+            + ' class="definitionBlock">'
+            + self.highlightTarget(
+                self.processDefinitionHTML(
+                    self.highlightExamples(result["definition"])
+                ),
+                result["term"],
+            )
+            + "</div>"
+        )
+
+        # Inject into the webview by replacing only the loading placeholder
         escaped_html = json.dumps(html)
         self.eval(
-            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_html}; }}"
+            f"var loader = document.getElementById('llm-loader'); "
+            f"if(loader) {{ "
+            f"  var oldContent = loader.querySelector('.definitionBlock'); "
+            f"  if(oldContent) oldContent.remove(); "
+            f"  loader.querySelector('.dictionaryTitleBlock').insertAdjacentHTML('afterend', {escaped_html}); "
+            f"}}"
         )
 
     def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
@@ -1582,6 +1657,7 @@ class DictInterface(QWidget):
 
         self.startUp(terms)
         self.setHotkeys()
+        self.threadpool = QThreadPool() # Initialize QThreadPool
         ensureWidgetInScreenBoundaries(self)
 
     def load_theme_color(self, color_key):
@@ -1690,8 +1766,8 @@ class DictInterface(QWidget):
         willSearch = False
         if terms is not False:
             willSearch = True
-        self.allGroups = self.getAllGroups()
         self.config = self.getConfig()
+        self.allGroups = self.getAllGroups()
         self.defaultGroups = self.db.getDefaultGroups()
         self.userGroups = self.getUserGroups()
         self.searchOptions = [
