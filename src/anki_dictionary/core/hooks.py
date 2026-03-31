@@ -150,50 +150,20 @@ def addBodyClick(self):
 
 def addHotkeys(self):
     """Add hotkeys to editor window."""
-    def trigger_dictionary_init(terms=False):
-        from ..ui.main_window import dictionaryInit
-        dictionaryInit(terms)
-        
-    def trigger_search_term(webview):
-        from ..ui.main_window import searchTerm
-        searchTerm(webview)
-        
-    def trigger_search_col(webview):
-        from ..ui.main_window import searchCol
-        searchCol(webview)
-
-    self.parentWindow.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self.parentWindow)
-    self.parentWindow.hotkeyS.activated.connect(lambda: trigger_search_term(self.web))
-    
-    self.parentWindow.hotkeyB = QShortcut(QKeySequence("Ctrl+Shift+B"), self.parentWindow)
-    self.parentWindow.hotkeyB.activated.connect(lambda: trigger_search_col(self.web))
-    
-    self.parentWindow.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self.parentWindow)
-    self.parentWindow.hotkeyW.activated.connect(trigger_dictionary_init)
+    # Note: Global shortcuts (Ctrl+W, Ctrl+S, Ctrl+Shift+B) are handled
+    # by the menu actions in setup_gui_menu() with ApplicationShortcut context.
+    # We don't need to duplicate them here as WidgetShortcuts, which would
+    # cause "Ambiguous shortcut" warnings when the dictionary window is focused.
+    pass
 
 
 def addHotkeysToPreview(self):
     """Add hotkeys to preview window."""
-    def trigger_dictionary_init(terms=False):
-        from ..ui.main_window import dictionaryInit
-        dictionaryInit(terms)
-        
-    def trigger_search_term(webview):
-        from ..ui.main_window import searchTerm
-        searchTerm(webview)
-        
-    def trigger_search_col(webview):
-        from ..ui.main_window import searchCol
-        searchCol(webview)
-
-    self._web.hotkeyS = QShortcut(QKeySequence("Ctrl+S"), self._web)
-    self._web.hotkeyS.activated.connect(lambda: trigger_search_term(self._web))
-    
-    self._web.hotkeyB = QShortcut(QKeySequence("Ctrl+Shift+B"), self._web)
-    self._web.hotkeyB.activated.connect(lambda: trigger_search_col(self._web))
-    
-    self._web.hotkeyW = QShortcut(QKeySequence("Ctrl+W"), self._web)
-    self._web.hotkeyW.activated.connect(trigger_dictionary_init)
+    # Note: Global shortcuts (Ctrl+W, Ctrl+S, Ctrl+Shift+B) are handled
+    # by the menu actions in setup_gui_menu() with ApplicationShortcut context.
+    # We don't need to duplicate them here as WidgetShortcuts, which would
+    # cause "Ambiguous shortcut" warnings when the dictionary window is focused.
+    pass
 
 
 
