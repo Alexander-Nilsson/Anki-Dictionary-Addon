@@ -54,6 +54,8 @@ class LLMWorker(QRunnable):
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "think": self.config.get("llm_think", False),
                 "temperature": 0.3,
             }
 
@@ -65,9 +67,17 @@ class LLMWorker(QRunnable):
 
             data = response.json()
             
-            # Extract content from response (OpenAI format)
+            # Extract content from response
+            content = ""
+            # OpenAI format
             if "choices" in data and len(data["choices"]) > 0:
                 content = data["choices"][0]["message"]["content"]
+            # Ollama /api/chat format
+            elif "message" in data and "content" in data["message"]:
+                content = data["message"]["content"]
+            # Ollama /api/generate format
+            elif "response" in data:
+                content = data["response"]
             else:
                 raise ValueError("Unexpected API response format: " + json.dumps(data))
 
@@ -113,6 +123,8 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
             "model": model,
             "messages": [{"role": "user", "content": "Hello, respond with only the word 'OK'."}],
             "max_tokens": 10,
+            "stream": False,
+            "think": config.get("llm_think", False),
             "temperature": 0.1,
         }
 
@@ -124,7 +136,7 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
         response.raise_for_status()
         
         data = response.json()
-        if "choices" in data:
+        if "choices" in data or "message" in data or "response" in data:
             print("Test successful!")
             callback(True, "Successfully connected to LLM API!")
         else:

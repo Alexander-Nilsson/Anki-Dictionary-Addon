@@ -91,5 +91,6 @@
   "llm_api_key": "",
   "llm_base_url": "https://api.openai.com/v1/chat/completions",
   "llm_model": "gpt-3.5-turbo",
-  "llm_prompt": "Provide a concise dictionary definition for the word: {term}"
+  "llm_prompt": "Provide a concise dictionary definition for the word: {term}",
+  "llm_think": false
 }

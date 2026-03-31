@@ -13,6 +13,16 @@ from typing import Any, Dict, Optional
 from aqt import mw
 
 
+def get_addon_name() -> str:
+    """Get the name of the addon folder."""
+    # This file is in src/anki_dictionary/utils/config.py
+    # Addon root is 3 levels up
+    addon_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    )
+    return os.path.basename(addon_root)
+
+
 def get_addon_config() -> Dict[str, Any]:
     """
     Get addon configuration safely.
@@ -54,7 +64,7 @@ def get_addon_config() -> Dict[str, Any]:
             return config_dict
 
     # Fallback 2: try to get config using correct addon name
-    addon_name = "Anki-Dictionary-Addon"
+    addon_name = get_addon_name()
     try:
         config = mw.addonManager.getConfig(addon_name)
         if config is not None:
@@ -150,18 +160,9 @@ def save_addon_config(config: Dict[str, Any]) -> bool:
 
     # 3. Save to Anki's config manager
     try:
-        addon_name = "Anki-Dictionary-Addon"
+        addon_name = get_addon_name()
         mw.addonManager.writeConfig(addon_name, config)
     except Exception:
-        # If writing by name fails, try using the directory name
-        try:
-            addon_dir = os.path.basename(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                )
-            )
-            mw.addonManager.writeConfig(addon_dir, config)
-        except Exception:
-            return False
+        return False
 
     return True
