@@ -1117,7 +1117,7 @@ class MIDict(AnkiWebView):
             else:
                 tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.reviewer.card.note()
-            model = note.model()
+            model = note.note_type()
             fields = model["flds"]
             changed = False
             for field in fields:
