@@ -1138,6 +1138,21 @@ function openSidebar() {
     }
 }
 
-/**
- * Wait for pycmd to load and signal ready
- */
+function handleFieldCheckbox(checkbox) {
+    const container = checkbox.closest('.fieldCheckboxes');
+    if (!container) return;
+    const dictName = container.getAttribute('data-dictname');
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const selectedFields = [];
+    checkboxes.forEach(cb => { if (cb.checked) selectedFields.push(cb.value); });
+    pycmd('fieldsSetting:' + JSON.stringify({ dictName, fields: selectedFields }));
+}
+
+function filterFieldOptions(input) {
+    const filter = input.value.toLowerCase();
+    const container = input.closest('.fieldCheckboxes');
+    if (!container) return;
+    container.querySelectorAll('.fieldCheckboxLabel').forEach(label => {
+        label.style.display = label.textContent.toLowerCase().includes(filter) ? '' : 'none';
+    });
+}
