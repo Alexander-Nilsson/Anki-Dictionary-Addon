@@ -126,9 +126,10 @@ class TestAddonImports(unittest.TestCase):
         for dir_name in copied_dirs:
             dir_path = build_dir / dir_name
             self.assertTrue(
-                dir_path.exists(), f"Expected copied directory {dir_name} missing from build"
+                dir_path.exists(),
+                f"Expected copied directory {dir_name} missing from build",
             )
-            
+
         for dir_name in created_dirs:
             dir_path = build_dir / dir_name
             # Add a small retry mechanism in case of timing issues with dynamic creation
@@ -136,7 +137,8 @@ class TestAddonImports(unittest.TestCase):
             # Ideally, the build process should guarantee creation before tests run.
             # For simplicity here, we'll just check existence. If it fails, it implies build is not ready.
             self.assertTrue(
-                dir_path.exists(), f"Expected dynamically created directory {dir_name} missing from build"
+                dir_path.exists(),
+                f"Expected dynamically created directory {dir_name} missing from build",
             )
 
         # Test that build directory contains expected structure

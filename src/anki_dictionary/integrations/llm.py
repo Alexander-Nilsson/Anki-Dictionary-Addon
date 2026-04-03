@@ -44,7 +44,7 @@ class LLMWorker(QRunnable):
 
             # API key is optional for local providers like llama.cpp or vLLM
             # but usually required for cloud providers.
-            
+
             prompt = prompt_template.replace("{term}", self.term)
 
             headers = {
@@ -68,7 +68,7 @@ class LLMWorker(QRunnable):
             response.raise_for_status()
 
             data = response.json()
-            
+
             # Extract content from response
             content = ""
             # OpenAI format
@@ -115,7 +115,7 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
             "llm_base_url", "https://api.openai.com/v1/chat/completions"
         )
         model = config.get("llm_model", "gpt-3.5-turbo")
-        
+
         headers = {
             "Content-Type": "application/json",
         }
@@ -125,28 +125,30 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
         # Simple test prompt
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": "Hello, respond with only the word 'OK'."}],
+            "messages": [
+                {"role": "user", "content": "Hello, respond with only the word 'OK'."}
+            ],
             "max_tokens": 10,
             "stream": False,
             "temperature": 0.1,
         }
 
         print(f"Sending request to {base_url} with model {model}...")
-        response = requests.post(
-            base_url, headers=headers, json=payload, timeout=10
-        )
+        response = requests.post(base_url, headers=headers, json=payload, timeout=10)
         print(f"Response received: status code {response.status_code}")
         response.raise_for_status()
-        
+
         data = response.json()
         if "choices" in data or "message" in data or "response" in data:
             print("Test successful!")
             callback(True, "Successfully connected to LLM API!")
         else:
             print(f"Test failed: unexpected response format: {data}")
-            callback(False, f"Connected but got unexpected response: {json.dumps(data)[:100]}...")
-            
+            callback(
+                False,
+                f"Connected but got unexpected response: {json.dumps(data)[:100]}...",
+            )
+
     except Exception as e:
         print(f"Test failed with error: {str(e)}")
         callback(False, f"Connection failed: {str(e)}")
-

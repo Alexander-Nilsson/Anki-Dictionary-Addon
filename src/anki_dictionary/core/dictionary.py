@@ -91,11 +91,12 @@ class MIDict(AnkiWebView):
         self.maxH = self.config["maxHeight"]
         self.onBridgeCmd = self.handleDictAction
         self.db = db
-        self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders())
-        self.dupHeaders = self.db.getDupHeaders()
+        self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
+        self.dupHeaders = self.db.getDupHeaders() or {}
         self.sType = False
         self.radioCount = 0
         self.homeDir = path
+        self.addonPath = path
         # Set up root addon temp directory path
         self.addon_root = dirname(dirname(dirname(dirname(__file__))))
         self.temp_dir = join(self.addon_root, "temp")

@@ -15,7 +15,7 @@ logger = get_logger("database")
 
 # Get the root addon path (go up from src/anki_dictionary/core to root)
 addon_path = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
 
@@ -100,12 +100,30 @@ class DictDB:
         """Delete a dictionary and its associated tables."""
         if not self._ensure_connection():
             return
-        self.dropTables(d)
-        d_clean = self.cleanDictName(d)
+
+        # d can be the raw table name (l1name...) or just the dict name
+        if d.startswith("l") and "name" in d:
+            table_name = d
+            d_clean = self.cleanDictName(d)
+        else:
+            d_clean = d
+            lid = self.getLangIdFromDict(d_clean)
+            table_name = self.formatDictName(lid, d_clean)
+
+        self.dropTables(table_name)
         cursor = self._get_cursor()
         cursor.execute("DELETE FROM dictnames WHERE dictname = ?;", (d_clean,))
         self.commitChanges()
         cursor.execute("VACUUM;")
+
+    def getLangIdFromDict(self, dictname: str) -> Optional[int]:
+        """Get language ID for a given dictionary name."""
+        if not self._ensure_connection():
+            return None
+        cursor = self._get_cursor()
+        cursor.execute("SELECT lid FROM dictnames WHERE dictname = ?;", (dictname,))
+        result = cursor.fetchone()
+        return result[0] if result else None
 
     def getDictsByLanguage(self, lang: str) -> List[str]:
         """Get all dictionary names for a given language."""
@@ -124,6 +142,20 @@ class DictDB:
         except:
             return []
 
+    def dictExists(self, dictname: str, lang: str) -> bool:
+        """Check if a dictionary already exists for a given language."""
+        if not self._ensure_connection():
+            return False
+        lid = self.getLangId(lang)
+        if lid is None:
+            return False
+        clean_name = self.normalize_dict_name(dictname)
+        cursor = self._get_cursor()
+        cursor.execute(
+            "SELECT 1 FROM dictnames WHERE dictname = ? AND lid = ?;", (clean_name, lid)
+        )
+        return cursor.fetchone() is not None
+
     def addDict(
         self, dictname: str, lang: str, termHeader: str
     ) -> Tuple[bool, str, Optional[str]]:
@@ -134,6 +166,15 @@ class DictDB:
             lid = self.getLangId(lang)
             clean_name = self.normalize_dict_name(dictname)
             cursor = self._get_cursor()
+
+            # Check if it already exists
+            cursor.execute(
+                "SELECT lid FROM dictnames WHERE dictname = ?;", (clean_name,)
+            )
+            existing = cursor.fetchone()
+            if existing:
+                return False, "duplicate", clean_name
+
             cursor.execute(
                 'INSERT INTO dictnames (dictname, lid, fields, addtype, termHeader, duplicateHeader) VALUES (?, ?, "[]", "add", ?, 0);',
                 (clean_name, lid, termHeader),
@@ -146,6 +187,10 @@ class DictDB:
             final_name = clean_name
             return success, message, final_name
 
+        except sqlite3.IntegrityError as e:
+            if "UNIQUE" in str(e):
+                return False, "duplicate", self.normalize_dict_name(dictname)
+            return False, str(e), None
         except Exception as e:
             success = False
             message = str(e)
@@ -715,10 +760,9 @@ class DictDB:
         try:
             dictHeaders = cursor.fetchall()
             results: Dict[str, int] = {}
-            if len(dictHeaders) > 0:
-                for r in dictHeaders:
-                    results[r[0]] = r[1]
-                return results
+            for r in dictHeaders:
+                results[r[0]] = r[1]
+            return results
         except:
             return None
 
@@ -742,10 +786,9 @@ class DictDB:
         try:
             dictHeaders = cursor.fetchall()
             results: Dict[str, List[str]] = {}
-            if len(dictHeaders) > 0:
-                for r in dictHeaders:
-                    results[r[0]] = json.loads(r[1])
-                return results
+            for r in dictHeaders:
+                results[r[0]] = json.loads(r[1])
+            return results
         except:
             return None
 

@@ -93,7 +93,11 @@ class ServerAskPage(MiWizardPage):
         server_url_usr = self.server_line.text().strip()
         server_url = webConfig.normalize_url(server_url_usr)
 
-        index_data = webConfig.download_index(server_url)
+        aqt.mw.progress.start()
+        try:
+            index_data = webConfig.download_index(server_url)
+        finally:
+            aqt.mw.progress.finish()
 
         if index_data is None:
             QMessageBox.information(
@@ -139,6 +143,27 @@ class DictionarySelectPage(MiWizardPage):
 
         options_lyt.addStretch()
 
+        self.dict_tree.itemChanged.connect(self.on_item_changed)
+        self._updating_checks = False
+
+    def on_item_changed(self, item, column):
+        if self._updating_checks:
+            return
+
+        self._updating_checks = True
+        try:
+            state = item.checkState(0)
+
+            def set_child_states(parent):
+                for i in range(parent.childCount()):
+                    child = parent.child(i)
+                    child.setCheckState(0, state)
+                    set_child_states(child)
+
+            set_child_states(item)
+        finally:
+            self._updating_checks = False
+
     def on_show(self, is_next, is_back):
         if is_next:
             self.setup_entries()
@@ -167,8 +192,6 @@ class DictionarySelectPage(MiWizardPage):
                             # Fallback for older versions
                             if dict_item.checkState(0) == Qt.Checked:
                                 dictionaries.append(dictionary)
-                        # if dict_item.checkState(0) == Qt.CheckState.Checked:
-                        #     dictionaries.append(dictionary)
                     else:
                         scan_tree(dict_item)
 
@@ -194,68 +217,80 @@ class DictionarySelectPage(MiWizardPage):
 
         languages = dictionary_index.get("languages", [])
 
-        for language in languages:
-            name_en = language.get("name_en")
-            name_native = language.get("name_native")
+        self._updating_checks = True
+        try:
+            for language in languages:
+                name_en = language.get("name_en")
+                name_native = language.get("name_native")
 
-            if not name_en:
-                continue
-
-            text = name_en
-            if name_native:
-                text += " (" + name_native + ")"
-
-            lang_item = QTreeWidgetItem([text])
-            lang_item.setData(0, Qt.ItemDataRole.UserRole + 0, language)
-            lang_item.setData(0, Qt.ItemDataRole.UserRole + 1, None)
-
-            self.dict_tree.addTopLevelItem(lang_item)
-
-            def load_dict_list(dict_list, parent_item):
-                for dictionary in dictionaries:
-                    dictionary_name = dictionary.get("name")
-                    if not dictionary_name:
-                        continue
-                    dictionary_text = dictionary_name
-
-                    dictionary_description = dictionary.get("description")
-                    if dictionary_description:
-                        dictionary_text += " - " + dictionary_description
-
-                    dict_item = QTreeWidgetItem([dictionary_text])
-                    try:
-                        # Try the new way
-                        dict_item.setCheckState(0, Qt.CheckState.Unchecked)
-                    except AttributeError:
-                        # Fallback for older versions
-                        dict_item.setCheckState(0, Qt.Unchecked)
-                    dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
-                    dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dictionary)
-
-                    parent_item.addChild(dict_item)
-
-            for to_language in language.get("to_languages", []):
-                to_name_en = to_language.get("name_en")
-                to_name_native = to_language.get("name_native")
-
-                if not to_name_en:
+                if not name_en:
                     continue
 
-                text = to_name_en
-                if to_name_native:
-                    text += " (" + to_name_native + ")"
+                text = name_en
+                if name_native:
+                    text += " (" + name_native + ")"
 
-                to_lang_item = QTreeWidgetItem([text])
-                to_lang_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
-                to_lang_item.setData(0, Qt.ItemDataRole.UserRole + 1, None)
+                lang_item = QTreeWidgetItem([text])
+                lang_item.setData(0, Qt.ItemDataRole.UserRole + 0, language)
+                lang_item.setData(0, Qt.ItemDataRole.UserRole + 1, None)
+                try:
+                    lang_item.setCheckState(0, Qt.CheckState.Unchecked)
+                except AttributeError:
+                    lang_item.setCheckState(0, Qt.Unchecked)
 
-                lang_item.addChild(to_lang_item)
+                self.dict_tree.addTopLevelItem(lang_item)
 
-                dictionaries = to_language.get("dictionaries", [])
-                load_dict_list(dictionaries, to_lang_item)
+                def load_dict_list(dict_list, parent_item):
+                    for dictionary in dict_list:
+                        dictionary_name = dictionary.get("name")
+                        if not dictionary_name:
+                            continue
+                        dictionary_text = dictionary_name
 
-            dictionaries = language.get("dictionaries", [])
-            load_dict_list(dictionaries, lang_item)
+                        dictionary_description = dictionary.get("description")
+                        if dictionary_description:
+                            dictionary_text += " - " + dictionary_description
+
+                        dict_item = QTreeWidgetItem([dictionary_text])
+                        try:
+                            # Try the new way
+                            dict_item.setCheckState(0, Qt.CheckState.Unchecked)
+                        except AttributeError:
+                            # Fallback for older versions
+                            dict_item.setCheckState(0, Qt.Unchecked)
+                        dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
+                        dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dictionary)
+
+                        parent_item.addChild(dict_item)
+
+                for to_language in language.get("to_languages", []):
+                    to_name_en = to_language.get("name_en")
+                    to_name_native = to_language.get("name_native")
+
+                    if not to_name_en:
+                        continue
+
+                    text = to_name_en
+                    if to_name_native:
+                        text += " (" + to_name_native + ")"
+
+                    to_lang_item = QTreeWidgetItem([text])
+                    to_lang_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
+                    to_lang_item.setData(0, Qt.ItemDataRole.UserRole + 1, None)
+                    try:
+                        to_lang_item.setCheckState(0, Qt.CheckState.Unchecked)
+                    except AttributeError:
+                        to_lang_item.setCheckState(0, Qt.Unchecked)
+
+                    lang_item.addChild(to_lang_item)
+
+                    dictionaries = to_language.get("dictionaries", [])
+                    load_dict_list(dictionaries, to_lang_item)
+
+                dictionaries = language.get("dictionaries", [])
+                load_dict_list(dictionaries, lang_item)
+        finally:
+            self._updating_checks = False
 
 
 class DictionaryConfirmPage(MiWizardPage):
@@ -300,7 +335,7 @@ class DictionaryConfirmPage(MiWizardPage):
                 )
         elif has_multiple_langs and force_lang:
             self.box.setText(
-                "You can only install dictionaries from a single language when adding dictionaries to an exisintg language.<br><br>"
+                "You can only install dictionaries from a single language when adding dictionaries to an existing language.<br><br>"
                 "Please go back to the previous page and make sure only dictionaries from a single language are selected."
             )
         else:
@@ -348,6 +383,7 @@ class DictionaryInstallPage(MiWizardPage):
 
         def __init__(
             self,
+            wizard,
             server_root,
             install_index,
             install_freq,
@@ -355,6 +391,7 @@ class DictionaryInstallPage(MiWizardPage):
             force_lang=None,
         ):
             QThread.__init__(self)
+            self.wizard = wizard
             self.server_root = server_root
             self.install_index = install_index
             self.install_freq = install_freq
@@ -366,6 +403,64 @@ class DictionaryInstallPage(MiWizardPage):
             if not url.startswith("http"):
                 return self.server_root + url
             return url
+
+        def fetch_data(self, client, url):
+            """Fetch data from URL, trying both underscore and space versions if it fails."""
+            import urllib.parse
+
+            # First attempt: original URL
+            resp = client.get(url)
+            if resp.status_code == 200:
+                return resp
+
+            # If it's a 404 and looks like a dictionary path with underscores,
+            # try replacing underscores with spaces and URL-encoding the result.
+            if resp.status_code == 404 and "_" in url:
+                # 1. Try replacing underscores ONLY in the filename (last part)
+                url_parts = url.rsplit("/", 1)
+                if len(url_parts) == 2:
+                    base_path, filename = url_parts
+                    if "_" in filename:
+                        new_filename = filename.replace("_", " ")
+                        # Re-encode the filename but keep the base path
+                        # We use urllib.parse.quote for the filename part
+                        new_url = f"{base_path}/{urllib.parse.quote(new_filename)}"
+                        self.log_update.emit(
+                            f"  404 error: retrying with spaces in filename..."
+                        )
+                        self.log_update.emit(f"  Retrying URL: {new_url}")
+                        resp = client.get(new_url)
+                        if resp.status_code == 200:
+                            self.log_update.emit(f"  Retry successful!")
+                            return resp
+
+                # 2. If filename-only retry failed or wasn't applicable, try the whole path
+                # (but only if we haven't already tried a version that's effectively the same)
+                self.log_update.emit(
+                    f"  404 error: retrying with spaces in the whole path..."
+                )
+                new_url_raw = url.replace("_", " ")
+
+                # Split by '://' to avoid quoting the protocol
+                parts = new_url_raw.split("://")
+                if len(parts) > 1:
+                    # Quote the path part
+                    quoted_path = urllib.parse.quote(parts[1])
+                    new_url = parts[0] + "://" + quoted_path
+                else:
+                    new_url = urllib.parse.quote(new_url_raw)
+
+                self.log_update.emit(f"  Retrying URL: {new_url}")
+                resp = client.get(new_url)
+                if resp.status_code == 200:
+                    self.log_update.emit(f"  Retry successful!")
+                    return resp
+                else:
+                    self.log_update.emit(
+                        f"  Retry failed with status: {resp.status_code}"
+                    )
+
+            return resp
 
         def run(self):
             from ..ui.dialogs.dictionary_manager import importDict
@@ -417,7 +512,7 @@ class DictionaryInstallPage(MiWizardPage):
                     if furl:
                         self.log_update.emit("Installing %s frequency data..." % lname)
                         furl = self.construct_url(furl)
-                        dl_resp = client.get(furl)
+                        dl_resp = self.fetch_data(client, furl)
                         if dl_resp.status_code == 200:
                             fdata = client.stream_content(dl_resp)
                             dst_path = os.path.join(freq_path, "%s.json" % lname)
@@ -436,7 +531,7 @@ class DictionaryInstallPage(MiWizardPage):
                             "Installing %s conjugation data..." % lname
                         )
                         curl = self.construct_url(curl)
-                        dl_resp = client.get(curl)
+                        dl_resp = self.fetch_data(client, curl)
                         if dl_resp.status_code == 200:
                             cdata = client.stream_content(dl_resp)
                             dst_path = os.path.join(conj_path, "%s.json" % lname)
@@ -453,19 +548,35 @@ class DictionaryInstallPage(MiWizardPage):
                         return
 
                     dname = d.get("name")
+
+                    # Check if already exists
+                    if aqt.mw.miDictDB.dictExists(dname, lname):
+                        self.log_update.emit("Skipping %s (already installed)." % dname)
+                        update_dict_progress(1.0)
+                        num_installed += 1
+                        continue
+
                     durl = self.construct_url(d.get("url"))
 
                     self.log_update.emit("Installing %s..." % dname)
 
                     self.log_update.emit(" Downloading %s..." % durl)
-                    dl_resp = client.get(durl)
+                    dl_resp = self.fetch_data(client, durl)
 
                     if dl_resp.status_code == 200:
                         update_dict_progress(0.5)
                         self.log_update.emit(" Importing...")
                         ddata = client.stream_content(dl_resp)
                         try:
-                            importDict(lname, io.BytesIO(ddata), dname)
+                            # Pass wizard as parent to allow message boxes if needed
+                            # Note: calling GUI from thread is usually bad, but QMessageBox.exec()
+                            # might work if it's handled properly by the bridge or if we use signals.
+                            # However, importDict uses QMessageBox.
+                            # In Anki context, this might need to be handled via signals if it causes crashes.
+                            # But let's try passing the parent first.
+                            importDict(
+                                lname, io.BytesIO(ddata), dname, parent=self.wizard
+                            )
                         except ValueError as e:
                             self.log_update.emit(" ERROR: %s" % str(e))
                     else:
@@ -562,7 +673,12 @@ class DictionaryInstallPage(MiWizardPage):
         force_lang = getattr(self.wizard, "dictionary_force_lang", None)
 
         self.install_thread = self.InstallThread(
-            server_root, install_index, install_freq, install_conj, force_lang
+            self.wizard,
+            server_root,
+            install_index,
+            install_freq,
+            install_conj,
+            force_lang,
         )
         self.install_thread.finished.connect(self.on_thread_finish)
         self.install_thread.progress_update.connect(self.update_progress)

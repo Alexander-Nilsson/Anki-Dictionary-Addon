@@ -76,4 +76,3 @@ def getTarget(name):
 def gt(obj):
     """Get type name of object."""
     return type(obj).__name__
-

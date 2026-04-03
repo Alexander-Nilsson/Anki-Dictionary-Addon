@@ -331,7 +331,7 @@ def miMessage(text, parent=False):
         parent = aqt.mw.app.activeWindow() or aqt.mw
 
     # Get addon path
-    addon_path = dirname(dirname(dirname(dirname(__file__))))
+    addon_path = dirname(dirname(dirname(dirname(dirname(__file__)))))
     icon = QIcon(join(addon_path, "assets", "icons", "dictionary.png"))
 
     mb = QMessageBox(parent)

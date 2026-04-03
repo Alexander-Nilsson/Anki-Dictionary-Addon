@@ -451,15 +451,15 @@ class SettingsGui(QTabWidget):
             dictName = self.cleanDictName(dictionary["dict"])
             if dictName not in dictionaryList:
                 dictionaryList.append(dictName)
-        
+
         # Add special entries
         if "Images" not in dictionaryList:
             dictionaryList.append("Images")
-        
+
         # Check current UI state for LLM enabled
         if self.llmEnabled.isChecked() and "LLM API" not in dictionaryList:
             dictionaryList.append("LLM API")
-            
+
         dictionaryList = sorted(dictionaryList, key=str.casefold)
         return dictionaryList
 
@@ -696,13 +696,13 @@ class SettingsGui(QTabWidget):
 
         formGroup.setLayout(formLayout)
         layout.addWidget(formGroup)
-        
+
         buttonLayout = QHBoxLayout()
         buttonLayout.addWidget(self.testLLMButton)
         buttonLayout.addWidget(self.llmStatusLabel)
         buttonLayout.addStretch()
         layout.addLayout(buttonLayout)
-        
+
         layout.addStretch()
 
         tab.setLayout(layout)
@@ -736,10 +736,7 @@ class SettingsGui(QTabWidget):
             return result_data
 
         # Use Anki's task manager for background operations
-        self.mw.taskman.run_in_background(
-            run_test,
-            self.on_test_finished
-        )
+        self.mw.taskman.run_in_background(run_test, self.on_test_finished)
 
     def on_test_finished(self, future):
         """Handle the completion of the background test."""
