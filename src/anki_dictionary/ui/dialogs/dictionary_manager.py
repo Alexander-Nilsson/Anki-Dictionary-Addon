@@ -382,14 +382,14 @@ class DictionaryManagerWidget(QWidget):
         dict_name, ok = self.get_string("Set name of dictionary", dict_name)
 
         try:
-            importDict(lang_name, path, dict_name)
+            final_name = importDict(lang_name, path, dict_name, parent=self)
         except ValueError as e:
             self.info(str(e))
             return
 
-        dict_item = QTreeWidgetItem([dict_name.replace("_", " ")])
+        dict_item = QTreeWidgetItem([final_name.replace("_", " ")])
         dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, lang_name)
-        dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dict_name)
+        dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, final_name)
 
         lang_item.addChild(dict_item)
         self.dict_tree.setCurrentItem(dict_item)
@@ -426,6 +426,8 @@ class DictionaryManagerWidget(QWidget):
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setValue(0)
 
+        batch_response = None  # To store YesToAll / NoToAll if we implement it
+
         for i, path in enumerate(paths):
             if progress.wasCanceled():
                 break
@@ -438,14 +440,22 @@ class DictionaryManagerWidget(QWidget):
                     continue
 
             try:
-                importDict(lang_name, path, dict_name)
+                # For batch import, we might want a slightly different duplicate handler
+                # but for now we'll use the default which prompts for each.
+                final_name = importDict(lang_name, path, dict_name, parent=self)
             except ValueError as e:
+                # If the user clicked "No" on overwrite, it raises ValueError
+                # We should probably catch "duplicate" specifically if we want to skip silently
+                if "Creating dictionary failed" in str(e) and "duplicate" in str(e):
+                    # User chose not to overwrite
+                    progress.setValue(i + 1)
+                    continue
                 self.info(str(e))
                 continue
 
-            dict_item = QTreeWidgetItem([dict_name.replace("_", " ")])
+            dict_item = QTreeWidgetItem([final_name.replace("_", " ")])
             dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, lang_name)
-            dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dict_name)
+            dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, final_name)
 
             lang_item.addChild(dict_item)
             progress.setValue(i + 1)
@@ -521,11 +531,16 @@ class DictionaryManagerWidget(QWidget):
         db.setDictTermHeader(dict_clean, json.dumps(parts))
 
 
-addon_path = os.path.dirname(__file__)
+addon_path = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+)
 
 
-def importDict(lang_name, file, dict_name):
+def importDict(lang_name, file, dict_name, parent=None):
     db = aqt.mw.miDictDB
+
+    if parent is None:
+        parent = aqt.mw.app.activeWindow() or aqt.mw
 
     try:
         zfile = zipfile.ZipFile(file)
@@ -548,6 +563,20 @@ def importDict(lang_name, file, dict_name):
 
     success, message, final_name = db.addDict(dict_name, lang_name, term_header)
 
+    if not success and message == "duplicate":
+        # Handle duplicate name
+        dlg = QMessageBox(
+            QMessageBox.Icon.Question,
+            "Duplicate Dictionary",
+            f'A dictionary with the name "{final_name}" already exists.\n\nDo you want to overwrite it?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            parent,
+        )
+        if dlg.exec() == QMessageBox.StandardButton.Yes:
+            # Delete existing and try again
+            db.deleteDict(final_name)
+            success, message, final_name = db.addDict(dict_name, lang_name, term_header)
+
     if not success:
         raise ValueError(
             f"Creating dictionary failed.\n"
@@ -565,6 +594,7 @@ def importDict(lang_name, file, dict_name):
     dict_files = natural_sort(dict_files)
 
     loadDict(zfile, dict_files, lang_name, final_name, frequency_dict, not is_yomichan)
+    return final_name
 
 
 def natural_sort(l):
@@ -592,11 +622,11 @@ def loadDict(zfile, filenames, lang, dictName, frequencyDict, miDict=False):
     for count, entry in enumerate(jsonDict):
         if (
             isinstance(entry, list)
-            and len(entry) == 3
+            and len(entry) >= 3
             and isinstance(entry[2], dict)
             and "pitches" in entry[2]
         ):
-            handlePitchDictEntry(jsonDict, count, entry)
+            handlePitchDictEntry(jsonDict, count, entry, frequencyDict is not None)
         elif miDict:
             handleMiDictEntry(jsonDict, count, entry, frequencyDict is not None)
         else:
@@ -635,7 +665,7 @@ def getAdjustedDefinition(definition):
     return definition
 
 
-def handlePitchDictEntry(jsonDict, count, entry):
+def handlePitchDictEntry(jsonDict, count, entry, freq=False):
     # Initialize default values
     term = ""
     altterm = ""
@@ -644,8 +674,8 @@ def handlePitchDictEntry(jsonDict, count, entry):
     definition = ""
     examples = ""
     audio = ""
-    frequency = ""
-    starCount = ""
+    frequency = entry[8] if freq and len(entry) > 8 else ""
+    starCount = entry[9] if freq and len(entry) > 9 else ""
     pitch_accent = ""
 
     # Extract pitch dictionary data
@@ -886,11 +916,10 @@ def organizeDictionaryByFrequency(
                 elif not readingHyouki and term in frequencyDict:
                     frequency = frequencyDict[term]
 
-                if len(entry) <= 8:
-                    entry.extend([frequency, getStarCount(frequency)])
-                else:
-                    entry[8] = frequency
-                    entry[9] = getStarCount(frequency)
+                while len(entry) < 10:
+                    entry.append("")
+                entry[8] = frequency
+                entry[9] = getStarCount(frequency)
 
         else:
             continue
@@ -949,13 +978,17 @@ def getFrequencyList(lang):
             return False
         for idx, f in enumerate(frequencyList):
             if yomi:
-                if f[0] in frequencyDict:
-                    frequencyDict[f[0]][f[1]] = idx
+                term = f[0].strip()
+                reading = f[1].strip()
+                if term in frequencyDict:
+                    frequencyDict[term][reading] = idx
                 else:
-                    frequencyDict[f[0]] = {}
-                    frequencyDict[f[0]][f[1]] = idx
+                    frequencyDict[term] = {}
+                    frequencyDict[term][reading] = idx
             else:
-                frequencyDict[f] = idx
+                term = f.strip()
+                if term not in frequencyDict:
+                    frequencyDict[term] = idx
         return frequencyDict
     else:
         return False

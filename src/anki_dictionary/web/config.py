@@ -1,7 +1,7 @@
 import json
 from anki.httpclient import HttpClient
 
-DEFAULT_SERVER = "dicts.migaku.io"
+DEFAULT_SERVER = "https://raw.githubusercontent.com/Alexander-Nilsson/dictionaries/main"
 
 
 def normalize_url(url):
@@ -18,7 +18,11 @@ def download_index(server_url=DEFAULT_SERVER):
     index_url = server_url + "/index.json"
 
     client = HttpClient()
-    resp = client.get(index_url)
+    try:
+        # Use a 10s timeout to avoid long UI hangs
+        resp = client.session.get(index_url, timeout=10, stream=True)
+    except Exception:
+        return None
 
     if resp.status_code != 200:
         return None

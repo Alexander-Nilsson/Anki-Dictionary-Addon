@@ -182,12 +182,10 @@ class FFMPEGInstaller:
                 FFMPEGInstaller._ffmpeg_checked = True
 
 
-
 def setup_ffmpeg():
     """Setup FFMPEG installer hook."""
     from aqt import mw
     from anki.hooks import addHook
-    
+
     installer = FFMPEGInstaller(mw)
     addHook("profileLoaded", installer.installFFMPEG)
-

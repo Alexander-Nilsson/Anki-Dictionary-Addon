@@ -2,6 +2,7 @@ import os
 from enum import Enum
 from aqt.qt import *
 from anki.httpclient import HttpClient
+import aqt
 
 from . import config as webConfig
 
@@ -70,6 +71,21 @@ class FreqConjWebWindow(QDialog):
         client = HttpClient()
         resp = client.get(url)
 
+        # If it's a 404 and looks like a path with underscores,
+        # try replacing underscores with spaces and URL-encoding the result.
+        if resp.status_code == 404 and "_" in url:
+            import urllib.parse
+
+            new_url = url.replace("_", " ")
+            parts = new_url.split("://")
+            if len(parts) > 1:
+                quoted_path = urllib.parse.quote(parts[1])
+                new_url = parts[0] + "://" + quoted_path
+            else:
+                new_url = urllib.parse.quote(new_url)
+
+            resp = client.get(new_url)
+
         if resp.status_code != 200:
             QMessageBox.information(
                 self, self.windowTitle(), "Downloading %s data failed." % self.mode_str
@@ -99,7 +115,11 @@ class FreqConjWebWindow(QDialog):
 
     @classmethod
     def execute_modal(cls, dst_lang, mode):
-        index_data = webConfig.download_index()
+        aqt.mw.progress.start()
+        try:
+            index_data = webConfig.download_index()
+        finally:
+            aqt.mw.progress.finish()
         if index_data is None:
             QMessageBox.information(
                 None,
