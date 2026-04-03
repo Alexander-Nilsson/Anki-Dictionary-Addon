@@ -36,6 +36,7 @@ except ImportError:
 
 from ..utils.history import HistoryBrowser, HistoryModel
 from aqt.editor import Editor
+from aqt.operations.note import update_note
 from ..exporters.card_exporter import CardExporter
 import time
 from . import database as dictdb
@@ -1136,8 +1137,7 @@ class MIDict(AnkiWebView):
                             note[field["name"]] = newField
             if not changed:
                 return
-            # note.flush()
-            self.dictInt.mw.col.update_note(note, skip_undo_entry=True)
+            update_note(parent=self.dictInt.mw, note=note).run_in_background()
             # self.reviewer.card.load()
             # self.reviewer.
             if self.reviewer.state == "answer":
