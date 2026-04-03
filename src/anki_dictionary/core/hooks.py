@@ -256,10 +256,10 @@ def setup_gui_menu():
         print("Action triggered: Search Term")
         from ..ui.main_window import searchTerm
 
+        focused_widget = mw.app.focusWidget()
+
         # Check if dictionary window is focused and visible
         if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-            # Check if the dictionary window or its children have focus
-            focused_widget = mw.app.focusWidget()
             if focused_widget and (
                 focused_widget == mw.ankiDictionary.dict
                 or mw.ankiDictionary.isAncestorOf(focused_widget)
@@ -268,12 +268,39 @@ def setup_gui_menu():
                 searchTerm(mw.ankiDictionary.dict)
                 return
 
-        # Otherwise search from the main Anki window
+        # Check if an Editor is focused
+        if focused_widget:
+            # Check for Editor (AddCards, EditCurrent, Browser editor)
+            parent = focused_widget
+            while parent:
+                if hasattr(parent, "editor") and parent.editor:
+                    searchTerm(parent.editor.web)
+                    return
+                if hasattr(parent, "web") and parent.web:
+                    # Generic web view (Reviewer, Browser card list if it's a webview, etc)
+                    searchTerm(parent.web)
+                    return
+                parent = parent.parent()
+
+        # Fallback to main webview (Reviewer)
         searchTerm(mw.web)
 
     def trigger_search_col():
         print("Action triggered: Search Collection")
         from ..ui.main_window import searchCol
+
+        focused_widget = mw.app.focusWidget()
+
+        if focused_widget:
+            parent = focused_widget
+            while parent:
+                if hasattr(parent, "editor") and parent.editor:
+                    searchCol(parent.editor.web)
+                    return
+                if hasattr(parent, "web") and parent.web:
+                    searchCol(parent.web)
+                    return
+                parent = parent.parent()
 
         searchCol(mw.web)
 
