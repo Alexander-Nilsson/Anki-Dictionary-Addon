@@ -3,13 +3,46 @@
  * Main JavaScript functionality for the Anki Dictionary Addon interface
  */
 
-var fefs = 12, dbfs = 22;
+if (typeof fefs === 'undefined') { var fefs = 12; }
+if (typeof dbfs === 'undefined') { var dbfs = 22; }
 var hresizeInt;
 var mouseX;
 var nightMode = false;
 var expanded = false;
 var sidebarOpened = false;
 var tabs = [];
+
+/**
+ * Update font specs style element and CSS variables
+ */
+function updateFontSpecs() {
+    try {
+        var root = document.documentElement;
+        if (root) {
+            // fefs is base font size for UI/List (maps to base)
+            root.style.setProperty('--font-size-base', fefs + 'px');
+            root.style.setProperty('--font-size-xs', Math.max(fefs - 2, 8) + 'px');
+            root.style.setProperty('--font-size-sm', Math.max(fefs - 1, 9) + 'px');
+            
+            // dbfs is base font size for definitions (maps to md)
+            root.style.setProperty('--font-size-md', dbfs + 'px');
+            root.style.setProperty('--font-size-lg', (dbfs + 2) + 'px');
+            root.style.setProperty('--font-size-xl', (dbfs + 4) + 'px');
+            root.style.setProperty('--font-size-2xl', (dbfs + 6) + 'px');
+            root.style.setProperty('--font-size-3xl', (dbfs + 10) + 'px');
+        }
+        
+        // Also update the fontSpecs style element as a fallback/override
+        var fontSpecs = document.getElementById('fontSpecs');
+        if (fontSpecs) {
+            fontSpecs.innerHTML = '.foundEntriesList{font-size: ' + fefs + 'px;}.termPronunciation,.definitionBlock{font-size: ' + dbfs + 'px; white-space: pre-line;}';
+        }
+        
+        document.body.style.fontSize = fefs + 'px';
+    } catch (error) {
+        console.error('Error in updateFontSpecs:', error);
+    }
+}
 
 /**
  * Load image HTML content
@@ -835,6 +868,7 @@ function appendNewImages(html) {
  * Wait for pycmd to load and signal ready
  */
 function awaitPycmdToLoad() {
+    updateFontSpecs();
     let awaitPycmd = setInterval(() => {
         if (pycmd) {
             clearInterval(awaitPycmd);
@@ -1123,14 +1157,19 @@ function handleDupChange(checkbox, className) {
  */
 function scaleFont(increase) {
     try {
-        const currentSize = parseInt(getComputedStyle(document.body).fontSize) || 14;
-        const newSize = increase ? currentSize + 1 : Math.max(currentSize - 1, 8);
+        if (increase) {
+            fefs = parseInt(fefs) + 1;
+            dbfs = parseInt(dbfs) + 1;
+        } else {
+            fefs = Math.max(parseInt(fefs) - 1, 8);
+            dbfs = Math.max(parseInt(dbfs) - 1, 8);
+        }
         
-        document.body.style.fontSize = newSize + 'px';
+        updateFontSpecs();
         
         // Save the font size
         if (typeof pycmd !== 'undefined') {
-            pycmd('saveFS:' + newSize + ':' + newSize);
+            pycmd('saveFS:' + fefs + ':' + dbfs);
         }
         
     } catch (error) {
