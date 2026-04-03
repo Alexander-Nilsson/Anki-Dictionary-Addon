@@ -478,7 +478,7 @@ class MIDict(AnkiWebView):
                             + select
                             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
                             '<div class="definitionBlock"><i>Loading LLM definition...</i></div>'
-                            '</div>'
+                            "</div>"
                         )
                     dictCount += 1
                     entryCount += 1
@@ -675,7 +675,7 @@ class MIDict(AnkiWebView):
         )
 
         html += (
-            '<div'
+            "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
@@ -757,7 +757,7 @@ class MIDict(AnkiWebView):
         )
 
         html += (
-            '<div'
+            "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
@@ -769,7 +769,6 @@ class MIDict(AnkiWebView):
             + "</div>"
         )
         return html
-
 
     def showLLMError(self, error_msg):
         """Show LLM error in the UI."""
@@ -1184,7 +1183,7 @@ class MIDict(AnkiWebView):
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = " title=\"This determines the conditions for sending a definition (or a Google Image) to a field. Overwrite the target field's content. Add to the target field's current contents. Only add definitions to the target field if it is empty.\""
-        
+
         typeName = "&nbsp;Add"  # Default
         if addType == "overwrite":
             typeName = "&nbsp;Overwrite"
@@ -1263,7 +1262,7 @@ class MIDict(AnkiWebView):
             selF = []  # Default for LLM
         else:
             selF = self.db.getFieldsSetting(dictName) or []
-        
+
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = ' title="Select this dictionary\'s target fields for when sending a definition(or a Google Image) to a card. If a field does not exist in the target card, then it is ignored, otherwise the definition is added to all fields that exist within the target card."'
@@ -1304,7 +1303,7 @@ class MIDict(AnkiWebView):
                 + f
                 + "</span></label>"
             )
-        options += '</div></div>'
+        options += "</div></div>"
         return options
 
     def getFieldNames(self):
@@ -1664,7 +1663,7 @@ class DictInterface(QWidget):
 
         self.startUp(terms)
         self.setHotkeys()
-        self.threadpool = QThreadPool() # Initialize QThreadPool
+        self.threadpool = QThreadPool()  # Initialize QThreadPool
         ensureWidgetInScreenBoundaries(self)
 
     def load_theme_color(self, color_key):
@@ -1753,7 +1752,10 @@ class DictInterface(QWidget):
 
         # Update QFrame spacers
         for frame in self.findChildren(QFrame):
-            if frame.frameShape() == QFrame.Shape.VLine or frame.frameShape() == QFrame.Shape.HLine:
+            if (
+                frame.frameShape() == QFrame.Shape.VLine
+                or frame.frameShape() == QFrame.Shape.HLine
+            ):
                 # Use a translucent version of the border color for the spacer
                 border_color = self.load_theme_color("border")
                 r = border_color.red()
@@ -2302,27 +2304,27 @@ class DictInterface(QWidget):
 
     def setupView(self):
         layoutV = QVBoxLayout()
-        
+
         # Unified Toolbar
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(10, 10, 10, 10)
         toolbar.setSpacing(8)
-        
+
         # Left side: Combo boxes and Search
         toolbar.addWidget(self.dictGroups)
         toolbar.addWidget(self.sType)
         toolbar.addWidget(self.search)
-        
+
         # Action buttons
         toolbar.addWidget(self.searchButton)
         toolbar.addWidget(self.openSB)
-        
+
         # Divider
         line = QFrame()
         line.setFrameShape(QFrame.Shape.VLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
         toolbar.addWidget(line)
-        
+
         # Utility buttons
         toolbar.addWidget(self.minusB)
         toolbar.addWidget(self.plusB)
@@ -2331,7 +2333,7 @@ class DictInterface(QWidget):
         toolbar.addWidget(self.conjToggler)
         toolbar.addWidget(self.themeSettings)
         toolbar.addWidget(self.setB)
-        
+
         # Target Info (if enabled)
         if self.config["showTarget"]:
             toolbar.addSpacing(10)
@@ -2346,7 +2348,7 @@ class DictInterface(QWidget):
         header_height = 36
         for widget in [self.dictGroups, self.sType, self.search]:
             widget.setFixedHeight(header_height)
-            
+
         self.dictGroups.setFixedWidth(120)
         self.sType.setFixedWidth(100)
         self.search.setMinimumWidth(100)
@@ -2354,22 +2356,31 @@ class DictInterface(QWidget):
 
         # Set fixed size for all toolbar buttons
         btn_size = 36
-        for btn in [self.searchButton, self.openSB, self.minusB, self.plusB, 
-                   self.tabB, self.histB, self.conjToggler, self.themeSettings, self.setB]:
+        for btn in [
+            self.searchButton,
+            self.openSB,
+            self.minusB,
+            self.plusB,
+            self.tabB,
+            self.histB,
+            self.conjToggler,
+            self.themeSettings,
+            self.setB,
+        ]:
             btn.setFixedSize(btn_size, btn_size)
 
         layoutV.addLayout(toolbar)
-        
+
         # Content Area
         layoutV.addWidget(self.dict)
-        
+
         layoutV.setContentsMargins(0, 0, 0, 0)
         layoutV.setSpacing(0)
 
         return layoutV
 
     def toggleMenuBar(self, vertical):
-        # We've improved the layout to be multi-line by default, 
+        # We've improved the layout to be multi-line by default,
         # so we can simplify or remove the responsive toggle if it causes issues.
         pass
 
@@ -2462,15 +2473,17 @@ class DictInterface(QWidget):
 
     def setTheme(self):
         self.theme_editor.exec()
-        # The theme editor might have already triggered a refresh, 
-        # but we call it here to be sure, with reload_html=True 
+        # The theme editor might have already triggered a refresh,
+        # but we call it here to be sure, with reload_html=True
         # because the user actually changed the theme.
         self.refresh_application_theme(reload_html=True)
 
     def setSvg(self, widget, name):
         # Get theme color for icons
         theme_color = self.load_theme_color("header_text")
-        return widget.setSvg(join(self.iconpath, "dictsvgs", name + ".svg"), theme_color.name())
+        return widget.setSvg(
+            join(self.iconpath, "dictsvgs", name + ".svg"), theme_color.name()
+        )
 
     def setAllIcons(self):
         self.setSvg(self.setB, "settings")
@@ -2851,12 +2864,14 @@ class SVGPushButton(QPushButton):
             with open(svgPath, "r", encoding="utf-8") as f:
                 svg_data = f.read()
                 svg_data = svg_data.replace('fill="currentColor"', f'fill="{color}"')
-                svg_data = svg_data.replace('stroke="currentColor"', f'stroke="{color}"')
+                svg_data = svg_data.replace(
+                    'stroke="currentColor"', f'stroke="{color}"'
+                )
                 svg_data = svg_data.replace('fill="{header_text}"', f'fill="{color}"')
-                
+
                 # If neither is found, try to force a fill on paths
                 if 'fill="' not in svg_data:
-                    svg_data = svg_data.replace('<path ', f'<path fill="{color}" ')
+                    svg_data = svg_data.replace("<path ", f'<path fill="{color}" ')
 
             self.svgWidget = QSvgWidget()
             self.svgWidget.load(svg_data.encode("utf-8"))
