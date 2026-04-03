@@ -2061,23 +2061,22 @@ class DictInterface(QWidget):
                     min-width: 200px;
                     display: inline-block;
                 }}
-                .fieldCheckboxes {{
+                .fieldCheckboxes, .overwriteCheckboxes {{
                     position: absolute;
                     top: 100%;
                     left: 0;
                     right: 0;
                     background-color: {active_theme_dict['header_background']};
                     border: 1px solid {active_theme_dict['border']};
-                    border-top: none;
                     border-radius: 0 0 6px 6px;
                     display: none;
                     z-index: 1000;
                     min-width: 250px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
                     overflow: hidden;
                     flex-direction: column;
                 }}
-                .fieldCheckboxes.open {{
+                .fieldCheckboxes.open, .overwriteCheckboxes.open {{
                     display: flex;
                 }}
                 .fieldSearchInput {{

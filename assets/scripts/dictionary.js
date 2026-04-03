@@ -1046,20 +1046,59 @@ function handleAddTypeCheck(radio) {
  */
 function showCheckboxes(event) {
     try {
+        event.stopPropagation();
         const target = event.target;
-        const container = target.parentElement;
+        const container = target.closest('.fieldSelectCont, .overwriteSelectCont');
+        if (!container) return;
+        
         const checkboxContainer = container.querySelector('.fieldCheckboxes, .overwriteCheckboxes');
         
         if (checkboxContainer) {
-            if (checkboxContainer.style.display === 'none' || !checkboxContainer.style.display) {
-                checkboxContainer.style.display = 'block';
-            } else {
-                checkboxContainer.style.display = 'none';
+            const isVisible = checkboxContainer.style.display === 'flex';
+            
+            // Close all other dropdowns first
+            document.querySelectorAll('.fieldCheckboxes, .overwriteCheckboxes').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            if (!isVisible) {
+                checkboxContainer.style.display = 'flex';
             }
         }
     } catch (error) {
         console.error('Error in showCheckboxes:', error);
     }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.fieldSelectCont') && !event.target.closest('.overwriteSelectCont')) {
+        document.querySelectorAll('.fieldCheckboxes, .overwriteCheckboxes').forEach(el => {
+            el.style.display = 'none';
+        });
+    }
+});
+
+function handleFieldCheckbox(checkbox) {
+    const container = checkbox.closest('.fieldCheckboxes');
+    if (!container) return;
+    const dictName = container.getAttribute('data-dictname');
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const selectedFields = [];
+    checkboxes.forEach(cb => { if (cb.checked) selectedFields.push(cb.value); });
+    
+    // Update the UI count
+    const selectDiv = container.previousElementSibling;
+    if (selectDiv && selectDiv.classList.contains('fieldSelect')) {
+        const count = selectedFields.length;
+        if (count > 0) {
+            selectDiv.innerHTML = '&nbsp;' + count + ' Selected';
+        } else {
+            selectDiv.innerHTML = '&nbsp;Select Fields ▾';
+        }
+    }
+    
+    pycmd('fieldsSetting:' + JSON.stringify({ dictName, fields: selectedFields }));
 }
 
 /**
@@ -1136,16 +1175,6 @@ function openSidebar() {
     } catch (error) {
         console.error('Error in openSidebar:', error);
     }
-}
-
-function handleFieldCheckbox(checkbox) {
-    const container = checkbox.closest('.fieldCheckboxes');
-    if (!container) return;
-    const dictName = container.getAttribute('data-dictname');
-    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-    const selectedFields = [];
-    checkboxes.forEach(cb => { if (cb.checked) selectedFields.push(cb.value); });
-    pycmd('fieldsSetting:' + JSON.stringify({ dictName, fields: selectedFields }));
 }
 
 function filterFieldOptions(input) {
