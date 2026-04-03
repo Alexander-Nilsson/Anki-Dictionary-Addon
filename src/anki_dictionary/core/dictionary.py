@@ -36,6 +36,7 @@ except ImportError:
 
 from ..utils.history import HistoryBrowser, HistoryModel
 from aqt.editor import Editor
+from aqt.operations.note import update_note
 from ..exporters.card_exporter import CardExporter
 import time
 from . import database as dictdb
@@ -478,7 +479,7 @@ class MIDict(AnkiWebView):
                             + select
                             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
                             '<div class="definitionBlock"><i>Loading LLM definition...</i></div>'
-                            '</div>'
+                            "</div>"
                         )
                     dictCount += 1
                     entryCount += 1
@@ -675,7 +676,7 @@ class MIDict(AnkiWebView):
         )
 
         html += (
-            '<div'
+            "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
@@ -757,7 +758,7 @@ class MIDict(AnkiWebView):
         )
 
         html += (
-            '<div'
+            "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
@@ -769,7 +770,6 @@ class MIDict(AnkiWebView):
             + "</div>"
         )
         return html
-
 
     def showLLMError(self, error_msg):
         """Show LLM error in the UI."""
@@ -1117,7 +1117,7 @@ class MIDict(AnkiWebView):
             else:
                 tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.reviewer.card.note()
-            model = note.model()
+            model = note.note_type()
             fields = model["flds"]
             changed = False
             for field in fields:
@@ -1137,8 +1137,7 @@ class MIDict(AnkiWebView):
                             note[field["name"]] = newField
             if not changed:
                 return
-            # note.flush()
-            self.dictInt.mw.col.update_note(note, skip_undo_entry=True)
+            update_note(parent=self.dictInt.mw, note=note).run_in_background()
             # self.reviewer.card.load()
             # self.reviewer.
             if self.reviewer.state == "answer":
@@ -1184,7 +1183,7 @@ class MIDict(AnkiWebView):
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = " title=\"This determines the conditions for sending a definition (or a Google Image) to a field. Overwrite the target field's content. Add to the target field's current contents. Only add definitions to the target field if it is empty.\""
-        
+
         typeName = "&nbsp;Add"  # Default
         if addType == "overwrite":
             typeName = "&nbsp;Overwrite"
@@ -1263,7 +1262,7 @@ class MIDict(AnkiWebView):
             selF = []  # Default for LLM
         else:
             selF = self.db.getFieldsSetting(dictName) or []
-        
+
         tooltip = ""
         if self.config["tooltips"]:
             tooltip = ' title="Select this dictionary\'s target fields for when sending a definition(or a Google Image) to a card. If a field does not exist in the target card, then it is ignored, otherwise the definition is added to all fields that exist within the target card."'
@@ -1284,21 +1283,28 @@ class MIDict(AnkiWebView):
 
     def getCheckBoxes(self, dictName, selF):
         fields = self.getFieldNames()
-        options = '<div class="fieldCheckboxes"  data-dictname="' + dictName + '">'
+        # Create a custom searchable dropdown with checkboxes
+        options = (
+            '<div class="fieldCheckboxes" data-dictname="' + dictName + '">'
+            '<input type="text" class="fieldSearchInput" placeholder="Search fields..." '
+            'onclick="event.stopPropagation()" onkeyup="filterFieldOptions(this)" />'
+            '<div class="fieldOptionsContainer">'
+        )
         for f in fields:
             checked = ""
             if f in selF:
                 checked = " checked"
             options += (
-                '<label class="inCheckBox"><input'
+                '<label class="fieldCheckboxLabel"><input type="checkbox"'
                 + checked
-                + ' onclick="handleFieldCheck(this)" class="inCheckBox" type="checkbox" value="'
+                + ' class="fieldCheckbox" onchange="handleFieldCheckbox(this)" value="'
                 + f
-                + '" />'
+                + '" /><span>'
                 + f
-                + "</label>"
+                + "</span></label>"
             )
-        return options + "</div>"
+        options += "</div></div>"
+        return options
 
     def getFieldNames(self):
         mw = self.dictInt.mw
@@ -1657,7 +1663,7 @@ class DictInterface(QWidget):
 
         self.startUp(terms)
         self.setHotkeys()
-        self.threadpool = QThreadPool() # Initialize QThreadPool
+        self.threadpool = QThreadPool()  # Initialize QThreadPool
         ensureWidgetInScreenBoundaries(self)
 
     def load_theme_color(self, color_key):
@@ -1681,7 +1687,7 @@ class DictInterface(QWidget):
         for child in widget.findChildren(QWidget):
             self.refresh_widget(child)
 
-    def refresh_application_theme(self):
+    def refresh_application_theme(self, reload_html=True):
         """
         Refresh the application theme by updating styles and re-rendering components.
         """
@@ -1701,9 +1707,14 @@ class DictInterface(QWidget):
         # Update the stylesheet for child widgets (e.g., combo boxes, buttons, etc.)
         self.update_child_widget_styles()
 
-        # Simple reload - just reload the dictionary interface completely
-        html, url = self.getHTMLURL(False)
-        self.dict.setHtml(html, url)
+        # Update all SVG icons with the theme color
+        self.setAllIcons()
+
+        if reload_html:
+            # Simple reload - just reload the dictionary interface completely
+            # We assume it's not a search load here, just a theme refresh
+            html, url = self.getHTMLURL(False)
+            self.dict.loadHTMLURL(html, url)
 
         # Update the history browser colors if it exists
         if hasattr(self, "historyBrowser") and self.historyBrowser:
@@ -1717,9 +1728,40 @@ class DictInterface(QWidget):
         self.dictGroups.setStyleSheet(self.theme_manager.get_combo_style())
         self.sType.setStyleSheet(self.theme_manager.get_combo_style())
 
+        # Update search bar style
+        active_theme = self.theme_manager.get_active_theme()
+        search_style = f"""
+            QLineEdit {{
+                color: {active_theme.header_text};
+                background: {active_theme.header_background};
+                border: 1.5px solid {active_theme.border};
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-weight: 500;
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {active_theme.search_term};
+            }}
+        """
+        self.search.setStyleSheet(search_style)
+
         # Update button styles
         for button in self.findChildren(QPushButton):
-            button.setStyleSheet(self.theme_manager.get_qt_styles())
+            if not isinstance(button, SVGPushButton):
+                button.setStyleSheet(self.theme_manager.get_qt_styles())
+
+        # Update QFrame spacers
+        for frame in self.findChildren(QFrame):
+            if (
+                frame.frameShape() == QFrame.Shape.VLine
+                or frame.frameShape() == QFrame.Shape.HLine
+            ):
+                # Use a translucent version of the border color for the spacer
+                border_color = self.load_theme_color("border")
+                r = border_color.red()
+                g = border_color.green()
+                b = border_color.blue()
+                frame.setStyleSheet(f"background-color: rgba({r}, {g}, {b}, 50);")
 
     def getPalette(self, color):
         pal = QPalette()
@@ -1885,39 +1927,42 @@ class DictInterface(QWidget):
 
         qss = f"""
                     QWidget {{
-                        background-color: {active_theme_dict["definition_background"]};
+                        background-color: {active_theme_dict["header_background"]};
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 14px;
                     }}
                     QPushButton {{
                         color: {active_theme_dict['header_text']};
-                        border: 1px solid {active_theme_dict['border']};
-                        border-radius: 5px;
+                        border: 1.5px solid {active_theme_dict['border']};
+                        border-radius: 6px;
                         padding: 8px;
+                        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                            stop: 0 {active_theme_dict['current_tab_gradient_top']},
+                            stop: 1 {active_theme_dict['current_tab_gradient_bottom']});
                     }}
                     QPushButton:hover {{
-                        border: 2px solid {active_theme_dict['border']};
+                        border: 2px solid {active_theme_dict['search_term']};
+                        background: {active_theme_dict['tab_hover']};
                     }}
                     QLineEdit, QComboBox {{
-                        background-color: {active_theme_dict['selector']};
-                        color: {active_theme_dict['search_term']};
-                        border: 1px solid {active_theme_dict['border']};
-                        border-radius: 5px;
-                        padding: 8px;
+                        background-color: {active_theme_dict['header_background']};
+                        color: {active_theme_dict['header_text']};
+                        border: 1.5px solid {active_theme_dict['border']};
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                    }}
+                    QLineEdit:focus {{
+                        border: 2px solid {active_theme_dict['search_term']};
                     }}
                     QLabel {{
+                        color: {active_theme_dict['header_text']};
                         font-weight: bold;
-                        border: 1px solid {active_theme_dict['border']};
                     }}
                     QComboBox QAbstractItemView {{
+                        background-color: {active_theme_dict['header_background']};
                         color: {active_theme_dict['header_text']};
                         border: 1px solid {active_theme_dict['border']};
-                    }}
-                    
-                    SVGPushButton{{
-                        background-color: {active_theme_dict['selector']};
-                        color: {active_theme_dict['header_text']}
-                        border: 1px solid {active_theme_dict['border']};
+                        selection-background-color: {active_theme_dict['search_term']};
                     }}
                 """
         self.setStyleSheet(qss)
@@ -1925,13 +1970,19 @@ class DictInterface(QWidget):
             <style id="customThemeCss">
                 :root {{
                     --background: {active_theme_dict['header_background']};
+                    --selector: {active_theme_dict['selector']};
                     --background-secondary: {active_theme_dict['selector']};
                     --text: {active_theme_dict['header_text']};
+                    --header_text: {active_theme_dict['header_text']};
                     --text-secondary: {active_theme_dict['search_term']};
+                    --search_term: {active_theme_dict['search_term']};
                     --border: {active_theme_dict['border']};
                     --button-bg: {active_theme_dict['anki_button_background']};
                     --button-text: {active_theme_dict['anki_button_text']};
                     --button-bg-hover: {active_theme_dict['tab_hover']};
+                    --tab_hover: {active_theme_dict['tab_hover']};
+                    --definition_background: {active_theme_dict['definition_background']};
+                    --definition_text: {active_theme_dict['definition_text']};
                 }}
                 body {{
                     background-color: {active_theme_dict['header_background']};
@@ -1955,31 +2006,43 @@ class DictInterface(QWidget):
                     background-color: {active_theme_dict['definition_background']};
                     color: {active_theme_dict['definition_text']};
                     border: 1px solid {active_theme_dict['border']};
-                    border-radius: 5px;
+                    border-radius: 8px;
                     padding: 15px;
                     margin: 10px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                 }}
                 .altterm {{
                     color: {active_theme_dict['pitch_accent_color']};
                 }}
                 .ankiExportButton {{
-                    border: 1px solid {active_theme_dict['border']};
-                    border-radius: 5px;
-                    padding: 5px;
+                    border: 1.5px solid {active_theme_dict['border']};
+                    border-radius: 6px;
+                    padding: 6px;
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                        stop: 0 {active_theme_dict['current_tab_gradient_top']},
+                        stop: 1 {active_theme_dict['current_tab_gradient_bottom']});
+                    transition: all 0.2s;
+                }}
+                .ankiExportButton:hover {{
+                    border-color: {active_theme_dict['search_term']};
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }}
                 .ankiExportButton img {{
-                    background-color: {active_theme_dict['anki_button_background']};
+                    height: 28px !important;
+                    width: 28px !important;
                 }}
                 .tablinks {{
                     border: 1px solid {active_theme_dict['border']};
-                    border-radius: 5px 5px 0 0;
+                    border-radius: 6px 6px 0 0;
+                    margin-right: 2px;
                 }}
                 .tablinks.active {{
                     background-image: linear-gradient(
                         {active_theme_dict['current_tab_gradient_top']},
                         {active_theme_dict['current_tab_gradient_bottom']}
                     );
-                    border-bottom: none;
+                    border-bottom: 2px solid {active_theme_dict['search_term']};
                 }}
                 .tablinks:hover {{
                     background-color: {active_theme_dict['tab_hover']};
@@ -1987,8 +2050,79 @@ class DictInterface(QWidget):
                 .overwriteSelect, .fieldSelect {{
                     background-color: {active_theme_dict['selector']};
                     border: 1px solid {active_theme_dict['border']};
-                    border-radius: 5px;
-                    padding: 5px;            }}
+                    border-radius: 6px;
+                    padding: 5px 10px;
+                    font-size: inherit;
+                    cursor: pointer;
+                }}
+                .fieldSelectCont {{
+                    position: relative;
+                    min-width: 200px;
+                    display: inline-block;
+                }}
+                .fieldCheckboxes {{
+                    position: absolute;
+                    top: 100%;
+                    left: 0;
+                    right: 0;
+                    background-color: {active_theme_dict['header_background']};
+                    border: 1px solid {active_theme_dict['border']};
+                    border-top: none;
+                    border-radius: 0 0 6px 6px;
+                    display: none;
+                    z-index: 1000;
+                    min-width: 250px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    overflow: hidden;
+                    flex-direction: column;
+                }}
+                .fieldCheckboxes.open {{
+                    display: flex;
+                }}
+                .fieldSearchInput {{
+                    width: 100%;
+                    padding: 8px 10px;
+                    border: none;
+                    border-bottom: 1px solid {active_theme_dict['border']};
+                    background-color: {active_theme_dict['selector']};
+                    color: {active_theme_dict['header_text']};
+                    box-sizing: border-box;
+                    font-size: inherit;
+                    outline: none;
+                    flex-shrink: 0;
+                }}
+                .fieldSearchInput::placeholder {{
+                    color: {active_theme_dict['header_text']};
+                    opacity: 0.6;
+                }}
+                .fieldOptionsContainer {{
+                    max-height: 250px;
+                    overflow-y: auto;
+                    padding: 5px 0;
+                    flex: 1;
+                    min-height: 0;
+                }}
+                .fieldCheckboxLabel {{
+                    display: flex;
+                    align-items: center;
+                    padding: 8px 10px;
+                    cursor: pointer;
+                    color: {active_theme_dict['header_text']};
+                    white-space: nowrap;
+                    user-select: none;
+                }}
+                .fieldCheckboxLabel:hover {{
+                    background-color: {active_theme_dict['tab_hover']};
+                }}
+                .fieldCheckboxLabel input[type="checkbox"] {{
+                    margin-right: 8px;
+                    cursor: pointer;
+                }}
+                .fieldCheckboxLabel span {{
+                    flex: 1;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }}
         </style>
         """
 
@@ -1999,12 +2133,19 @@ class DictInterface(QWidget):
         with open(js_path, "r", encoding="utf-8") as js_file:
             js_content = js_file.read()
 
+        # Get saved font sizes from config, default to [12, 22]
+        font_sizes = self.config.get("fontSizes", [12, 22])
+        fefs = font_sizes[0] if len(font_sizes) > 0 else 12
+        dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
+
         with open(html_path, "r", encoding="utf-8") as fh:
             html = fh.read()
+            # Inject font size variables before the main script
+            font_size_init = f"<script>var fefs = {fefs}, dbfs = {dbfs};</script>"
             # Replace the external script tag with inline JavaScript
             html = html.replace(
                 '<script src="../scripts/dictionary.js"></script>',
-                f"<script>{js_content}</script>",
+                f"{font_size_init}<script>{js_content}</script>",
             )
             # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
@@ -2163,86 +2304,98 @@ class DictInterface(QWidget):
 
     def setupView(self):
         layoutV = QVBoxLayout()
-        layoutH = QHBoxLayout()
 
-        self.toolbarTopLayout = layoutH
+        # Unified Toolbar
+        toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(10, 10, 10, 10)
+        toolbar.setSpacing(8)
 
-        layoutH.addWidget(self.dictGroups)
-        layoutH.addWidget(self.sType)
-        layoutH.addWidget(self.search)
-        layoutH.addWidget(self.searchButton)
+        # Left side: Combo boxes and Search
+        toolbar.addWidget(self.dictGroups)
+        toolbar.addWidget(self.sType)
+        toolbar.addWidget(self.search)
 
-        if not is_win:
-            self.dictGroups.setFixedSize(120, 40)
-            self.search.setFixedSize(120, 40)
-            self.sType.setFixedSize(100, 40)
-        else:
-            self.sType.setFixedHeight(40)
-            self.dictGroups.setFixedSize(120, 40)
-            self.search.setFixedSize(120, 40)
+        # Action buttons
+        toolbar.addWidget(self.searchButton)
+        toolbar.addWidget(self.openSB)
 
-        layoutH.setContentsMargins(5, 5, 5, 5)
-        layoutH.setSpacing(10)
+        # Divider
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        toolbar.addWidget(line)
 
-        self.layoutH2.addWidget(self.openSB)
-        self.layoutH2.addWidget(self.minusB)
-        self.layoutH2.addWidget(self.plusB)
-        self.layoutH2.addWidget(self.tabB)
-        self.layoutH2.addWidget(self.histB)
-        self.layoutH2.addWidget(self.conjToggler)
-        self.layoutH2.addWidget(self.themeSettings)
-        self.layoutH2.addWidget(self.setB)
+        # Utility buttons
+        toolbar.addWidget(self.minusB)
+        toolbar.addWidget(self.plusB)
+        toolbar.addWidget(self.tabB)
+        toolbar.addWidget(self.histB)
+        toolbar.addWidget(self.conjToggler)
+        toolbar.addWidget(self.themeSettings)
+        toolbar.addWidget(self.setB)
 
-        self.targetLabel.setFixedHeight(40)
-        self.layoutH2.addWidget(self.targetLabel)
-        self.currentTarget.setFixedHeight(40)
-        self.layoutH2.addWidget(self.currentTarget)
+        # Target Info (if enabled)
+        if self.config["showTarget"]:
+            toolbar.addSpacing(10)
+            self.targetLabel.setStyleSheet("font-weight: bold; opacity: 0.7;")
+            toolbar.addWidget(self.targetLabel)
+            self.currentTarget.setStyleSheet("font-weight: medium;")
+            toolbar.addWidget(self.currentTarget)
 
-        if not self.config["showTarget"]:
-            self.currentTarget.hide()
-            self.targetLabel.hide()
+        toolbar.addStretch()
 
-        self.layoutH2.addStretch()
-        self.layoutH2.setContentsMargins(5, 5, 5, 5)
-        self.layoutH2.setSpacing(10)
-        self.mainHLay.setContentsMargins(0, 0, 0, 0)
-        self.mainHLay.addLayout(layoutH)
-        self.mainHLay.addLayout(self.layoutH2)
-        self.mainHLay.addStretch()
+        # Fixed sizes for header elements
+        header_height = 36
+        for widget in [self.dictGroups, self.sType, self.search]:
+            widget.setFixedHeight(header_height)
 
-        layoutV.addLayout(self.mainHLay)
+        self.dictGroups.setFixedWidth(120)
+        self.sType.setFixedWidth(100)
+        self.search.setMinimumWidth(100)
+        self.search.setMaximumWidth(250)
+
+        # Set fixed size for all toolbar buttons
+        btn_size = 36
+        for btn in [
+            self.searchButton,
+            self.openSB,
+            self.minusB,
+            self.plusB,
+            self.tabB,
+            self.histB,
+            self.conjToggler,
+            self.themeSettings,
+            self.setB,
+        ]:
+            btn.setFixedSize(btn_size, btn_size)
+
+        layoutV.addLayout(toolbar)
+
+        # Content Area
         layoutV.addWidget(self.dict)
+
         layoutV.setContentsMargins(0, 0, 0, 0)
-        layoutV.setSpacing(5)
+        layoutV.setSpacing(0)
 
         return layoutV
 
     def toggleMenuBar(self, vertical):
-        if vertical:
-            self.mainHLay.removeItem(self.layoutH2)
-            self.mainLayout.insertLayout(1, self.layoutH2)
-        else:
-            self.mainLayout.removeItem(self.layoutH2)
-            self.mainHLay.insertLayout(1, self.layoutH2)
+        # We've improved the layout to be multi-line by default,
+        # so we can simplify or remove the responsive toggle if it causes issues.
+        pass
 
     def resizeEvent(self, event):
-        w = self.width()
-        if w < 702 and not self.verticalBar:
-            self.verticalBar = True
-            self.toggleMenuBar(True)
-        elif w > 701 and self.verticalBar:
-            self.verticalBar = False
-            self.toggleMenuBar(False)
+        # Simplified resize event
         event.accept()
 
     def setupSearchButton(self):
-        searchB = SVGPushButton(40, 40)
+        searchB = SVGPushButton(36, 36)
         self.setSvg(searchB, "search")
         searchB.clicked.connect(self.initSearch)
         return searchB
 
     def setupOpenSB(self):
-        openSB = SVGPushButton(40, 40)
+        openSB = SVGPushButton(36, 36)
         self.setSvg(openSB, "sidebaropen")
         openSB.clicked.connect(self.toggleSB)
         return openSB
@@ -2257,7 +2410,7 @@ class DictInterface(QWidget):
         self.dict.eval("openSidebar()")
 
     def setupTabMode(self):
-        TabMode = SVGPushButton(40, 40)
+        TabMode = SVGPushButton(36, 36)
         if self.config["onetab"]:
             TabMode.singleTab = True
             icon = "onetab"
@@ -2286,7 +2439,7 @@ class DictInterface(QWidget):
             traceback.print_exc()
 
     def setupConjugationMode(self):
-        conjugationMode = SVGPushButton(40, 40)
+        conjugationMode = SVGPushButton(36, 36)
         if self.config["deinflect"]:
             self.dict.deinflect = True
             icon = "conjugation"
@@ -2298,7 +2451,7 @@ class DictInterface(QWidget):
         return conjugationMode
 
     def setupOpenHistory(self):
-        history = SVGPushButton(40, 40)
+        history = SVGPushButton(36, 36)
         self.setSvg(history, "history")
         history.clicked.connect(self.openHistory)
         return history
@@ -2320,13 +2473,17 @@ class DictInterface(QWidget):
 
     def setTheme(self):
         self.theme_editor.exec()
-        self.refresh_application_theme()
+        # The theme editor might have already triggered a refresh,
+        # but we call it here to be sure, with reload_html=True
+        # because the user actually changed the theme.
+        self.refresh_application_theme(reload_html=True)
 
     def setSvg(self, widget, name):
-        # if self.nightModeToggler.day:
-        #     return widget.setSvg(join(self.iconpath, 'dictsvgs', name + 'day.svg'))
-        # return widget.setSvg(join(self.iconpath, 'dictsvgs', name + 'night.svg'))
-        return widget.setSvg(join(self.iconpath, "dictsvgs", name + ".svg"))
+        # Get theme color for icons
+        theme_color = self.load_theme_color("header_text")
+        return widget.setSvg(
+            join(self.iconpath, "dictsvgs", name + ".svg"), theme_color.name()
+        )
 
     def setAllIcons(self):
         self.setSvg(self.setB, "settings")
@@ -2355,16 +2512,15 @@ class DictInterface(QWidget):
         return "tabs"
 
     def setupThemes(self):
-        themeButton = SVGPushButton(40, 40)
+        themeButton = SVGPushButton(36, 36)
         # nightToggle.day = self.config['day']
         # themeButton.applied.connect(self.refresh_application_theme)
         self.setSvg(themeButton, "themesettings")
         themeButton.clicked.connect(self.setTheme)
-        themeButton.clicked.connect(self.refresh_application_theme)
         return themeButton
 
     def setupOpenSettings(self):
-        settings = SVGPushButton(40, 40)
+        settings = SVGPushButton(36, 36)
         self.setSvg(settings, "settings")
         settings.clicked.connect(self.openDictionarySettings)
         return settings
@@ -2382,13 +2538,13 @@ class DictInterface(QWidget):
         self.mw.dictSettings.activateWindow()
 
     def setupPlus(self):
-        plusB = SVGPushButton(40, 40)
+        plusB = SVGPushButton(36, 36)
         self.setSvg(plusB, "plus")
         plusB.clicked.connect(self.incFont)
         return plusB
 
     def setupMinus(self):
-        minusB = SVGPushButton(40, 40)
+        minusB = SVGPushButton(36, 36)
         self.setSvg(minusB, "minus")
         minusB.clicked.connect(self.decFont)
         return minusB
@@ -2691,21 +2847,35 @@ class DictSVG(QSvgWidget):
 class SVGPushButton(QPushButton):
     def __init__(self, width, height):
         super().__init__()
-        self.setFixedSize(width, height)  # Set the fixed size of the button
+        self.setFixedSize(width, height)
         self.layout = QHBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setContentsMargins(6, 6, 6, 6)
         self.layout.setSpacing(0)
-        self.svgWidget = None  # Placeholder for the SVG widget
+        self.svgWidget = None
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def setSvg(self, svgPath):
-        # Remove the existing SVG widget if it exists
+    def setSvg(self, svgPath, color="#ffffff"):
         if self.svgWidget:
             self.layout.removeWidget(self.svgWidget)
             self.svgWidget.deleteLater()
 
-        # Create a new SVG widget and add it to the layout
-        self.svgWidget = QSvgWidget(svgPath)
-        self.svgWidget.setFixedSize(
-            self.width(), self.height()
-        )  # Match the button's size
-        self.layout.addWidget(self.svgWidget)
+        # Read SVG file and replace color placeholders with the theme color
+        try:
+            with open(svgPath, "r", encoding="utf-8") as f:
+                svg_data = f.read()
+                svg_data = svg_data.replace('fill="currentColor"', f'fill="{color}"')
+                svg_data = svg_data.replace(
+                    'stroke="currentColor"', f'stroke="{color}"'
+                )
+                svg_data = svg_data.replace('fill="{header_text}"', f'fill="{color}"')
+
+                # If neither is found, try to force a fill on paths
+                if 'fill="' not in svg_data:
+                    svg_data = svg_data.replace("<path ", f'<path fill="{color}" ')
+
+            self.svgWidget = QSvgWidget()
+            self.svgWidget.load(svg_data.encode("utf-8"))
+            self.svgWidget.setFixedSize(self.width() - 12, self.height() - 12)
+            self.layout.addWidget(self.svgWidget, 0, Qt.AlignmentFlag.AlignCenter)
+        except Exception as e:
+            print(f"Error loading SVG {svgPath}: {e}")
