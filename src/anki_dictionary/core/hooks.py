@@ -166,7 +166,6 @@ def addHotkeysToPreview(self):
     pass
 
 
-
 def addEditorFunctionality(self):
     """Add functionality to editor."""
     self.web.parentEditor = self
@@ -237,26 +236,43 @@ def setup_hooks():
 def setup_gui_menu():
     """Setup GUI menu items."""
     print("--- Anki Dictionary: Setting up GUI menu ---")
-    
+
     # Defer imports of main_window functions to avoid circularity during initialization
     def trigger_dictionary_init(terms=False):
         print("Action triggered: Opening Dictionary")
         from ..ui.main_window import dictionaryInit
+
         dictionaryInit(terms)
-        
+
     def trigger_open_settings():
         print("Action triggered: Opening Settings")
         from ..ui.main_window import openDictionarySettings
+
         openDictionarySettings()
-        
+
     def trigger_search_term():
         print("Action triggered: Search Term")
         from ..ui.main_window import searchTerm
+
+        # Check if dictionary window is focused and visible
+        if mw.ankiDictionary and mw.ankiDictionary.isVisible():
+            # Check if the dictionary window or its children have focus
+            focused_widget = mw.app.focusWidget()
+            if focused_widget and (
+                focused_widget == mw.ankiDictionary.dict
+                or mw.ankiDictionary.isAncestorOf(focused_widget)
+            ):
+                # Search within the dictionary
+                searchTerm(mw.ankiDictionary.dict)
+                return
+
+        # Otherwise search from the main Anki window
         searchTerm(mw.web)
-        
+
     def trigger_search_col():
         print("Action triggered: Search Collection")
         from ..ui.main_window import searchCol
+
         searchCol(mw.web)
 
     # Use a more stable location for the menu to avoid issues with standard shortcuts
@@ -273,7 +289,7 @@ def setup_gui_menu():
     setting_action = QAction("Settings...", mw)
     setting_action.triggered.connect(trigger_open_settings)
     mw.DictMainMenu.addAction(setting_action)
-    
+
     mw.DictMainMenu.addSeparator()
 
     # Open Dictionary Action with Shortcut
@@ -283,14 +299,11 @@ def setup_gui_menu():
     open_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
     open_action.triggered.connect(lambda: trigger_dictionary_init())
     mw.DictMainMenu.addAction(open_action)
-    
+
     # Store actions on mw to prevent garbage collection
     # Also set legacy openMiDict attribute for toggle functionality in main_window.py
     mw.openMiDict = open_action
-    mw.dict_actions = {
-        "settings": setting_action,
-        "open": open_action
-    }
+    mw.dict_actions = {"settings": setting_action, "open": open_action}
 
     # Search Actions
     search_term_action = QAction("Search Selected Term", mw)
@@ -308,7 +321,3 @@ def setup_gui_menu():
     mw.dict_actions["search_col"] = search_col_action
 
     print("Menu setup completed with shortcuts: Ctrl+W, Ctrl+S, Ctrl+Shift+B")
-
-
-
-

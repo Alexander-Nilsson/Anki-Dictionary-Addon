@@ -298,20 +298,37 @@ class ThemeManager:
             QLineEdit {{
                 color: {theme.header_text}; 
                 background: {theme.header_background};
+                border: 1.5px solid {theme.border};
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-weight: 500;
+            }}
+            QLineEdit:focus {{
+                border: 1.5px solid {theme.search_term};
+                outline: none;
             }}
             QPushButton {{
-                border: 1px solid {theme.border};
-                border-radius: 5px;
+                border: 1.5px solid {theme.border};
+                border-radius: 6px;
                 color: {theme.anki_button_text};
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 {theme.current_tab_gradient_top},
                     stop: 1 {theme.current_tab_gradient_bottom});
+                padding: 5px 12px;
+                font-weight: 500;
             }}
             QPushButton:hover {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 {theme.current_tab_gradient_top},
                     stop: 1 {theme.current_tab_gradient_bottom});
-                border: 1px solid {theme.border};
+                border: 1.5px solid {theme.search_term};
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }}
+            QPushButton:pressed {{
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {theme.current_tab_gradient_bottom},
+                    stop: 1 {theme.current_tab_gradient_top});
+                border: 1.5px solid {theme.border};
             }}
             """
         else:
@@ -322,14 +339,24 @@ class ThemeManager:
             QLineEdit {{
                 color: {theme.header_text};
                 background: {theme.header_background};
+                border: 1.5px solid {theme.border};
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-weight: 500;
+            }}
+            QLineEdit:focus {{
+                border: 1.5px solid {theme.search_term};
+                outline: none;
             }}
             QPushButton {{
-                border: 1px solid {theme.border};
-                border-radius: 5px;
+                border: 1.5px solid {theme.border};
+                border-radius: 6px;
                 color: {theme.anki_button_text};
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 {theme.current_tab_gradient_top},
                     stop: 1 {theme.current_tab_gradient_bottom});
+                padding: 5px 12px;
+                font-weight: 500;
             }}
             """
 
@@ -351,15 +378,34 @@ class ThemeManager:
         return f"""
         QComboBox {{
             color: {theme.header_text};
-            border-radius: 3px;
-            border: 1px solid {theme.border};
+            border-radius: 6px;
+            border: 1.5px solid {theme.border};
             background: {theme.header_background};
+            padding: 4px 8px;
+            font-weight: 500;
         }}
         QComboBox:hover {{
-            border: 1px solid {theme.border};
+            border: 1.5px solid {theme.search_term};
+            background: {theme.selector};
+        }}
+        QComboBox:focus {{
+            border: 1.5px solid {theme.search_term};
+            outline: none;
         }}
         QComboBox::drop-down {{
             border: none;
             background: {theme.selector};
+            width: 20px;
+        }}
+        QComboBox::down-arrow {{
+            image: none;
+            border: none;
+        }}
+        QComboBox QAbstractItemView {{
+            border: 1px solid {theme.border};
+            background: {theme.header_background};
+            color: {theme.header_text};
+            selection-background-color: {theme.search_term};
+            outline: none;
         }}
         """
