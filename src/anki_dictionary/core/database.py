@@ -740,7 +740,7 @@ class DictDB:
             return None
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT fields, addtype FROM dictnames WHERE dictname=?", (dictName,)
+            "SELECT fields, addtype FROM dictnames WHERE dictname=? COLLATE NOCASE", (dictName,)
         )
         try:
             result = cursor.fetchone()

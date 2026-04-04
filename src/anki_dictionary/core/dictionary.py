@@ -831,12 +831,16 @@ class MIDict(AnkiWebView):
             fields = json.loads(dAct[14:])
             if fields["dictName"] == "Images":
                 self.dictInt.writeConfig("ImageFields", fields["fields"])
+            elif fields["dictName"] == "LLM API":
+                self.dictInt.writeConfig("LLMFields", fields["fields"])
             else:
                 self.dictInt.updateFieldsSetting(fields["dictName"], fields["fields"])
         elif dAct.startswith("overwriteSetting:"):
             addType = json.loads(dAct[17:])
             if addType["name"] == "Images":
                 self.dictInt.writeConfig("ImageAddType", addType["type"])
+            elif addType["name"] == "LLM API":
+                self.dictInt.writeConfig("LLMAddType", addType["type"])
             else:
                 self.dictInt.updateAddType(addType["name"], addType["type"])
         elif dAct.startswith("clipped:"):
@@ -1111,18 +1115,43 @@ class MIDict(AnkiWebView):
             )
 
     def sendToField(self, name: str, definition: str) -> None:
+        display_name = name.replace("_", " ")
+        if not (self.reviewer and self.reviewer.card) and not (
+            self.currentEditor and self.currentEditor.note
+        ):
+            tooltip(
+                "No active reviewer or editor found. Please open a card to send definitions to a field."
+            )
+            return
+
+        if name == "Images":
+            tFields = self.config.get("ImageFields", [])
+            addType = self.config.get("ImageAddType", "add")
+        elif name == "LLM API":
+            tFields = self.config.get("LLMFields", [])
+            addType = self.config.get("LLMAddType", "add")
+        else:
+            res = self.db.getAddTypeAndFields(name)
+            if not res:
+                tooltip(f"Configuration for '{display_name}' not found.")
+                return
+            tFields, addType = res
+
+        if not tFields:
+            tooltip(
+                f"No fields selected for '{display_name}'. Please select at least one field in the dictionary settings."
+            )
+            return
+
+        found_field = False
         if self.reviewer and self.reviewer.card:
-            if name == "Images":
-                tFields = self.config["ImageFields"]
-                addType = self.config["ImageAddType"]
-            else:
-                tFields, addType = self.db.getAddTypeAndFields(name)
             note = self.reviewer.card.note()
             model = note.note_type()
             fields = model["flds"]
             changed = False
             for field in fields:
                 if field["name"] in tFields:
+                    found_field = True
                     newField = self.getFieldContent(
                         note[field["name"]], definition, addType
                     )
@@ -1136,33 +1165,35 @@ class MIDict(AnkiWebView):
                             )
                         else:
                             note[field["name"]] = newField
-            if not changed:
+            if not found_field:
+                tooltip(
+                    f"None of the selected fields for '{display_name}' were found in the current card."
+                )
                 return
+
+            if not changed:
+                if addType == "no":
+                    tooltip(
+                        f"Field(s) for '{display_name}' already contain content, and the current setting is to only add if empty."
+                    )
+                return
+
             update_note(parent=self.dictInt.mw, note=note).run_in_background()
-            # self.reviewer.card.load()
-            # self.reviewer.
             if self.reviewer.state == "answer":
                 self.reviewer._showAnswer()
             elif self.reviewer.state == "question":
                 self.reviewer._showQuestion()
             if hasattr(self.dictInt.mw, "DictReloadEditorAndBrowser"):
                 self.dictInt.mw.DictReloadEditorAndBrowser(note)
-        if self.currentEditor and self.currentEditor.note:
-            if name == "Images":
-                tFields = self.config["ImageFields"]
-                addType = self.config["ImageAddType"]
-            else:
-                tFields, addType = self.db.getAddTypeAndFields(name)
-            note = self.currentEditor.note
 
+        if self.currentEditor and self.currentEditor.note:
+            note = self.currentEditor.note
             items = note.items()
+            currentNoteId = note.id
             for idx, item in enumerate(items):
                 noteField = item[0]
                 if noteField in tFields:
-                    # Get the current note ID
-                    currentNoteId = (
-                        note.id
-                    )  # Assuming `note` is the current note object
+                    found_field = True
                     self.currentEditor.web.eval(
                         self.dictInt.insertHTMLJS
                         % (
@@ -1172,12 +1203,17 @@ class MIDict(AnkiWebView):
                             currentNoteId,  # Pass the note ID to JavaScript
                         )
                     )
+            if not found_field:
+                tooltip(
+                    f"None of the selected fields for '{display_name}' were found in the current card."
+                )
+                return
 
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
         if dictName == "Images":
             addType = self.config.get("ImageAddType", "add")
         elif dictName == "LLM API":
-            addType = "add"  # Default for LLM
+            addType = self.config.get("LLMAddType", "add")
         else:
             addType = self.db.getAddType(dictName) or "add"
 
@@ -1260,7 +1296,7 @@ class MIDict(AnkiWebView):
         if dictName == "Images":
             selF = self.config.get("ImageFields", [])
         elif dictName == "LLM API":
-            selF = []  # Default for LLM
+            selF = self.config.get("LLMFields", [])
         else:
             selF = self.db.getFieldsSetting(dictName) or []
 
