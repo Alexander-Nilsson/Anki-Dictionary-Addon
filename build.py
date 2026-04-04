@@ -48,7 +48,7 @@ def install_dependencies(addon_dir):
     # We exclude PyQt (provided by Anki), Pillow (provided by Anki), 
     # and system-specific binary wheels if we can rely on Anki
     # We bundle: pynput
-    # We exclude: pyqt6*, requests (Anki has it), aiohttp (removed usage), pyobjc* (Anki has it)
+    # We exclude: pyqt6*, requests (Anki has it), pyobjc* (Anki has it)
     
     to_install = []
     for dep in dependencies:
@@ -110,7 +110,6 @@ def create_user_files_structure(addon_dir):
     dirs = [
         'db',
         'dictionaries',
-        'ffmpeg',
         'fonts',
         'media',
         'themes'

@@ -1677,12 +1677,7 @@ class ClipThread(QObject):
             if not self.checkFileExists(audioTempPath):
                 self.extensionFileNotFound.emit()
                 return
-            if config["mp3Convert"]:
-                audioFileName = audioFileName.replace(".wav", ".mp3")
-                self.moveExtensionMp3ToMediaFolder(audioTempPath, audioFileName)
-                card["audio"] = audioFileName
-            else:
-                self.moveExtensionFileToMediaFolder(audioTempPath, audioFileName)
+            self.moveExtensionFileToMediaFolder(audioTempPath, audioFileName)
             self.removeFile(audioTempPath)
         if imageFileName:
             imageTempPath = join(self.temp_dir, imageFileName)
@@ -1723,21 +1718,6 @@ class ClipThread(QObject):
             if not exists(path):
                 copyfile(source, path)
                 return True
-
-    def moveExtensionMp3ToMediaFolder(self, source, filename):
-        suffix = ""
-        if is_win:
-            suffix = ".exe"
-        ffmpeg = join(
-            dirname(dirname(dirname(dirname(__file__)))),
-            "user_files",
-            "ffmpeg",
-            "ffmpeg" + suffix,
-        )
-        path = join(self.mw.col.media.dir(), filename)
-        import subprocess
-
-        subprocess.call([ffmpeg, "-i", source, path])
 
     def handlePageRefreshDuringBulkMediaImport(self):
         self.pageRefreshDuringBulkMediaImport.emit()

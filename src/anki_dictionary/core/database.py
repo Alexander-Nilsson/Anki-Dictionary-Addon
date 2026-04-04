@@ -7,16 +7,12 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 from aqt.utils import showInfo
 from aqt import mw
+from ..utils.paths import get_addon_root, get_db_dir, get_frequency_dir, get_addon_name
 from ..utils.common import miInfo
 from ..utils.logger import get_logger
 
 # Initialize logger
 logger = get_logger("database")
-
-# Get the root addon path (go up from src/anki_dictionary/core to root)
-addon_path = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
 
 
 class DictDB:
@@ -29,17 +25,12 @@ class DictDB:
         self.oldConnection: Optional[sqlite3.Cursor] = None
         self._freq_cache: Dict[str, Dict[str, Any]] = {}
 
-        # Get the root addon directory by going up from this file's location
-        current_file = os.path.abspath(__file__)
-        # Go up: core -> anki_dictionary -> src -> addon_root
-        addon_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-        )
-        self.addon_root = addon_root
-        addon_name = os.path.basename(addon_root)
+        # Get the root addon directory
+        self.addon_root = get_addon_root()
+        addon_name = get_addon_name()
 
         # First try direct path from addon root
-        db_file = os.path.join(addon_root, "user_files", "db", "dictionaries.sqlite")
+        db_file = os.path.join(get_db_dir(), "dictionaries.sqlite")
 
         # If that doesn't exist, try using Anki's addon folder structure
         if not os.path.exists(db_file):
@@ -94,9 +85,7 @@ class DictDB:
         if lang in self._freq_cache:
             return self._freq_cache[lang]
 
-        freq_path = os.path.join(
-            self.addon_root, "user_files", "db", "frequency", f"{lang}.json"
-        )
+        freq_path = os.path.join(get_frequency_dir(), f"{lang}.json")
         if not os.path.exists(freq_path):
             return None
 

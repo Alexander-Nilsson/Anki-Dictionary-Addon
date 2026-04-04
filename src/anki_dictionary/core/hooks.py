@@ -27,11 +27,7 @@ from aqt.previewer import Previewer
 import aqt.editor
 
 from ..utils.common import miInfo, getTarget, gt
-
-# Get addon path
-addon_path = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-)
+from ..utils.paths import get_addon_root
 
 # Store the original link handler - will be set on first hook setup
 _original_link_handler = None

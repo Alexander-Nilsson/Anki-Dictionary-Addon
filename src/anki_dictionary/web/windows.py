@@ -4,11 +4,8 @@ from aqt.qt import *
 from anki.httpclient import HttpClient
 import aqt
 
+from ..utils.paths import get_addon_root, get_icons_dir, get_db_dir
 from . import config as webConfig
-
-addon_path = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-)
 
 
 class FreqConjWebWindow(QDialog):
@@ -26,9 +23,7 @@ class FreqConjWebWindow(QDialog):
         self.mode_str = "frequency" if self.mode == self.Mode.Freq else "conjugation"
 
         self.setWindowTitle("Anki Dictionary - Web Installer")
-        self.setWindowIcon(
-            QIcon(os.path.join(addon_path, "assets", "icons", "dictionary.png"))
-        )
+        self.setWindowIcon(QIcon(os.path.join(get_icons_dir(), "dictionary.png")))
 
         lyt = QVBoxLayout()
         self.setLayout(lyt)
@@ -94,7 +89,7 @@ class FreqConjWebWindow(QDialog):
 
         data = client.streamContent(resp)
 
-        dir_path = os.path.join(addon_path, "user_files", "db", self.mode_str)
+        dir_path = os.path.join(get_db_dir(), self.mode_str)
         os.makedirs(dir_path, exist_ok=True)
 
         dst_path = os.path.join(dir_path, "%s.json" % self.dst_lang)

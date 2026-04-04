@@ -29,9 +29,11 @@ from ..ui.settings.settings_gui import SettingsGui
 from ..utils.common import miInfo, miAsk
 from ..integrations import image_search as duckduckgoimages
 
+from ..utils.paths import get_addon_root, get_templates_dir, get_icons_dir
+
 # Global variables
-addon_path = dirname(dirname(dirname(dirname(__file__))))
-tmpdir = join(addon_path, "temp")
+addon_path = get_addon_root()
+tmpdir = os.path.join(addon_path, "temp")
 currentNote = False
 currentField = False
 currentKey = False
@@ -128,7 +130,7 @@ def releaseKey(keyList):
 
 def getWelcomeScreen():
     """Get welcome screen HTML."""
-    htmlPath = join(addon_path, "assets", "templates", "welcome.html")
+    htmlPath = os.path.join(get_templates_dir(), "welcome.html")
     try:
         with open(htmlPath, "r", encoding="utf-8") as fh:
             file = fh.read()
@@ -140,7 +142,7 @@ def getWelcomeScreen():
 
 def getMacWelcomeScreen():
     """Get Mac-specific welcome screen HTML."""
-    htmlPath = join(addon_path, "assets", "templates", "macwelcome.html")
+    htmlPath = os.path.join(get_templates_dir(), "macwelcome.html")
     try:
         with open(htmlPath, "r", encoding="utf-8") as fh:
             file = fh.read()
