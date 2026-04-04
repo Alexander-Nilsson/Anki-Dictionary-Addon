@@ -18,7 +18,6 @@ from .dict_groups import DictGroupEditor
 from .templates import TemplateEditor
 from ...utils.common import miInfo, miAsk
 from ..dialogs.dictionary_manager import DictionaryManagerWidget
-from ...utils.ffmpeg import FFMPEGInstaller
 from ...utils.config import get_addon_config, save_addon_config
 from ...utils.constants import COUNTRY_LIST
 
@@ -60,7 +59,6 @@ class SettingsGui(QTabWidget):
     def __init__(self, mw, path, reboot):
         super(SettingsGui, self).__init__()
         self.mw = mw
-        self.ffmpegInstaller = FFMPEGInstaller(self.mw)
         self.reboot = reboot
         self.imageSearchCountries = COUNTRY_LIST
         self.setMinimumSize(850, 550)
@@ -88,7 +86,6 @@ class SettingsGui(QTabWidget):
         self.imageSearchCountry.addItems(self.imageSearchCountries)
         self.condensedAudioDirectoryLabel = QLabel("Condensed Audio Save Location:")
         self.chooseAudioDirectory = QPushButton("Choose Directory")
-        self.convertToMp3 = QCheckBox()
         self.disableCondensedMessages = QCheckBox()
         self.dictOnTop = QCheckBox()
         self.showTarget = QCheckBox()
@@ -206,9 +203,6 @@ class SettingsGui(QTabWidget):
         self.globalOpen.setToolTip(
             "If enabled the dictionary will be opened on a global search."
         )
-        self.convertToMp3.setToolTip(
-            "When enabled will convert extension WAV files into MP3 files.\nMP3 files are supported across every Anki platform and are much smaller than WAV files.\nWe recommend enabling this option."
-        )
         self.disableCondensedMessages.setToolTip(
             "Disable messages shown when condensed audio files are successfully created."
         )
@@ -234,7 +228,6 @@ class SettingsGui(QTabWidget):
         self.tooltipCB.setChecked(config["tooltips"])
         self.globalHotkeys.setChecked(config["globalHotkeys"])
         self.globalOpen.setChecked(config["openOnGlobal"])
-        self.convertToMp3.setChecked(config["mp3Convert"])
         self.disableCondensedMessages.setChecked(config["disableCondensed"])
         self.dictOnTop.setChecked(config["dictAlwaysOnTop"])
 
@@ -275,7 +268,6 @@ class SettingsGui(QTabWidget):
         nc["tooltips"] = self.tooltipCB.isChecked()
         nc["globalHotkeys"] = self.globalHotkeys.isChecked()
         nc["openOnGlobal"] = self.globalOpen.isChecked()
-        nc["mp3Convert"] = self.convertToMp3.isChecked()
         nc["disableCondensed"] = self.disableCondensedMessages.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
 
@@ -292,6 +284,7 @@ class SettingsGui(QTabWidget):
             nc["condensedAudioDirectory"] = False
         save_addon_config(nc)
         self.hide()
+
         # Refresh dictionary window with new settings
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(nc)
@@ -553,11 +546,6 @@ class SettingsGui(QTabWidget):
         gHLay.addWidget(self.miQLabel("Global Hotkeys:", 182))
         gHLay.addWidget(self.globalHotkeys)
         optLay1.addLayout(gHLay)
-
-        extensionMp3Lay = QHBoxLayout()
-        extensionMp3Lay.addWidget(self.miQLabel("Convert Extension Audio to MP3", 182))
-        extensionMp3Lay.addWidget(self.convertToMp3)
-        optLay1.addLayout(extensionMp3Lay)
 
         disableCondensedLay = QHBoxLayout()
         disableCondensedLay.addWidget(

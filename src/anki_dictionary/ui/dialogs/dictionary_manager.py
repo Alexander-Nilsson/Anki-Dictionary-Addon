@@ -10,6 +10,7 @@ from aqt.qt import *
 from aqt import mw
 from ...web.installer import DictionaryWebInstallWizard
 from ...web.windows import FreqConjWebWindow
+from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir
 
 logger = logging.getLogger(__name__)
 
@@ -275,18 +276,14 @@ class DictionaryManagerWidget(QWidget):
 
         # Remove frequency data
         try:
-            path = os.path.join(
-                addon_path, "user_files", "db", "frequency", "%s.json" % lang_name
-            )
+            path = os.path.join(get_db_dir(), "frequency", "%s.json" % lang_name)
             os.remove(path)
         except OSError:
             pass
 
         # Remove conjugation data
         try:
-            path = os.path.join(
-                addon_path, "user_files", "db", "conjugation", "%s.json" % lang_name
-            )
+            path = os.path.join(get_db_dir(), "conjugation", "%s.json" % lang_name)
             os.remove(path)
         except OSError:
             pass
@@ -310,7 +307,7 @@ class DictionaryManagerWidget(QWidget):
         if not path:
             return
 
-        freq_path = os.path.join(addon_path, "user_files", "db", "frequency")
+        freq_path = os.path.join(get_db_dir(), "frequency")
         os.makedirs(freq_path, exist_ok=True)
 
         dst_path = os.path.join(freq_path, "%s.json" % lang_name)
@@ -348,7 +345,7 @@ class DictionaryManagerWidget(QWidget):
         if not path:
             return
 
-        conj_path = os.path.join(addon_path, "user_files", "db", "conjugation")
+        conj_path = os.path.join(get_db_dir(), "conjugation")
         os.makedirs(conj_path, exist_ok=True)
 
         dst_path = os.path.join(conj_path, "%s.json" % lang_name)
@@ -548,11 +545,6 @@ class DictionaryManagerWidget(QWidget):
             parts.append(part)
 
         db.setDictTermHeader(dict_clean, json.dumps(parts))
-
-
-addon_path = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-)
 
 
 def importDict(lang_name, file, dict_name, parent=None):
@@ -976,9 +968,7 @@ def getStarCount(freq):
 
 
 def getFrequencyList(lang):
-    filePath = os.path.join(
-        addon_path, "user_files", "db", "frequency", "%s.json" % lang
-    )
+    filePath = os.path.join(get_db_dir(), "frequency", "%s.json" % lang)
     frequencyDict = {}
     if os.path.exists(filePath):
         frequencyList = json.load(open(filePath, "r", encoding="utf-8-sig"))

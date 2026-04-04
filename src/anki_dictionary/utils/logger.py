@@ -7,6 +7,8 @@ import logging
 import os
 from aqt import mw
 
+from .paths import get_addon_root
+
 # Define the log format
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
@@ -34,10 +36,7 @@ def get_logger(name: str) -> logging.Logger:
         # File handler (if Anki is running and we have a path)
         try:
             if mw and mw.pm:
-                # Addon root is 3 levels up from this file's directory (src/anki_dictionary/utils)
-                addon_root = os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                )
+                addon_root = get_addon_root()
                 log_dir = os.path.join(addon_root, "logs")
                 os.makedirs(log_dir, exist_ok=True)
 

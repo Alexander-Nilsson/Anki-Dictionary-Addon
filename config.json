@@ -75,8 +75,6 @@
   "tooltips": true,
   "globalHotkeys": true,
   "openOnGlobal": true,
-  "mp3Convert": false,
-  "failedFFMPEGInstallation": true,
   "dictAlwaysOnTop": false,
   "displayAgain": false,
   "autoDefinitionSettings": false,

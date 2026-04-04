@@ -121,7 +121,6 @@ def initialize_addon() -> None:
     try:
         from anki_dictionary.core.hooks import setup_hooks, setup_gui_menu
         from anki_dictionary.utils.config import refresh_anki_dict_config
-        from anki_dictionary.utils.ffmpeg import setup_ffmpeg
 
         # Make refresh function globally available (legacy compatibility)
         if hasattr(mw, "__dict__"):
@@ -130,7 +129,6 @@ def initialize_addon() -> None:
         # Setup the addon
         setup_hooks()
         setup_gui_menu()
-        setup_ffmpeg()
 
         # The configuration is already loaded in state.config above,
         # just make sure it's available in the legacy location

@@ -9,6 +9,9 @@ from functools import lru_cache
 from os.path import join, dirname
 
 
+from ..utils.paths import get_icons_dir
+
+
 # Cache the base64 icons to avoid redundant file reads
 @lru_cache(maxsize=32)
 def get_base64_icon(icon_name: str) -> str:
@@ -22,10 +25,7 @@ def get_base64_icon(icon_name: str) -> str:
         str: Base64 data URL string
     """
     try:
-        # Calculate the icon path (assuming we are in src/anki_dictionary/web/)
-        # assets is 3 levels up from this file
-        addon_root = dirname(dirname(dirname(dirname(__file__))))
-        icon_path = join(addon_root, "assets", "icons", icon_name)
+        icon_path = os.path.join(get_icons_dir(), icon_name)
 
         if not os.path.exists(icon_path):
             print(f"Warning: Icon not found: {icon_path}")

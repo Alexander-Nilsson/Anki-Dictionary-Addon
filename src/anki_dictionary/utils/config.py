@@ -13,14 +13,7 @@ from typing import Any, Dict, Optional
 from aqt import mw
 
 
-def get_addon_name() -> str:
-    """Get the name of the addon folder."""
-    # This file is in src/anki_dictionary/utils/config.py
-    # Addon root is 3 levels up
-    addon_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    )
-    return os.path.basename(addon_root)
+from .paths import get_addon_root, get_addon_name
 
 
 def get_addon_config() -> Dict[str, Any]:
@@ -33,9 +26,7 @@ def get_addon_config() -> Dict[str, Any]:
     # Try to get config from our state manager first
     try:
         # Add the addon root to path temporarily
-        addon_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        )
+        addon_root = get_addon_root()
         if addon_root not in sys.path:
             sys.path.insert(0, addon_root)
 
@@ -74,9 +65,7 @@ def get_addon_config() -> Dict[str, Any]:
 
     # Fallback 3: Load default config from file
     try:
-        addon_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        )
+        addon_root = get_addon_root()
         config_path = os.path.join(addon_root, "config.json")
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
@@ -143,9 +132,7 @@ def save_addon_config(config: Dict[str, Any]) -> bool:
     """
     # 1. Update our state manager
     try:
-        addon_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        )
+        addon_root = get_addon_root()
         if addon_root not in sys.path:
             sys.path.insert(0, addon_root)
 
