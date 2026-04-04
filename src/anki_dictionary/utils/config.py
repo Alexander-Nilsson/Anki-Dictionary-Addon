@@ -97,30 +97,38 @@ def get_addon_config() -> Dict[str, Any]:
     }
 
 
-def refresh_anki_dict_config(config=False):
-    """Refresh the addon configuration."""
-    if config:
+def refresh_anki_dict_config(
+    config: Optional[Dict[str, Any]] = None, force: bool = False
+) -> None:
+    """
+    Refresh the addon configuration and update the dictionary window if it exists.
+
+    Args:
+        config (dict, optional): Direct config to use. If not provided, it's loaded from disk.
+        force (bool): If True, force a reload of the dictionary interface even if config hasn't changed.
+    """
+    if config is not None:
         # Direct config provided - use it
         if hasattr(mw, "__dict__"):
             mw.__dict__["AnkiDictConfig"] = config
-        return
-
-    new_config = get_addon_config()
-
-    # Only update if configuration has actually changed or doesn't exist
-    current_config = getattr(mw, "AnkiDictConfig", None)
-    if current_config is None or current_config != new_config:
+    else:
+        # Re-load from disk/state
+        config = get_addon_config()
         if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = new_config
+            mw.__dict__["AnkiDictConfig"] = config
 
-        # If dictionary exists and is visible, update its configuration
-        if (
-            hasattr(mw, "ankiDictionary")
-            and mw.ankiDictionary
-            and hasattr(mw.ankiDictionary, "resetConfiguration")
-        ):
-            mw.ankiDictionary.activateWindow()
-            mw.ankiDictionary.resetConfiguration(new_config)
+    # If dictionary exists and is visible, update its configuration
+    if (
+        hasattr(mw, "ankiDictionary")
+        and mw.ankiDictionary
+        and hasattr(mw.ankiDictionary, "resetConfiguration")
+    ):
+        try:
+            # We don't want to pass the config object as terms to resetConfiguration
+            # just trigger a reload of settings and groups.
+            mw.ankiDictionary.resetConfiguration()
+        except Exception as e:
+            print(f"Error refreshing dictionary configuration: {e}")
 
 
 def save_addon_config(config: Dict[str, Any]) -> bool:

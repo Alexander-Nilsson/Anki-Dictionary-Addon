@@ -114,6 +114,8 @@ class MIDict(AnkiWebView):
         self.jSend = self.config["jReadingEdit"]
         self.maxW = self.config["maxWidth"]
         self.maxH = self.config["maxHeight"]
+        self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
+        self.dupHeaders = self.db.getDupHeaders() or {}
 
     def loadImageResults(self, results):
         """
@@ -404,11 +406,13 @@ class MIDict(AnkiWebView):
         """Get consistent tooltips for dictionary header buttons."""
         if not self.config.get("tooltips", True):
             return "", "", ""
-            
+
         imgTooltip = ' title="Add this definition, or any selected text to the card exporter (opens the card exporter if it is not yet opened)." '
-        clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
+        clipTooltip = (
+            ' title="Copy this definition, or any selected text to the clipboard." '
+        )
         sendTooltip = ' title="Send this definition, or any selected text to this dictionary\'s target fields. It will send it to the current target window" '
-        
+
         return imgTooltip, clipTooltip, sendTooltip
 
     def getStarTooltip(self, starCount: str) -> str:
@@ -619,7 +623,7 @@ class MIDict(AnkiWebView):
             + clipTooltip
             + ' class="clipper">✂</div><div '
             + sendTooltip
-            + ' onclick="sendToField(event, \''
+            + " onclick=\"sendToField(event, '"
             + dictName
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
@@ -707,7 +711,7 @@ class MIDict(AnkiWebView):
 
         # Process markdown and clean up the definition
         definition = result["definition"]
-        
+
         # Simple Markdown-like processing
         # Bold: **text**, __text__, or ★★text★★
         definition = re.sub(r"(\*\*|__|★★)(.*?)\1", r"<b>\2</b>", definition)
@@ -717,7 +721,7 @@ class MIDict(AnkiWebView):
         definition = definition.replace("★", "<b>★</b>")
         # Lists: - item or * item
         definition = re.sub(r"^\s*[-*+]\s+", r"• ", definition, flags=re.MULTILINE)
-        
+
         # Remove a duplicate header if the LLM repeats the term at the beginning or end
         # This addresses the user report about duplicate headers (one before, one after)
         term = result["term"].lower()
@@ -831,7 +835,7 @@ class MIDict(AnkiWebView):
 
         # Process markdown and clean up the definition
         definition = result["definition"]
-        
+
         # Simple Markdown-like processing
         # Bold: **text**, __text__, or ★★text★★
         definition = re.sub(r"(\*\*|__|★★)(.*?)\1", r"<b>\2</b>", definition)
@@ -841,7 +845,7 @@ class MIDict(AnkiWebView):
         definition = definition.replace("★", "<b>★</b>")
         # Lists: - item or * item
         definition = re.sub(r"^\s*[-*+]\s+", r"• ", definition, flags=re.MULTILINE)
-        
+
         # Remove a duplicate header if the LLM repeats the term at the beginning or end
         term = result["term"].lower()
         lines = definition.split("\n")
@@ -2353,49 +2357,69 @@ class DictInterface(QWidget):
         self.mw.openMiDict.setText("Open Dictionary " + shortcut)
         event.accept()
 
-    def resetConfiguration(self, terms):
-        terms = self.refineToValidSearchTerms(terms)
+    def resetConfiguration(self, terms=False):
+        if not isinstance(terms, (list, tuple)):
+            terms = False
+
+        if terms:
+            terms = self.refineToValidSearchTerms(terms)
+
         willSearch = False
         if terms is not False:
             willSearch = True
         self.search.setText("")
-        self.allGroups = self.getAllGroups()
         self.config = self.getConfig()
+        self.allGroups = self.getAllGroups()
         self.defaultGroups = self.db.getDefaultGroups()
         self.userGroups = self.getUserGroups()
-        self.dictGroups.currentIndexChanged.disconnect()
+
+        # Update dictionary groups combo box
+        try:
+            self.dictGroups.currentIndexChanged.disconnect()
+        except (TypeError, RuntimeError):
+            pass
         newDictGroupsCombo = self.setupDictGroups()
-        self.toolbarTopLayout.replaceWidget(self.dictGroups, newDictGroupsCombo)
+        if hasattr(self, "toolbar"):
+            self.toolbar.replaceWidget(self.dictGroups, newDictGroupsCombo)
         self.dictGroups.close()
         self.dictGroups.deleteLater()
         self.dictGroups = newDictGroupsCombo
+
+        # Update search type combo box (to reflect any language-specific search options if they were added)
+        try:
+            self.sType.currentIndexChanged.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        newSType = self.setupSearchType()
+        if hasattr(self, "toolbar"):
+            self.toolbar.replaceWidget(self.sType, newSType)
+        self.sType.close()
+        self.sType.deleteLater()
+        self.sType = newSType
+
+        # Fixed sizes for header elements
+        header_height = 36
+        for widget in [self.dictGroups, self.sType]:
+            widget.setFixedHeight(header_height)
+        self.dictGroups.setFixedWidth(120)
+        self.sType.setFixedWidth(100)
+
         previouslyOnTop = self.alwaysOnTop
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
         if previouslyOnTop != self.alwaysOnTop:
             self.setAlwaysOnTop()
         self.setAlwaysOnTop()
+
         if not self.config["showTarget"]:
             self.currentTarget.hide()
             self.targetLabel.hide()
         else:
             self.targetLabel.show()
             self.currentTarget.show()
+
         if self.config["tooltips"]:
             self.dictGroups.setToolTip("Select the dictionary group.")
-        if not is_win:
-            self.dictGroups.setFixedSize(108, 38)
-        else:
-            self.dictGroups.setFixedSize(110, 38)
-        # if self.nightModeToggler.day:
-        #     if not is_win:
-        #         self.dictGroups.setStyleSheet(self.getMacComboStyle())
-        #     else:
-        #         self.dictGroups.setStyleSheet('')
-        # else:
-        #     if not is_win:
-        #         self.dictGroups.setStyleSheet(self.getMacNightComboStyle())
-        #     else:
-        #         self.dictGroups.setStyleSheet(self.getComboStyle())
+
         self.resetDict(willSearch, terms)
 
     def resetDict(self, willSearch, terms):
@@ -2458,43 +2482,43 @@ class DictInterface(QWidget):
         layoutV = QVBoxLayout()
 
         # Unified Toolbar
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(10, 10, 10, 10)
-        toolbar.setSpacing(8)
+        self.toolbar = QHBoxLayout()
+        self.toolbar.setContentsMargins(10, 10, 10, 10)
+        self.toolbar.setSpacing(8)
 
         # Left side: Combo boxes and Search
-        toolbar.addWidget(self.dictGroups)
-        toolbar.addWidget(self.sType)
-        toolbar.addWidget(self.search)
+        self.toolbar.addWidget(self.dictGroups)
+        self.toolbar.addWidget(self.sType)
+        self.toolbar.addWidget(self.search)
 
         # Action buttons
-        toolbar.addWidget(self.searchButton)
-        toolbar.addWidget(self.openSB)
+        self.toolbar.addWidget(self.searchButton)
+        self.toolbar.addWidget(self.openSB)
 
         # Divider
         line = QFrame()
         line.setFrameShape(QFrame.Shape.VLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
-        toolbar.addWidget(line)
+        self.toolbar.addWidget(line)
 
         # Utility buttons
-        toolbar.addWidget(self.minusB)
-        toolbar.addWidget(self.plusB)
-        toolbar.addWidget(self.tabB)
-        toolbar.addWidget(self.histB)
-        toolbar.addWidget(self.conjToggler)
-        toolbar.addWidget(self.themeSettings)
-        toolbar.addWidget(self.setB)
+        self.toolbar.addWidget(self.minusB)
+        self.toolbar.addWidget(self.plusB)
+        self.toolbar.addWidget(self.tabB)
+        self.toolbar.addWidget(self.histB)
+        self.toolbar.addWidget(self.conjToggler)
+        self.toolbar.addWidget(self.themeSettings)
+        self.toolbar.addWidget(self.setB)
 
         # Target Info (if enabled)
         if self.config["showTarget"]:
-            toolbar.addSpacing(10)
+            self.toolbar.addSpacing(10)
             self.targetLabel.setStyleSheet("font-weight: bold; opacity: 0.7;")
-            toolbar.addWidget(self.targetLabel)
+            self.toolbar.addWidget(self.targetLabel)
             self.currentTarget.setStyleSheet("font-weight: medium;")
-            toolbar.addWidget(self.currentTarget)
+            self.toolbar.addWidget(self.currentTarget)
 
-        toolbar.addStretch()
+        self.toolbar.addStretch()
 
         # Fixed sizes for header elements
         header_height = 36
@@ -2521,7 +2545,7 @@ class DictInterface(QWidget):
         ]:
             btn.setFixedSize(btn_size, btn_size)
 
-        layoutV.addLayout(toolbar)
+        layoutV.addLayout(self.toolbar)
 
         # Content Area
         layoutV.addWidget(self.dict)

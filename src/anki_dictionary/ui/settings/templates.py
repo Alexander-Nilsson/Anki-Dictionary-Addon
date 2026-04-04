@@ -161,7 +161,10 @@ class TemplateEditor(QDialog):
         }
         curGroups[tn] = exportTemplate
         save_addon_config(newConfig)
+        if hasattr(self.mw, "refreshAnkiDictConfig"):
+            self.mw.refreshAnkiDictConfig(newConfig)
         self.settings.loadTemplateTable()
+
         self.hide()
 
     def loadSepValue(self):
