@@ -400,6 +400,36 @@ class MIDict(AnkiWebView):
             + '<br></div><div class="resizeBar" onmousedown="hresize(event)"></div></div>'
         )
 
+    def getTooltips(self):
+        """Get consistent tooltips for dictionary header buttons."""
+        if not self.config.get("tooltips", True):
+            return "", "", ""
+            
+        imgTooltip = ' title="Add this definition, or any selected text to the card exporter (opens the card exporter if it is not yet opened)." '
+        clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
+        sendTooltip = ' title="Send this definition, or any selected text to this dictionary\'s target fields. It will send it to the current target window" '
+        
+        return imgTooltip, clipTooltip, sendTooltip
+
+    def getStarTooltip(self, starCount: str) -> str:
+        """Get tooltip for star rating."""
+        if not starCount or not isinstance(starCount, str):
+            return ""
+
+        # Mapping stars to rank info
+        ranks = {
+            "★★★★★": "Top 1,500",
+            "★★★★": "Top 5,000",
+            "★★★": "Top 15,000",
+            "★★": "Top 30,000",
+            "★": "Top 60,000",
+        }
+
+        rank = ranks.get(starCount, "")
+        if rank:
+            return f' title="Frequency: {rank}" '
+        return ""
+
     def getPreparedTermHeader(
         self,
         dictName,
@@ -449,13 +479,7 @@ class MIDict(AnkiWebView):
             html += '<div class="mainDictDisplay">'
             dictCount = 0
             entryCount = 0
-            imgTooltip = ""
-            clipTooltip = ""
-            sendTooltip = ""
-            if self.config["tooltips"]:
-                imgTooltip = ' title="Add this definition, or any selected text and this definition\'s header to the card exporter (opens the card exporter if it is not yet opened)." '
-                clipTooltip = ' title="Copy this definition, or any selected text to the clipboard." '
-                sendTooltip = " title=\"Send this definition, or any selected text and this definition's header to the card exporter to this dictionary's target fields. It will send it to the current target window, be it an Editor window, or the Review window.\" "
+            imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
 
             for dictName, dictResults in results.items():
                 if dictName == "Images":
@@ -519,7 +543,9 @@ class MIDict(AnkiWebView):
                             entry["altterm"],
                             entry["pronunciation"],
                         )
-                        + ' <span class="starcount">'
+                        + ' <span class="starcount"'
+                        + self.getStarTooltip(entry["starCount"])
+                        + ">"
                         + entry["starCount"]
                         + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
                         + dictName
@@ -563,6 +589,7 @@ class MIDict(AnkiWebView):
         overwrite = self.getOverwriteChecks(dictCount, dictName)
         select = self.getFieldChecks(dictName)
         idName = "gcon" + str(time.time())
+        imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
         html = (
             '<div data-index="'
             + str(dictCount)
@@ -584,9 +611,15 @@ class MIDict(AnkiWebView):
             + bracketBack
             + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton"><img src="'
+            + '\')" class="ankiExportButton"><img '
+            + imgTooltip
+            + ' src="'
             + self.getBase64Icon("anki.png")
-            + '"></div><div onclick="clipText(event)" class="clipper">✂</div><div onclick="sendToField(event, \''
+            + '"></div><div onclick="clipText(event)" '
+            + clipTooltip
+            + ' class="clipper">✂</div><div '
+            + sendTooltip
+            + ' onclick="sendToField(event, \''
             + dictName
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
@@ -635,13 +668,7 @@ class MIDict(AnkiWebView):
         font = self.getFontFamily({"font": False, "customFont": False})
 
         # Format just the content part (without header and title block)
-        imgTooltip = ""
-        clipTooltip = ""
-        sendTooltip = ""
-        if self.config["tooltips"]:
-            imgTooltip = ' title="Add this definition to the card exporter." '
-            clipTooltip = ' title="Copy this definition to the clipboard." '
-            sendTooltip = ' title="Send this definition to the card exporter." '
+        imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
 
         frontBracket = self.config["frontBracket"]
         backBracket = self.config["backBracket"]
@@ -659,7 +686,9 @@ class MIDict(AnkiWebView):
                 result.get("altterm", ""),
                 result.get("pronunciation", ""),
             )
-            + ' <span class="starcount">'
+            + ' <span class="starcount"'
+            + self.getStarTooltip(str(result.get("starCount", "")))
+            + ">"
             + str(result.get("starCount", ""))
             + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
@@ -676,14 +705,60 @@ class MIDict(AnkiWebView):
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
         )
 
+        # Process markdown and clean up the definition
+        definition = result["definition"]
+        
+        # Simple Markdown-like processing
+        # Bold: **text**, __text__, or ★★text★★
+        definition = re.sub(r"(\*\*|__|★★)(.*?)\1", r"<b>\2</b>", definition)
+        # Italic: *text* or _text_
+        definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
+        # Support for common dictionary stars
+        definition = definition.replace("★", "<b>★</b>")
+        # Lists: - item or * item
+        definition = re.sub(r"^\s*[-*+]\s+", r"• ", definition, flags=re.MULTILINE)
+        
+        # Remove a duplicate header if the LLM repeats the term at the beginning or end
+        # This addresses the user report about duplicate headers (one before, one after)
+        term = result["term"].lower()
+        lines = definition.split("\n")
+        if len(lines) > 1:
+            # Check for header at the start (e.g. "**Word**\nDefinition")
+            first_line = (
+                lines[0]
+                .strip()
+                .lower()
+                .replace("<b>", "")
+                .replace("</b>", "")
+                .replace("**", "")
+                .replace("#", "")
+                .strip()
+            )
+            if first_line == term:
+                definition = "\n".join(lines[1:]).strip()
+
+            # Re-check for header at the end (e.g. "Definition\n**Word**")
+            lines = definition.split("\n")
+            if len(lines) > 1:
+                last_line = (
+                    lines[-1]
+                    .strip()
+                    .lower()
+                    .replace("<b>", "")
+                    .replace("</b>", "")
+                    .replace("**", "")
+                    .replace("#", "")
+                    .strip()
+                )
+                if last_line == term:
+                    definition = "\n".join(lines[:-1]).strip()
+
         html += (
             "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
-                self.processDefinitionHTML(
-                    self.highlightExamples(result["definition"])
-                ),
+                self.processDefinitionHTML(self.highlightExamples(definition)),
                 result["term"],
             )
             + "</div>"
@@ -720,13 +795,7 @@ class MIDict(AnkiWebView):
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
         )
 
-        imgTooltip = ""
-        clipTooltip = ""
-        sendTooltip = ""
-        if self.config["tooltips"]:
-            imgTooltip = ' title="Add this definition, or any selected text and this definition\'s header to the card exporter." '
-            clipTooltip = ' title="Copy this definition to the clipboard." '
-            sendTooltip = ' title="Send this definition to the card exporter." '
+        imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
 
         html += (
             '<div class="termPronunciation"><span '
@@ -741,7 +810,9 @@ class MIDict(AnkiWebView):
                 result.get("altterm", ""),
                 result.get("pronunciation", ""),
             )
-            + ' <span class="starcount">'
+            + ' <span class="starcount"'
+            + self.getStarTooltip(str(result.get("starCount", "")))
+            + ">"
             + str(result.get("starCount", ""))
             + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
@@ -758,14 +829,59 @@ class MIDict(AnkiWebView):
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
         )
 
+        # Process markdown and clean up the definition
+        definition = result["definition"]
+        
+        # Simple Markdown-like processing
+        # Bold: **text**, __text__, or ★★text★★
+        definition = re.sub(r"(\*\*|__|★★)(.*?)\1", r"<b>\2</b>", definition)
+        # Italic: *text* or _text_
+        definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
+        # Support for common dictionary stars
+        definition = definition.replace("★", "<b>★</b>")
+        # Lists: - item or * item
+        definition = re.sub(r"^\s*[-*+]\s+", r"• ", definition, flags=re.MULTILINE)
+        
+        # Remove a duplicate header if the LLM repeats the term at the beginning or end
+        term = result["term"].lower()
+        lines = definition.split("\n")
+        if len(lines) > 1:
+            # Check for header at the start (e.g. "**Word**\nDefinition")
+            first_line = (
+                lines[0]
+                .strip()
+                .lower()
+                .replace("<b>", "")
+                .replace("</b>", "")
+                .replace("**", "")
+                .replace("#", "")
+                .strip()
+            )
+            if first_line == term:
+                definition = "\n".join(lines[1:]).strip()
+
+            # Re-check for header at the end (e.g. "Definition\n**Word**")
+            lines = definition.split("\n")
+            if len(lines) > 1:
+                last_line = (
+                    lines[-1]
+                    .strip()
+                    .lower()
+                    .replace("<b>", "")
+                    .replace("</b>", "")
+                    .replace("**", "")
+                    .replace("#", "")
+                    .strip()
+                )
+                if last_line == term:
+                    definition = "\n".join(lines[:-1]).strip()
+
         html += (
             "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
-                self.processDefinitionHTML(
-                    self.highlightExamples(result["definition"])
-                ),
+                self.processDefinitionHTML(self.highlightExamples(definition)),
                 result["term"],
             )
             + "</div>"
