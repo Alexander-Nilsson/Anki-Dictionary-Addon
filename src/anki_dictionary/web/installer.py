@@ -405,62 +405,17 @@ class DictionaryInstallPage(MiWizardPage):
             return url
 
         def fetch_data(self, client, url):
-            """Fetch data from URL, trying both underscore and space versions if it fails."""
+            """Fetch data from URL with standard quoting."""
             import urllib.parse
-
-            # First attempt: original URL
-            resp = client.get(url)
-            if resp.status_code == 200:
-                return resp
-
-            # If it's a 404 and looks like a dictionary path with underscores,
-            # try replacing underscores with spaces and URL-encoding the result.
-            if resp.status_code == 404 and "_" in url:
-                # 1. Try replacing underscores ONLY in the filename (last part)
-                url_parts = url.rsplit("/", 1)
-                if len(url_parts) == 2:
-                    base_path, filename = url_parts
-                    if "_" in filename:
-                        new_filename = filename.replace("_", " ")
-                        # Re-encode the filename but keep the base path
-                        # We use urllib.parse.quote for the filename part
-                        new_url = f"{base_path}/{urllib.parse.quote(new_filename)}"
-                        self.log_update.emit(
-                            f"  404 error: retrying with spaces in filename..."
-                        )
-                        self.log_update.emit(f"  Retrying URL: {new_url}")
-                        resp = client.get(new_url)
-                        if resp.status_code == 200:
-                            self.log_update.emit(f"  Retry successful!")
-                            return resp
-
-                # 2. If filename-only retry failed or wasn't applicable, try the whole path
-                # (but only if we haven't already tried a version that's effectively the same)
-                self.log_update.emit(
-                    f"  404 error: retrying with spaces in the whole path..."
-                )
-                new_url_raw = url.replace("_", " ")
-
-                # Split by '://' to avoid quoting the protocol
-                parts = new_url_raw.split("://")
-                if len(parts) > 1:
-                    # Quote the path part
-                    quoted_path = urllib.parse.quote(parts[1])
-                    new_url = parts[0] + "://" + quoted_path
-                else:
-                    new_url = urllib.parse.quote(new_url_raw)
-
-                self.log_update.emit(f"  Retrying URL: {new_url}")
-                resp = client.get(new_url)
-                if resp.status_code == 200:
-                    self.log_update.emit(f"  Retry successful!")
-                    return resp
-                else:
-                    self.log_update.emit(
-                        f"  Retry failed with status: {resp.status_code}"
-                    )
-
-            return resp
+            
+            # Simple quoting to handle spaces in URLs
+            parts = url.split("://")
+            if len(parts) > 1:
+                quoted_url = parts[0] + "://" + urllib.parse.quote(parts[1], safe="/")
+            else:
+                quoted_url = urllib.parse.quote(url, safe="/")
+            
+            return client.get(quoted_url)
 
         def run(self):
             from ..ui.dialogs.dictionary_manager import importDict
