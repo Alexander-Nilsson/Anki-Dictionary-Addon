@@ -611,9 +611,11 @@ class DictDB:
             d_name = dic["dict"]
             if d_name in ["Images", "LLM API"]:
                 continue
-            
+
             # If d_name is a table name (l1name...), try to find its language
-            info = dict_mapping.get(d_name) or dict_mapping.get(self.cleanDictName(d_name))
+            info = dict_mapping.get(d_name) or dict_mapping.get(
+                self.cleanDictName(d_name)
+            )
             if info:
                 langs.add(info["lang"])
             elif "lang" in dic:
@@ -631,14 +633,16 @@ class DictDB:
                 continue
 
             # Resolve table name and language
-            info = dict_mapping.get(d_name) or dict_mapping.get(self.cleanDictName(d_name))
+            info = dict_mapping.get(d_name) or dict_mapping.get(
+                self.cleanDictName(d_name)
+            )
             if info:
                 table_name = info["dict"]
                 lang = info["lang"]
             else:
                 table_name = d_name
                 lang = dic.get("lang", "")
-            
+
             freq_dict = freq_dicts.get(lang)
 
             if deinflect:
@@ -928,7 +932,8 @@ class DictDB:
             return None
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT fields, addtype FROM dictnames WHERE dictname=? COLLATE NOCASE", (dictName,)
+            "SELECT fields, addtype FROM dictnames WHERE dictname=? COLLATE NOCASE",
+            (dictName,),
         )
         try:
             result = cursor.fetchone()

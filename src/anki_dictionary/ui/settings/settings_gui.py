@@ -292,14 +292,11 @@ class SettingsGui(QTabWidget):
             nc["condensedAudioDirectory"] = False
         save_addon_config(nc)
         self.hide()
-        self.mw.refreshAnkiDictConfig()
+        # Refresh dictionary window with new settings
+        if hasattr(self.mw, "refreshAnkiDictConfig"):
+            self.mw.refreshAnkiDictConfig(nc)
         if nc["mp3Convert"]:
             self.ffmpegInstaller.installFFMPEG()
-        if self.mw.ankiDictionary and self.mw.ankiDictionary.isVisible():
-            miInfo(
-                "Please be aware that the dictionary window will not reflect any setting changes until it is closed and reopened.",
-                level="not",
-            )
 
     def updateAudioDirectory(self):
         directory = str(
