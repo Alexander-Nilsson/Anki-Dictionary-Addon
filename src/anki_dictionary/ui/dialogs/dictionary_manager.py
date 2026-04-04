@@ -220,6 +220,9 @@ class DictionaryManagerWidget(QWidget):
 
         DictionaryWebInstallWizard.execute_modal()
         self.reload_tree_widget()
+        # Refresh dictionary window to show new dictionaries in "All" group
+        if hasattr(mw, "refreshAnkiDictConfig"):
+            mw.refreshAnkiDictConfig(force=True)
 
     def add_lang(self):
         db = aqt.mw.miDictDB
@@ -289,6 +292,9 @@ class DictionaryManagerWidget(QWidget):
             pass
 
         aqt.qt.sip.delete(lang_item)
+        # Refresh dictionary window to remove language's dictionaries
+        if hasattr(mw, "refreshAnkiDictConfig"):
+            mw.refreshAnkiDictConfig(force=True)
 
     def set_freq_data(self):
         lang_name = self.get_current_lang_dict()[0]
@@ -394,6 +400,10 @@ class DictionaryManagerWidget(QWidget):
         lang_item.addChild(dict_item)
         self.dict_tree.setCurrentItem(dict_item)
 
+        # Refresh dictionary window to show new dictionaries in "All" group
+        if hasattr(mw, "refreshAnkiDictConfig"):
+            mw.refreshAnkiDictConfig(force=True)
+
     def import_dicts(self):
         lang_item = self.get_current_lang_item()
         if lang_item is None:
@@ -464,6 +474,9 @@ class DictionaryManagerWidget(QWidget):
 
         if paths:
             self.dict_tree.setCurrentItem(lang_item.child(lang_item.childCount() - 1))
+            # Refresh dictionary window to show new dictionaries in "All" group
+            if hasattr(mw, "refreshAnkiDictConfig"):
+                mw.refreshAnkiDictConfig(force=True)
 
     def web_installer_lang(self):
         lang_item = self.get_current_lang_item()
@@ -473,6 +486,9 @@ class DictionaryManagerWidget(QWidget):
 
         DictionaryWebInstallWizard.execute_modal(lang_name)
         self.reload_tree_widget()
+        # Refresh dictionary window to show new dictionaries in "All" group
+        if hasattr(mw, "refreshAnkiDictConfig"):
+            mw.refreshAnkiDictConfig(force=True)
 
     def remove_dict(self):
         db = aqt.mw.miDictDB
@@ -497,6 +513,9 @@ class DictionaryManagerWidget(QWidget):
 
         db.deleteDict(dict_name)
         aqt.qt.sip.delete(dict_item)
+        # Refresh dictionary window to remove dictionary from "All" group
+        if hasattr(mw, "refreshAnkiDictConfig"):
+            mw.refreshAnkiDictConfig(force=True)
 
     def set_term_header(self):
         db = aqt.mw.miDictDB
