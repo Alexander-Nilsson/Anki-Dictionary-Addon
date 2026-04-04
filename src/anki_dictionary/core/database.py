@@ -27,6 +27,7 @@ class DictDB:
         self.conn: Optional[sqlite3.Connection] = None
         self.c: Optional[sqlite3.Cursor] = None
         self.oldConnection: Optional[sqlite3.Cursor] = None
+        self._freq_cache: Dict[str, Dict[str, Any]] = {}
 
         # Get the root addon directory by going up from this file's location
         current_file = os.path.abspath(__file__)
@@ -34,6 +35,7 @@ class DictDB:
         addon_root = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
         )
+        self.addon_root = addon_root
         addon_name = os.path.basename(addon_root)
 
         # First try direct path from addon root
@@ -86,6 +88,100 @@ class DictDB:
             self.c.close()
         if self.conn:
             self.conn.close()
+
+    def _get_frequency_list(self, lang: str) -> Optional[Dict[str, Any]]:
+        """Load frequency list for a language from central file."""
+        if lang in self._freq_cache:
+            return self._freq_cache[lang]
+
+        freq_path = os.path.join(
+            self.addon_root, "user_files", "db", "frequency", f"{lang}.json"
+        )
+        if not os.path.exists(freq_path):
+            return None
+
+        try:
+            with open(freq_path, "r", encoding="utf-8-sig") as f:
+                frequency_list = json.load(f)
+
+            if not frequency_list:
+                return None
+
+            frequency_dict = {}
+            if isinstance(frequency_list[0], str):
+                yomi = False
+                frequency_dict["readingDictionaryType"] = False
+            elif (
+                isinstance(frequency_list[0], list)
+                and len(frequency_list[0]) == 2
+                and isinstance(frequency_list[0][0], str)
+                and isinstance(frequency_list[0][1], str)
+            ):
+                yomi = True
+                frequency_dict["readingDictionaryType"] = True
+            else:
+                return None
+
+            for idx, f in enumerate(frequency_list):
+                if yomi:
+                    term = f[0].strip()
+                    reading = f[1].strip()
+                    if term in frequency_dict:
+                        frequency_dict[term][reading] = idx
+                    else:
+                        frequency_dict[term] = {reading: idx}
+                else:
+                    term = f.strip()
+                    if term not in frequency_dict:
+                        frequency_dict[term] = idx
+
+            self._freq_cache[lang] = frequency_dict
+            return frequency_dict
+        except Exception as e:
+            logger.error(f"Error loading frequency list for {lang}: {e}")
+            return None
+
+    def getStarCount(self, freq: int) -> str:
+        """Convert frequency rank to star rating."""
+        if freq < 1501:
+            return "★★★★★"
+        elif freq < 5001:
+            return "★★★★"
+        elif freq < 15001:
+            return "★★★"
+        elif freq < 30001:
+            return "★★"
+        elif freq < 60001:
+            return "★"
+        else:
+            return ""
+
+    def kaner(self, to_translate: str, hiraganer: bool = False) -> str:
+        """Convert between Hiragana and Katakana."""
+        hiragana = (
+            "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
+            "あいうえおかきくけこさしすせそたちつてと"
+            "なにぬねのはひふへほまみむめもやゆよらりるれろ"
+            "わをんぁぃぅぇぉゃゅょっゐゑ"
+        )
+        katakana = (
+            "ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ"
+            "アイウエオカキクケコサシスセソタチツテト"
+            "ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ"
+            "ワヲンァィゥェォャュョッヰヱ"
+        )
+        if hiraganer:
+            katakana_ords = [ord(char) for char in katakana]
+            translate_table = dict(zip(katakana_ords, hiragana))
+            return to_translate.translate(translate_table)
+        else:
+            hiragana_ords = [ord(char) for char in hiragana]
+            translate_table = dict(zip(hiragana_ords, katakana))
+            return to_translate.translate(translate_table)
+
+    def adjustReading(self, reading: str) -> str:
+        """Adjust reading for frequency lookup."""
+        return self.kaner(reading)
 
     def getLangId(self, lang: str) -> Optional[int]:
         """Get language ID from language name."""
@@ -495,6 +591,13 @@ class DictDB:
         terms.append(term.lower())
         terms.append(term.capitalize())
         terms = list(set(terms))
+
+        # Pre-load frequency lists for all unique languages in the group
+        langs = set(
+            dic["lang"] for dic in group if dic["dict"] not in ["Images", "LLM API"]
+        )
+        freq_dicts = {lang: self._get_frequency_list(lang) for lang in langs}
+
         for dic in group:
             if dic["dict"] == "Images":
                 results["Images"] = True
@@ -502,6 +605,10 @@ class DictDB:
             if dic["dict"] == "LLM API":
                 results["LLM API"] = True
                 continue
+
+            lang = dic["lang"]
+            freq_dict = freq_dicts.get(lang)
+
             if deinflect:
                 if dic["lang"] in alreadyConjTyped:
                     terms = alreadyConjTyped[dic["lang"]]
@@ -526,7 +633,31 @@ class DictDB:
                 dictRes = []
                 for r in allRs:
                     totalDefs += 1
-                    dictRes.append(self.resultToDict(r))
+                    entry = self.resultToDict(r)
+
+                    # Apply dynamic frequency if enabled and not already set
+                    if freq_dict and (
+                        not entry.get("starCount") or entry.get("starCount") == ""
+                    ):
+                        entry_term = entry["term"]
+                        entry_reading = self.adjustReading(
+                            entry["pronunciation"] or entry_term
+                        )
+
+                        frequency = 999999
+                        if freq_dict.get("readingDictionaryType"):
+                            if (
+                                entry_term in freq_dict
+                                and entry_reading in freq_dict[entry_term]
+                            ):
+                                frequency = freq_dict[entry_term][entry_reading]
+                        elif entry_term in freq_dict:
+                            frequency = freq_dict[entry_term]
+
+                        if frequency != 999999:
+                            entry["starCount"] = self.getStarCount(frequency)
+
+                    dictRes.append(entry)
                     if totalDefs >= maxDefs:
                         results[self.cleanDictName(dic["dict"])] = dictRes
                         return results
@@ -543,7 +674,32 @@ class DictDB:
                         dictRes = []
                         for r in allRs:
                             totalDefs += 1
-                            dictRes.append(self.resultToDict(r))
+                            entry = self.resultToDict(r)
+
+                            # Apply dynamic frequency if enabled
+                            if freq_dict and (
+                                not entry.get("starCount")
+                                or entry.get("starCount") == ""
+                            ):
+                                entry_term = entry["term"]
+                                entry_reading = self.adjustReading(
+                                    entry["pronunciation"] or entry_term
+                                )
+
+                                frequency = 999999
+                                if freq_dict.get("readingDictionaryType"):
+                                    if (
+                                        entry_term in freq_dict
+                                        and entry_reading in freq_dict[entry_term]
+                                    ):
+                                        frequency = freq_dict[entry_term][entry_reading]
+                                elif entry_term in freq_dict:
+                                    frequency = freq_dict[entry_term]
+
+                                if frequency != 999999:
+                                    entry["starCount"] = self.getStarCount(frequency)
+
+                            dictRes.append(entry)
                             if totalDefs >= maxDefs:
                                 results[self.cleanDictName(dic["dict"])] = dictRes
                                 return results
