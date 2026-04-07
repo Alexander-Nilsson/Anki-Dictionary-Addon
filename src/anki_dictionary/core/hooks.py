@@ -113,7 +113,18 @@ def searchTerm(webview):
 def announceParent(self, event=False):
     """Announce parent window to dictionary."""
     if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-        parent = self.parentWidget().parentWidget().parentWidget()
+        # Safely traverse up to find the main window/editor container
+        parent = self
+        for _ in range(3):
+            if parent:
+                try:
+                    parent = parent.parentWidget()
+                except (TypeError, AttributeError):
+                    parent = None
+        
+        if not parent:
+            return
+            
         pName = gt(parent)
         if gt(parent) not in ["AddCards", "EditCurrent"]:
             parent = aqt.DialogManager._dialogs["Browser"][1]
