@@ -2,90 +2,125 @@ name: Auto Release
 
 on:
   push:
-    branches: [master]
-    # Trigger on every push to master (including merges)
+    branches:
+      - master
 
-env:
-  PYTHON_VERSION: '3.13'
+permissions:
+  contents: write
 
 jobs:
   release:
-    name: Create Release
+    name: Build and Release
     runs-on: ubuntu-latest
-    
-    # Only run on merge commits (when PRs are merged to master)
-    if: ${{ contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'Merge branch') }}
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
-    - name: Get current version and bump
-      id: version
-      run: |
-        # Get current version from pyproject.toml using sed/grep
-        CURRENT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/' || echo "0.1.0")
-        
-        echo "Current version: $CURRENT_VERSION"
-        
-        # Simple patch version bump (0.1.0 -> 0.1.1)
-        IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
-        MAJOR=${VERSION_PARTS[0]}
-        MINOR=${VERSION_PARTS[1]}
-        PATCH=${VERSION_PARTS[2]}
-        NEW_PATCH=$((PATCH + 1))
-        NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-        
-        echo "New version: $NEW_VERSION"
-        echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-    - name: Update version in pyproject.toml
-      run: |
-        # Use sed to replace the version in pyproject.toml
-        sed -i 's/version = "[^"]*"/version = "${{ steps.version.outputs.version }}"/' pyproject.toml
-        echo "Updated version to ${{ steps.version.outputs.version }}"
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
 
-    - name: Build addon
-      run: |
-        python build.py all
+      - name: Run CI Suite (Lint + Tests)
+        run: |
+          # Use xvfb-run if tests require a GUI environment (common for Anki addons)
+          xvfb-run -a uv run python dev.py ci
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ steps.version.outputs.version }}
-        name: "Anki Dictionary Addon v${{ steps.version.outputs.version }}"
-        body: |
-          ## 🎉 New Release v${{ steps.version.outputs.version }}
+      - name: Determine and Bump Version
+        id: versioning
+        run: |
+          # Get current version from pyproject.toml
+          # Using python for reliable parsing of the version field
+          CURRENT_VERSION=$(uv run python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              print(tomllib.load(f)['project']['version'])
+          ")
           
-          **Changes in this release:**
-          - ${{ github.event.head_commit.message }}
+          # Semantic Versioning: Default to Patch Bump
+          IFS='.' read -ra ADDR <<< "$CURRENT_VERSION"
+          MAJOR=${ADDR[0]}
+          MINOR=${ADDR[1]}
+          PATCH=${ADDR[2]}
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          TAG="v$NEW_VERSION"
           
-          **Installation:**
-          1. Download the `.ankiaddon` file below
-          2. Open Anki
-          3. Go to Tools → Add-ons → Install from file
-          4. Select the downloaded file
+          echo "Current Version: $CURRENT_VERSION"
+          echo "New Version: $NEW_VERSION"
           
-          **Files:**
-          - 📦 `anki_dictionary_addon_v${{ steps.version.outputs.version }}.ankiaddon` - Main addon file
-        files: |
-          build/*.ankiaddon
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Update pyproject.toml
+          # Use a simple python script to ensure we only replace the project version
+          uv run python -c "
+          import re
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          new_content = re.sub(r'version = \"$CURRENT_VERSION\"', 'version = \"$NEW_VERSION\"', content, count=1)
+          with open('pyproject.toml', 'w') as f:
+              f.write(new_content)
+          "
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-    - name: Commit version bump
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add pyproject.toml
-        git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]" || echo "No changes to commit"
-        git push || echo "Nothing to push"
+      - name: Commit and Push Version Bump
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: bump version to ${{ steps.versioning.outputs.new_version }} [skip ci]"
+          git tag ${{ steps.versioning.outputs.tag }}
+          git push origin master --tags
+
+      - name: Build Addon Package
+        run: |
+          uv run python dev.py build
+
+      - name: Identify Release Asset
+        id: assets
+        run: |
+          # Find the .ankiaddon file in the build directory
+          ANKIADDON_FILE=$(ls build/*.ankiaddon | head -n 1)
+          if [ -z "$ANKIADDON_FILE" ]; then
+            echo "❌ No .ankiaddon file found in build directory!"
+            exit 1
+          fi
+          echo "found_asset=$ANKIADDON_FILE" >> $GITHUB_OUTPUT
+          echo "Asset found: $ANKIADDON_FILE"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.tag }}
+          name: Release ${{ steps.versioning.outputs.tag }}
+          body: |
+            ## Anki Dictionary Addon ${{ steps.versioning.outputs.tag }}
+            
+            This is an automated release triggered by a push to the master branch.
+            
+            ### 🎯 Installation
+            1. Download the `.ankiaddon` file below.
+            2. Double-click the file to install it in Anki.
+            3. Restart Anki.
+            
+            ---
+            *Automated release generated by GitHub Actions.*
+          generate_release_notes: true
+          files: |
+            ${{ steps.assets.outputs.found_asset }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

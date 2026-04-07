@@ -59,10 +59,6 @@ def qt_message_handler(mode, context, message):
 # Install the message handler
 qInstallMessageHandler(qt_message_handler)
 import aqt
-from ..integrations.japanese import miJHandler
-from urllib.request import Request, urlopen
-import requests
-import urllib.request
 from ..integrations import image_search as duckduckgoimages
 from ..integrations import llm as llm_integration
 from ..ui.settings.settings_gui import SettingsGui
@@ -86,7 +82,6 @@ class MIDict(AnkiWebView):
         self.terms = terms
         self.dictInt = dictInt
         self.config = self.dictInt.getConfig()
-        self.jSend = self.config["jReadingEdit"]
         self.maxW = self.config["maxWidth"]
         self.maxH = self.config["maxHeight"]
         self.onBridgeCmd = self.handleDictAction
@@ -111,7 +106,6 @@ class MIDict(AnkiWebView):
 
     def resetConfiguration(self, config):
         self.config = config
-        self.jSend = self.config["jReadingEdit"]
         self.maxW = self.config["maxWidth"]
         self.maxH = self.config["maxHeight"]
         self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
@@ -1277,14 +1271,7 @@ class MIDict(AnkiWebView):
                     )
                     if newField is not False:
                         changed = True
-                        if self.jSend:
-                            note[field["name"]] = (
-                                self.dictInt.jHandler.attemptFieldGenerate(
-                                    newField, field["name"], model["name"], note
-                                )
-                            )
-                        else:
-                            note[field["name"]] = newField
+                        note[field["name"]] = newField
             if not found_field:
                 tooltip(
                     f"None of the selected fields for '{display_name}' were found in the current card."
@@ -1783,7 +1770,6 @@ class DictInterface(QWidget):
         super(DictInterface, self).__init__()
         self.db = dictdb
         self.verticalBar = False
-        self.jHandler = miJHandler(mw)
         self.addonPath = path
         self.welcome = welcome
         self.setAutoFillBackground(True)
