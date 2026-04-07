@@ -19,11 +19,20 @@ import os
 from os.path import dirname, join
 import requests
 import re
-from aqt.qt import QRunnable, QObject, pyqtSignal
+
+try:
+    from aqt.qt import QRunnable, QObject, pyqtSignal
+except ImportError:
+    # Fallback to standard PyQt6 for standalone testing/development
+    from PyQt6.QtCore import QRunnable, QObject, pyqtSignal
+
 from PIL import Image
 import io
 import hashlib
-from aqt import mw
+try:
+    from aqt import mw
+except ImportError:
+    mw = None
 import concurrent.futures
 import json
 import ssl
