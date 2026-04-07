@@ -109,6 +109,8 @@ def create_user_files_structure(addon_dir):
     # Create subdirectories
     dirs = [
         'db',
+        'db/frequency',
+        'db/conjugation',
         'dictionaries',
         'fonts',
         'media',
@@ -187,6 +189,34 @@ def build_addon():
         else:
             print(f"   ⚠️  Skipped missing: {item}")
     
+    # Clean config.json in build directory
+    config_path = addon_dir / 'config.json'
+    if config_path.exists():
+        print("   🧹 Cleaning configuration in build...")
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Reset to defaults
+        config["DictionaryGroups"] = {}
+        config["ExportTemplates"] = {}
+        config["ImageFields"] = []
+        config["currentGroup"] = "All"
+        config["dictSizePos"] = [0, 0, 800, 600]
+        config["currentTemplate"] = False
+        config["currentDeck"] = False
+        
+        # Reset LLM settings
+        config["llm_enabled"] = False
+        config["llm_api_key"] = ""
+        config["llm_base_url"] = "https://api.openai.com/v1/chat/completions"
+        config["llm_model"] = "gpt-3.5-turbo"
+        config["llm_prompt"] = "Provide a concise dictionary definition for the word: {term}"
+        config["llm_timeout"] = 15
+            
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4)
+        print("   ✓ Configuration reset to defaults")
+    
     # Create user_files structure
     create_user_files_structure(addon_dir)
     
@@ -246,7 +276,13 @@ def create_ankiaddon_package():
     package_path = build_dir / package_name
     
     with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for root, _, files in os.walk(addon_dir):
+        for root, dirs, files in os.walk(addon_dir):
+            # Write directories (including empty ones)
+            for d in dirs:
+                dir_path = Path(root) / d
+                arc_path = dir_path.relative_to(addon_dir)
+                zf.write(dir_path, str(arc_path) + '/')
+            # Write files
             for file in files:
                 file_path = Path(root) / file
                 arc_path = file_path.relative_to(addon_dir)
