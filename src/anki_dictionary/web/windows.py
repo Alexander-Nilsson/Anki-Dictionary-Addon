@@ -64,30 +64,40 @@ class FreqConjWebWindow(QDialog):
         url = idx.data(Qt.ItemDataRole.UserRole)
 
         client = HttpClient()
-        resp = client.get(url)
+        try:
+            resp = client.session.get(url, timeout=30, stream=True)
+        except Exception:
+            resp = None
 
         # If it's a 404 and looks like a path with underscores,
         # try replacing underscores with spaces and URL-encoding the result.
-        if resp.status_code == 404 and "_" in url:
+        if (resp is None or resp.status_code == 404) and "_" in url:
             import urllib.parse
 
             new_url = url.replace("_", " ")
             parts = new_url.split("://")
             if len(parts) > 1:
-                quoted_path = urllib.parse.quote(parts[1])
+                quoted_path = urllib.parse.quote(parts[1], safe="/")
                 new_url = parts[0] + "://" + quoted_path
             else:
-                new_url = urllib.parse.quote(new_url)
+                new_url = urllib.parse.quote(new_url, safe="/")
 
-            resp = client.get(new_url)
+            try:
+                resp = client.session.get(new_url, timeout=30, stream=True)
+            except Exception:
+                resp = None
 
-        if resp.status_code != 200:
+        if resp is None or resp.status_code != 200:
             QMessageBox.information(
                 self, self.windowTitle(), "Downloading %s data failed." % self.mode_str
             )
             return
 
-        data = client.streamContent(resp)
+        # Manually stream content to avoid hangs
+        data = b""
+        for chunk in resp.iter_content(chunk_size=16384):
+            if chunk:
+                data += chunk
 
         dir_path = os.path.join(get_db_dir(), self.mode_str)
         os.makedirs(dir_path, exist_ok=True)
