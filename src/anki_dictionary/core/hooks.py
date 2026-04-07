@@ -276,7 +276,10 @@ def setup_gui_menu():
                     # Generic web view (Reviewer, Browser card list if it's a webview, etc)
                     searchTerm(parent.web)
                     return
-                parent = parent.parent()
+                try:
+                    parent = parent.parent()
+                except (TypeError, AttributeError):
+                    parent = None
 
         # Fallback to main webview (Reviewer)
         searchTerm(mw.web)
@@ -296,7 +299,10 @@ def setup_gui_menu():
                 if hasattr(parent, "web") and parent.web:
                     searchCol(parent.web)
                     return
-                parent = parent.parent()
+                try:
+                    parent = parent.parent()
+                except (TypeError, AttributeError):
+                    parent = None
 
         searchCol(mw.web)
 
