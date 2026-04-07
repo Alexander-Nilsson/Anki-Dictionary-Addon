@@ -19,13 +19,18 @@ def download_index(server_url=DEFAULT_SERVER):
 
     client = HttpClient()
     try:
-        # Use a 10s timeout to avoid long UI hangs
-        resp = client.session.get(index_url, timeout=10, stream=True)
+        # Use a 30s timeout to accommodate slower connections
+        resp = client.session.get(index_url, timeout=30, stream=True)
     except Exception:
         return None
 
     if resp.status_code != 200:
         return None
 
-    data = client.stream_content(resp)
-    return json.loads(data)
+    # Manually stream content to ensure it doesn't hang indefinitely
+    data = b""
+    for chunk in resp.iter_content(chunk_size=16384):
+        if chunk:
+            data += chunk
+            
+    return json.loads(data.decode("utf-8-sig"))

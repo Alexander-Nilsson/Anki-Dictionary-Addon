@@ -415,7 +415,7 @@ class DictionaryInstallPage(MiWizardPage):
             else:
                 quoted_url = urllib.parse.quote(url, safe="/")
             
-            return client.get(quoted_url)
+            return client.session.get(quoted_url, timeout=30, stream=True)
 
         def run(self):
             from ..ui.dialogs.dictionary_manager import importDict
@@ -469,10 +469,11 @@ class DictionaryInstallPage(MiWizardPage):
                         furl = self.construct_url(furl)
                         dl_resp = self.fetch_data(client, furl)
                         if dl_resp.status_code == 200:
-                            fdata = client.stream_content(dl_resp)
                             dst_path = os.path.join(freq_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
-                                f.write(fdata)
+                                for chunk in dl_resp.iter_content(chunk_size=16384):
+                                    if chunk:
+                                        f.write(chunk)
                         else:
                             self.log_update.emit(
                                 " ERROR: Download failed (%d)." % dl_resp.status_code
@@ -488,10 +489,11 @@ class DictionaryInstallPage(MiWizardPage):
                         curl = self.construct_url(curl)
                         dl_resp = self.fetch_data(client, curl)
                         if dl_resp.status_code == 200:
-                            cdata = client.stream_content(dl_resp)
                             dst_path = os.path.join(conj_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
-                                f.write(cdata)
+                                for chunk in dl_resp.iter_content(chunk_size=16384):
+                                    if chunk:
+                                        f.write(chunk)
                         else:
                             self.log_update.emit(
                                 " ERROR: Download failed (%d)." % dl_resp.status_code
@@ -521,7 +523,12 @@ class DictionaryInstallPage(MiWizardPage):
                     if dl_resp.status_code == 200:
                         update_dict_progress(0.5)
                         self.log_update.emit(" Importing...")
-                        ddata = client.stream_content(dl_resp)
+                        # Manually stream content to avoid hangs
+                        ddata = b""
+                        for chunk in dl_resp.iter_content(chunk_size=16384):
+                            if chunk:
+                                ddata += chunk
+                        
                         try:
                             # Pass wizard as parent to allow message boxes if needed
                             # Note: calling GUI from thread is usually bad, but QMessageBox.exec()
