@@ -148,7 +148,7 @@ def setBrowserEditor(self):
 def checkCurrentEditor(self):
     """Check current editor when closing."""
     if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.dict.checkCurrentEditor()
+        mw.ankiDictionary.dict.checkEditorClose(self)
 
 
 def addBodyClick(self):
