@@ -36,6 +36,30 @@ class TestAddonBasics(unittest.TestCase):
             (build_dir / "assets").exists(), "assets directory missing from build"
         )
 
+    def test_user_files_structure(self):
+        """Test that user_files structure is correct in build."""
+        build_dir = Path(__file__).parent.parent / "build" / "anki_dictionary_addon"
+        user_files_dir = build_dir / "user_files"
+
+        if not build_dir.exists():
+            self.skipTest("Build directory does not exist - run build first")
+
+        expected_subdirs = [
+            "db",
+            "db/frequency",
+            "db/conjugation",
+            "dictionaries",
+            "fonts",
+            "media",
+            "themes",
+        ]
+
+        for subdir in expected_subdirs:
+            self.assertTrue(
+                (user_files_dir / subdir).exists(),
+                f"Subdirectory {subdir} missing from user_files",
+            )
+
     def test_config_json_valid(self):
         """Test that config.json is valid JSON."""
         import json

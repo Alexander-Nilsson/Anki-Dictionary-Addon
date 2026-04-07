@@ -100,6 +100,8 @@ class SettingsGui(QTabWidget):
         self.openOnStart = QCheckBox()
         self.globalHotkeys = QCheckBox()
         self.globalOpen = QCheckBox()
+        self.genJSExport = QCheckBox()
+        self.genJSEdit = QCheckBox()
 
         # LLM Settings
         self.llmEnabled = QCheckBox()
@@ -226,6 +228,8 @@ class SettingsGui(QTabWidget):
         self.globalOpen.setChecked(config["openOnGlobal"])
         self.disableCondensedMessages.setChecked(config["disableCondensed"])
         self.dictOnTop.setChecked(config["dictAlwaysOnTop"])
+        self.genJSExport.setChecked(config.get("jReadingCards", True))
+        self.genJSEdit.setChecked(config.get("jReadingEdit", True))
 
         # Load LLM settings
         self.llmEnabled.setChecked(config.get("llm_enabled", False))
@@ -264,6 +268,8 @@ class SettingsGui(QTabWidget):
         nc["openOnGlobal"] = self.globalOpen.isChecked()
         nc["disableCondensed"] = self.disableCondensedMessages.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
+        nc["jReadingCards"] = self.genJSExport.isChecked()
+        nc["jReadingEdit"] = self.genJSEdit.isChecked()
 
         # Save LLM settings
         nc["llm_enabled"] = self.llmEnabled.isChecked()
@@ -282,8 +288,6 @@ class SettingsGui(QTabWidget):
         # Refresh dictionary window with new settings
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(nc)
-        if nc["mp3Convert"]:
-            self.ffmpegInstaller.installFFMPEG()
 
     def updateAudioDirectory(self):
         directory = str(
@@ -564,6 +568,16 @@ class SettingsGui(QTabWidget):
         dictResLay.addWidget(self.dictDefs)
         self.dictDefs.setFixedWidth(160)
         optLay2.addLayout(dictResLay)
+
+        genJSELay = QHBoxLayout()
+        genJSELay.addWidget(self.miQLabel("Japanese Readings (Export):", 180))
+        genJSELay.addWidget(self.genJSExport)
+        optLay2.addLayout(genJSELay)
+
+        genJSEDLay = QHBoxLayout()
+        genJSEDLay.addWidget(self.miQLabel("Japanese Readings (Edit):", 180))
+        genJSEDLay.addWidget(self.genJSEdit)
+        optLay2.addLayout(genJSEDLay)
 
         countryLay = QHBoxLayout()
         countryLay.addWidget(self.miQLabel("Image Search Region:", 180))
