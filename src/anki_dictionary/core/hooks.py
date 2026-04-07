@@ -13,18 +13,39 @@ import os
 import re
 import json
 from typing import Optional
-from anki.hooks import addHook, wrap
-from anki.utils import is_win, is_mac, is_lin
-from aqt import mw
-from aqt.qt import *
-from aqt.utils import showInfo
-from aqt.addcards import AddCards
-from aqt.editcurrent import EditCurrent
-from aqt.browser import Browser
-from aqt.tagedit import TagEdit
-from aqt.reviewer import Reviewer
-from aqt.previewer import Previewer
-import aqt.editor
+try:
+    from anki.hooks import addHook, wrap
+    from anki.utils import is_win, is_mac, is_lin
+except ImportError:
+    # Fallback for testing
+    addHook = lambda *args: None
+    wrap = lambda *args: lambda *a, **k: None
+    is_win = is_mac = is_lin = False
+
+try:
+    from aqt import mw
+    from aqt.qt import *
+    from aqt.utils import showInfo
+    from aqt.addcards import AddCards
+    from aqt.editcurrent import EditCurrent
+    from aqt.browser import Browser
+    from aqt.tagedit import TagEdit
+    from aqt.reviewer import Reviewer
+    from aqt.previewer import Previewer
+    import aqt.editor
+except ImportError:
+    # Fallback for testing - use real PyQt if possible
+    try:
+        from PyQt6.QtCore import *
+        from PyQt6.QtGui import *
+        from PyQt6.QtWidgets import *
+    except ImportError:
+        pass
+    mw = None
+    showInfo = lambda *args: None
+    AddCards = EditCurrent = Browser = TagEdit = Reviewer = Previewer = object
+    import sys
+    aqt = sys.modules.get("aqt") or object()
 
 from ..utils.common import miInfo, getTarget, gt
 from ..utils.paths import get_addon_root

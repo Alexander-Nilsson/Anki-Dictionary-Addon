@@ -7,7 +7,12 @@ Supports OpenAI-compatible APIs like OpenAI, llama.cpp, vLLM, Ollama, etc.
 import requests
 import json
 from typing import Optional, Dict, Any, Callable
-from aqt.qt import QObject, pyqtSignal, QRunnable
+
+try:
+    from aqt.qt import QObject, pyqtSignal, QRunnable
+except ImportError:
+    # Fallback to standard PyQt6 for standalone testing/development
+    from PyQt6.QtCore import QObject, pyqtSignal, QRunnable
 
 
 class LLMWorkerSignals(QObject):
