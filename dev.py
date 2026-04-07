@@ -14,6 +14,13 @@ from pathlib import Path
 def run_tests():
     """Run the test suite"""
     print("🧪 Running test suite...")
+
+    # Some tests check for build artifacts, so ensure build exists
+    build_dir = Path("build/anki_dictionary_addon")
+    if not build_dir.exists():
+        print("  ⚠️  Build directory missing, building addon before tests...")
+        build_addon()
+
     try:
         result = subprocess.run([sys.executable, "tests/run_tests.py"], check=False)
         return result.returncode == 0
@@ -113,7 +120,7 @@ def check_dependencies():
     missing_deps = []
 
     # Required for development
-    dev_deps = ["pytest", "flake8", "black"]
+    dev_deps = ["pytest"]
 
     for dep in dev_deps:
         try:
@@ -279,15 +286,21 @@ def main():
         print("🚀 Running CI checks...")
         print("=" * 30)
 
-        print("\n1. Checking dependencies...")
-        if not check_dependencies():
-            print("Installing missing dependencies...")
-            install_dev_deps()
+        is_ci = os.environ.get("GITHUB_ACTIONS") == "true"
+
+        if not is_ci:
+            print("\n1. Checking dependencies...")
+            if not check_dependencies():
+                print("Installing missing dependencies...")
+                install_dev_deps()
 
         print("\n2. Running linting...")
+        # In GitHub Actions, we handle linting separately in the YAML if needed,
+        # but here we'll still run it if requested via 'ci' command.
         lint_success = lint_code()
 
         print("\n3. Running tests...")
+        # Ensure we don't clean build before tests if they depend on it
         test_success = run_tests()
 
         success = lint_success and test_success
