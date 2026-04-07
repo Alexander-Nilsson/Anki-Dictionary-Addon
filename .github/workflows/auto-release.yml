@@ -35,23 +35,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb
 
+      - name: Create venv with pip seeded
+        run: |
+          uv venv --seed
+
       - name: Run CI Suite (Lint + Tests)
         run: |
-          # Use xvfb-run if tests require a GUI environment (common for Anki addons)
           xvfb-run -a uv run python dev.py ci
 
       - name: Determine and Bump Version
         id: versioning
         run: |
-          # Get current version from pyproject.toml
-          # Using python for reliable parsing of the version field
           CURRENT_VERSION=$(uv run python -c "
           import tomllib
           with open('pyproject.toml', 'rb') as f:
               print(tomllib.load(f)['project']['version'])
           ")
           
-          # Semantic Versioning: Default to Patch Bump
           IFS='.' read -ra ADDR <<< "$CURRENT_VERSION"
           MAJOR=${ADDR[0]}
           MINOR=${ADDR[1]}
@@ -63,8 +63,6 @@ jobs:
           echo "Current Version: $CURRENT_VERSION"
           echo "New Version: $NEW_VERSION"
           
-          # Update pyproject.toml
-          # Use a simple python script to ensure we only replace the project version
           uv run python -c "
           import re
           with open('pyproject.toml', 'r') as f:
@@ -93,7 +91,6 @@ jobs:
       - name: Identify Release Asset
         id: assets
         run: |
-          # Find the .ankiaddon file in the build directory
           ANKIADDON_FILE=$(ls build/*.ankiaddon | head -n 1)
           if [ -z "$ANKIADDON_FILE" ]; then
             echo "❌ No .ankiaddon file found in build directory!"
