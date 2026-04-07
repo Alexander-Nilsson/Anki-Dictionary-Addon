@@ -1,18 +1,17 @@
 {
   "maxWidth": 1500,
-  "enableHotkeys": true,
-  "dictionaryPath": "dictionaries",
-  "theme": "demo_theme",
+  "theme": "light",
   "DictionaryGroups": {
     "zh": {
       "dictionaries": [
         "Moedict_Monolingual_Simplified",
         "Images",
-        "\u5169\u5cb8\u8a5e\u5178",
+        "兩岸詞典",
         "Cedict",
-        "\u6c49\u8bed\u5927\u8bcd\u5178",
-        "\u6f22\u8a9e\u5927\u8a5e\u5178",
-        "\u840c\u5178\u56fd\u8bed\u8f9e\u5178_\u7b80\u4f53\u5b57"
+        "汉语大詞典",
+        "漢語大詞典",
+        "萌典国语辞典_简体字",
+        "LLM API"
       ],
       "customFont": false,
       "font": "SimSun"
@@ -40,18 +39,23 @@
     }
   },
   "ExportTemplates": {},
-  "ImageFields": [],
+  "ImageFields": [
+    "(Just for copy/paste)",
+    "Image",
+    "Pic (focus morph)"
+  ],
   "ImageAddType": "add",
-  "dictOnStart": false,
+  "dictOnStart": true,
   "highlightSentences": true,
   "highlightTarget": true,
   "maxSearch": 1000,
   "dictSearch": 50,
-  "jReadingCards": true,
+  "jReadingCards": false,
+  "jReadingEdit": false,
   "imageSearchRegion": "United States",
   "maxHeight": 400,
-  "frontBracket": "\u3010",
-  "backBracket": "\u3011",
+  "frontBracket": "【",
+  "backBracket": "】",
   "showTarget": false,
   "day": true,
   "currentGroup": "zh",
@@ -64,30 +68,32 @@
     0,
     0,
     931,
-    1006
+    496
   ],
-  "exporterSizePos": false,
+  "exporterSizePos": [
+    0,
+    0,
+    456,
+    496
+  ],
   "fontSizes": [
     14,
-    24
+    14
   ],
   "tooltips": true,
   "globalHotkeys": true,
   "openOnGlobal": true,
   "dictAlwaysOnTop": false,
-  "displayAgain": false,
   "autoDefinitionSettings": false,
   "autoAddDefinitions": false,
   "autoAddCards": false,
   "unknownsToSearch": 3,
-  "massGenerationPreferences": false,
   "condensedAudioDirectory": false,
   "disableCondensed": false,
-  "demo_setting": "This is a demo!",
-  "llm_enabled": false,
-  "llm_api_key": "",
-  "llm_base_url": "https://api.openai.com/v1/chat/completions",
-  "llm_model": "gpt-3.5-turbo",
-  "llm_prompt": "Provide a concise dictionary definition for the word: {term}",
-  "llm_timeout": 15
-  }
+  "llm_enabled": true,
+  "llm_api_key": "ollama",
+  "llm_base_url": "http://100.102.234.5:11434/api/chat",
+  "llm_model": "qwen3.5:4b-q4_K_M",
+  "llm_prompt": "提供该词的简明词典定义：{term}（请优先使用简单易懂的表达）",
+  "llm_timeout": 20
+}
