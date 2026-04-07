@@ -11,8 +11,9 @@ import os
 from pathlib import Path
 import time
 
-# Add current directory to path
+# Add current directory and project root to path
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 def discover_and_run_tests():
