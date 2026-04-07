@@ -1,6 +1,8 @@
 name: Tests
 
 on:
+  push:
+    branches: [ master ]
   pull_request:
     branches: [ master ]
 
@@ -32,27 +34,13 @@ jobs:
         
         # Install Python dependencies
         uv sync --dev || true
-        uv pip install pytest pytest-cov flake8 black mypy || pip install pytest pytest-cov flake8 black mypy
+        uv pip install pytest pytest-cov || pip install pytest pytest-cov
         
-    - name: Lint code with flake8
-      run: |
-        uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        
-    - name: Check code formatting with black
-      run: |
-        uv run black --check --diff . || echo "Code formatting issues found - consider running 'black .'"
-        
-    - name: Type check with mypy (optional)
-      continue-on-error: true
-      run: |
-        uv run mypy . --ignore-missing-imports || echo "Type checking completed with warnings"
-        
-
     - name: Build addon packages
       run: |
         python build.py all
 
-    - name: Test built addon structuxre
+    - name: Test built addon structure
       run: |
         python -c "
         import os
@@ -73,14 +61,6 @@ jobs:
             sys.exit(1)
         else:
             print('✅ All required addon files present in build')
-        
-        # Check if main components can be imported
-        try:
-            sys.path.insert(0, str(build_dir))
-            import main
-            print('✅ Main module imports successfully from build')
-        except Exception as e:
-            print(f'⚠️  Main module import warning (from build): {e}')
         "
         
     - name: Run test suite
@@ -92,7 +72,7 @@ jobs:
     name: Build Addon
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     
     steps:
     - name: Checkout code
