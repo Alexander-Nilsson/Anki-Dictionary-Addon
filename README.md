@@ -28,7 +28,7 @@ The **Anki Dictionary Addon** is a modern successor to the [Migaku Dictionary Ad
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 The addon follows a modular architecture. Source files are located in `src/`, while external dependencies and user data are managed by the build system.
 
@@ -50,7 +50,7 @@ tests/                  # Test suite
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Status](#status)
 - [Installation](#installation)
@@ -62,28 +62,24 @@ tests/                  # Test suite
 
 ---
 
-## 🚧 Status
+## Status
 
-### ✅ Recent Updates (v0.1.0)
+### Key Features
 
-- **Anki 25.07 Compatibility:** Updated and tested to work with the latest Anki version **25.07**.
-- **Image Search Improvement:** Migrated from Google Images to **DuckDuckGo** for better reliability and privacy.
-- **Enhanced Styling:** Improved user interface with better visual design and user experience.
-- **Code Structure:** Completely reorganized codebase following modern Python practices for better maintainability.
-
-### Current Features
-
-- **Image Search:** Uses DuckDuckGo for image search functionality with dynamic loading and pagination.
-- **Forvo Audio Service:** Currently not working - audio functionality is temporarily unavailable.
+- **Multi-Dictionary Search:** Look up word definitions, frequency data, and pronunciations across multiple local and online sources.
+- **AI Definitions:** Generate context-aware definitions using integrated LLM support.
+- **Image Search:** Privacy-respecting image search using DuckDuckGo with dynamic loading.
+- **Anki Export:** Real-time export of dictionary data, images, and audio directly to Anki cards.
+- **Modern UI:** Responsive, themeable interface built with PyQt6 and optimized for high-DPI displays.
 
 ### Compatibility
 
-- **Platform Compatibility:** Tested primarily on **Linux**.
-- **Anki Version Compatibility:** Confirmed working with Anki version **25.07** (latest).
+- **Platform Compatibility:** Tested on **Linux**. Initial support for macOS and Windows via cross-platform library adjustments.
+- **Anki Version Compatibility:** Optimized for Anki version **25.07**+.
 
 ---
 
-## 💾 Installation
+## Installation
 
 1. **Install Anki:** Ensure you have the latest supported version of Anki installed. [Download Anki](https://apps.ankiweb.net/)
 2. **Download the Addon:**
@@ -95,7 +91,7 @@ tests/                  # Test suite
 
 ---
 
-## ▶️ Usage
+## Usage
 
 For a visual guide on how to use the addon, refer to the following video:
 
@@ -103,7 +99,7 @@ For a visual guide on how to use the addon, refer to the following video:
 
 ---
 
-## 🔧 Development
+## Development
 
 The addon follows modern Python development practices with a clean, modular structure:
 
@@ -132,15 +128,9 @@ The addon follows modern Python development practices with a clean, modular stru
    python dev.py format
    ```
 
-3. **Code Organization:**
-   - Follow the package structure for new features
-   - Keep related functionality grouped together
-   - Use absolute imports within the package
-   - Document new functions and classes
-
 ---
 
-## 📦 Building
+## Building
 
 The addon includes an automated build system that handles dependency bundling and environment setup:
 
@@ -159,17 +149,7 @@ python dev.py clean
 
 ---
 
-## 📚 Documentation
-
-*Documentation is currently under development.* Future updates will include detailed guides on:
-
-- Configuring dictionaries.
-- Customizing export templates.
-- Utilizing advanced features.
-
----
-
-## 📝 License and Credits
+## License and Credits
 
 The **Anki Dictionary Addon** is a successor to the [Migaku Dictionary Addon](https://github.com/migaku-official/Migaku-Dictionary-Addon).
 
