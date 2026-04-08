@@ -3,9 +3,23 @@
 
 import aqt
 from aqt.qt import *
+import os
 from os.path import dirname, join
+import contextlib
+import urllib3.util.connection as connection
 from aqt.webview import AnkiWebView
 from .paths import get_addon_root, get_icons_dir
+
+
+@contextlib.contextmanager
+def prefer_ipv4():
+    """Context manager to temporarily prefer IPv4 for network operations by disabling IPv6 in urllib3."""
+    old_has_ipv6 = connection.HAS_IPV6
+    connection.HAS_IPV6 = False
+    try:
+        yield
+    finally:
+        connection.HAS_IPV6 = old_has_ipv6
 
 
 def miInfo(text, parent=False, level="msg", day=True):
@@ -19,7 +33,7 @@ def miInfo(text, parent=False, level="msg", day=True):
         title = "Anki Dictionary"
     if parent is False:
         parent = aqt.mw.app.activeWindow() or aqt.mw
-    icon = QIcon(os.path.join(get_icons_dir(), "dictionary.png"))
+    icon = QIcon(os.path.join(get_icons_dir(), "anki.png"))
     mb = QMessageBox(parent)
     if not day:
         mb.setStyleSheet(" QMessageBox {background-color: #272828;}")
@@ -38,7 +52,7 @@ def miAsk(text, parent=None, day=True, customText=False):
     msg = QMessageBox(parent)
     msg.setWindowTitle("Anki Dictionary")
     msg.setText(text)
-    icon = QIcon(os.path.join(get_icons_dir(), "dictionary.png"))
+    icon = QIcon(os.path.join(get_icons_dir(), "anki.png"))
     b = msg.addButton(QMessageBox.StandardButton.Yes)
 
     b.setFixedSize(100, 30)

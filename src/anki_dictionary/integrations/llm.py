@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-LLM API Integration for Anki Dictionary.
+LLM Integration for Anki Dictionary.
 Supports OpenAI-compatible APIs like OpenAI, llama.cpp, vLLM, Ollama, etc.
 """
 
@@ -24,12 +24,13 @@ class LLMWorkerSignals(QObject):
 
 
 class LLMWorker(QRunnable):
-    """Worker for making LLM API calls in a separate thread."""
+    """Worker for making LLM calls in a separate thread."""
 
-    def __init__(self, term: str, config: Dict[str, Any]):
+    def __init__(self, term: str, config: Dict[str, Any], star_count: str = ""):
         super().__init__()
         self.term = term
         self.config = config
+        self.star_count = star_count
         self.signals = LLMWorkerSignals()
         # Allow custom timeout via config, default to 15 seconds
         self.timeout = config.get("llm_timeout", 15)
@@ -94,8 +95,8 @@ class LLMWorker(QRunnable):
                 "definition": content.strip(),
                 "pronunciation": "",
                 "altterm": "",
-                "starCount": "LLM",
-                "dictName": "LLM API",
+                "starCount": self.star_count,
+                "dictName": "LLM",
             }
 
             self.signals.result_ready.emit(result)
@@ -146,7 +147,7 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
         data = response.json()
         if "choices" in data or "message" in data or "response" in data:
             print("Test successful!")
-            callback(True, "Successfully connected to LLM API!")
+            callback(True, "Successfully connected to LLM!")
         else:
             print(f"Test failed: unexpected response format: {data}")
             callback(

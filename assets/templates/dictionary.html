@@ -132,7 +132,7 @@
         }
 
         .tablinks {
-            padding: 0 clamp(12px, 2.8vw, 20px);
+            padding: 0 clamp(18px, 3.5vw, 30px) 0 clamp(12px, 2.5vw, 20px);
             height: 100%;
             display: flex;
             align-items: center;
@@ -176,6 +176,35 @@
             background: linear-gradient(90deg, var(--search_term), var(--search_term));
             box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.15);
             border-radius: 2px 2px 0 0;
+        }
+
+        .tab-close {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            opacity: 0;
+            transition: all var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            line-height: 1;
+            z-index: 10;
+        }
+
+        .tablinks:hover .tab-close,
+        .tablinks.active .tab-close {
+            opacity: 0.6;
+        }
+
+        .tab-close:hover {
+            opacity: 1 !important;
+            background-color: var(--tab_hover);
+            color: var(--search_term);
         }
 
         /* DEFINITION BOX - Responsive */
@@ -273,7 +302,6 @@
 
         .term, .altterm, .pronunciation {
             display: inline;
-            margin-right: clamp(6px, 1vw, 10px);
         }
 
         .mainword {

@@ -27,6 +27,7 @@ from os.path import join, exists, dirname
 import ssl
 import subprocess
 from typing import List, Dict, Optional, Tuple, Any, Union
+from urllib.request import Request, urlopen
 
 try:
     from PIL import Image
@@ -82,8 +83,8 @@ class MIDict(AnkiWebView):
         self.terms = terms
         self.dictInt = dictInt
         self.config = self.dictInt.getConfig()
-        self.maxW = self.config["maxWidth"]
-        self.maxH = self.config["maxHeight"]
+        self.maxW = self.config.get("maxWidth", 1500)
+        self.maxH = self.config.get("maxHeight", 400)
         self.onBridgeCmd = self.handleDictAction
         self.db = db
         self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
@@ -106,8 +107,8 @@ class MIDict(AnkiWebView):
 
     def resetConfiguration(self, config):
         self.config = config
-        self.maxW = self.config["maxWidth"]
-        self.maxH = self.config["maxHeight"]
+        self.maxW = self.config.get("maxWidth", 1500)
+        self.maxH = self.config.get("maxHeight", 400)
         self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
         self.dupHeaders = self.db.getDupHeaders() or {}
 
@@ -127,13 +128,19 @@ class MIDict(AnkiWebView):
     def downloadImage(self, url):
         try:
             filename = str(time.time()).replace(".", "") + ".png"
-            req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            file = urlopen(req).read()
+            if url.startswith("data:"):
+                # Handle data:image/xxx;base64,xxxx
+                header, encoded = url.split(",", 1)
+                file = base64.b64decode(encoded)
+            else:
+                req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                file = urlopen(req).read()
+
             image = QImage()
             image.loadFromData(file)
             if not image.isNull():
                 image = image.scaled(
-                    QSize(self.config["maxWidth"], self.config["maxHeight"]),
+                    QSize(self.maxW, self.maxH),
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
                 )
@@ -146,7 +153,20 @@ class MIDict(AnkiWebView):
         self.page().setHtml(html, url)
 
     def getBase64Icon(self, icon_name):
-        """Convert icon to base64 data URL for embedding in HTML"""
+        """Convert icon to base64 data URL for embedding in HTML, handling dark theme if needed"""
+        if self.dictInt.theme_manager.is_dark:
+            # Handle special cases first
+            if icon_name == "anki.png":
+                icon_name = "nightanki.png"
+            elif "." in icon_name:
+                name, ext = icon_name.rsplit(".", 1)
+                # Avoid adding "night" twice
+                if not name.endswith("night"):
+                    night_name = f"{name}night.{ext}"
+                    # Check if the night version exists in the icons directory
+                    if exists(join(self.iconpath, night_name)):
+                        icon_name = night_name
+        
         return get_base64_icon(icon_name)
 
     def formatTermHeaders(self, ths):
@@ -158,11 +178,11 @@ class MIDict(AnkiWebView):
             sbHeaderString = ""
             for header in ths[dictname]:
                 if header == "term":
-                    headerString += '◳f<span class="term mainword">◳t</span>◳b'
-                    sbHeaderString += '◳f<span class="listTerm">◳t</span>◳b'
+                    headerString += '◳f<span class="term mainword">◳t</span>◳b '
+                    sbHeaderString += '◳f<span class="listTerm">◳t</span>◳b '
                 elif header == "altterm":
-                    headerString += '◳x<span class="altterm  mainword">◳a</span>◳y'
-                    sbHeaderString += '◳x<span class="listAltTerm">◳a</span>◳y'
+                    headerString += '◳x<span class="altterm  mainword">◳a</span>◳y '
+                    sbHeaderString += '◳x<span class="listAltTerm">◳a</span>◳y '
                 elif header == "pronunciation":
                     headerString += '<span class="pronunciation">◳p</span>'
                     sbHeaderString += '<span class="listPronunciation">◳p</span>'
@@ -226,25 +246,35 @@ class MIDict(AnkiWebView):
         dictDefs = self.config["dictSearch"]
         maxDefs = self.config["maxSearch"]
 
+        # Fetch standard results first to get potential starCount
+        results = self.db.searchTerm(
+            term,
+            selectedGroup,
+            self.conjugations,
+            self.sType.currentText(),
+            self.deinflect,
+            str(dictDefs),
+            maxDefs,
+        )
+
         # Trigger LLM search if enabled and in selected group
         if self.config.get("llm_enabled", False):
             group_dicts = [d["dict"] for d in selectedGroup["dictionaries"]]
-            if "LLM API" in group_dicts:
-                self.triggerLLMSearch(cleaned)
+            if "LLM" in group_dicts:
+                # Find the highest star count from results to reuse it for LLM
+                star_count = ""
+                for d_name, d_results in results.items():
+                    if not isinstance(d_results, list):
+                        continue
+                    for entry in d_results:
+                        s = entry.get("starCount", "")
+                        if s.startswith("★"):
+                            # If we found stars, we use the longest one (most stars)
+                            if len(s) > len(star_count):
+                                star_count = s
+                self.triggerLLMSearch(cleaned, star_count)
 
-        html = self.prepareResults(
-            self.db.searchTerm(
-                term,
-                selectedGroup,
-                self.conjugations,
-                self.sType.currentText(),
-                self.deinflect,
-                str(dictDefs),
-                maxDefs,
-            ),
-            cleaned,
-            font,
-        )
+        html = self.prepareResults(results, cleaned, font)
         html = html.replace("\n", "")
         return html, cleaned, singleTab
 
@@ -359,10 +389,29 @@ class MIDict(AnkiWebView):
                 entryCount += 1
                 dictCount += 1
                 continue
-            if dictName == "LLM API":
-                # Skip from sidebar for now as it's loaded asynchronously
-                dictCount += 1
+            if dictName == "LLM":
+                html += (
+                    '<div data-index="'
+                    + str(dictCount)
+                    + '" class="listTitle">'
+                    + dictName
+                    + '</div><ol class="foundEntriesList"><li data-index="'
+                    + str(entryCount)
+                    + '">'
+                    + self.getPreparedTermHeader(
+                        dictName,
+                        frontBracket,
+                        backBracket,
+                        term,
+                        term,
+                        term,
+                        term,
+                        True,
+                    )
+                    + "</li></ol>"
+                )
                 entryCount += 1
+                dictCount += 1
                 continue
             html += (
                 '<div data-index="'
@@ -423,7 +472,12 @@ class MIDict(AnkiWebView):
             "★": "Top 60,000",
         }
 
-        rank = ranks.get(starCount, "")
+        # Extract just the stars if it's an LLM result (e.g. "LLM ★★★★★")
+        lookup_stars = starCount
+        if " " in starCount:
+            lookup_stars = starCount.split(" ")[-1]
+
+        rank = ranks.get(lookup_stars, "")
         if rank:
             return f' title="Frequency: {rank}" '
         return ""
@@ -448,11 +502,11 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-        if not self.termHeaders or dictName == "Images" or dictName == "LLM API":
+        if not self.termHeaders or dictName == "Images" or dictName == "LLM":
             if sb:
-                header = '◳f<span class="listTerm">◳t</span>◳b◳x<span class="listAltTerm">◳a</span>◳y<span class="listPronunciation">◳p</span>'
+                header = '◳f<span class="listTerm">◳t</span>◳b ◳x<span class="listAltTerm">◳a</span>◳y <span class="listPronunciation">◳p</span>'
             else:
-                header = '◳f<span class="term mainword">◳t</span>◳b◳x<span class="altterm  mainword">◳a</span>◳y<span class="pronunciation">◳p</span>'
+                header = '◳f<span class="term mainword">◳t</span>◳b ◳x<span class="altterm  mainword">◳a</span>◳y <span class="pronunciation">◳p</span>'
         else:
             if sb:
                 header = self.termHeaders[dictName][1]
@@ -487,16 +541,18 @@ class MIDict(AnkiWebView):
                     dictCount += 1
                     entryCount += 1
                     continue
-                if dictName == "LLM API":
+                if dictName == "LLM":
                     if self.config.get("llm_enabled", False):
                         duplicateHeader = self.getDuplicateHeaderCB(dictName)
                         overwrite = self.getOverwriteChecks(dictCount, dictName)
                         select = self.getFieldChecks(dictName)
                         html += (
                             '<div id="llm-loader">'
-                            '<div class="dictionaryTitleBlock"><div '
+                            '<div data-index="'
+                            + str(dictCount)
+                            + '" class="dictionaryTitleBlock"><div '
                             + font
-                            + ' class="dictionaryTitle">LLM API</div><div class="dictionarySettings">'
+                            + ' class="dictionaryTitle">LLM</div><div class="dictionarySettings">'
                             + duplicateHeader
                             + overwrite
                             + select
@@ -573,7 +629,7 @@ class MIDict(AnkiWebView):
         else:
             html = (
                 '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="'
-                + self.getBase64Icon("searchzero.svg")
+                + self.getBase64Icon("search.png")
                 + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
                 + term
                 + '".</h3> </div></div>'
@@ -653,16 +709,16 @@ class MIDict(AnkiWebView):
     def showNoImagesMessage(self):
         tooltip("No images found")
 
-    def triggerLLMSearch(self, term):
+    def triggerLLMSearch(self, term, star_count=""):
         """Initiate an asynchronous LLM search."""
-        worker = llm_integration.LLMWorker(term, self.config)
+        worker = llm_integration.LLMWorker(term, self.config, star_count)
         worker.signals.result_ready.connect(self.loadLLMResults)
         worker.signals.error_occurred.connect(self.showLLMError)
         self.threadpool.start(worker)
 
     def loadLLMResults(self, result):
         """Handle result from LLM and inject into the UI."""
-        dictName = result.get("dictName", "LLM API")
+        dictName = result.get("dictName", "LLM")
         font = self.getFontFamily({"font": False, "customFont": False})
 
         # Format just the content part (without header and title block)
@@ -945,7 +1001,7 @@ class MIDict(AnkiWebView):
             fields = json.loads(dAct[14:])
             if fields["dictName"] == "Images":
                 self.dictInt.writeConfig("ImageFields", fields["fields"])
-            elif fields["dictName"] == "LLM API":
+            elif fields["dictName"] == "LLM":
                 self.dictInt.writeConfig("LLMFields", fields["fields"])
             else:
                 self.dictInt.updateFieldsSetting(fields["dictName"], fields["fields"])
@@ -953,7 +1009,7 @@ class MIDict(AnkiWebView):
             addType = json.loads(dAct[17:])
             if addType["name"] == "Images":
                 self.dictInt.writeConfig("ImageAddType", addType["type"])
-            elif addType["name"] == "LLM API":
+            elif addType["name"] == "LLM":
                 self.dictInt.writeConfig("LLMAddType", addType["type"])
             else:
                 self.dictInt.updateAddType(addType["name"], addType["type"])
@@ -1049,14 +1105,20 @@ class MIDict(AnkiWebView):
         rawPaths: List[str] = []
         for imgurl in urls:
             try:
-                url = re.sub(r"\?.*$", "", imgurl)
-                filename = (
-                    str(time.time())[:-4].replace(".", "")
-                    + re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                    + ".jpg"
-                )
+                if imgurl.startswith("data:"):
+                    filename = (
+                        str(time.time())[:-4].replace(".", "")
+                        + "base64.jpg"
+                    )
+                else:
+                    url = re.sub(r"\?.*$", "", imgurl)
+                    filename = (
+                        str(time.time())[:-4].replace(".", "")
+                        + re.sub(r"\..*$", "", url.strip().split("/")[-1])
+                        + ".jpg"
+                    )
                 fullpath = join(self.dictInt.mw.col.media.dir(), filename)
-                self.saveQImage(imgurl, filename)
+                self.saveQImage(imgurl, fullpath)
                 rawPaths.append(fullpath)
                 # imgs.append('<img ankiDict="' + filename + '">')
                 imgs.append('<img src="' + filename + '">')
@@ -1068,21 +1130,32 @@ class MIDict(AnkiWebView):
             )
 
     def saveQImage(self, url: str, filename: str) -> None:
-        req = Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-            },
-        )
-        file = urlopen(req).read()
+        if url.startswith("data:"):
+            try:
+                # Handle data:image/xxx;base64,xxxx
+                header, encoded = url.split(",", 1)
+                file = base64.b64decode(encoded)
+            except Exception as e:
+                print(f"Error decoding data URL: {e}")
+                return
+        else:
+            req = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+                },
+            )
+            file = urlopen(req).read()
+        
         image = QImage()
         image.loadFromData(file)
-        image = image.scaled(
-            QSize(self.maxW, self.maxH),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        image.save(filename)
+        if not image.isNull():
+            image = image.scaled(
+                QSize(self.maxW, self.maxH),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            image.save(filename)
 
     def getThumbs(self, paths: List[str]) -> QWidget:
         thumbCase = QWidget()
@@ -1202,13 +1275,19 @@ class MIDict(AnkiWebView):
                         urlsList.append(f'<img src="{filename}">')
 
                     else:
-                        # Handle remote URL
-                        url = re.sub(r"\?.*$", "", imgurl)
-                        filename = (
-                            str(time.time())[:-4].replace(".", "")
-                            + re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                            + ".jpg"
-                        )
+                        # Handle remote URL or data URL
+                        if imgurl.startswith("data:"):
+                            filename = (
+                                str(time.time())[:-4].replace(".", "")
+                                + "base64.jpg"
+                            )
+                        else:
+                            url = re.sub(r"\?.*$", "", imgurl)
+                            filename = (
+                                str(time.time())[:-4].replace(".", "")
+                                + re.sub(r"\..*$", "", url.strip().split("/")[-1])
+                                + ".jpg"
+                            )
 
                         self.saveQImage(
                             imgurl, join(self.dictInt.mw.col.media.dir(), filename)
@@ -1241,7 +1320,7 @@ class MIDict(AnkiWebView):
         if name == "Images":
             tFields = self.config.get("ImageFields", [])
             addType = self.config.get("ImageAddType", "add")
-        elif name == "LLM API":
+        elif name == "LLM":
             tFields = self.config.get("LLMFields", [])
             addType = self.config.get("LLMAddType", "add")
         else:
@@ -1319,7 +1398,7 @@ class MIDict(AnkiWebView):
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
         if dictName == "Images":
             addType = self.config.get("ImageAddType", "add")
-        elif dictName == "LLM API":
+        elif dictName == "LLM":
             addType = self.config.get("LLMAddType", "add")
         else:
             addType = self.db.getAddType(dictName) or "add"
@@ -1402,7 +1481,7 @@ class MIDict(AnkiWebView):
     def getFieldChecks(self, dictName):
         if dictName == "Images":
             selF = self.config.get("ImageFields", [])
-        elif dictName == "LLM API":
+        elif dictName == "LLM":
             selF = self.config.get("LLMFields", [])
         else:
             selF = self.db.getFieldsSetting(dictName) or []
@@ -1718,8 +1797,8 @@ class ClipThread(QObject):
                 image = mime.imageData()
                 filename = str(time.time()) + ".png"
                 fullpath = join(self.temp_dir, filename)
-                maxW = max(self.config["maxWidth"], image.width())
-                maxH = max(self.config["maxHeight"], image.height())
+                maxW = max(self.maxW, image.width())
+                maxH = max(self.maxH, image.height())
                 image = image.scaled(
                     QSize(maxW, maxH),
                     Qt.AspectRatioMode.KeepAspectRatio,
@@ -1810,6 +1889,11 @@ class DictInterface(QWidget):
         for child in widget.findChildren(QWidget):
             self.refresh_widget(child)
 
+    def update_window_icon(self):
+        """Update the window icon based on the current theme."""
+        icon_name = "nightanki.png" if self.theme_manager.is_dark else "anki.png"
+        self.setWindowIcon(QIcon(join(self.iconpath, icon_name)))
+
     def refresh_application_theme(self, reload_html=True):
         """
         Refresh the application theme by updating styles and re-rendering components.
@@ -1832,6 +1916,8 @@ class DictInterface(QWidget):
 
         # Update all SVG icons with the theme color
         self.setAllIcons()
+
+        self.update_window_icon()
 
         if reload_html:
             # Simple reload - just reload the dictionary interface completely
@@ -1971,7 +2057,7 @@ class DictInterface(QWidget):
         self.sbOpened = False
         self.historyModel = HistoryModel(self.getHistory(), self)
         self.historyBrowser = HistoryBrowser(self.historyModel, self)
-        self.setWindowIcon(QIcon(join(self.iconpath, "dictionary.png")))
+        self.update_window_icon()
         self.readyToSearch = False
         self.restoreSizePos()
         self.initTooltips()
@@ -2294,7 +2380,7 @@ class DictInterface(QWidget):
         dicts = self.db.getAllDictsWithLang()
         dicts.append({"dict": "Images", "lang": ""})
         if self.config.get("llm_enabled", False):
-            dicts.append({"dict": "LLM API", "lang": ""})
+            dicts.append({"dict": "LLM", "lang": ""})
         allGroups["dictionaries"] = dicts
         allGroups["customFont"] = False
         allGroups["font"] = False
@@ -2716,7 +2802,7 @@ class DictInterface(QWidget):
         )
         defaults = ["All", "Images"]
         if self.config.get("llm_enabled", False):
-            defaults.append("LLM API")
+            defaults.append("LLM")
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
@@ -2768,9 +2854,9 @@ class DictInterface(QWidget):
                 "customFont": False,
                 "font": False,
             }
-        if cur == "LLM API":
+        if cur == "LLM":
             return {
-                "dictionaries": [{"dict": "LLM API", "lang": ""}],
+                "dictionaries": [{"dict": "LLM", "lang": ""}],
                 "customFont": False,
                 "font": False,
             }

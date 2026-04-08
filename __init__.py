@@ -68,21 +68,18 @@ def initialize_addon() -> None:
     addon_root = os.path.dirname(__file__)
     addon_name = os.path.basename(addon_root)
 
+    # Add the addon root to path temporarily to import internal modules
+    if addon_root not in sys.path:
+        sys.path.insert(0, addon_root)
+
     # Initialize configuration
-    raw_config = mw.addonManager.getConfig(addon_name)
-    if raw_config is None:
-        # Try to load default config from file
-        import json
+    try:
+        from anki_dictionary.utils.config import get_addon_config
+        state.config = get_addon_config()
+    except ImportError:
+        # Fallback if config module can't be imported yet
+        state.config = {}
 
-        config_path = os.path.join(addon_root, "config.json")
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                raw_config = json.load(f)
-        except Exception as e:
-            print(f"Warning: Could not load default config: {e}")
-            raw_config = {}
-
-    state.config = raw_config or {}
     state.config["addon_path"] = addon_root  # Store the actual addon path
     state.config["addon_name"] = addon_name  # Store the addon name
     state.exporting_definitions = False

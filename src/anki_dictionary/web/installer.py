@@ -7,6 +7,7 @@ import aqt
 
 from ..ui.dialogs.wizard import MiWizard, MiWizardPage
 from . import config as webConfig
+from ..utils.common import prefer_ipv4
 
 addon_path = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -31,7 +32,7 @@ class DictionaryWebInstallWizard(MiWizard):
 
         self.setWindowTitle("Anki Dictionary - Web Installer")
         self.setWindowIcon(
-            QIcon(os.path.join(addon_path, "assets", "icons", "dictionary.png"))
+            QIcon(os.path.join(addon_path, "assets", "icons", "anki.png"))
         )
 
         server_add_page = self.add_page(ServerAskPage(self))
@@ -415,7 +416,8 @@ class DictionaryInstallPage(MiWizardPage):
             else:
                 quoted_url = urllib.parse.quote(url, safe="/")
             
-            return client.session.get(quoted_url, timeout=30, stream=True)
+            with prefer_ipv4():
+                return client.session.get(quoted_url, timeout=15, stream=True)
 
         def run(self):
             from ..ui.dialogs.dictionary_manager import importDict
@@ -524,10 +526,12 @@ class DictionaryInstallPage(MiWizardPage):
                         update_dict_progress(0.5)
                         self.log_update.emit(" Importing...")
                         # Manually stream content to avoid hangs
-                        ddata = b""
+                        chunks = []
                         for chunk in dl_resp.iter_content(chunk_size=16384):
                             if chunk:
-                                ddata += chunk
+                                chunks.append(chunk)
+                        
+                        ddata = b"".join(chunks)
                         
                         try:
                             # Pass wizard as parent to allow message boxes if needed

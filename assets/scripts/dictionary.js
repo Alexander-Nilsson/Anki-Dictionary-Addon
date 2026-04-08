@@ -298,6 +298,8 @@ function navigateDict(ev, next, def = false) {
     var dict = ev.target.parentElement.parentElement.parentElement;
     var wanted = 'dictionaryTitleBlock';
     var w = dict.closest('#defBox');
+    if (!w) return;
+    
     if (def) {
         wanted = 'termPronunciation'
     }
@@ -305,7 +307,14 @@ function navigateDict(ev, next, def = false) {
         var nextEl = dict;
         while (nextEl = nextEl.nextElementSibling) {
             if (nextEl.classList && nextEl.classList.contains(wanted)) {
-                w.scrollTop = nextEl.offsetTop;
+                // Calculate offset relative to the scroll container (w)
+                var offsetTop = 0;
+                var current = nextEl;
+                while (current && current !== w) {
+                    offsetTop += current.offsetTop;
+                    current = current.offsetParent;
+                }
+                w.scrollTop = offsetTop;
                 break;
             }
         }
@@ -313,7 +322,14 @@ function navigateDict(ev, next, def = false) {
         var nextEl = dict;
         while (nextEl = nextEl.previousElementSibling) {
             if (nextEl.classList && nextEl.classList.contains(wanted)) {
-                w.scrollTop = nextEl.offsetTop;
+                // Calculate offset relative to the scroll container (w)
+                var offsetTop = 0;
+                var current = nextEl;
+                while (current && current !== w) {
+                    offsetTop += current.offsetTop;
+                    current = current.offsetParent;
+                }
+                w.scrollTop = offsetTop;
                 break;
             }
         }
@@ -475,14 +491,38 @@ document.body.addEventListener("click", function (ev) {
  */
 function navDictOrEntry() {
     var w = this.closest('#defBox');
-    var mD = this.closest('.definitionSideBar').nextSibling;
-    var idx = this.dataset.index;
-    if (this.nodeName === 'LI') {
-        var el = mD.querySelectorAll('.termPronunciation[data-index="' + idx + '"]')[0];
-    } else {
-        var el = mD.querySelectorAll('.dictionaryTitleBlock[data-index="' + idx + '"]')[0];
+    if (!w) return;
+    
+    var sidebar = this.closest('.definitionSideBar');
+    if (!sidebar) return;
+    
+    var mD = sidebar.nextElementSibling;
+    if (!mD || !mD.classList.contains('mainDictDisplay')) {
+        // Search in the tabContent parent if nextElementSibling doesn't work
+        mD = sidebar.parentElement.querySelector('.mainDictDisplay');
     }
-    w.scrollTop = el.offsetTop;
+    
+    if (!mD) return;
+    
+    var idx = this.dataset.index;
+    var el;
+    
+    if (this.nodeName === 'LI') {
+        el = mD.querySelector('.termPronunciation[data-index="' + idx + '"]');
+    } else {
+        el = mD.querySelector('.dictionaryTitleBlock[data-index="' + idx + '"]');
+    }
+    
+    if (el) {
+        // Calculate offset relative to the scroll container (w)
+        var offsetTop = 0;
+        var current = el;
+        while (current && current !== w) {
+            offsetTop += current.offsetTop;
+            current = current.offsetParent;
+        }
+        w.scrollTop = offsetTop;
+    }
 }
 
 /**
@@ -490,10 +530,10 @@ function navDictOrEntry() {
  */
 function toggleDictEntries(ev) {
     ev.preventDefault();
-    var ol = this.nextSibling;
-    if (ol.classList.contains('hiddenOl')) {
+    var ol = this.nextElementSibling;
+    if (ol && ol.classList.contains('hiddenOl')) {
         ol.classList.remove('hiddenOl')
-    } else {
+    } else if (ol) {
         ol.classList.add('hiddenOl')
     }
 }
@@ -502,7 +542,7 @@ function toggleDictEntries(ev) {
  * Add sidebar listeners
  */
 function addSidebarListeners(parent) {
-    var sb = parent.getElementsByClassName('definitionSideBar')[0];
+    var sb = parent.querySelector('.definitionSideBar');
     if (!sb) return;
     var titles = sb.getElementsByClassName('listTitle');
     for (var i = 0; i < titles.length; i++) {
@@ -524,6 +564,9 @@ function removeFocus() {
     tabContent = document.getElementsByClassName("tabContent");
     for (i = 0; i < tabContent.length; i++) {
         tabContent[i].style.display = "none";
+        // Also hide sidebar in this tab content
+        var sb = tabContent[i].querySelector('.definitionSideBar');
+        if (sb) sb.style.display = "none";
     }
     tablinks = document.getElementsByClassName("active");
     for (i = 0; i < tablinks.length; i++) {
@@ -542,6 +585,18 @@ function focusTab(tab) {
     var index = parseInt(tab.dataset.index)
     tab.classList.add("active");
     tabs[index][1].style.display = "block";
+    
+    // Show sidebar if global state is opened
+    if (sidebarOpened) {
+        var sb = tabs[index][1].querySelector('.definitionSideBar');
+        if (sb) {
+            sb.style.display = "block";
+            sb.classList.add('sidebarOpenedSideBar');
+        }
+        var mdd = tabs[index][1].querySelector('.mainDictDisplay');
+        if (mdd) mdd.classList.add('sidebarOpenedDisplay');
+    }
+    
     document.getElementById('defBox').scrollTop = tabs[index][2]
 }
 
@@ -552,7 +607,9 @@ function loadTab() {
     removeFocus();
     focusTab(this);
     resizer();
-    pycmd('updateTerm:' + this.textContent);
+    // Only send the term text, not the close button (x)
+    var term = this.querySelector('span').textContent;
+    pycmd('updateTerm:' + term);
 }
 
 /**
@@ -676,12 +733,16 @@ function fetchCurrentTab(term) {
     var curTabs = document.getElementsByClassName('active')
     if (curTabs.length > 0) {
         newTab = curTabs[0]
-        newTab.innerHTML = term;
+        var termSpan = newTab.querySelector('span');
+        if (termSpan) termSpan.innerHTML = term;
+        else newTab.innerHTML = term; // Fallback
     } else {
         var curTabs = document.getElementsByClassName('tablinks')
         if (curTabs.length > 0) {
             newTab = curTabs[curTabs.length - 1]
-            newTab.innerHTML = term;
+            var termSpan = newTab.querySelector('span');
+            if (termSpan) termSpan.innerHTML = term;
+            else newTab.innerHTML = term; // Fallback
         } else {
             newTab = false;
         }
@@ -721,11 +782,26 @@ function fetchCurrentTabContent(html) {
  */
 function fetchNewTab(term) {
     var newTab = document.createElement("BUTTON");
-    newTab.innerHTML = term;
     newTab.classList.add("tablinks");
     newTab.dataset.index = tabs.length;
+    
+    // Add term text
+    var termSpan = document.createElement("span");
+    termSpan.innerHTML = term;
+    newTab.appendChild(termSpan);
+    
+    // Add close button
+    var closeBtn = document.createElement("span");
+    closeBtn.innerHTML = "&times;";
+    closeBtn.classList.add("tab-close");
+    closeBtn.addEventListener("click", function(ev) {
+        ev.stopPropagation(); // Prevent tab switching when closing
+        var index = parseInt(newTab.dataset.index);
+        closeTabAtIndex(index);
+    });
+    newTab.appendChild(closeBtn);
+    
     newTab.addEventListener("click", loadTab);
-    newTab.addEventListener("contextmenu", closeTab);
     return newTab
 }
 
@@ -932,6 +1008,9 @@ function addNewTab(html, term, singleTab) {
                 
                 tabs.push([newTab, newContent, 0]);
                 focusTab(newTab);
+                initializeInteractiveElements(newContent);
+            } else {
+                initializeInteractiveElements(currentContent);
             }
         } else {
             // Multi-tab mode: create new tab
@@ -946,10 +1025,8 @@ function addNewTab(html, term, singleTab) {
             tabs.push([newTab, newContent, 0]);
             removeFocus();
             focusTab(newTab);
+            initializeInteractiveElements(newContent);
         }
-        
-        // Initialize any interactive elements
-        initializeInteractiveElements();
         
         // Call resizer to ensure proper layout
         if (typeof resizer === 'function') {
@@ -970,12 +1047,14 @@ function addNewTab(html, term, singleTab) {
 /**
  * Initialize interactive elements after content is loaded
  */
-function initializeInteractiveElements() {
+function initializeInteractiveElements(parent) {
+    if (!parent) parent = document;
+    
     // Initialize image selection
-    initializeImageSelection();
+    initializeImageSelection(parent);
     
     // Initialize sidebar listeners
-    addSidebarListeners(document);
+    addSidebarListeners(parent);
     
     // Initialize any other interactive elements as needed
     // This can be expanded based on what functionality is needed
@@ -984,8 +1063,8 @@ function initializeInteractiveElements() {
 /**
  * Initialize image selection functionality
  */
-function initializeImageSelection() {
-    const imageBoxes = document.querySelectorAll('.imgBox');
+function initializeImageSelection(parent) {
+    const imageBoxes = parent.querySelectorAll('.imgBox');
     imageBoxes.forEach(box => {
         const highlight = box.querySelector('.imageHighlight');
         if (highlight) {
@@ -1182,30 +1261,38 @@ function scaleFont(increase) {
  */
 function openSidebar() {
     try {
-        const sidebar = document.querySelector('.definitionSideBar');
+        // Toggle global state
+        sidebarOpened = !sidebarOpened;
         
-        if (sidebar) {
-            // Check both computed style and inline style to determine visibility
-            const computedStyle = window.getComputedStyle(sidebar);
-            const isHidden = computedStyle.display === 'none' || sidebar.style.display === 'none';
+        // Find all tab contents
+        const tabContents = document.getElementsByClassName('tabContent');
+        
+        for (let i = 0; i < tabContents.length; i++) {
+            const content = tabContents[i];
+            const isActive = content.style.display === 'block';
+            const sidebar = content.querySelector('.definitionSideBar');
+            const mainDisplay = content.querySelector('.mainDictDisplay');
             
-            if (isHidden) {
-                // Show sidebar
-                sidebar.style.display = 'block';
-                sidebar.classList.add('sidebarOpenedSideBar');
+            if (sidebarOpened) {
+                // If globally opened, show sidebar ONLY if it's the active tab
+                if (isActive && sidebar) {
+                    sidebar.style.display = 'block';
+                    sidebar.classList.add('sidebarOpenedSideBar');
+                } else if (sidebar) {
+                    sidebar.style.display = 'none';
+                    sidebar.classList.add('sidebarOpenedSideBar');
+                }
                 
-                // Apply layout adjustment to main content
-                const mainDisplay = document.querySelector('.mainDictDisplay');
+                // Always add the layout class to maintain consistency
                 if (mainDisplay) {
                     mainDisplay.classList.add('sidebarOpenedDisplay');
                 }
             } else {
-                // Hide sidebar
-                sidebar.style.display = 'none';
-                sidebar.classList.remove('sidebarOpenedSideBar');
-                
-                // Remove layout adjustment from main content
-                const mainDisplay = document.querySelector('.mainDictDisplay');
+                // Globally closed
+                if (sidebar) {
+                    sidebar.style.display = 'none';
+                    sidebar.classList.remove('sidebarOpenedSideBar');
+                }
                 if (mainDisplay) {
                     mainDisplay.classList.remove('sidebarOpenedDisplay');
                 }

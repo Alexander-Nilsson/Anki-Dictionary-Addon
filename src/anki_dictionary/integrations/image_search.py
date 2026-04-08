@@ -39,6 +39,7 @@ import ssl
 import urllib3
 import warnings
 from ..utils.constants import COUNTRY_TO_DDG
+from ..utils.common import prefer_ipv4
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -196,19 +197,22 @@ class DuckDuckGo(QRunnable):
                     print(f"Error processing image from {url}: {e}")
         return ""
 
-    def download_and_process_image_sync(self, url: str) -> str:
+    def download_and_process_image_sync(self, url: str, session: requests.Session = None) -> str:
         """Download and process an image synchronously (to be run in thread)."""
+
         try:
-            # Use requests for sync download
-            # Disable SSL verification to match previous implementation
-            response = requests.get(
-                url,
-                timeout=30,
-                verify=False,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-                },
-            )
+            # Use provided session or a temporary one
+            fetcher = session if session else requests
+            
+            with prefer_ipv4():
+                response = fetcher.get(
+                    url,
+                    timeout=15,  # Reduced from 30s
+                    verify=False,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                    },
+                )
             if response.status_code == 200:
                 return self.process_image(url, response.content)
         except Exception as e:
@@ -229,11 +233,15 @@ class DuckDuckGo(QRunnable):
 
     def download_all_images(self, urls: list) -> list:
         """Download and process all images concurrently using threads."""
+        # Use a single session for all images in this search to enable connection reuse
+        session = requests.Session()
+        session.verify = False
+        
         # Create a thread pool for parallel downloading and processing
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             # Submit all tasks
             future_to_url = {
-                executor.submit(self.download_and_process_image_sync, url): url
+                executor.submit(self.download_and_process_image_sync, url, session): url
                 for url in urls
             }
 
