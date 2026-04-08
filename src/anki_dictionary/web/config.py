@@ -1,5 +1,6 @@
 import json
 from anki.httpclient import HttpClient
+from ..utils.common import prefer_ipv4
 
 DEFAULT_SERVER = "https://raw.githubusercontent.com/Alexander-Nilsson/dictionaries/main"
 
@@ -19,8 +20,9 @@ def download_index(server_url=DEFAULT_SERVER):
 
     client = HttpClient()
     try:
-        # Use a 30s timeout to accommodate slower connections
-        resp = client.session.get(index_url, timeout=30, stream=True)
+        # Use a 15s timeout to avoid long UI hangs
+        with prefer_ipv4():
+            resp = client.session.get(index_url, timeout=15, stream=True)
     except Exception:
         return None
 
@@ -28,9 +30,10 @@ def download_index(server_url=DEFAULT_SERVER):
         return None
 
     # Manually stream content to ensure it doesn't hang indefinitely
-    data = b""
+    chunks = []
     for chunk in resp.iter_content(chunk_size=16384):
         if chunk:
-            data += chunk
-            
+            chunks.append(chunk)
+
+    data = b"".join(chunks)
     return json.loads(data.decode("utf-8-sig"))

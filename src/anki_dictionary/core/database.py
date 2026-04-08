@@ -384,12 +384,12 @@ class DictDB:
             # Check for both raw table name and clean name
             if d in currentDicts:
                 foundDicts.append(currentDicts[d])
-            elif d in ["Images", "LLM API"]:
+            elif d in ["Images", "LLM"]:
+                # Virtual dictionaries
                 if d == "Images":
                     foundDicts.append({"dict": "Images", "lang": ""})
-                elif d == "LLM API":
-                    foundDicts.append({"dict": "LLM API", "lang": ""})
-            else:
+                elif d == "LLM":
+                    foundDicts.append({"dict": "LLM", "lang": ""})
                 # Try finding by clean name if d is a table name
                 clean_d = self.cleanDictName(d)
                 if clean_d in currentDicts:
@@ -598,7 +598,7 @@ class DictDB:
         langs = set()
         for dic in group:
             d_name = dic["dict"]
-            if d_name in ["Images", "LLM API"]:
+            if d_name in ["Images", "LLM"]:
                 continue
 
             # If d_name is a table name (l1name...), try to find its language
@@ -617,8 +617,8 @@ class DictDB:
             if d_name == "Images":
                 results["Images"] = True
                 continue
-            if d_name == "LLM API":
-                results["LLM API"] = True
+            if d_name == "LLM":
+                results["LLM"] = True
                 continue
 
             # Resolve table name and language

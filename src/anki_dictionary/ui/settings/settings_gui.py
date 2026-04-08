@@ -70,7 +70,7 @@ class SettingsGui(QTabWidget):
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
         self.setWindowIcon(
-            QIcon(join(self.addonPath, "assets", "icons", "dictionary.png"))
+            QIcon(join(self.addonPath, "assets", "icons", "anki.png"))
         )
         self.addDictGroup = QPushButton("Add Dictionary Group")
         self.addExportTemplate = QPushButton("Add Export Template")
@@ -127,7 +127,7 @@ class SettingsGui(QTabWidget):
         # self.userGuideTab = self.getUserGuideTab()
         self.setupLayout()
         self.addTab(self.settingsTab, "Settings")
-        self.addTab(self.llmTab, "LLM API")
+        self.addTab(self.llmTab, "LLM")
         self.addTab(DictionaryManagerWidget(), "Dictionaries")
         # self.addTab(self.userGuideTab, "User Guide")
         # self.addTab(self.getAboutTab(), "About")
@@ -445,8 +445,8 @@ class SettingsGui(QTabWidget):
             dictionaryList.append("Images")
 
         # Check current UI state for LLM enabled
-        if self.llmEnabled.isChecked() and "LLM API" not in dictionaryList:
-            dictionaryList.append("LLM API")
+        if self.llmEnabled.isChecked() and "LLM" not in dictionaryList:
+            dictionaryList.append("LLM")
 
         dictionaryList = sorted(dictionaryList, key=str.casefold)
         return dictionaryList
@@ -656,7 +656,7 @@ class SettingsGui(QTabWidget):
         layout = QVBoxLayout()
 
         infoLabel = QLabel(
-            "Configure an OpenAI-compatible LLM API to get AI-generated definitions."
+            "Configure an OpenAI-compatible LLM to get AI-generated definitions."
         )
         infoLabel.setWordWrap(True)
         infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
@@ -690,7 +690,7 @@ class SettingsGui(QTabWidget):
         return tab
 
     def testLLM(self):
-        """Test the LLM API configuration."""
+        """Test the LLM configuration."""
         self.testLLMButton.setEnabled(False)
         self.testLLMButton.setText("Testing...")
         self.llmStatusLabel.setText("Testing...")

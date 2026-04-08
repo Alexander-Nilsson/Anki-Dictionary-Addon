@@ -8,13 +8,16 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from anki_dictionary.utils.common import prefer_ipv4
+
 class TestDictionaryIndex(unittest.TestCase):
     INDEX_URL = "https://raw.githubusercontent.com/Alexander-Nilsson/dictionaries/main/index.json"
     SERVER_ROOT = "https://raw.githubusercontent.com/Alexander-Nilsson/dictionaries/main"
 
     def test_index_is_valid_json(self):
         """Test that the dictionary index can be fetched and is valid JSON."""
-        resp = requests.get(self.INDEX_URL)
+        with prefer_ipv4():
+            resp = requests.get(self.INDEX_URL)
         self.assertEqual(resp.status_code, 200, f"Failed to fetch index from {self.INDEX_URL}")
         
         try:
@@ -28,7 +31,8 @@ class TestDictionaryIndex(unittest.TestCase):
         # Use a random param to bust cache just in case
         import time
         cache_buster = f"?t={int(time.time())}"
-        resp = requests.get(self.INDEX_URL + cache_buster, headers={"Cache-Control": "no-cache"})
+        with prefer_ipv4():
+            resp = requests.get(self.INDEX_URL + cache_buster, headers={"Cache-Control": "no-cache"})
         self.assertEqual(resp.status_code, 200)
         index = resp.json()
         
@@ -81,13 +85,14 @@ class TestDictionaryIndex(unittest.TestCase):
             quoted_url = urllib.parse.quote(url, safe="/")
         
         try:
-            # Using head request to be faster
-            resp = requests.head(quoted_url, allow_redirects=True, timeout=10)
-            if resp.status_code == 200:
-                return True
-            # Some servers might not support HEAD properly
-            resp = requests.get(quoted_url, stream=True, timeout=10)
-            return resp.status_code == 200
+            with prefer_ipv4():
+                # Using head request to be faster
+                resp = requests.head(quoted_url, allow_redirects=True, timeout=10)
+                if resp.status_code == 200:
+                    return True
+                # Some servers might not support HEAD properly
+                resp = requests.get(quoted_url, stream=True, timeout=10)
+                return resp.status_code == 200
         except Exception as e:
             return False
 

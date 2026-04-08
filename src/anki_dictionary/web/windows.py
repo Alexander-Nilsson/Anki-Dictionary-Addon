@@ -3,6 +3,7 @@ from enum import Enum
 from aqt.qt import *
 from anki.httpclient import HttpClient
 import aqt
+from ..utils.common import prefer_ipv4
 
 from ..utils.paths import get_addon_root, get_icons_dir, get_db_dir
 from . import config as webConfig
@@ -23,7 +24,7 @@ class FreqConjWebWindow(QDialog):
         self.mode_str = "frequency" if self.mode == self.Mode.Freq else "conjugation"
 
         self.setWindowTitle("Anki Dictionary - Web Installer")
-        self.setWindowIcon(QIcon(os.path.join(get_icons_dir(), "dictionary.png")))
+        self.setWindowIcon(QIcon(os.path.join(get_icons_dir(), "anki.png")))
 
         lyt = QVBoxLayout()
         self.setLayout(lyt)
@@ -64,8 +65,10 @@ class FreqConjWebWindow(QDialog):
         url = idx.data(Qt.ItemDataRole.UserRole)
 
         client = HttpClient()
+
         try:
-            resp = client.session.get(url, timeout=30, stream=True)
+            with prefer_ipv4():
+                resp = client.session.get(url, timeout=15, stream=True)
         except Exception:
             resp = None
 
@@ -83,7 +86,8 @@ class FreqConjWebWindow(QDialog):
                 new_url = urllib.parse.quote(new_url, safe="/")
 
             try:
-                resp = client.session.get(new_url, timeout=30, stream=True)
+                with prefer_ipv4():
+                    resp = client.session.get(new_url, timeout=15, stream=True)
             except Exception:
                 resp = None
 
@@ -94,10 +98,12 @@ class FreqConjWebWindow(QDialog):
             return
 
         # Manually stream content to avoid hangs
-        data = b""
+        chunks = []
         for chunk in resp.iter_content(chunk_size=16384):
             if chunk:
-                data += chunk
+                chunks.append(chunk)
+
+        data = b"".join(chunks)
 
         dir_path = os.path.join(get_db_dir(), self.mode_str)
         os.makedirs(dir_path, exist_ok=True)

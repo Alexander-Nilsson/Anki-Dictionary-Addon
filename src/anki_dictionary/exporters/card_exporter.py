@@ -164,7 +164,7 @@ class CardExporter:
         self.scrollArea.setMinimumHeight(400)
         self.scrollArea.resize(490, 654)
         self.scrollArea.setWindowIcon(
-            QIcon(join(self.dictInt.addonPath, "assets", "icons", "dictionary.png"))
+            QIcon(join(self.dictInt.addonPath, "assets", "icons", "anki.png"))
         )
         self.scrollArea.setWindowTitle("Anki Card Exporter")
         self.definitionList = []
@@ -904,7 +904,7 @@ Please review your template and notetype combination."""),
         )
         settingsWidget.setWindowTitle("Definition Settings")
         settingsWidget.setWindowIcon(
-            QIcon(join(self.dictInt.addonPath, "assets", "icons", "dictionary.png"))
+            QIcon(join(self.dictInt.addonPath, "assets", "icons", "anki.png"))
         )
         settingsWidget.setLayout(layout)
         settingsWidget.show()
@@ -1236,7 +1236,7 @@ Please review your template and notetype combination."""),
         progressWidget.exporter = self
         textDisplay = QLabel()
         progressWidget.setWindowIcon(
-            QIcon(join(self.dictInt.addonPath, "assets", "icons", "dictionary.png"))
+            QIcon(join(self.dictInt.addonPath, "assets", "icons", "anki.png"))
         )
         progressWidget.setWindowTitle(title)
         textDisplay.setText(initialText)

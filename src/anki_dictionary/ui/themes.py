@@ -178,6 +178,26 @@ class ThemeManager:
         """Get the currently active theme"""
         return self.themes.get("active", self.themes[self.current_theme])
 
+    @property
+    def is_dark(self) -> bool:
+        """Check if the current theme is dark"""
+        if self.current_theme == "dark":
+            return True
+        
+        # Check background color brightness as a fallback for user themes
+        theme = self.get_active_theme()
+        bg = theme.header_background.lstrip("#")
+        if len(bg) == 6:
+            try:
+                r, g, b = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+                # Standard formula for relative luminance
+                luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+                return luminance < 0.5
+            except ValueError:
+                pass
+        
+        return False
+
     def set_active_theme(self, theme_name: str):
         """Set the active theme by name"""
         if theme_name in self.themes:

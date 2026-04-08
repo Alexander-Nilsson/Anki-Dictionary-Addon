@@ -38,7 +38,7 @@ class TestLLMWorker(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["term"], "apple")
         self.assertEqual(results[0]["definition"], "A round red fruit.")
-        self.assertEqual(results[0]["starCount"], "LLM")
+        self.assertEqual(results[0]["starCount"], "")
 
         # Verify request details
         mock_post.assert_called_once()

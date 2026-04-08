@@ -58,7 +58,7 @@ def get_addon_config() -> Dict[str, Any]:
     addon_name = get_addon_name()
     try:
         config = mw.addonManager.getConfig(addon_name)
-        if config is not None:
+        if config:
             return config
     except Exception:
         pass
@@ -77,12 +77,23 @@ def get_addon_config() -> Dict[str, Any]:
     return {
         "DictionaryGroups": {},
         "maxWidth": 1500,
+        "maxHeight": 400,
+        "dictSearch": 50,
+        "maxSearch": 1000,
+        "frontBracket": "【",
+        "backBracket": "】",
+        "highlightSentences": True,
+        "highlightTarget": True,
+        "showTarget": False,
+        "tooltips": True,
         "currentGroup": "All",
         "searchMode": "Forward",
         "deinflect": False,
         "onetab": True,
         "dictSizePos": [0, 0, 800, 600],
-        "tooltips": True,
+        "dictAlwaysOnTop": False,
+        "day": True,
+        "theme": "light",
     }
 
 
