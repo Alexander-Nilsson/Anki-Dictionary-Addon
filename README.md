@@ -11,9 +11,9 @@
 
 ## 📖 Overview
 
-The **Anki Dictionary Addon** is a modern successor to the [Migaku Dictionary Addon](https://github.com/migaku-official/Migaku-Dictionary-Addon), updated for **Anki 25.07** compatibility. This project aims to:
+The **Anki Dictionary Addon** is a modern successor to the [Migaku Dictionary Addon](https://github.com/migaku-official/Migaku-Dictionary-Addon), updated for **Anki 25.09** compatibility. This project aims to:
 
-- **Support Latest Anki:** Updated to work seamlessly with Anki version 25.07.
+- **Support Latest Anki:** Updated to work seamlessly with Anki version ⁨25.09.2.
 - **Enhanced User Experience:** Improved styling and interface design for better usability.
 - **Modern Architecture:** Completely reorganized codebase following Python best practices.
 - **Reliable Services:** Migrated to DuckDuckGo for image search, ensuring better privacy and reliability.
