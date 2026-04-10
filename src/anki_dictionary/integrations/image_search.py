@@ -18,6 +18,21 @@ import argparse
 import os
 from os.path import dirname, join
 import requests
+import platform as _platform
+
+# On macOS, Python's OpenSSL produces a JA3 TLS fingerprint that DuckDuckGo
+# blocks at the handshake level before reading any headers.
+# curl_cffi uses BoringSSL and impersonates a real browser TLS handshake.
+# On Linux/Windows, plain requests works fine — no change needed.
+_ON_MAC = _platform.system() == "Darwin"
+if _ON_MAC:
+    try:
+        from curl_cffi import requests as _curl_requests
+        _HAS_CURL_CFFI = True
+    except ImportError:
+        _HAS_CURL_CFFI = False
+else:
+    _HAS_CURL_CFFI = False
 import re
 
 try:
@@ -53,6 +68,40 @@ addon_path = dirname(dirname(dirname(dirname(__file__))))
 temp_dir = join(addon_path, "temp")
 os.makedirs(temp_dir, exist_ok=True)
 
+
+def log_debug(message):
+    """Log debug messages to both console and a debug file."""
+    print(message)
+    try:
+        log_file = os.path.join(temp_dir, "image_search_debug.log")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"{message}\n")
+    except Exception:
+        pass
+
+
+# Multi-pattern vqd extraction — handles legacy vqd-3 (digits/hyphens)
+# and current vqd-4 (alphanumeric) token formats
+VQD_PATTERNS = [
+    re.compile(r'vqd=([0-9a-zA-Z\-]+)'),
+    re.compile(r'vqd["\s]*[:=]["\s]*([0-9a-zA-Z\-]+)'),
+    re.compile(r'"vqd"\s*:\s*"([^"]+)"'),
+]
+
+
+def _make_session():
+    """
+    Returns an HTTP session for the current platform.
+    macOS + curl_cffi: impersonates Chrome 120 TLS fingerprint.
+    All other platforms: standard requests session.
+    """
+    if _ON_MAC and _HAS_CURL_CFFI:
+        return _curl_requests.Session()
+    session = requests.Session()
+    session.verify = False
+    return session
+
+
 ########################################
 # DuckDuckGo Search Engine Implementation
 ########################################
@@ -86,7 +135,7 @@ class DuckDuckGo(QRunnable):
         if region_or_code in countryToDuckDuckGo:
             self.language = countryToDuckDuckGo[region_or_code]
         else:
-            print(
+            log_debug(
                 f"Warning: Unsupported region/language '{region_or_code}', using default US English"
             )
             self.language = "us-en"
@@ -94,85 +143,148 @@ class DuckDuckGo(QRunnable):
     def getCleanedUrls(self, urls):
         return [x.replace("\\", "\\\\") for x in urls]
 
+    def _extract_vqd(self, html: str):
+        """Try multiple regex patterns to extract the vqd token."""
+        for pattern in VQD_PATTERNS:
+            m = pattern.search(html)
+            if m:
+                return m.group(1)
+        log_debug("[ImageSearch] All vqd patterns failed. Response snippet:")
+        log_debug(html[:2000])
+        return None
+
     def search(self, term, maximum=15, offset=0):
         """
-        Search for images using DuckDuckGo
+        Search for images using DuckDuckGo.
         Args:
-        term: Search term string
-        maximum: Maximum number of images to return (default: 15)
-        offset: Pagination offset for getting more results
+            term: Search term string
+            maximum: Maximum number of images to return (default: 15)
+            offset: Pagination offset — passed as 's' parameter to i.js
         Returns:
-        List of image URLs
+            List of image URLs
         """
-        session = requests.Session()
-        # Disable SSL verification to handle problematic certificates
-        session.verify = False
-        session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Referer": "https://duckduckgo.com",
-                "DNT": "1",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-            }
-        )
+        import urllib.parse
+
+        session = _make_session()
+        use_impersonate = _ON_MAC and _HAS_CURL_CFFI
+
+        # Browser-accurate headers for the initial page navigation
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+        })
 
         try:
-            # Get the initial token
-            search_url = "https://duckduckgo.com/"
-            response = session.get(search_url, timeout=30)
-            session.cookies.update(response.cookies)
+            # Single request: establishes session cookies AND retrieves the vqd token
+            log_debug(f"[ImageSearch] Fetching vqd for: {term}")
+            _kwargs = {"impersonate": "chrome120"} if use_impersonate else {}
+            with prefer_ipv4():
+                response = session.get(
+                    "https://duckduckgo.com/",
+                    params={"q": term},
+                    timeout=30,
+                    **_kwargs
+                )
 
-            # Perform the search
-            params = {
-                "q": term,
-                "iax": "images",
-                "ia": "images",
-                "kl": self.language,  # Add language/region parameter
-            }
-
-            response = session.get(search_url, params=params, timeout=30)
-
-            # Extract the vqd token using regex
-            vqd = re.search(r"vqd=[\d-]+", response.text)
+            vqd = self._extract_vqd(response.text)
             if not vqd:
+                log_debug("[ImageSearch] Could not extract vqd token — aborting")
                 return []
 
-            # Build the API URL request
-            api_url = "https://duckduckgo.com/i.js"
-            params = {
-                "l": "wt-wt",
-                "o": "json",
-                "q": term,
-                "vqd": vqd.group().split("=")[1],
-                "f": ",,,",
-                "p": str(offset),  # Use offset for pagination
+            log_debug(f"[ImageSearch] vqd={vqd}")
+
+            # XHR-appropriate headers for the i.js API call.
+            # Note: X-Requested-With intentionally omitted — modern DDG uses
+            # the Fetch API, not jQuery XHR, so sending it is a bot signal.
+            quoted_term = urllib.parse.quote(term)
+            api_headers = {
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Referer": f"https://duckduckgo.com/?q={quoted_term}&iax=images&ia=images",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
             }
 
-            response = session.get(api_url, params=params, timeout=30)
+            params = {
+                "l": self.language,
+                "o": "json",
+                "q": term,
+                "vqd": vqd,
+                "f": ",,,",
+                "p": "1",       # safe-search flag (1 = moderate)
+                "s": str(offset),  # pagination offset — was missing before, broke Load More
+            }
+
+            log_debug(f"[ImageSearch] Requesting i.js offset={offset}")
+            with prefer_ipv4():
+                response = session.get(
+                    "https://duckduckgo.com/i.js",
+                    params=params,
+                    headers=api_headers,
+                    timeout=30,
+                    **_kwargs
+                )
+
             if response.status_code == 200:
                 results = [img["image"] for img in response.json().get("results", [])]
-                return results[
-                    :maximum
-                ]  # Limit results to maximum TODO: check if this is a legit way to do it
+                log_debug(f"[ImageSearch] Got {len(results)} results")
+                return results[:maximum]
+
+            elif response.status_code == 403:
+                # Re-fetch a fresh vqd — token may have expired between the two requests.
+                # Stripping params alone doesn't fix expiry, only a full re-handshake does.
+                log_debug("[ImageSearch] 403 on i.js — re-fetching fresh vqd and retrying")
+                with prefer_ipv4():
+                    retry_resp = session.get(
+                        "https://duckduckgo.com/",
+                        params={"q": term},
+                        timeout=30,
+                        **_kwargs
+                    )
+                fresh_vqd = self._extract_vqd(retry_resp.text)
+                if fresh_vqd and fresh_vqd != vqd:
+                    retry_params = {k: v for k, v in params.items() if k not in ("l", "f")}
+                    retry_params["vqd"] = fresh_vqd
+                    with prefer_ipv4():
+                        retry_response = session.get(
+                            "https://duckduckgo.com/i.js",
+                            params=retry_params,
+                            headers=api_headers,
+                            timeout=30,
+                            **_kwargs
+                        )
+                    if retry_response.status_code == 200:
+                        results = [img["image"] for img in retry_response.json().get("results", [])]
+                        return results[:maximum]
+                log_debug(f"[ImageSearch] Retry also failed")
+                return []
+
+            else:
+                log_debug(f"[ImageSearch] Unexpected status: {response.status_code}")
+                return []
 
         except Exception as e:
-            print(f"Error in DuckDuckGo search: {str(e)}")
+            log_debug(f"[ImageSearch] Error in search: {str(e)}")
         return []
 
     def process_image(self, url: str, content: bytes) -> str:
         """Process the image: open, resize, and save to disk using QImage."""
         try:
             if not content:
-                print(f"[ImageSearch] Empty content for {url}")
+                log_debug(f"[ImageSearch] Empty content for {url}")
                 return ""
                 
             image = QImage()
             if not image.loadFromData(content):
                 # Try to detect if it's a known format issue
-                print(f"[ImageSearch] QImage failed to load data from {url}. Length: {len(content)}")
+                log_debug(f"[ImageSearch] QImage failed to load data from {url}. Length: {len(content)}")
                 return ""
             
             # Resize image maintaining aspect ratio
@@ -190,10 +302,10 @@ class DuckDuckGo(QRunnable):
             if image.save(filepath, "JPG", 85):
                 return filename
             else:
-                print(f"[ImageSearch] Failed to save image to {filepath}")
+                log_debug(f"[ImageSearch] Failed to save image to {filepath}")
         except Exception as e:
             # Only log serious errors
-            print(f"[ImageSearch] Error processing image from {url}: {e}")
+            log_debug(f"[ImageSearch] Error processing image from {url}: {e}")
         return ""
 
     def download_and_process_image_sync(self, url: str, session: requests.Session = None) -> str:
@@ -201,7 +313,7 @@ class DuckDuckGo(QRunnable):
 
         try:
             # Use provided session or a temporary one
-            fetcher = session if session else requests
+            fetcher = session if session else _make_session()
             
             with prefer_ipv4():
                 response = fetcher.get(
@@ -209,7 +321,7 @@ class DuckDuckGo(QRunnable):
                     timeout=30,
                     verify=False,
                     headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     },
                 )
             if response.status_code == 200:
@@ -227,14 +339,13 @@ class DuckDuckGo(QRunnable):
                     "timeout",
                 ]
             ):
-                print(f"Error downloading image from {url}: {e}")
+                log_debug(f"Error downloading image from {url}: {e}")
         return ""
 
     def download_all_images(self, urls: list) -> list:
         """Download and process all images concurrently using threads."""
         # Use a single session for all images in this search to enable connection reuse
-        session = requests.Session()
-        session.verify = False
+        session = _make_session()
         
         # Create a thread pool for parallel downloading and processing
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
@@ -251,9 +362,26 @@ class DuckDuckGo(QRunnable):
                     if filename:
                         results.append(filename)
                 except Exception as e:
-                    print(f"Error processing image: {e}")
+                    log_debug(f"Error processing image: {e}")
 
             return results
+
+    def _image_to_html(self, filename: str) -> str:
+        """Shared HTML generator — eliminates the duplicate inner function."""
+        import base64
+        image_path = os.path.join(temp_dir, filename)
+        try:
+            with open(image_path, "rb") as f:
+                data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
+            return (
+                '<div class="imgBox">'
+                f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
+                '</div>'
+            )
+        except Exception as e:
+            log_debug(f"[ImageSearch] Error reading image {filename}: {e}")
+            return '<div class="imgBox">Error loading image</div>'
 
     def getHtml(self, term, is_load_more=False):
         """
@@ -270,32 +398,12 @@ class DuckDuckGo(QRunnable):
         try:
             local_images = self.download_all_images(images)
         except Exception as e:
-            print(f"Error in image download: {e}")
+            log_debug(f"Error in image download: {e}")
             return "Error downloading images"
-
-        def generate_image_html(filename):
-            # Use base64 data URL to embed the image directly in HTML
-            import base64
-
-            image_path = os.path.join(temp_dir, filename)
-            try:
-                with open(image_path, "rb") as img_file:
-                    img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode("utf-8")
-                    data_url = f"data:image/jpeg;base64,{img_base64}"
-                    return (
-                        '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
-                        f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
-                        "</div>"
-                    )
-            except Exception as e:
-                print(f"Error reading image {filename}: {e}")
-                return '<div class="imgBox">Error loading image</div>'
 
         # Create horizontal layout with all images in one container
         html = '<div class="imageCont horizontal-layout">'
-        html += "".join(generate_image_html(img) for img in local_images)
+        html += "".join(self._image_to_html(img) for img in local_images)
         html += "</div>"
 
         # Add Load More button that triggers a new search
@@ -321,31 +429,11 @@ class DuckDuckGo(QRunnable):
         try:
             local_images = self.download_all_images(images)
         except Exception as e:
-            print(f"Error in image download: {e}")
+            log_debug(f"Error in image download: {e}")
             return ""
 
-        def generate_image_html(filename):
-            # Use base64 data URL to embed the image directly in HTML (same as initial search)
-            import base64
-
-            image_path = os.path.join(temp_dir, filename)
-            try:
-                with open(image_path, "rb") as img_file:
-                    img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode("utf-8")
-                    data_url = f"data:image/jpeg;base64,{img_base64}"
-                    return (
-                        '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
-                        f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
-                        "</div>"
-                    )
-            except Exception as e:
-                print(f"Error reading image {filename}: {e}")
-                return '<div class="imgBox">Error loading image</div>'
-
         # Just return the image HTML without container wrapper
-        html = "".join(generate_image_html(img) for img in local_images)
+        html = "".join(self._image_to_html(img) for img in local_images)
         return html
 
     def getPreparedResults(self, term, idName):
@@ -365,7 +453,7 @@ class DuckDuckGo(QRunnable):
                     resultList = self.getPreparedResults(self.term, self.idName)
                 self.signals.resultsFound.emit(resultList)
         except Exception as e:
-            print(f"DuckDuckGo run error: {e}")
+            log_debug(f"DuckDuckGo run error: {e}")
             self.signals.noResults.emit(
                 "No Images Found. This is likely due to a connectivity error."
             )
