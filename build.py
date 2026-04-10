@@ -54,6 +54,25 @@ def install_macos_curl_cffi(vendor_dir):
         print(f"   Installing curl_cffi for {p['name']}...")
         try:
             # Use cp38-abi3 as baseline to get universal wheel
+            # We add multiple platforms to ensure cffi and other deps are found
+            platform_args = []
+            if p["name"] == "mac_arm64":
+                # For ARM64, we often need to specify several compatible macOS versions
+                platform_args = [
+                    "--platform", "macosx_11_0_arm64",
+                    "--platform", "macosx_12_0_arm64",
+                    "--platform", "macosx_13_0_arm64",
+                ]
+            else:
+                platform_args = ["--platform", p["platform"]]
+
+            # cffi wheels for mac_arm64 are only available for Python 3.9+
+            py_version = "3.8"
+            abi = "cp38"
+            if p["name"] == "mac_arm64":
+                py_version = "3.9"
+                abi = "cp39"
+
             subprocess.run(
                 [
                     sys.executable,
@@ -63,13 +82,12 @@ def install_macos_curl_cffi(vendor_dir):
                     "curl_cffi==0.7.4",
                     "-t",
                     str(dest),
-                    "--platform",
-                    p["platform"],
+                    *platform_args,
                     "--only-binary=:all:",
                     "--python-version",
-                    "3.8",
+                    py_version,
                     "--abi",
-                    "cp38",
+                    abi,
                     "--no-compile",
                 ],
                 check=True,
