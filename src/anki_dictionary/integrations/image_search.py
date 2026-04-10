@@ -117,19 +117,30 @@ class DuckDuckGo(QRunnable):
         session = requests.Session()
         # Disable SSL verification to handle problematic certificates
         session.verify = False
+        
+        # Modern User-Agent
+        ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        
         session.headers.update(
             {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "User-Agent": ua,
+                "Accept": "*/*",
                 "Accept-Language": "en-US,en;q=0.5",
-                "Referer": "https://duckduckgo.com",
+                "Referer": "https://duckduckgo.com/",
                 "DNT": "1",
                 "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
             }
         )
 
         try:
+            # First, just visit the home page to get some initial cookies
+            home_url = "https://duckduckgo.com/"
+            with prefer_ipv4():
+                session.get(home_url, timeout=30)
+
             # Get the initial token
             search_url = "https://duckduckgo.com/"
             log_debug(f"[ImageSearch] Fetching initial token from {search_url} for term: {term}")
@@ -138,20 +149,13 @@ class DuckDuckGo(QRunnable):
             with prefer_ipv4():
                 response = session.get(search_url, params={"q": term}, timeout=30)
             
-            session.cookies.update(response.cookies)
-
             # Extract the vqd token using a more robust regex
-            # DDG vqd can look like vqd='...' or vqd="..."
             vqd_match = re.search(r'vqd=([^&\'"]+)', response.text)
             if not vqd_match:
-                # Try another common pattern
                 vqd_match = re.search(r'vqd:\s*\'([^\']+)\'', response.text)
             
             if not vqd_match:
                 log_debug(f"[ImageSearch] Failed to find vqd token in response from {search_url}")
-                # Log a small part of the response for debugging (if it's not too large)
-                if len(response.text) > 0:
-                    log_debug(f"[ImageSearch] Response snippet: {response.text[:500]}...")
                 return []
                 
             vqd = vqd_match.group(1)
@@ -160,23 +164,43 @@ class DuckDuckGo(QRunnable):
             # Build the API URL request
             api_url = "https://duckduckgo.com/i.js"
             params = {
-                "l": self.language, # Use the selected language
+                "l": self.language,
                 "o": "json",
                 "q": term,
                 "vqd": vqd,
                 "f": ",,,",
-                "p": str(offset),  # Use offset for pagination
+                "p": "1", # Some versions of the API prefer '1' for first page
             }
 
             log_debug(f"[ImageSearch] Fetching images from {api_url} with params: {params}")
+            
+            # Add specific headers for the API call
+            api_headers = {
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+            
             with prefer_ipv4():
-                response = session.get(api_url, params=params, timeout=30)
+                response = session.get(api_url, params=params, headers=api_headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
                 results = [img["image"] for img in data.get("results", [])]
                 log_debug(f"[ImageSearch] Found {len(results)} image URLs")
                 return results[:maximum]
+            elif response.status_code == 403:
+                log_debug(f"[ImageSearch] API request failed with 403. Trying alternative params...")
+                # Try fallback: sometimes 'p' parameter or other headers cause 403
+                params["p"] = str(offset)
+                with prefer_ipv4():
+                    response = session.get(api_url, params=params, headers=api_headers, timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    results = [img["image"] for img in data.get("results", [])]
+                    return results[:maximum]
+                else:
+                    log_debug(f"[ImageSearch] Fallback failed with status: {response.status_code}")
+                    return []
             else:
                 log_debug(f"[ImageSearch] API request failed with status code: {response.status_code}")
                 return []
