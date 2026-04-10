@@ -233,7 +233,7 @@ class MIDict(AnkiWebView):
             return "true"
         return "false"
 
-    def getHTMLResult(self, term, selectedGroup):
+    def getHTMLResult(self, term, selectedGroup, idName=""):
         singleTab = self.getTabMode()
         cleaned = self.cleanTerm(term)
         font = self.getFontFamily(selectedGroup)
@@ -266,9 +266,9 @@ class MIDict(AnkiWebView):
                             # If we found stars, we use the longest one (most stars)
                             if len(s) > len(star_count):
                                 star_count = s
-                self.triggerLLMSearch(cleaned, star_count)
+                self.triggerLLMSearch(cleaned, star_count, idName)
 
-        html = self.prepareResults(results, cleaned, font)
+        html = self.prepareResults(results, cleaned, font, idName)
         html = html.replace("\n", "")
         return html, cleaned, singleTab
 
@@ -279,10 +279,15 @@ class MIDict(AnkiWebView):
         ):
             self.customFontsLoaded.append(selectedGroup["font"])
             self.injectFont(selectedGroup["font"])
-        html, cleaned, singleTab = self.getHTMLResult(term, selectedGroup)
+        
+        # Generate a unique idName for this search to track LLM results across tabs
+        import time
+        idName = f"llm-loader-{int(time.time() * 1000)}"
+        
+        html, cleaned, singleTab = self.getHTMLResult(term, selectedGroup, idName)
         self.eval(
-            "addNewTab('%s', '%s', %s);"
-            % (html.replace("\r", "<br>").replace("\n", "<br>"), cleaned, singleTab)
+            "addNewTab('%s', '%s', %s, '%s');"
+            % (html.replace("\r", "<br>").replace("\n", "<br>"), cleaned, singleTab, idName)
         )
 
     def addResultWrappers(self, results):
@@ -517,7 +522,7 @@ class MIDict(AnkiWebView):
             .replace("◳y", altBB)
         )
 
-    def prepareResults(self, results, term, font):
+    def prepareResults(self, results, term, font, idName=""):
         frontBracket = self.config["frontBracket"]
         backBracket = self.config["backBracket"]
         if len(results) > 0:
@@ -540,8 +545,10 @@ class MIDict(AnkiWebView):
                         duplicateHeader = self.getDuplicateHeaderCB(dictName)
                         overwrite = self.getOverwriteChecks(dictCount, dictName)
                         select = self.getFieldChecks(dictName)
+                        # Use the unique idName for the loader container
+                        loaderId = idName if idName else "llm-loader"
                         html += (
-                            '<div id="llm-loader">'
+                            f'<div id="{loaderId}">'
                             '<div data-index="'
                             + str(dictCount)
                             + '" class="dictionaryTitleBlock"><div '
@@ -703,9 +710,9 @@ class MIDict(AnkiWebView):
     def showNoImagesMessage(self):
         tooltip("No images found")
 
-    def triggerLLMSearch(self, term, star_count=""):
+    def triggerLLMSearch(self, term, star_count="", idName=""):
         """Initiate an asynchronous LLM search."""
-        worker = llm_integration.LLMWorker(term, self.config, star_count)
+        worker = llm_integration.LLMWorker(term, self.config, star_count, idName)
         worker.signals.result_ready.connect(self.loadLLMResults)
         worker.signals.error_occurred.connect(self.showLLMError)
         self.threadpool.start(worker)
@@ -713,6 +720,7 @@ class MIDict(AnkiWebView):
     def loadLLMResults(self, result):
         """Handle result from LLM and inject into the UI."""
         dictName = result.get("dictName", "LLM")
+        idName = result.get("idName", "llm-loader")
         font = self.getFontFamily({"font": False, "customFont": False})
 
         # Format just the content part (without header and title block)
@@ -815,7 +823,7 @@ class MIDict(AnkiWebView):
         # Inject into the webview by replacing only the loading placeholder
         escaped_html = json.dumps(html)
         self.eval(
-            f"var loader = document.getElementById('llm-loader'); "
+            f"var loader = document.getElementById('{idName}'); "
             f"if(loader) {{ "
             f"  var oldContent = loader.querySelector('.definitionBlock'); "
             f"  if(oldContent) oldContent.remove(); "
