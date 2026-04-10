@@ -108,6 +108,7 @@ def log_debug(message):
     except:
         pass
 
+class DuckDuckGo(QRunnable):
     VQD_PATTERNS = [
         re.compile(r'vqd=([0-9a-zA-Z\-]+)'),
         re.compile(r'vqd["\s]*[:=]["\s]*([0-9a-zA-Z\-]+)'),
