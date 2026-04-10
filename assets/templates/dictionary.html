@@ -221,6 +221,25 @@
             background-color: var(--background);
         }
 
+        /* WELCOME BACKGROUND - Visible when no tabs are open */
+        #welcomeBackground {
+            display: none;
+            padding: clamp(20px, 5vw, 40px);
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            background-color: var(--background);
+            z-index: 0;
+        }
+
+        .no-tabs #welcomeBackground {
+            display: block;
+        }
+
+        .no-tabs #defBox {
+            display: none;
+        }
+
         /* DICTIONARY TITLE BLOCK */
         .dictionaryTitleBlock {
             background: linear-gradient(135deg, var(--background) 0%, var(--background-secondary) 100%);
@@ -1077,10 +1096,11 @@
     <style id="nightModeCss"></style>
 </head>
 <body>
-<div id="dictBox">
+<div id="dictBox" class="no-tabs">
     <div id="tabContainer">
         <div id="tabs"></div>
-        <div>
+        <div style="flex: 1; position: relative;">
+            <div id="welcomeBackground"></div>
             <div id="defBox"></div>
         </div>
     </div>
