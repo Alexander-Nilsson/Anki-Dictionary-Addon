@@ -165,8 +165,14 @@ class DuckDuckGo(QRunnable):
     def process_image(self, url: str, content: bytes) -> str:
         """Process the image: open, resize, and save to disk using QImage."""
         try:
+            if not content:
+                print(f"[ImageSearch] Empty content for {url}")
+                return ""
+                
             image = QImage()
             if not image.loadFromData(content):
+                # Try to detect if it's a known format issue
+                print(f"[ImageSearch] QImage failed to load data from {url}. Length: {len(content)}")
                 return ""
             
             # Resize image maintaining aspect ratio
@@ -183,10 +189,11 @@ class DuckDuckGo(QRunnable):
             
             if image.save(filepath, "JPG", 85):
                 return filename
+            else:
+                print(f"[ImageSearch] Failed to save image to {filepath}")
         except Exception as e:
             # Only log serious errors
-            if "cannot identify" not in str(e).lower():
-                print(f"Error processing image from {url}: {e}")
+            print(f"[ImageSearch] Error processing image from {url}: {e}")
         return ""
 
     def download_and_process_image_sync(self, url: str, session: requests.Session = None) -> str:
