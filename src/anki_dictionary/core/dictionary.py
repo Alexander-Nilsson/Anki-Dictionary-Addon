@@ -2369,20 +2369,11 @@ class DictInterface(QWidget):
                 )
 
             if not willSearch:
-                # Only add welcome screen tab if it's not empty
-                if self.welcome and self.welcome.strip():
-                    # Properly escape the HTML content for JavaScript
-                    escaped_welcome = json.dumps(self.welcome)
-                    html = html.replace(
-                        '<script id="initialValue"></script>',
-                        f"<script id=\"initialValue\">if (typeof addNewTab === \"function\") {{ addNewTab({escaped_welcome}, \"Welcome\", true); }} if(document.getElementsByClassName('tablinks')[0]) {{ document.getElementsByClassName('tablinks')[0].classList.add('active'); }}</script>",
-                    )
-                # If welcome is empty, just remove the script tag to avoid showing welcome screen
-                else:
-                    html = html.replace(
-                        '<script id="initialValue"></script>',
-                        '<script id="initialValue">console.log("Welcome screen disabled - no welcome content");</script>',
-                    )
+                # Don't add a Welcome tab anymore, just show the background
+                html = html.replace(
+                    '<script id="initialValue"></script>',
+                    '<script id="initialValue">updateWelcomeVisibility();</script>',
+                )
             else:
                 # If searching, we still need to clear the initialValue script tag
                 html = html.replace(
