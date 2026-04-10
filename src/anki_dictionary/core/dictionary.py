@@ -2360,8 +2360,16 @@ class DictInterface(QWidget):
             )
             # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
+            # Always inject welcome screen content if available
+            if self.welcome and self.welcome.strip():
+                escaped_welcome = json.dumps(self.welcome)
+                html = html.replace(
+                    '<div id="welcomeBackground"></div>',
+                    f'<div id="welcomeBackground">{self.welcome}</div>',
+                )
+
             if not willSearch:
-                # Only add welcome screen if it's not empty
+                # Only add welcome screen tab if it's not empty
                 if self.welcome and self.welcome.strip():
                     # Properly escape the HTML content for JavaScript
                     escaped_welcome = json.dumps(self.welcome)
@@ -2375,6 +2383,12 @@ class DictInterface(QWidget):
                         '<script id="initialValue"></script>',
                         '<script id="initialValue">console.log("Welcome screen disabled - no welcome content");</script>',
                     )
+            else:
+                # If searching, we still need to clear the initialValue script tag
+                html = html.replace(
+                    '<script id="initialValue"></script>',
+                    '<script id="initialValue">updateWelcomeVisibility();</script>',
+                )
             url = QUrl.fromLocalFile(html_path)
         return html, url
 

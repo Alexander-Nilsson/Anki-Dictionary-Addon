@@ -643,6 +643,25 @@ function closeTabAtIndex(index) {
 }
 
 /**
+ * Update visibility of welcome background based on tab count
+ */
+function updateWelcomeVisibility() {
+    var dictBox = document.getElementById('dictBox');
+    if (!dictBox) return;
+    
+    var activeTabs = 0;
+    for (var i = 0; i < tabs.length; i++) {
+        if (tabs[i]) activeTabs++;
+    }
+    
+    if (activeTabs === 0) {
+        dictBox.classList.add('no-tabs');
+    } else {
+        dictBox.classList.remove('no-tabs');
+    }
+}
+
+/**
  * Clean up tabs array
  */
 function cleanTabsArray() {
@@ -654,6 +673,7 @@ function cleanTabsArray() {
         }
     }
     if (empty) tabs = [];
+    updateWelcomeVisibility();
 }
 
 /**
@@ -1027,6 +1047,8 @@ function addNewTab(html, term, singleTab) {
             focusTab(newTab);
             initializeInteractiveElements(newContent);
         }
+        
+        updateWelcomeVisibility();
         
         // Call resizer to ensure proper layout
         if (typeof resizer === 'function') {
