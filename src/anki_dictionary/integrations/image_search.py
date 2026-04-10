@@ -64,6 +64,16 @@ class DuckDuckGoSignals(QObject):
     finished = pyqtSignal()
 
 
+def log_debug(message):
+    """Log debug messages to both console and a temporary file."""
+    print(message)
+    try:
+        log_file = os.path.join(temp_dir, "image_search_debug.log")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"{message}\n")
+    except:
+        pass
+
 class DuckDuckGo(QRunnable):
     def __init__(self):
         super().__init__()
@@ -86,7 +96,7 @@ class DuckDuckGo(QRunnable):
         if region_or_code in countryToDuckDuckGo:
             self.language = countryToDuckDuckGo[region_or_code]
         else:
-            print(
+            log_debug(
                 f"Warning: Unsupported region/language '{region_or_code}', using default US English"
             )
             self.language = "us-en"
@@ -122,57 +132,70 @@ class DuckDuckGo(QRunnable):
         try:
             # Get the initial token
             search_url = "https://duckduckgo.com/"
-            response = session.get(search_url, timeout=30)
+            log_debug(f"[ImageSearch] Fetching initial token from {search_url} for term: {term}")
+            
+            # Use prefer_ipv4 to avoid IPv6 issues which are common on some networks
+            with prefer_ipv4():
+                response = session.get(search_url, params={"q": term}, timeout=30)
+            
             session.cookies.update(response.cookies)
 
-            # Perform the search
-            params = {
-                "q": term,
-                "iax": "images",
-                "ia": "images",
-                "kl": self.language,  # Add language/region parameter
-            }
-
-            response = session.get(search_url, params=params, timeout=30)
-
-            # Extract the vqd token using regex
-            vqd = re.search(r"vqd=[\d-]+", response.text)
-            if not vqd:
+            # Extract the vqd token using a more robust regex
+            # DDG vqd can look like vqd='...' or vqd="..."
+            vqd_match = re.search(r'vqd=([^&\'"]+)', response.text)
+            if not vqd_match:
+                # Try another common pattern
+                vqd_match = re.search(r'vqd:\s*\'([^\']+)\'', response.text)
+            
+            if not vqd_match:
+                log_debug(f"[ImageSearch] Failed to find vqd token in response from {search_url}")
+                # Log a small part of the response for debugging (if it's not too large)
+                if len(response.text) > 0:
+                    log_debug(f"[ImageSearch] Response snippet: {response.text[:500]}...")
                 return []
+                
+            vqd = vqd_match.group(1)
+            log_debug(f"[ImageSearch] Found vqd token: {vqd}")
 
             # Build the API URL request
             api_url = "https://duckduckgo.com/i.js"
             params = {
-                "l": "wt-wt",
+                "l": self.language, # Use the selected language
                 "o": "json",
                 "q": term,
-                "vqd": vqd.group().split("=")[1],
+                "vqd": vqd,
                 "f": ",,,",
                 "p": str(offset),  # Use offset for pagination
             }
 
-            response = session.get(api_url, params=params, timeout=30)
+            log_debug(f"[ImageSearch] Fetching images from {api_url} with params: {params}")
+            with prefer_ipv4():
+                response = session.get(api_url, params=params, timeout=30)
+            
             if response.status_code == 200:
-                results = [img["image"] for img in response.json().get("results", [])]
-                return results[
-                    :maximum
-                ]  # Limit results to maximum TODO: check if this is a legit way to do it
+                data = response.json()
+                results = [img["image"] for img in data.get("results", [])]
+                log_debug(f"[ImageSearch] Found {len(results)} image URLs")
+                return results[:maximum]
+            else:
+                log_debug(f"[ImageSearch] API request failed with status code: {response.status_code}")
+                return []
 
         except Exception as e:
-            print(f"Error in DuckDuckGo search: {str(e)}")
+            log_debug(f"[ImageSearch] Error in DuckDuckGo search: {str(e)}")
         return []
 
     def process_image(self, url: str, content: bytes) -> str:
         """Process the image: open, resize, and save to disk using QImage."""
         try:
             if not content:
-                print(f"[ImageSearch] Empty content for {url}")
+                log_debug(f"[ImageSearch] Empty content for {url}")
                 return ""
                 
             image = QImage()
             if not image.loadFromData(content):
                 # Try to detect if it's a known format issue
-                print(f"[ImageSearch] QImage failed to load data from {url}. Length: {len(content)}")
+                log_debug(f"[ImageSearch] QImage failed to load data from {url}. Length: {len(content)}")
                 return ""
             
             # Resize image maintaining aspect ratio
@@ -190,10 +213,10 @@ class DuckDuckGo(QRunnable):
             if image.save(filepath, "JPG", 85):
                 return filename
             else:
-                print(f"[ImageSearch] Failed to save image to {filepath}")
+                log_debug(f"[ImageSearch] Failed to save image to {filepath}")
         except Exception as e:
             # Only log serious errors
-            print(f"[ImageSearch] Error processing image from {url}: {e}")
+            log_debug(f"[ImageSearch] Error processing image from {url}: {e}")
         return ""
 
     def download_and_process_image_sync(self, url: str, session: requests.Session = None) -> str:
@@ -227,7 +250,7 @@ class DuckDuckGo(QRunnable):
                     "timeout",
                 ]
             ):
-                print(f"Error downloading image from {url}: {e}")
+                log_debug(f"[ImageSearch] Error downloading image from {url}: {e}")
         return ""
 
     def download_all_images(self, urls: list) -> list:
@@ -251,7 +274,7 @@ class DuckDuckGo(QRunnable):
                     if filename:
                         results.append(filename)
                 except Exception as e:
-                    print(f"Error processing image: {e}")
+                    log_debug(f"[ImageSearch] Error processing image: {e}")
 
             return results
 
@@ -264,14 +287,19 @@ class DuckDuckGo(QRunnable):
         # and is set before this method is called
         images = self.search(term, offset=self.search_offset)  # Get image URLs
         if not images or len(images) < 1:
+            log_debug(f"[ImageSearch] No images found for term: {term}")
             return "No Images Found. This is likely due to a connectivity error."
 
         # Download images concurrently
         try:
             local_images = self.download_all_images(images)
         except Exception as e:
-            print(f"Error in image download: {e}")
+            log_debug(f"[ImageSearch] Error in image download: {e}")
             return "Error downloading images"
+
+        if not local_images:
+            log_debug(f"[ImageSearch] Failed to download/process any images for term: {term}")
+            return "Failed to download or process images. Check connectivity or logs."
 
         def generate_image_html(filename):
             # Use base64 data URL to embed the image directly in HTML
