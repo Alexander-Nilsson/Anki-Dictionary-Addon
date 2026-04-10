@@ -417,7 +417,7 @@ class DictionaryInstallPage(MiWizardPage):
                 quoted_url = urllib.parse.quote(url, safe="/")
             
             with prefer_ipv4():
-                return client.session.get(quoted_url, timeout=15, stream=True)
+                return client.session.get(quoted_url, timeout=60, stream=True)
 
         def run(self):
             from ..ui.dialogs.dictionary_manager import importDict

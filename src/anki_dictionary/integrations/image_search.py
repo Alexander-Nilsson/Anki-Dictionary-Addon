@@ -199,7 +199,7 @@ class DuckDuckGo(QRunnable):
             with prefer_ipv4():
                 response = fetcher.get(
                     url,
-                    timeout=15,  # Reduced from 30s
+                    timeout=30,
                     verify=False,
                     headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
