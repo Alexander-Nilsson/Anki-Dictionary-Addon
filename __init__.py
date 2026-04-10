@@ -8,8 +8,13 @@ allowing users to search dictionaries and automatically create cards.
 
 import os
 import sys
+import ssl
 from typing import Any, Dict, List, Optional
 from aqt import mw
+
+# macOS SSL certificate fix
+if sys.platform == "darwin":
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 # Add the vendor directory to the system path (at the end)
 vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
