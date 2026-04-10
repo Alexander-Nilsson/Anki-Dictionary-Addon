@@ -90,7 +90,7 @@ def _make_session():
 
         if curl_requests:
             # Impersonate Chrome to bypass Cloudflare/DDG WAF
-            return curl_requests.Session(impersonate="chrome120")
+            return curl_requests.Session(impersonate="safari15_5")
     
     # Windows/Linux (or Mac fallback)
     session = requests.Session()
