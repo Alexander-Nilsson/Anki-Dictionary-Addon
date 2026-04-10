@@ -60,6 +60,14 @@ class DuckDuckGoSignals(QObject):
     finished = pyqtSignal()
 
 
+def _make_session():
+    """Create a new session with TLS spoofing adapter."""
+    session = requests.Session()
+    session.verify = False
+    session.mount("https://", TLSAdapter())
+    return session
+
+
 class DuckDuckGo(QRunnable):
     def __init__(self):
         super().__init__()
@@ -68,11 +76,7 @@ class DuckDuckGo(QRunnable):
         self.idName = ""
         self.language = "us-en"
         self.search_offset = 0
-        
-        # Initialize a single, reusable session with our TLS spoofing adapter
-        self.session = requests.Session()
-        self.session.verify = False
-        self.session.mount("https://", TLSAdapter())
+        self.session = None
 
     def setTermIdName(self, term, idName):
         self.term = term
@@ -84,6 +88,9 @@ class DuckDuckGo(QRunnable):
         self.language = COUNTRY_TO_DDG.get(region_or_code, "us-en")
 
     def _fetch_vqd(self, term: str):
+        if not self.session:
+            self.session = _make_session()
+            
         try:
             response = self.session.post(
                 "https://duckduckgo.com",
@@ -204,6 +211,9 @@ class DuckDuckGo(QRunnable):
     def run(self):
         try:
             if self.term:
+                # CREATE A FRESH SESSION FOR EVERY RUN
+                self.session = _make_session() 
+                
                 is_load_more = self.idName == "load_more"
                 html = self.get_images_html(self.term, is_load_more)
                 self.signals.resultsFound.emit([html, self.idName])
