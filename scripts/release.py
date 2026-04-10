@@ -38,26 +38,42 @@ def get_current_version():
 
 
 def update_version(new_version):
-    """Update version in pyproject.toml"""
+    """Update version in all tracking files"""
+    success = True
+    
+    # 1. Update pyproject.toml
     try:
-        # Read the file
         with open("pyproject.toml", "r") as f:
             content = f.read()
-
-        # Update version using regex
         pattern = r'version\s*=\s*["\'][^"\']*["\']'
         replacement = f'version = "{new_version}"'
         new_content = re.sub(pattern, replacement, content)
-
-        # Write back to file
         with open("pyproject.toml", "w") as f:
             f.write(new_content)
-
         print(f"✅ Updated version in pyproject.toml to {new_version}")
-        return True
     except Exception as e:
-        print(f"❌ Failed to update version: {e}")
-        return False
+        print(f"❌ Failed to update version in pyproject.toml: {e}")
+        success = False
+
+    # 2. Update src/anki_dictionary/__init__.py
+    init_path = Path("src/anki_dictionary/__init__.py")
+    if init_path.exists():
+        try:
+            with open(init_path, "r") as f:
+                content = f.read()
+            pattern = r'__version__\s*=\s*["\'][^"\']*["\']'
+            replacement = f'__version__ = "{new_version}"'
+            new_content = re.sub(pattern, replacement, content)
+            with open(init_path, "w") as f:
+                f.write(new_content)
+            print(f"✅ Updated version in {init_path} to {new_version}")
+        except Exception as e:
+            print(f"❌ Failed to update version in {init_path}: {e}")
+            success = False
+    else:
+        print(f"⚠️  {init_path} not found, skipping version update there.")
+
+    return success
 
 
 def validate_version(version):
@@ -90,8 +106,12 @@ def check_git_status():
 def commit_version_change(version):
     """Commit version change to git"""
     try:
-        # Add the pyproject.toml file
-        subprocess.run(["git", "add", "pyproject.toml"], check=True)
+        # Files to stage
+        files_to_add = ["pyproject.toml", "src/anki_dictionary/__init__.py"]
+        
+        for file_path in files_to_add:
+            if Path(file_path).exists():
+                subprocess.run(["git", "add", file_path], check=True)
 
         # Commit the change
         commit_message = f"Bump version to {version}"
