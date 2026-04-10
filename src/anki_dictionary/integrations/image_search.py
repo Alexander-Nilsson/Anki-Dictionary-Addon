@@ -21,12 +21,12 @@ import requests
 import re
 
 try:
-    from aqt.qt import QRunnable, QObject, pyqtSignal
+    from aqt.qt import QRunnable, QObject, pyqtSignal, QImage, QSize, Qt
 except ImportError:
     # Fallback to standard PyQt6 for standalone testing/development
-    from PyQt6.QtCore import QRunnable, QObject, pyqtSignal
+    from PyQt6.QtCore import QRunnable, QObject, pyqtSignal, QSize, Qt
+    from PyQt6.QtGui import QImage
 
-from PIL import Image
 import io
 import hashlib
 try:
@@ -43,11 +43,6 @@ from ..utils.common import prefer_ipv4
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Suppress PIL warnings globally
-warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
-warnings.filterwarnings("ignore", message=".*Palette images with Transparency.*")
-warnings.filterwarnings("ignore", message=".*should be converted to RGBA images.*")
 
 # Map country names and ISO language codes to DuckDuckGo region codes
 # Sorted alphabetically for easier maintenance
@@ -168,33 +163,30 @@ class DuckDuckGo(QRunnable):
         return []
 
     def process_image(self, url: str, content: bytes) -> str:
-        """Process the image: open, convert, resize, and save to disk."""
-        import warnings
-
-        # Suppress all PIL warnings at the beginning
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning, module="PIL")
-            warnings.filterwarnings(
-                "ignore", message=".*Palette images with Transparency.*"
+        """Process the image: open, resize, and save to disk using QImage."""
+        try:
+            image = QImage()
+            if not image.loadFromData(content):
+                return ""
+            
+            # Resize image maintaining aspect ratio
+            image = image.scaled(
+                QSize(200, 200),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
             )
-
-            try:
-                img = Image.open(io.BytesIO(content))
-                # Convert image if necessary
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                # Resize image maintaining aspect ratio
-                img.thumbnail((200, 200))
-                # Generate a unique filename based on the URL
-                img_hash = hashlib.md5(url.encode()).hexdigest()
-                filename = f"dict_img_{img_hash}.jpg"
-                filepath = os.path.join(temp_dir, filename)
-                img.save(filepath, "JPEG", quality=85)
+            
+            # Generate a unique filename based on the URL
+            img_hash = hashlib.md5(url.encode()).hexdigest()
+            filename = f"dict_img_{img_hash}.jpg"
+            filepath = os.path.join(temp_dir, filename)
+            
+            if image.save(filepath, "JPG", 85):
                 return filename
-            except Exception as e:
-                # Only log serious errors, not common issues like corrupted images
-                if "cannot identify image file" not in str(e):
-                    print(f"Error processing image from {url}: {e}")
+        except Exception as e:
+            # Only log serious errors
+            if "cannot identify" not in str(e).lower():
+                print(f"Error processing image from {url}: {e}")
         return ""
 
     def download_and_process_image_sync(self, url: str, session: requests.Session = None) -> str:

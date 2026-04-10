@@ -45,15 +45,15 @@ def install_dependencies(addon_dir):
     dependencies = config['project'].get('dependencies', [])
     
     # Filter dependencies to bundle
-    # We exclude PyQt (provided by Anki)
+    # We exclude PyQt (provided by Anki), Pillow (provided by Anki), 
     # and system-specific binary wheels if we can rely on Anki
-    # We bundle: pynput, pillow
+    # We bundle: pynput
     # We exclude: pyqt6*, requests (Anki has it), pyobjc* (Anki has it)
     
     to_install = []
     for dep in dependencies:
         name = dep.split('>=')[0].split('==')[0].split(';')[0].strip()
-        if name.lower() in ['pynput', 'pillow']:
+        if name.lower() in ['pynput']:
             to_install.append(dep)
         elif name.lower() in ['requests', 'urllib3']:
              # Anki provides requests, but if users experience SSL/version issues,

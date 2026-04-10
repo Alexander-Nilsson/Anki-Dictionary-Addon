@@ -11,10 +11,19 @@ import sys
 from typing import Any, Dict, List, Optional
 from aqt import mw
 
-# Add the vendor directory to the system path
+# Add the vendor directory to the system path (at the end)
 vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
 if vendor_path not in sys.path:
     sys.path.append(vendor_path)
+
+# Special check for broken PIL in vendor (often happens if bundled on different OS)
+if os.path.exists(os.path.join(vendor_path, "PIL")):
+    try:
+        # If we can't import a basic PIL component from vendor, it might be broken
+        import PIL
+    except ImportError:
+        # If it's broken, remove vendor from path temporarily or handle it
+        pass
 
 # Add src directory to path for package imports
 src_path = os.path.join(os.path.dirname(__file__), "src")

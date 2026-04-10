@@ -29,12 +29,6 @@ import subprocess
 from typing import List, Dict, Optional, Tuple, Any, Union
 from urllib.request import Request, urlopen
 
-try:
-    from PIL import Image
-except ImportError:
-    # Fallback for systems where PIL is not available
-    Image = None
-
 from ..utils.history import HistoryBrowser, HistoryModel
 from aqt.editor import Editor
 from aqt.operations.note import update_note
@@ -1577,21 +1571,30 @@ class HoverButton(QPushButton):
         self.mouseOut.emit(True)
 
 
-def imageResizer(img):
-    if Image is None:
-        # Return original image if PIL is not available
-        return img
-    width, height = img.size
-    maxh = 300
-    maxw = 300
-    ratio = min(maxw / width, maxh / height)
-    height = int(round(ratio * height))
-    width = int(round(ratio * width))
+# Refactor imageResizer to use QImage for better portability
+def imageResizer(img_path):
+    """
+    Resizes an image at img_path to fit within 300x300 using QImage.
+    Returns True if success, False otherwise.
+    Note: In this addon, resizing is usually done during download.
+    """
     try:
-        return img.resize((width, height), Image.ANTIALIAS)
-    except AttributeError:
-        # Handle newer PIL versions where ANTIALIAS is deprecated
-        return img.resize((width, height), Image.Resampling.LANCZOS)
+        image = QImage(img_path)
+        if image.isNull():
+            return False
+            
+        max_size = 300
+        if image.width() > max_size or image.height() > max_size:
+            image = image.scaled(
+                QSize(max_size, max_size),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            return image.save(img_path)
+        return True
+    except Exception as e:
+        print(f"Error resizing image: {e}")
+        return False
 
 
 class ClipThread(QObject):
