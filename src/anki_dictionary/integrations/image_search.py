@@ -68,25 +68,24 @@ def _make_session():
         try:
             from curl_cffi import requests as curl_requests
         except ImportError:
-            # Try to inject vendor paths manually if not already present
+            # Inject vendor paths manually using our known addon_path
             import sys
-            from ..utils.paths import get_vendor_dir
             
-            vendor_path = get_vendor_dir()
             machine = platform.machine().lower()
-            
+            # Handle both arm64 and x86_64 naming conventions
             if machine == "arm64":
-                mac_vendor = os.path.join(vendor_path, "mac_arm64")
+                mac_vendor = os.path.join(addon_path, "vendor", "mac_arm64")
             else:
-                mac_vendor = os.path.join(vendor_path, "mac_x86_64")
+                mac_vendor = os.path.join(addon_path, "vendor", "mac_x86_64")
                 
             if os.path.exists(mac_vendor) and mac_vendor not in sys.path:
                 sys.path.insert(0, mac_vendor)
             
             try:
                 from curl_cffi import requests as curl_requests
-            except ImportError:
-                log_debug("[ImageSearch] curl_cffi not found on Mac even after path injection. Falling back.")
+            except ImportError as e:
+                # Log the exact error to diagnose C-extension mismatches (e.g., Python 3.9 vs 3.12)
+                log_debug(f"[ImageSearch] curl_cffi import failed: {e}")
                 curl_requests = None
 
         if curl_requests:

@@ -66,13 +66,6 @@ def install_macos_curl_cffi(vendor_dir):
             else:
                 platform_args = ["--platform", p["platform"]]
 
-            # cffi wheels for mac_arm64 are only available for Python 3.9+
-            py_version = "3.8"
-            abi = "cp38"
-            if p["name"] == "mac_arm64":
-                py_version = "3.9"
-                abi = "cp39"
-
             subprocess.run(
                 [
                     sys.executable,
@@ -84,10 +77,6 @@ def install_macos_curl_cffi(vendor_dir):
                     str(dest),
                     *platform_args,
                     "--only-binary=:all:",
-                    "--python-version",
-                    py_version,
-                    "--abi",
-                    abi,
                     "--no-compile",
                 ],
                 check=True,
