@@ -18,7 +18,41 @@ import argparse
 import os
 from os.path import dirname, join
 import requests
-import re
+import ssl
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
+
+# Reorders TLS cipher suites to match Chrome 120's ordering.
+# Python's default OpenSSL cipher order produces a well-known JA3 fingerprint
+# that DuckDuckGo's bot detector blocks on macOS. This adapter changes that
+# fingerprint without requiring any new dependencies.
+CHROME_CIPHERS = (
+    "TLS_AES_128_GCM_SHA256:"
+    "TLS_AES_256_GCM_SHA384:"
+    "TLS_CHACHA20_POLY1305_SHA256:"
+    "ECDHE-ECDSA-AES128-GCM-SHA256:"
+    "ECDHE-RSA-AES128-GCM-SHA256:"
+    "ECDHE-ECDSA-AES256-GCM-SHA384:"
+    "ECDHE-RSA-AES256-GCM-SHA384:"
+    "ECDHE-ECDSA-CHACHA20-POLY1305:"
+    "ECDHE-RSA-CHACHA20-POLY1305:"
+    "ECDHE-RSA-AES128-SHA:"
+    "ECDHE-RSA-AES256-SHA:"
+    "AES128-GCM-SHA256:"
+    "AES256-GCM-SHA384:"
+    "AES128-SHA:"
+    "AES256-SHA"
+)
+
+class ChromeTLSAdapter(HTTPAdapter):
+    """Mount this on a requests.Session to replace Python's default OpenSSL
+    cipher ordering with Chrome 120's ordering, changing the JA3 fingerprint."""
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = create_urllib3_context(ciphers=CHROME_CIPHERS)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.set_alpn_protocols(["h2", "http/1.1"])
+        kwargs["ssl_context"] = ctx
+        super().init_poolmanager(*args, **kwargs)
 
 try:
     from aqt.qt import QRunnable, QObject, pyqtSignal, QImage, QSize, Qt
@@ -74,7 +108,21 @@ def log_debug(message):
     except:
         pass
 
-class DuckDuckGo(QRunnable):
+    VQD_PATTERNS = [
+        re.compile(r'vqd=([0-9a-zA-Z\-]+)'),
+        re.compile(r'vqd["\s]*[:=]["\s]*([0-9a-zA-Z\-]+)'),
+        re.compile(r'"vqd"\s*:\s*"([^"]+)"'),
+    ]
+
+    def _extract_vqd(self, html: str):
+        for pattern in self.VQD_PATTERNS:
+            m = pattern.search(html)
+            if m:
+                return m.group(1)
+        log_debug("[ImageSearch] All vqd patterns failed. Response snippet:")
+        log_debug(html[:2000])
+        return None
+
     def __init__(self):
         super().__init__()
         self.signals = DuckDuckGoSignals()
@@ -105,67 +153,51 @@ class DuckDuckGo(QRunnable):
         return [x.replace("\\", "\\\\") for x in urls]
 
     def search(self, term, maximum=15, offset=0):
-        """
-        Search for images using DuckDuckGo
-        Args:
-        term: Search term string
-        maximum: Maximum number of images to return (default: 15)
-        offset: Pagination offset for getting more results
-        Returns:
-        List of image URLs
-        """
         session = requests.Session()
-        # Disable SSL verification to handle problematic certificates
-        session.verify = False
-        
-        # Modern User-Agent
-        ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-        
-        session.headers.update(
-            {
-                "User-Agent": ua,
-                "Accept": "*/*",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Referer": "https://duckduckgo.com/",
-                "DNT": "1",
-                "Connection": "keep-alive",
+        session.mount("https://", ChromeTLSAdapter())
+
+        # Browser-accurate headers for the initial page load phase
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+        })
+
+        try:
+            import urllib.parse
+
+            # Single request: establishes cookies AND gets the vqd token in one step
+            log_debug(f"[ImageSearch] Fetching vqd token for term: {term}")
+            with prefer_ipv4():
+                response = session.get(
+                    "https://duckduckgo.com/",
+                    params={"q": term},
+                    timeout=30,
+                )
+            response.raise_for_status()
+
+            vqd = self._extract_vqd(response.text)
+            if not vqd:
+                return []
+
+            log_debug(f"[ImageSearch] Found vqd token: {vqd}")
+
+            # Switch to XHR-appropriate headers for the API call.
+            quoted_term = urllib.parse.quote(term)
+            api_headers = {
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Referer": f"https://duckduckgo.com/?q={quoted_term}&iax=images&ia=images",
                 "Sec-Fetch-Dest": "empty",
                 "Sec-Fetch-Mode": "cors",
                 "Sec-Fetch-Site": "same-origin",
             }
-        )
 
-        try:
-            import urllib.parse
-            # First, just visit the home page to get some initial cookies
-            home_url = "https://duckduckgo.com/"
-            with prefer_ipv4():
-                session.get(home_url, timeout=30)
-
-            # Get the initial token
-            search_url = "https://duckduckgo.com/"
-            log_debug(f"[ImageSearch] Fetching initial token from {search_url} for term: {term}")
-            
-            # Use prefer_ipv4 to avoid IPv6 issues which are common on some networks
-            with prefer_ipv4():
-                response = session.get(search_url, params={"q": term}, timeout=30)
-            
-            # Extract the vqd token using a more robust regex
-            vqd_match = re.search(r'vqd=([^&\'"]+)', response.text)
-            if not vqd_match:
-                vqd_match = re.search(r'vqd:\s*\'([^\']+)\'', response.text)
-            
-            if not vqd_match:
-                log_debug(f"[ImageSearch] Failed to find vqd token in response from {search_url}")
-                return []
-                
-            vqd = vqd_match.group(1)
-            log_debug(f"[ImageSearch] Found vqd token: {vqd}")
-
-            # Build the API URL request
-            api_url = "https://duckduckgo.com/i.js"
-            
-            # Simplified params often work better
             params = {
                 "l": self.language,
                 "o": "json",
@@ -173,54 +205,56 @@ class DuckDuckGo(QRunnable):
                 "vqd": vqd,
                 "f": ",,,",
                 "p": "1",
+                "s": str(offset),
             }
 
-            log_debug(f"[ImageSearch] Fetching images from {api_url} with params: {params}")
-            
-            # Use the actual search results page as referer
-            quoted_term = urllib.parse.quote(term)
-            search_referer = f"https://duckduckgo.com/?q={quoted_term}&iax=images&ia=images"
-            
-            # Add specific headers for the API call
-            api_headers = {
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": search_referer,
-            }
-            
+            log_debug(f"[ImageSearch] Fetching i.js with offset={offset}")
             with prefer_ipv4():
-                response = session.get(api_url, params=params, headers=api_headers, timeout=30)
-            
+                response = session.get(
+                    "https://duckduckgo.com/i.js",
+                    params=params,
+                    headers=api_headers,
+                    timeout=30,
+                )
+
             if response.status_code == 200:
                 data = response.json()
                 results = [img["image"] for img in data.get("results", [])]
-                log_debug(f"[ImageSearch] Found {len(results)} image URLs")
                 return results[:maximum]
+
             elif response.status_code == 403:
-                log_debug(f"[ImageSearch] API request failed with 403. Trying fallback without region...")
-                # Try fallback: omit 'l' and 'f' which are sometimes flagged
-                fallback_params = {
-                    "q": term,
-                    "vqd": vqd,
-                    "f": ",,,",
-                    "p": "1",
-                }
+                log_debug("[ImageSearch] 403 on i.js — re-fetching fresh vqd and retrying once")
                 with prefer_ipv4():
-                    response = session.get(api_url, params=fallback_params, headers=api_headers, timeout=30)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    results = [img["image"] for img in data.get("results", [])]
-                    return results[:maximum]
-                else:
-                    log_debug(f"[ImageSearch] Fallback failed with status: {response.status_code}")
-                    return []
+                    retry_resp = session.get(
+                        "https://duckduckgo.com/",
+                        params={"q": term},
+                        timeout=30,
+                    )
+                fresh_vqd = self._extract_vqd(retry_resp.text)
+                if fresh_vqd:
+                    params["vqd"] = fresh_vqd
+                    params.pop("l", None)
+                    params.pop("f", None)
+                    with prefer_ipv4():
+                        retry_api = session.get(
+                            "https://duckduckgo.com/i.js",
+                            params=params,
+                            headers=api_headers,
+                            timeout=30,
+                        )
+                    if retry_api.status_code == 200:
+                        data = retry_api.json()
+                        results = [img["image"] for img in data.get("results", [])]
+                        return results[:maximum]
+                log_debug("[ImageSearch] Retry also failed")
+                return []
+
             else:
-                log_debug(f"[ImageSearch] API request failed with status code: {response.status_code}")
+                log_debug(f"[ImageSearch] Unexpected status: {response.status_code}")
                 return []
 
         except Exception as e:
-            log_debug(f"[ImageSearch] Error in DuckDuckGo search: {str(e)}")
+            log_debug(f"[ImageSearch] Error in search: {str(e)}")
         return []
 
     def process_image(self, url: str, content: bytes) -> str:
@@ -270,7 +304,7 @@ class DuckDuckGo(QRunnable):
                     timeout=30,
                     verify=False,
                     headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     },
                 )
             if response.status_code == 200:
@@ -316,13 +350,27 @@ class DuckDuckGo(QRunnable):
 
             return results
 
+    def _image_to_html(self, filename: str) -> str:
+        import base64
+        image_path = os.path.join(temp_dir, filename)
+        try:
+            with open(image_path, "rb") as f:
+                data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
+            return (
+                '<div class="imgBox">'
+                f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
+                '</div>'
+            )
+        except Exception as e:
+            log_debug(f"[ImageSearch] Error reading image {filename}: {e}")
+            return '<div class="imgBox">Error loading image</div>'
+
     def getHtml(self, term, is_load_more=False):
         """
         Generate HTML using the images from the search results.
         Downloads images to the temp folder.
         """
-        # Note: search_offset is now controlled by the dictionary class
-        # and is set before this method is called
         images = self.search(term, offset=self.search_offset)  # Get image URLs
         if not images or len(images) < 1:
             log_debug(f"[ImageSearch] No images found for term: {term}")
@@ -339,34 +387,12 @@ class DuckDuckGo(QRunnable):
             log_debug(f"[ImageSearch] Failed to download/process any images for term: {term}")
             return "Failed to download or process images. Check connectivity or logs."
 
-        def generate_image_html(filename):
-            # Use base64 data URL to embed the image directly in HTML
-            import base64
-
-            image_path = os.path.join(temp_dir, filename)
-            try:
-                with open(image_path, "rb") as img_file:
-                    img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode("utf-8")
-                    data_url = f"data:image/jpeg;base64,{img_base64}"
-                    return (
-                        '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
-                        f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
-                        "</div>"
-                    )
-            except Exception as e:
-                print(f"Error reading image {filename}: {e}")
-                return '<div class="imgBox">Error loading image</div>'
-
         # Create horizontal layout with all images in one container
         html = '<div class="imageCont horizontal-layout">'
-        html += "".join(generate_image_html(img) for img in local_images)
+        html += "".join(self._image_to_html(img) for img in local_images)
         html += "</div>"
 
         # Add Load More button that triggers a new search
-        # Use JSON encoding to properly escape the term for JavaScript
-        # But we need to escape the quotes for HTML attribute
         escaped_term = json.dumps(term).replace('"', "&quot;")
         html += f'<button class="imageLoader" onclick="loadMoreImages(this, {escaped_term})">Load More</button>'
 
@@ -377,8 +403,6 @@ class DuckDuckGo(QRunnable):
         Get more images for the load more functionality.
         Returns HTML for additional images without container wrapper.
         """
-        # Note: search_offset is now controlled by the dictionary class
-        # and is set before this method is called
         images = self.search(term, offset=self.search_offset)  # Get image URLs
         if not images or len(images) < 1:
             return ""  # Return empty if no more images
@@ -387,31 +411,11 @@ class DuckDuckGo(QRunnable):
         try:
             local_images = self.download_all_images(images)
         except Exception as e:
-            print(f"Error in image download: {e}")
+            log_debug(f"[ImageSearch] Error in image download: {e}")
             return ""
 
-        def generate_image_html(filename):
-            # Use base64 data URL to embed the image directly in HTML (same as initial search)
-            import base64
-
-            image_path = os.path.join(temp_dir, filename)
-            try:
-                with open(image_path, "rb") as img_file:
-                    img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode("utf-8")
-                    data_url = f"data:image/jpeg;base64,{img_base64}"
-                    return (
-                        '<div class="imgBox">'
-                        f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
-                        f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
-                        "</div>"
-                    )
-            except Exception as e:
-                print(f"Error reading image {filename}: {e}")
-                return '<div class="imgBox">Error loading image</div>'
-
         # Just return the image HTML without container wrapper
-        html = "".join(generate_image_html(img) for img in local_images)
+        html = "".join(self._image_to_html(img) for img in local_images)
         return html
 
     def getPreparedResults(self, term, idName):
