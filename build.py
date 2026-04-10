@@ -84,9 +84,6 @@ def install_macos_curl_cffi(vendor_dir):
                 text=True,
             )
 
-            # Remove .dist-info to save space
-            for item in dest.glob("*.dist-info"):
-                shutil.rmtree(item)
 
             print(f"   ✓ curl_cffi for {p['name']} completed")
         except subprocess.CalledProcessError as e:
@@ -152,9 +149,6 @@ def install_dependencies(addon_dir):
             # Cleanup requirements file
             req_file.unlink()
 
-            # Remove .dist-info directories to save space
-            for item in vendor_dir.glob("*.dist-info"):
-                shutil.rmtree(item)
 
         except subprocess.CalledProcessError as e:
             print(f"   ❌ Error installing dependencies: {e}")
