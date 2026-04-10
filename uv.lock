@@ -4,7 +4,7 @@ requires-python = ">=3.13"
 
 [[package]]
 name = "anki-dictionary-addon"
-version = "0.1.13"
+version = "0.1.14"
 source = { virtual = "." }
 dependencies = [
     { name = "pynput" },
