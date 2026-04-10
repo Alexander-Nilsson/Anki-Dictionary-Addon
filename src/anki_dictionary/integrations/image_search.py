@@ -136,6 +136,7 @@ class DuckDuckGo(QRunnable):
         )
 
         try:
+            import urllib.parse
             # First, just visit the home page to get some initial cookies
             home_url = "https://duckduckgo.com/"
             with prefer_ipv4():
@@ -163,21 +164,28 @@ class DuckDuckGo(QRunnable):
 
             # Build the API URL request
             api_url = "https://duckduckgo.com/i.js"
+            
+            # Simplified params often work better
             params = {
                 "l": self.language,
                 "o": "json",
                 "q": term,
                 "vqd": vqd,
                 "f": ",,,",
-                "p": "1", # Some versions of the API prefer '1' for first page
+                "p": "1",
             }
 
             log_debug(f"[ImageSearch] Fetching images from {api_url} with params: {params}")
+            
+            # Use the actual search results page as referer
+            quoted_term = urllib.parse.quote(term)
+            search_referer = f"https://duckduckgo.com/?q={quoted_term}&iax=images&ia=images"
             
             # Add specific headers for the API call
             api_headers = {
                 "Accept": "application/json, text/javascript, */*; q=0.01",
                 "X-Requested-With": "XMLHttpRequest",
+                "Referer": search_referer,
             }
             
             with prefer_ipv4():
@@ -189,11 +197,17 @@ class DuckDuckGo(QRunnable):
                 log_debug(f"[ImageSearch] Found {len(results)} image URLs")
                 return results[:maximum]
             elif response.status_code == 403:
-                log_debug(f"[ImageSearch] API request failed with 403. Trying alternative params...")
-                # Try fallback: sometimes 'p' parameter or other headers cause 403
-                params["p"] = str(offset)
+                log_debug(f"[ImageSearch] API request failed with 403. Trying fallback without region...")
+                # Try fallback: omit 'l' and 'f' which are sometimes flagged
+                fallback_params = {
+                    "q": term,
+                    "vqd": vqd,
+                    "f": ",,,",
+                    "p": "1",
+                }
                 with prefer_ipv4():
-                    response = session.get(api_url, params=params, headers=api_headers, timeout=30)
+                    response = session.get(api_url, params=fallback_params, headers=api_headers, timeout=30)
+                
                 if response.status_code == 200:
                     data = response.json()
                     results = [img["image"] for img in data.get("results", [])]
