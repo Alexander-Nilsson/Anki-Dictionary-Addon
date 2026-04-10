@@ -19,18 +19,19 @@ class LLMWorkerSignals(QObject):
     """Signals for LLM worker."""
 
     result_ready = pyqtSignal(dict)
-    error_occurred = pyqtSignal(str)
+    error_occurred = pyqtSignal(dict)
     finished = pyqtSignal()
 
 
 class LLMWorker(QRunnable):
     """Worker for making LLM calls in a separate thread."""
 
-    def __init__(self, term: str, config: Dict[str, Any], star_count: str = ""):
+    def __init__(self, term: str, config: Dict[str, Any], star_count: str = "", idName: str = ""):
         super().__init__()
         self.term = term
         self.config = config
         self.star_count = star_count
+        self.idName = idName  # Track the UI tab ID
         self.signals = LLMWorkerSignals()
         # Allow custom timeout via config, default to 15 seconds
         self.timeout = config.get("llm_timeout", 15)
@@ -97,6 +98,7 @@ class LLMWorker(QRunnable):
                 "altterm": "",
                 "starCount": self.star_count,
                 "dictName": "LLM",
+                "idName": self.idName,  # Send the ID back to the frontend
             }
 
             self.signals.result_ready.emit(result)
@@ -104,7 +106,7 @@ class LLMWorker(QRunnable):
         except Exception as e:
             error_msg = f"LLM Error: {str(e)}"
             print(f"[LLM] {error_msg}")
-            self.signals.error_occurred.emit(error_msg)
+            self.signals.error_occurred.emit({"error": error_msg, "idName": self.idName})
         finally:
             self.signals.finished.emit()
 
