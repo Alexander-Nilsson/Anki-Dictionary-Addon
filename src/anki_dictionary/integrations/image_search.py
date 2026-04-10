@@ -67,10 +67,31 @@ def _make_session():
     if _ON_MAC:
         try:
             from curl_cffi import requests as curl_requests
+        except ImportError:
+            # Try to inject vendor paths manually if not already present
+            import sys
+            from ..utils.paths import get_vendor_dir
+            
+            vendor_path = get_vendor_dir()
+            machine = platform.machine().lower()
+            
+            if machine == "arm64":
+                mac_vendor = os.path.join(vendor_path, "mac_arm64")
+            else:
+                mac_vendor = os.path.join(vendor_path, "mac_x86_64")
+                
+            if os.path.exists(mac_vendor) and mac_vendor not in sys.path:
+                sys.path.insert(0, mac_vendor)
+            
+            try:
+                from curl_cffi import requests as curl_requests
+            except ImportError:
+                log_debug("[ImageSearch] curl_cffi not found on Mac even after path injection. Falling back.")
+                curl_requests = None
+
+        if curl_requests:
             # Impersonate Chrome to bypass Cloudflare/DDG WAF
             return curl_requests.Session(impersonate="chrome120")
-        except ImportError:
-            log_debug("[ImageSearch] curl_cffi not installed on Mac. Falling back to standard requests.")
     
     # Windows/Linux (or Mac fallback)
     session = requests.Session()
