@@ -16,8 +16,26 @@ from aqt import mw
 if sys.platform == "darwin":
     ssl._create_default_https_context = ssl._create_unverified_context
 
-# Add the vendor directory to the system path (at the end)
+# Add the vendor directory to the system path
 vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
+
+# macOS-specific curl_cffi injection
+if sys.platform == "darwin":
+    try:
+        import platform
+
+        machine = platform.machine().lower()
+        if machine == "arm64":
+            mac_vendor = os.path.join(vendor_path, "mac_arm64")
+            if os.path.exists(mac_vendor) and mac_vendor not in sys.path:
+                sys.path.insert(0, mac_vendor)
+        elif machine in ["x86_64", "amd64", "i386"]:
+            mac_vendor = os.path.join(vendor_path, "mac_x86_64")
+            if os.path.exists(mac_vendor) and mac_vendor not in sys.path:
+                sys.path.insert(0, mac_vendor)
+    except Exception as e:
+        print(f"Anki Dictionary: Error injecting macOS vendor paths: {e}")
+
 if vendor_path not in sys.path:
     sys.path.append(vendor_path)
 

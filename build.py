@@ -37,67 +37,128 @@ def get_version():
     """Get version from pyproject.toml"""
     return get_project_config()['project'].get('version', '0.1.0')
 
+def install_macos_curl_cffi(vendor_dir):
+    """Download and extract curl_cffi for macOS (ARM64 and x86_64)"""
+    print("📦 Downloading macOS-specific curl_cffi (via pip --platform)...")
+
+    # curl_cffi 0.7.4 uses abi3, compatible with all recent Anki/Python versions
+    platforms = [
+        {"name": "mac_arm64", "platform": "macosx_11_0_arm64"},
+        {"name": "mac_x86_64", "platform": "macosx_10_9_x86_64"},
+    ]
+
+    for p in platforms:
+        dest = vendor_dir / p["name"]
+        dest.mkdir(parents=True, exist_ok=True)
+
+        print(f"   Installing curl_cffi for {p['name']}...")
+        try:
+            # Use cp38-abi3 as baseline to get universal wheel
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "curl_cffi==0.7.4",
+                    "-t",
+                    str(dest),
+                    "--platform",
+                    p["platform"],
+                    "--only-binary=:all:",
+                    "--python-version",
+                    "3.8",
+                    "--abi",
+                    "cp38",
+                    "--no-compile",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            # Remove .dist-info to save space
+            for item in dest.glob("*.dist-info"):
+                shutil.rmtree(item)
+
+            print(f"   ✓ curl_cffi for {p['name']} completed")
+        except subprocess.CalledProcessError as e:
+            print(f"   ⚠️ Could not install curl_cffi for {p['name']}: {e.stderr}")
+
+
 def install_dependencies(addon_dir):
     """Install dependencies into vendor directory"""
     print("📦 Installing dependencies...")
-    
+
     config = get_project_config()
-    dependencies = config['project'].get('dependencies', [])
-    
+    dependencies = config["project"].get("dependencies", [])
+
     # Filter dependencies to bundle
-    # We exclude PyQt (provided by Anki), Pillow (provided by Anki), 
+    # We exclude PyQt (provided by Anki), Pillow (provided by Anki),
     # and system-specific binary wheels if we can rely on Anki
     # We bundle: pynput
     # We exclude: pyqt6*, requests (Anki has it), pyobjc* (Anki has it)
-    
+
     to_install = []
     for dep in dependencies:
-        name = dep.split('>=')[0].split('==')[0].split(';')[0].strip()
-        if name.lower() in ['pynput']:
+        name = dep.split(">=")[0].split("==")[0].split(";")[0].strip()
+        if name.lower() in ["pynput"]:
             to_install.append(dep)
-        elif name.lower() in ['requests', 'urllib3']:
-             # Anki provides requests, but if users experience SSL/version issues,
-             # we might consider bundling it in the future.
-             pass
-    
-    if not to_install:
-        print("   No dependencies to bundle.")
-        return
+        elif name.lower() in ["requests", "urllib3"]:
+            # Anki provides requests, but if users experience SSL/version issues,
+            # we might consider bundling it in the future.
+            pass
 
-    vendor_dir = addon_dir / 'vendor'
+    vendor_dir = addon_dir / "vendor"
     if vendor_dir.exists():
         shutil.rmtree(vendor_dir)
     vendor_dir.mkdir()
-    
-    print(f"   Installing: {', '.join(to_install)}")
-    
-    # Create a requirements file
-    req_file = addon_dir / 'requirements-vendor.txt'
-    with open(req_file, 'w') as f:
-        for dep in to_install:
-            f.write(f"{dep}\n")
-            
-    try:
-        subprocess.run([
-            sys.executable, '-m', 'pip', 'install', 
-            '-t', str(vendor_dir), 
-            '-r', str(req_file),
-            '--no-compile'
-        ], check=True, capture_output=True, text=True)
-        print("   ✓ Dependencies installed successfully")
-        
-        # Cleanup requirements file
-        req_file.unlink()
-        
-        # Remove .dist-info directories to save space
-        for item in vendor_dir.glob('*.dist-info'):
-            shutil.rmtree(item)
-            
-    except subprocess.CalledProcessError as e:
-        print(f"   ❌ Error installing dependencies: {e}")
-        print(f"   Output: {e.stdout}")
-        print(f"   Error: {e.stderr}")
-        raise
+
+    if to_install:
+        print(f"   Installing: {', '.join(to_install)}")
+
+        # Create a requirements file
+        req_file = addon_dir / "requirements-vendor.txt"
+        with open(req_file, "w") as f:
+            for dep in to_install:
+                f.write(f"{dep}\n")
+
+        try:
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-t",
+                    str(vendor_dir),
+                    "-r",
+                    str(req_file),
+                    "--no-compile",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print("   ✓ Dependencies installed successfully")
+
+            # Cleanup requirements file
+            req_file.unlink()
+
+            # Remove .dist-info directories to save space
+            for item in vendor_dir.glob("*.dist-info"):
+                shutil.rmtree(item)
+
+        except subprocess.CalledProcessError as e:
+            print(f"   ❌ Error installing dependencies: {e}")
+            print(f"   Output: {e.stdout}")
+            print(f"   Error: {e.stderr}")
+            raise
+    else:
+        print("   No standard dependencies to bundle.")
+
+    # Always install macOS-specific curl_cffi
+    install_macos_curl_cffi(vendor_dir)
 
 def create_user_files_structure(addon_dir):
     """Create the user_files directory structure"""

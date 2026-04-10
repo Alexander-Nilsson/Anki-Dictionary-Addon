@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import os
+import platform
 from os.path import dirname, join
 import requests
 import re
@@ -28,6 +29,8 @@ addon_path = dirname(dirname(dirname(dirname(__file__))))
 temp_dir = join(addon_path, "temp")
 os.makedirs(temp_dir, exist_ok=True)
 
+# Detect if the OS is macOS
+_ON_MAC = platform.system() == "Darwin"
 
 def log_debug(message):
     print(message)
@@ -39,6 +42,7 @@ def log_debug(message):
 
 
 class TLSAdapter(HTTPAdapter):
+    """Pure-Python TLS spoofing for Windows and Linux."""
     def init_poolmanager(self, *args, **kwargs):
         context = create_urllib3_context()
         context.check_hostname = False
@@ -54,18 +58,31 @@ class TLSAdapter(HTTPAdapter):
         return super().init_poolmanager(*args, **kwargs)
 
 
-class DuckDuckGoSignals(QObject):
-    resultsFound = pyqtSignal(list)
-    noResults = pyqtSignal(str)
-    finished = pyqtSignal()
-
-
 def _make_session():
-    """Create a new session with TLS spoofing adapter."""
+    """
+    Hybrid Session Generator:
+    - Mac: curl_cffi (impersonates Chrome HTTP/2 + BoringSSL)
+    - Win/Linux: requests + TLSAdapter
+    """
+    if _ON_MAC:
+        try:
+            from curl_cffi import requests as curl_requests
+            # Impersonate Chrome to bypass Cloudflare/DDG WAF
+            return curl_requests.Session(impersonate="chrome120")
+        except ImportError:
+            log_debug("[ImageSearch] curl_cffi not installed on Mac. Falling back to standard requests.")
+    
+    # Windows/Linux (or Mac fallback)
     session = requests.Session()
     session.verify = False
     session.mount("https://", TLSAdapter())
     return session
+
+
+class DuckDuckGoSignals(QObject):
+    resultsFound = pyqtSignal(list)
+    noResults = pyqtSignal(str)
+    finished = pyqtSignal()
 
 
 class DuckDuckGo(QRunnable):
@@ -88,9 +105,6 @@ class DuckDuckGo(QRunnable):
         self.language = COUNTRY_TO_DDG.get(region_or_code, "us-en")
 
     def _fetch_vqd(self, term: str):
-        if not self.session:
-            self.session = _make_session()
-            
         try:
             response = self.session.post(
                 "https://duckduckgo.com",
@@ -142,7 +156,9 @@ class DuckDuckGo(QRunnable):
                 )
 
             if response.status_code == 200:
-                return [img["image"] for img in response.json().get("results", [])][:maximum]
+                # Some curl_cffi versions return JSON directly, fallback to .json()
+                data = response.json() if hasattr(response.json, '__call__') else response.json
+                return [img["image"] for img in data.get("results", [])][:maximum]
         except Exception as e:
             log_debug(f"[ImageSearch] Error in search: {e}")
         return []
@@ -159,22 +175,40 @@ class DuckDuckGo(QRunnable):
         
         return filename if image.save(filepath, "JPG", 85) else ""
 
-    def download_and_process_image_sync(self, url: str) -> str:
+    def download_and_process_image_sync(self, url: str, dl_session: requests.Session) -> str:
         try:
             with prefer_ipv4():
-                response = self.session.get(url, timeout=15)
-            if response.status_code == 200:
+                # Use the dedicated download session instead of self.session
+                response = dl_session.get(url, timeout=10)
+            if getattr(response, "status_code", 0) == 200:
                 return self.process_image(url, response.content)
         except Exception:
             pass # Suppress noisy individual download errors
         return ""
 
     def download_all_images(self, urls: list) -> list:
+        # Create a fast, standard session strictly for image downloading
+        dl_session = requests.Session()
+        dl_session.verify = False
+        dl_session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        
+        # Optimize the connection pool to handle all 8 threads simultaneously
+        adapter = HTTPAdapter(pool_connections=15, pool_maxsize=15)
+        dl_session.mount("https://", adapter)
+        dl_session.mount("http://", adapter)
+
+        # Download the images in true parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            return [
-                filename for filename in executor.map(self.download_and_process_image_sync, urls)
-                if filename
-            ]
+            future_to_url = {
+                executor.submit(self.download_and_process_image_sync, url, dl_session): url
+                for url in urls
+            }
+            
+            results = []
+            for future in concurrent.futures.as_completed(future_to_url):
+                if filename := future.result():
+                    results.append(filename)
+            return results
 
     def _image_to_html(self, filename: str) -> str:
         import base64
@@ -211,8 +245,8 @@ class DuckDuckGo(QRunnable):
     def run(self):
         try:
             if self.term:
-                # CREATE A FRESH SESSION FOR EVERY RUN
-                self.session = _make_session() 
+                # CREATE A FRESH HYBRID SESSION FOR EVERY SEARCH
+                self.session = _make_session()
                 
                 is_load_more = self.idName == "load_more"
                 html = self.get_images_html(self.term, is_load_more)
@@ -234,4 +268,6 @@ def search(target, number):
     data_dir = "./data"
     os.makedirs(os.path.join(data_dir, target), exist_ok=args.force)
 
-    return DuckDuckGo().search(target, maximum=number)
+    ddg = DuckDuckGo()
+    ddg.session = _make_session() # Required since run() isn't called here
+    return ddg.search(target, maximum=number)
