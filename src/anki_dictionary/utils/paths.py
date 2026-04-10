@@ -62,6 +62,11 @@ def get_themes_dir() -> str:
     return os.path.join(get_user_files_dir(), "themes")
 
 
+def get_vendor_dir() -> str:
+    """Get the path to the vendor directory."""
+    return os.path.join(get_addon_root(), "vendor")
+
+
 def get_addon_name() -> str:
     """Get the name of the addon folder."""
     return os.path.basename(get_addon_root())
