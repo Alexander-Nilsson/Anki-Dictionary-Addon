@@ -1179,40 +1179,51 @@ function handleAddTypeCheck(radio) {
 /**
  * Show/hide checkboxes for field/type selection
  */
+/**
+ * Dropdown state management
+ */
+function closeAllDropdowns() {
+    document.querySelectorAll('.open').forEach(el => el.classList.remove('open'));
+    document.querySelectorAll('.has-open-dropdown').forEach(el => el.classList.remove('has-open-dropdown'));
+    document.body.classList.remove('dropdown-open');
+}
+
 function showCheckboxes(event) {
     try {
         event.stopPropagation();
-        const target = event.target;
-        const container = target.closest('.fieldSelectCont, .overwriteSelectCont');
+        const container = event.target.closest('.fieldSelectCont, .overwriteSelectCont');
         if (!container) return;
         
-        const checkboxContainer = container.querySelector('.fieldCheckboxes, .overwriteCheckboxes');
-        
-        if (checkboxContainer) {
-            const isVisible = checkboxContainer.style.display === 'flex';
-            
-            // Close all other dropdowns first
-            document.querySelectorAll('.fieldCheckboxes, .overwriteCheckboxes').forEach(el => {
-                el.style.display = 'none';
-            });
+        const isOpen = container.classList.contains('open');
+        closeAllDropdowns();
 
-            if (!isVisible) {
-                checkboxContainer.style.display = 'flex';
-            }
+        if (!isOpen) {
+            container.classList.add('open');
+            // Elevate the entire chain of stacking contexts
+            container.closest('.dictionaryTitleBlock')?.classList.add('has-open-dropdown');
+            container.closest('.mainDictDisplay')?.classList.add('has-open-dropdown');
+            container.closest('.tabContent')?.classList.add('has-open-dropdown');
+            document.body.classList.add('dropdown-open');
         }
     } catch (error) {
         console.error('Error in showCheckboxes:', error);
     }
 }
 
-// Close dropdowns when clicking outside
-document.addEventListener('click', function(event) {
+// Global click handler to close dropdowns
+document.addEventListener('click', (event) => {
     if (!event.target.closest('.fieldSelectCont') && !event.target.closest('.overwriteSelectCont')) {
-        document.querySelectorAll('.fieldCheckboxes, .overwriteCheckboxes').forEach(el => {
-            el.style.display = 'none';
-        });
+        closeAllDropdowns();
     }
 });
+
+// Dropdown backdrop handler
+document.addEventListener('DOMContentLoaded', () => {
+    const backdrop = document.getElementById('dropdownBackdrop');
+    if (backdrop) {
+        backdrop.addEventListener('click', closeAllDropdowns);
+    }
+}, false);
 
 function handleFieldCheckbox(checkbox) {
     const container = checkbox.closest('.fieldCheckboxes');
