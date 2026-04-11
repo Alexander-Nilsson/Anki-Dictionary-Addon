@@ -1,4 +1,3 @@
------
 
 <h2 align="center">Anki Dictionary Addon </h2>
 
