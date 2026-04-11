@@ -1,5 +1,5 @@
 
-<h2 align="center">Anki Dictionary Addon </h2>
+<h2 align="center">Anki Dictionary Add-on </h2>
 
 <p align="center">
   <a href="https://ankiweb.net/shared/info/1973740182">
