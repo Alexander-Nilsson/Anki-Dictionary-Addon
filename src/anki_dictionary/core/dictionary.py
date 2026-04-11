@@ -158,7 +158,7 @@ class MIDict(AnkiWebView):
                 if not name.endswith("night"):
                     night_name = f"{name}night.{ext}"
                     # Check if the night version exists in the icons directory
-                    if exists(join(self.iconpath, night_name)):
+                    if exists(join(self.dictInt.iconpath, night_name)):
                         icon_name = night_name
         
         return get_base64_icon(icon_name)
@@ -1891,6 +1891,15 @@ class DictInterface(QWidget):
             print(f"Error loading active theme color: {e}")
         return QColor("#ffffff")  # Default color if anything fails
 
+    def hex_to_rgba(self, hex_color, alpha):
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) == 3:
+            hex_color = ''.join([c*2 for c in hex_color])
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        r_b = int(hex_color[4:6], 16)
+        return f"rgba({r}, {g}, {r_b}, {alpha})"
+
     def refresh_widget(self, widget):
         """
         Recursively refresh a widget and its children.
@@ -2217,10 +2226,10 @@ class DictInterface(QWidget):
                     color: {active_theme_dict['search_term']} !important;
                 }}
                 .exampleSentence {{
-                    background-color: {active_theme_dict['example_highlight']};
+                    background-color: {self.hex_to_rgba(active_theme_dict['example_highlight'], 0.2)};
                     border-radius: 3px;
-                    padding-top:1px;
-                    margin:0 5px;
+                    padding: 1px 4px;
+                    margin: 0 2px;
                 }}
                 .definitionBlock {{
                     background-color: {active_theme_dict['definition_background']};
