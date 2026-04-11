@@ -13,7 +13,6 @@
 <p align="center">
   <img src="assets/demo/demo.gif" alt="Anki Dictionary Addon Demo" width="800">
 </p>
------
 
 ## Core Features
 
@@ -24,7 +23,7 @@ The **Anki Dictionary Addon** is a high-performance lookup and card-creation too
   * **Integrated Image Search:** Quickly find and attach visual aids to your cards via built-in DuckDuckGo image search, ensuring your cards are highly memorable.
   * **Multi-Dictionary Support:** Aggregate results from multiple local dictionaries.
 
------
+
 
 ## Overview
 
@@ -45,7 +44,7 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 <img src="assets/demo/dark.png" alt="Dark Theme" width="400">
 </p>
 
------
+
 
 ## Table of Contents
 
@@ -56,7 +55,7 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
   - [Building](https://www.google.com/search?q=%23building)
   - [License and Credits](https://www.google.com/search?q=%23license-and-credits)
 
------
+
 
 ## Status
 
@@ -65,7 +64,7 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
   - **Operating Systems:** Fully tested on **macOS** and **Linux**
   - **Anki Version:** 25.09.2+
 
------
+
 
 ## Installation
 
