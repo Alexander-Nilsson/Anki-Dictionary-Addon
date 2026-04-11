@@ -1094,8 +1094,39 @@
     <style id="userSelect"></style>
     <style id="customThemeCss"></style>
     <style id="nightModeCss"></style>
+    <style>
+        /* DROPDOWN SYSTEM */
+        #dropdownBackdrop {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1500;
+            display: none;
+            background: transparent;
+        }
+        body.dropdown-open #dropdownBackdrop {
+            display: block;
+        }
+        body.dropdown-open {
+            overflow: hidden; /* Optional: prevent background scrolling while dropdown is open */
+        }
+        .fieldSelectCont.open .fieldCheckboxes,
+        .overwriteSelectCont.open .overwriteCheckboxes {
+            display: flex !important;
+        }
+        .fieldSelectCont.open, .overwriteSelectCont.open {
+            z-index: 1601 !important;
+        }
+        /* Elevate the entire display area and the specific title block */
+        .mainDictDisplay.has-open-dropdown,
+        .tabContent.has-open-dropdown,
+        .dictionaryTitleBlock.has-open-dropdown {
+            z-index: 1600 !important;
+            position: relative;
+        }
+    </style>
 </head>
 <body>
+<div id="dropdownBackdrop"></div>
 <div id="dictBox" class="no-tabs">
     <div id="tabContainer">
         <div id="tabs"></div>
