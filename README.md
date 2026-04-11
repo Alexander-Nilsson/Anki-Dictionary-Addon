@@ -1,15 +1,15 @@
 -----
 
-\<h2 align="center"\>Anki Dictionary Addon \</h2\>
-\<p align="center"\>
-\<a href="[https://www.gnu.org/licenses/agpl-3.0.html](https://www.gnu.org/licenses/agpl-3.0.html)" title="License: GNU AGPLv3"\>
-\<img src="[https://img.shields.io/badge/license-GNU%20AGPLv3-green.svg](https://img.shields.io/badge/license-GNU%20AGPLv3-green.svg)" alt="License: GNU AGPLv3"\>
-\</a\>
-\</p\>
+<h2 align="center">Anki Dictionary Addon </h2>
+<p align="center">
+  <a href="https://www.gnu.org/licenses/agpl-3.0.html" title="License: GNU AGPLv3">
+    <img src="https://img.shields.io/badge/license-GNU%20AGPLv3-green.svg" alt="License: GNU AGPLv3">
+  </a>
+</p>
 
-\<p align="center"\>
-\<img src="assets/demo/demo.gif" alt="Anki Dictionary Addon Demo" width="800"\>
-\</p\>
+<p align="center">
+  <img src="assets/demo/demo.gif" alt="Anki Dictionary Addon Demo" width="800">
+</p>
 
 -----
 
@@ -36,14 +36,14 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 
 ### Themes
 
-\<p align="center"\>
-\<img src="assets/demo/startscreen.png" alt="Start Screen" width="400"\>
-\<img src="assets/demo/gruvbox.png" alt="Gruvbox Retro Theme" width="400"\>
-\</p\>
-\<p align="center"\>
-\<img src="assets/demo/mocha.png" alt="Catppuccin Mocha Theme" width="400"\>
-\<img src="assets/demo/dark.png" alt="Dark Theme" width="400"\>
-\</p\>
+<p align="center">
+<img src="assets/demo/startscreen.png" alt="Start Screen" width="400">
+<img src="assets/demo/gruvbox.png" alt="Gruvbox Retro Theme" width="400">
+</p>
+<p align="center">
+<img src="assets/demo/mocha.png" alt="Catppuccin Mocha Theme" width="400">
+<img src="assets/demo/dark.png" alt="Dark Theme" width="400">
+</p>
 
 -----
 
@@ -62,8 +62,8 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 
 ### Compatibility
 
-  - **Operating Systems:** Fully tested on **macOS** and **Linux**. (Windows support is functional via cross-platform library adjustments).
-  - **Anki Version:** Optimized for Anki version **25.07** through **25.09.2+**.
+  - **Operating Systems:** Fully tested on **macOS** and **Linux**
+  - **Anki Version:** 25.09.2+
 
 -----
 
