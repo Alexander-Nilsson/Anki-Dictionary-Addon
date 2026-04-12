@@ -103,8 +103,7 @@ If you wish to contribute or run the latest source code:
 
 For a visual guide on how to configure your dictionaries and export cards, refer to the following video:
 
-[](https://www.youtube.com/watch?v=vrzBeiFlKjg)
-
+[![Watch the video](https://img.youtube.com/vi/vrzBeiFlKjg/0.jpg)](https://www.youtube.com/watch?v=vrzBeiFlKjg)
 -----
 
 ## Project Structure
