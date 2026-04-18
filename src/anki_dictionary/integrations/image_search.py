@@ -22,7 +22,11 @@ except ImportError:
 
 from ..utils.constants import COUNTRY_TO_DDG
 from ..utils.common import prefer_ipv4
+from ..utils.logger import get_logger
 
+logger = get_logger("ImageSearch")
+
+# Suppress insecure request warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 addon_path = dirname(dirname(dirname(dirname(__file__))))
@@ -33,7 +37,7 @@ os.makedirs(temp_dir, exist_ok=True)
 _ON_MAC = platform.system() == "Darwin"
 
 def log_debug(message):
-    print(message)
+    logger.debug(message)
     try:
         with open(os.path.join(temp_dir, "image_search_debug.log"), "a", encoding="utf-8") as f:
             f.write(f"{message}\n")
