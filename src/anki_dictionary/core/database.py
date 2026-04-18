@@ -384,12 +384,14 @@ class DictDB:
             # Check for both raw table name and clean name
             if d in currentDicts:
                 foundDicts.append(currentDicts[d])
-            elif d in ["Images", "LLM"]:
+            elif d in ["Images", "LLM", "Forvo"]:
                 # Virtual dictionaries
                 if d == "Images":
                     foundDicts.append({"dict": "Images", "lang": ""})
                 elif d == "LLM":
                     foundDicts.append({"dict": "LLM", "lang": ""})
+                elif d == "Forvo":
+                    foundDicts.append({"dict": "Forvo", "lang": ""})
                 # Try finding by clean name if d is a table name
                 clean_d = self.cleanDictName(d)
                 if clean_d in currentDicts:
@@ -586,10 +588,11 @@ class DictDB:
             column = "term"
         if sT == "Exact":
             op = "="
-        terms = [term]
-        terms.append(term.lower())
-        terms.append(term.capitalize())
-        terms = list(set(terms))
+        base_terms = [term]
+        if term.lower() not in base_terms:
+            base_terms.append(term.lower())
+        if term.capitalize() not in base_terms:
+            base_terms.append(term.capitalize())
 
         # Get dictionary to table mapping for all dictionaries
         dict_mapping = self.getDictToTable()
@@ -598,13 +601,10 @@ class DictDB:
         langs = set()
         for dic in group:
             d_name = dic["dict"]
-            if d_name in ["Images", "LLM"]:
+            if d_name in ["Images", "LLM", "Forvo"]:
                 continue
 
-            # If d_name is a table name (l1name...), try to find its language
-            info = dict_mapping.get(d_name) or dict_mapping.get(
-                self.cleanDictName(d_name)
-            )
+            info = dict_mapping.get(d_name) or dict_mapping.get(self.cleanDictName(d_name))
             if info:
                 langs.add(info["lang"])
             elif "lang" in dic:
@@ -620,11 +620,12 @@ class DictDB:
             if d_name == "LLM":
                 results["LLM"] = True
                 continue
+            if d_name == "Forvo":
+                results["Forvo"] = True
+                continue
 
             # Resolve table name and language
-            info = dict_mapping.get(d_name) or dict_mapping.get(
-                self.cleanDictName(d_name)
-            )
+            info = dict_mapping.get(d_name) or dict_mapping.get(self.cleanDictName(d_name))
             if info:
                 table_name = info["dict"]
                 lang = info["lang"]
@@ -636,24 +637,31 @@ class DictDB:
 
             if deinflect:
                 if lang in alreadyConjTyped:
-                    terms = alreadyConjTyped[lang]
+                    current_terms = alreadyConjTyped[lang]
                 elif lang in conjugations:
-                    terms = self.deconjugate(terms, conjugations[lang])
-                    terms = self.applySearchType(terms, sT)
-                    alreadyConjTyped[lang] = terms
+                    # Start from a fresh copy of base_terms
+                    current_terms = self.deconjugate(list(base_terms), conjugations[lang])
+                    current_terms = self.applySearchType(current_terms, sT)
+                    alreadyConjTyped[lang] = current_terms
                 else:
-                    terms = self.applySearchType(terms, sT)
-                    alreadyConjTyped[lang] = terms
+                    # Start from a fresh copy of base_terms
+                    current_terms = self.applySearchType(list(base_terms), sT)
+                    alreadyConjTyped[lang] = current_terms
             else:
-                if term in alreadyConjTyped:
-                    terms = alreadyConjTyped[term]
+                # Key by search type since that affects the terms
+                cache_key = f"{lang}_{sT}"
+                if cache_key in alreadyConjTyped:
+                    current_terms = alreadyConjTyped[cache_key]
                 else:
-                    terms = self.applySearchType(terms, sT)
-                    alreadyConjTyped[term] = terms
+                    current_terms = self.applySearchType(list(base_terms), sT)
+                    alreadyConjTyped[cache_key] = current_terms
 
-            toQuery = self.getQueryCriteria(column, terms, op)
-            termTuple = tuple(terms)
+            toQuery = self.getQueryCriteria(column, current_terms, op)
+            termTuple = tuple(current_terms)
             allRs = self.executeSearch(table_name, toQuery, dictLimit, termTuple)
+            
+            cleaned_name = self.cleanDictName(table_name)
+            
             if len(allRs) > 0:
                 dictRes = []
                 for r in allRs:
@@ -684,14 +692,14 @@ class DictDB:
 
                     dictRes.append(entry)
                     if totalDefs >= maxDefs:
-                        results[self.cleanDictName(table_name)] = dictRes
+                        results[cleaned_name] = dictRes
                         return results
-                results[self.cleanDictName(table_name)] = dictRes
+                results[cleaned_name] = dictRes
             elif not defEx and not sT == "Pronunciation":
                 columns = ["altterm", "pronunciation"]
                 for col in columns:
-                    toQuery = self.getQueryCriteria(col, terms, op)
-                    termTuple = tuple(terms)
+                    toQuery = self.getQueryCriteria(col, current_terms, op)
+                    termTuple = tuple(current_terms)
                     allRs = self.executeSearch(
                         table_name, toQuery, dictLimit, termTuple
                     )
@@ -726,9 +734,9 @@ class DictDB:
 
                             dictRes.append(entry)
                             if totalDefs >= maxDefs:
-                                results[self.cleanDictName(table_name)] = dictRes
+                                results[cleaned_name] = dictRes
                                 return results
-                        results[self.cleanDictName(table_name)] = dictRes
+                        results[cleaned_name] = dictRes
                         break
         return results
 

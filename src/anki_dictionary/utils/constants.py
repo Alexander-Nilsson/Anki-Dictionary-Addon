@@ -349,3 +349,21 @@ COUNTRY_TO_DDG = {
     "zh-CN": "cn-zh",  # Chinese (China)
     "zh-TW": "tw-zh",  # Chinese (Taiwan)
 }
+
+# Load Forvo languages from assets
+def _load_forvo_languages():
+    import os
+    import json
+    from os.path import dirname, join
+    try:
+        # This file is located in src/anki_dictionary/utils/
+        addon_path = dirname(dirname(dirname(dirname(__file__))))
+        langs_path = join(addon_path, "assets", "forvo_languages.json")
+        if os.path.exists(langs_path):
+            with open(langs_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading Forvo languages: {e}")
+    return []
+
+FORVO_LANGUAGES = _load_forvo_languages()
