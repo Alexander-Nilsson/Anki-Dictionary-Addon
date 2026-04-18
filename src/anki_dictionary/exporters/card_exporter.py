@@ -14,6 +14,10 @@ from anki.notes import Note
 from anki import sound
 import re
 
+from ..utils.logger import get_logger
+
+logger = get_logger(__name__.split(".")[-1])
+
 
 class MITextEdit(QTextEdit):
     def __init__(self, parent=None, dictInt=None):
@@ -1007,7 +1011,7 @@ Please review your template and notetype combination."""),
                         self.mw.col.addNote(note)
                         # self.mw.col.save()
                 else:
-                    print("Invalid field values")
+                    logger.error("Invalid field values")
 
     def getFieldsValuesForTextCard(self, t, wordText, sentenceText):
         tagsField = ""
@@ -1071,8 +1075,8 @@ Please review your template and notetype combination."""),
                 )
                 if fieldsValues:
                     for field in fieldsValues:
-                        print(fieldsValues)
-                        print(field)
+                        logger.debug(f"Fields values: {fieldsValues}")
+                        logger.debug(f"Processing field: {field}")
                         if field in modelFields:
                             note[field] = template["separator"].join(
                                 fieldsValues[field]
@@ -1093,7 +1097,7 @@ Please review your template and notetype combination."""),
                         self.mw.col.addNote(note)
                         # self.mw.col.save()
                 else:
-                    print("Invalid field values")
+                    logger.error("Invalid field values")
 
     def getFieldsValuesForMediaCard(self, t, wordText, card):
         sentenceText = card["primary"]
