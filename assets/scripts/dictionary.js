@@ -83,11 +83,20 @@ function getSelectionText() {
  * Get term definition text for copying/exporting
  */
 function getTermDefText(el, clip = false) {
-    var term = el.parentElement.parentElement;
-    var def = term.nextElementSibling;
+    var termPron = el.closest('.termPronunciation');
+    if (!termPron) {
+        // Fallback for different structures
+        var term = el.parentElement.parentElement;
+        var def = term.nextElementSibling;
+        var rep = '<br>';
+        if (clip) rep = '\n';
+        return cleanTermDef(term.innerHTML, rep) + rep + cleanTermDef(def.innerHTML, rep);
+    }
+    
+    var def = termPron.nextElementSibling;
     var rep = '<br>';
     if (clip) rep = '\n';
-    return cleanTermDef(term.innerHTML, rep) + rep + cleanTermDef(def.innerHTML, rep);
+    return cleanTermDef(termPron.innerHTML, rep) + rep + cleanTermDef(def.innerHTML, rep);
 }
 
 /**
@@ -105,21 +114,33 @@ function cleanTermDef(text, rep) {
  */
 function getDefinitionWord(dictEl, termBody, termTitle) {
     var definition = cleanTermDef(termBody.innerHTML, '<br>');
-    var dupHeader = dictEl.querySelector('.dupHeadCB input').checked;
+    var dupHeaderCB = dictEl.querySelector('.dupHeadCB input');
+    var dupHeader = dupHeaderCB ? dupHeaderCB.checked : false;
     var terms = termTitle.getElementsByClassName('mainword');
-    var stars = termTitle.getElementsByClassName('starcount')[0].textContent;
-    var word = '';
-    var term1 = terms[0].textContent;
-    var term2 = terms[1].textContent;
-    if (term1 != '' && term2 != '') {
-        word = term1 + ', ' + term2;
-    } else if (term1 != '') {
-        word = term1;
-    } else if (term2 != '') {
-        word = term2;
+    if (terms.length === 0) {
+        terms = termTitle.getElementsByClassName('terms');
     }
+    var starcountEl = termTitle.getElementsByClassName('starcount')[0];
+    var stars = starcountEl ? starcountEl.textContent : '';
+    
+    var word = '';
+    if (terms.length >= 2) {
+        var term1 = terms[0].textContent;
+        var term2 = terms[1].textContent;
+        if (term1 != '' && term2 != '') {
+            word = term1 + ', ' + term2;
+        } else if (term1 != '') {
+            word = term1;
+        } else if (term2 != '') {
+            word = term2;
+        }
+    } else if (terms.length >= 1) {
+        word = terms[0].textContent;
+    }
+    
     if (!dupHeader) {
-        var wordPron = termTitle.querySelector('.tpCont').textContent;
+        var tpCont = termTitle.querySelector('.tpCont');
+        var wordPron = tpCont ? tpCont.textContent : '';
         definition = wordPron + '<br>' + definition;
     } else {
         if (definition.indexOf('】') !== -1) {
@@ -200,21 +221,32 @@ function ankiExport(ev, dictName) {
  * Get word pronunciation
  */
 function getWordPron(dictEl, termBody, termTitle) {
-    var dupHeader = dictEl.querySelector('.dupHeadCB input').checked;
+    var dupHeaderCB = dictEl.querySelector('.dupHeadCB input');
+    var dupHeader = dupHeaderCB ? dupHeaderCB.checked : false;
     var terms = termTitle.getElementsByClassName('mainword');
-    var stars = termTitle.getElementsByClassName('starcount')[0].textContent;
+    if (terms.length === 0) {
+        terms = termTitle.getElementsByClassName('terms');
+    }
+    var starcountEl = termTitle.getElementsByClassName('starcount')[0];
+    var stars = starcountEl ? starcountEl.textContent : '';
+    
     var word = '';
-    var term1 = terms[0].textContent;
-    var term2 = terms[1].textContent;
-    if (term1 != '' && term2 != '') {
-        word = term1 + ', ' + term2
-    } else if (term1 != '') {
-        word = term1
-    } else if (term2 != '') {
-        word = term2
+    if (terms.length >= 2) {
+        var term1 = terms[0].textContent;
+        var term2 = terms[1].textContent;
+        if (term1 != '' && term2 != '') {
+            word = term1 + ', ' + term2
+        } else if (term1 != '') {
+            word = term1
+        } else if (term2 != '') {
+            word = term2
+        }
+    } else if (terms.length >= 1) {
+        word = terms[0].textContent;
     }
 
-    wordPron = termTitle.querySelector('.tpCont').textContent + '\n';
+    var tpCont = termTitle.querySelector('.tpCont');
+    var wordPron = (tpCont ? tpCont.textContent : '') + '\n';
     return wordPron;
 }
 
@@ -1343,4 +1375,73 @@ function filterFieldOptions(input) {
     container.querySelectorAll('.fieldCheckboxLabel').forEach(label => {
         label.style.display = label.textContent.toLowerCase().includes(filter) ? '' : 'none';
     });
+}
+
+/**
+ * Play audio from a URL
+ */
+function playAudio(url) {
+    if (!url) return;
+    try {
+        pycmd('playAudio:' + url);
+    } catch (error) {
+        console.error('Error in playAudio:', error);
+    }
+}
+
+/**
+ * Export audio to Anki
+ */
+function ankiAudioExport(word, url) {
+    if (!word || !url) return;
+    try {
+        pycmd('audioExport:' + word + '◳◴' + url);
+    } catch (error) {
+        console.error('Error in ankiAudioExport:', error);
+    }
+}
+
+/**
+ * Send audio to field
+ */
+function sendAudioToField(url) {
+    if (!url) return;
+    try {
+        pycmd('sendAudioToField:' + url);
+    } catch (error) {
+        console.error('Error in sendAudioToField:', error);
+    }
+}
+
+/**
+ * Show hidden Forvo pronunciations
+ */
+function showMoreForvo(btn) {
+    var container = btn.parentElement;
+    var extraItems = container.querySelectorAll('.forvo-extra');
+    extraItems.forEach(function(item) {
+        item.style.display = 'flex';
+    });
+    btn.style.display = 'none';
+}
+
+/**
+ * Animate Forvo play button
+ * @param {HTMLElement} btn - The play button element
+ */
+function animateForvoPlay(btn) {
+    if (!btn) return;
+    
+    // Remove playing class from any other buttons
+    document.querySelectorAll('.forvo-playing').forEach(function(el) {
+        el.classList.remove('forvo-playing');
+    });
+    
+    // Add playing class to this button
+    btn.classList.add('forvo-playing');
+    
+    // Remove after a delay (approximate audio length or 2 seconds)
+    setTimeout(function() {
+        btn.classList.remove('forvo-playing');
+    }, 2500);
 }

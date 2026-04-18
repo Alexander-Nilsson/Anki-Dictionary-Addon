@@ -10,6 +10,9 @@ from os.path import join, dirname
 
 
 from ..utils.paths import get_icons_dir
+from ..utils.logger import get_logger
+
+logger = get_logger(__name__.split(".")[-1])
 
 
 # Cache the base64 icons to avoid redundant file reads
@@ -28,7 +31,7 @@ def get_base64_icon(icon_name: str) -> str:
         icon_path = os.path.join(get_icons_dir(), icon_name)
 
         if not os.path.exists(icon_path):
-            print(f"Warning: Icon not found: {icon_path}")
+            logger.warning(f"Icon not found: {icon_path}")
             return ""
 
         with open(icon_path, "rb") as icon_file:
@@ -47,5 +50,5 @@ def get_base64_icon(icon_name: str) -> str:
 
             return f"data:{mime_type};base64,{icon_base64}"
     except Exception as e:
-        print(f"Error loading icon {icon_name}: {e}")
+        logger.error(f"Error loading icon {icon_name}: {e}")
         return ""

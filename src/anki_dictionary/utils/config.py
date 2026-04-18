@@ -14,6 +14,9 @@ from aqt import mw
 
 
 from .paths import get_addon_root, get_addon_name
+from .logger import get_logger
+
+logger = get_logger(__name__.split(".")[-1])
 
 
 def get_addon_config() -> Dict[str, Any]:
@@ -94,6 +97,11 @@ def get_addon_config() -> Dict[str, Any]:
         "dictAlwaysOnTop": False,
         "day": True,
         "theme": "light",
+        "forvo_enabled": True,
+        "forvo_language": "ja",
+        "forvo_limit": 3,
+        "ForvoFields": [],
+        "ForvoAddType": "add",
     }
 
 
@@ -128,7 +136,7 @@ def refresh_anki_dict_config(
             # just trigger a reload of settings and groups.
             mw.ankiDictionary.resetConfiguration()
         except Exception as e:
-            print(f"Error refreshing dictionary configuration: {e}")
+            logger.error(f"Error refreshing dictionary configuration: {e}")
 
 
 def save_addon_config(config: Dict[str, Any]) -> bool:

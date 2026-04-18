@@ -8,6 +8,10 @@ import requests
 import json
 from typing import Optional, Dict, Any, Callable
 
+from ..utils.logger import get_logger
+
+logger = get_logger("LLM")
+
 try:
     from aqt.qt import QObject, pyqtSignal, QRunnable
 except ImportError:
@@ -105,7 +109,7 @@ class LLMWorker(QRunnable):
 
         except Exception as e:
             error_msg = f"LLM Error: {str(e)}"
-            print(f"[LLM] {error_msg}")
+            logger.debug(f"[LLM] {error_msg}")
             self.signals.error_occurred.emit({"error": error_msg, "idName": self.idName})
         finally:
             self.signals.finished.emit()
@@ -116,7 +120,7 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
     Test the LLM configuration with a simple ping.
     This runs synchronously and should be called from a thread.
     """
-    print(f"Testing LLM connection to {config.get('llm_base_url')}...")
+    logger.debug(f"Testing LLM connection to {config.get('llm_base_url')}...")
     try:
         api_key = config.get("llm_api_key", "")
         base_url = config.get(
@@ -141,22 +145,22 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
             "temperature": 0.1,
         }
 
-        print(f"Sending request to {base_url} with model {model}...")
+        logger.debug(f"Sending request to {base_url} with model {model}...")
         response = requests.post(base_url, headers=headers, json=payload, timeout=10)
-        print(f"Response received: status code {response.status_code}")
+        logger.debug(f"Response received: status code {response.status_code}")
         response.raise_for_status()
 
         data = response.json()
         if "choices" in data or "message" in data or "response" in data:
-            print("Test successful!")
+            logger.debug("Test successful!")
             callback(True, "Successfully connected to LLM!")
         else:
-            print(f"Test failed: unexpected response format: {data}")
+            logger.debug(f"Test failed: unexpected response format: {data}")
             callback(
                 False,
                 f"Connected but got unexpected response: {json.dumps(data)[:100]}...",
             )
 
     except Exception as e:
-        print(f"Test failed with error: {str(e)}")
+        logger.debug(f"Test failed with error: {str(e)}")
         callback(False, f"Connection failed: {str(e)}")

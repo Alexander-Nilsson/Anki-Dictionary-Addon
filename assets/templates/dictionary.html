@@ -1083,6 +1083,42 @@
         .imgBox.selected .imageHighlight::after {
             opacity: 1;
         }
+
+        /* FORVO PLAYING ANIMATION */
+        @keyframes forvo-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(33, 150, 243, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(33, 150, 243, 0); }
+        }
+
+        .forvo-playing {
+            animation: forvo-pulse 1s infinite cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--primary) !important;
+            color: white !important;
+        }
+
+        @keyframes equalizer {
+            0% { height: 4px; }
+            50% { height: 16px; }
+            100% { height: 4px; }
+        }
+
+        .equalizer-bar {
+            width: 3px;
+            background-color: currentColor;
+            margin: 0 1px;
+            display: none;
+            border-radius: 2px;
+        }
+
+        .forvo-playing .equalizer-bar {
+            display: inline-block;
+            animation: equalizer 0.8s infinite ease-in-out;
+        }
+
+        .forvo-playing .equalizer-bar:nth-child(2) { animation-delay: 0.2s; }
+        .forvo-playing .equalizer-bar:nth-child(3) { animation-delay: 0.4s; }
+        .forvo-playing .forvo-icon { display: none; }
     </style>
     <style id="fontSpecs">
         .foundEntriesList{font-size: var(--font-size-xs);}.termPronunciation,.definitionBlock{font-size: var(--font-size-md); white-space: pre-line;}
