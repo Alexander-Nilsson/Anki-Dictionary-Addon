@@ -35,20 +35,29 @@ from aqt.operations.note import update_note
 from ..exporters.card_exporter import CardExporter
 import time
 from . import database as dictdb
+from ..utils.logger import get_logger
+
+logger = get_logger(__name__.split(".")[-1])
 
 
-# Suppress Qt SVG warnings about path data
+# Suppress Qt SVG and other noisy warnings
 def qt_message_handler(mode, context, message):
-    if "Invalid path data; path truncated" in message:
-        return  # Suppress this specific warning
+    suppress_patterns = [
+        "Invalid path data; path truncated",
+        "QObject::disconnect",
+        "zwp_text_input_v3",
+        "Got leave event for surface",
+    ]
+    if any(pattern in message for pattern in suppress_patterns):
+        return  # Suppress these specific warnings
+
     # Let other messages through normally
     if mode == QtMsgType.QtWarningMsg:
-        if not ("Invalid path data" in message or "path truncated" in message):
-            print(f"Qt Warning: {message}")
+        logger.warning(f"Qt Warning: {message}")
     elif mode == QtMsgType.QtCriticalMsg:
-        print(f"Qt Critical: {message}")
+        logger.critical(f"Qt Critical: {message}")
     elif mode == QtMsgType.QtFatalMsg:
-        print(f"Qt Fatal: {message}")
+        logger.critical(f"Qt Fatal: {message}")
 
 
 # Install the message handler
@@ -56,6 +65,7 @@ qInstallMessageHandler(qt_message_handler)
 import aqt
 from ..integrations import image_search as duckduckgoimages
 from ..integrations import llm as llm_integration
+from ..integrations import forvo as forvo_integration
 from ..ui.settings.settings_gui import SettingsGui
 import datetime
 import codecs
@@ -160,7 +170,7 @@ class MIDict(AnkiWebView):
                     # Check if the night version exists in the icons directory
                     if exists(join(self.dictInt.iconpath, night_name)):
                         icon_name = night_name
-        
+
         return get_base64_icon(icon_name)
 
     def formatTermHeaders(self, ths):
@@ -251,24 +261,37 @@ class MIDict(AnkiWebView):
             maxDefs,
         )
 
-        # Trigger LLM search if enabled and in selected group
-        if self.config.get("llm_enabled", False):
-            group_dicts = [d["dict"] for d in selectedGroup["dictionaries"]]
-            if "LLM" in group_dicts:
-                # Find the highest star count from results to reuse it for LLM
-                star_count = ""
-                for d_name, d_results in results.items():
-                    if not isinstance(d_results, list):
-                        continue
-                    for entry in d_results:
-                        s = entry.get("starCount", "")
-                        if s.startswith("★"):
-                            # If we found stars, we use the longest one (most stars)
-                            if len(s) > len(star_count):
-                                star_count = s
-                self.triggerLLMSearch(cleaned, star_count, idName)
+        group_dicts = [d["dict"] for d in selectedGroup["dictionaries"]]
 
-        html = self.prepareResults(results, cleaned, font, idName)
+        # Trigger LLM search if enabled and in selected group
+        if self.config.get("llm_enabled", False) and "LLM" in group_dicts:
+            # Find the highest star count from results to reuse it for LLM
+            star_count = ""
+            for d_name, d_results in results.items():
+                if not isinstance(d_results, list):
+                    continue
+                for entry in d_results:
+                    s = entry.get("starCount", "")
+                    if s.startswith("★"):
+                        # If we found stars, we use the longest one (most stars)
+                        if len(s) > len(star_count):
+                            star_count = s
+            self.triggerLLMSearch(cleaned, star_count, idName)
+
+        # Trigger Forvo search if enabled and in selected group
+        forvoId = ""
+        if self.config.get("forvo_enabled", False) and "Forvo" in group_dicts:
+            # Find the language for Forvo in this group
+            forvo_lang = self.config.get("forvo_language", "ja")
+            for d in selectedGroup["dictionaries"]:
+                if d["dict"] == "Forvo" and d.get("lang"):
+                    forvo_lang = d["lang"]
+                    break
+            
+            forvoId = f"forvo-loader-{int(time.time() * 1000)}"
+            self.triggerForvoSearch(cleaned, forvoId, forvo_lang)
+
+        html = self.prepareResults(results, cleaned, font, idName, forvoId)
         html = html.replace("\n", "")
         return html, cleaned, singleTab
 
@@ -279,16 +302,22 @@ class MIDict(AnkiWebView):
         ):
             self.customFontsLoaded.append(selectedGroup["font"])
             self.injectFont(selectedGroup["font"])
-        
+
         # Generate a unique idName for this search to track LLM results across tabs
         import time
+
         idName = f"llm-loader-{int(time.time() * 1000)}"
-        
+
         html, cleaned, singleTab = self.getHTMLResult(term, selectedGroup, idName)
-        self.eval(
-            "addNewTab('%s', '%s', %s, '%s');"
-            % (html.replace("\r", "<br>").replace("\n", "<br>"), cleaned, singleTab, idName)
-        )
+        
+        # Use json.dumps for all string arguments to safely handle single quotes, 
+        # newlines, and other special characters in the HTML or term.
+        js_html = json.dumps(html.replace("\r", "").replace("\n", ""))
+        js_cleaned = json.dumps(cleaned)
+        js_singleTab = "true" if singleTab == "true" else "false"
+        js_idName = json.dumps(idName)
+
+        self.eval(f"addNewTab({js_html}, {js_cleaned}, {js_singleTab}, {js_idName});")
 
     def addResultWrappers(self, results):
         for idx, result in enumerate(results):
@@ -328,7 +357,7 @@ class MIDict(AnkiWebView):
 
                 return "".join(parts)
             except Exception as e:
-                print(f"Error during highlightTarget: {e}")
+                logger.error(f"Error during highlightTarget: {e}")
                 return text  # Fallback to the original text
         return text
 
@@ -364,31 +393,7 @@ class MIDict(AnkiWebView):
         dictCount = 0
         entryCount = 0
         for dictName, dictResults in results.items():
-            if dictName == "Images":
-                html += (
-                    '<div data-index="'
-                    + str(dictCount)
-                    + '" class="listTitle">'
-                    + dictName
-                    + '</div><ol class="foundEntriesList"><li data-index="'
-                    + str(entryCount)
-                    + '">'
-                    + self.getPreparedTermHeader(
-                        dictName,
-                        frontBracket,
-                        backBracket,
-                        term,
-                        term,
-                        term,
-                        term,
-                        True,
-                    )
-                    + "</li></ol>"
-                )
-                entryCount += 1
-                dictCount += 1
-                continue
-            if dictName == "LLM":
+            if dictName in ["Images", "LLM", "Forvo"]:
                 html += (
                     '<div data-index="'
                     + str(dictCount)
@@ -501,16 +506,28 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-        if not self.termHeaders or dictName == "Images" or dictName == "LLM":
+            
+        clean_name = self.db.cleanDictName(dictName)
+        
+        if not self.termHeaders or dictName in ["Images", "LLM", "Forvo"] or clean_name in ["Images", "LLM", "Forvo"]:
             if sb:
                 header = '◳f<span class="listTerm">◳t</span>◳b ◳x<span class="listAltTerm">◳a</span>◳y <span class="listPronunciation">◳p</span>'
             else:
                 header = '◳f<span class="term mainword">◳t</span>◳b ◳x<span class="altterm  mainword">◳a</span>◳y <span class="pronunciation">◳p</span>'
         else:
-            if sb:
-                header = self.termHeaders[dictName][1]
+            # Try both original and clean name to be safe
+            lookup_name = dictName if dictName in self.termHeaders else clean_name
+            if lookup_name in self.termHeaders:
+                if sb:
+                    header = self.termHeaders[lookup_name][1]
+                else:
+                    header = self.termHeaders[lookup_name][0]
             else:
-                header = self.termHeaders[dictName][0]
+                # Fallback to default if still not found
+                if sb:
+                    header = '◳f<span class="listTerm">◳t</span>◳b ◳x<span class="listAltTerm">◳a</span>◳y <span class="listPronunciation">◳p</span>'
+                else:
+                    header = '◳f<span class="term mainword">◳t</span>◳b ◳x<span class="altterm  mainword">◳a</span>◳y <span class="pronunciation">◳p</span>'
 
         return (
             header.replace("◳t", self.highlightTarget(term, target))
@@ -522,17 +539,26 @@ class MIDict(AnkiWebView):
             .replace("◳y", altBB)
         )
 
-    def prepareResults(self, results, term, font, idName=""):
+    def prepareResults(self, results, term, font, idName="", forvoId=""):
         frontBracket = self.config["frontBracket"]
         backBracket = self.config["backBracket"]
-        if len(results) > 0:
+        
+        # Determine if we should show results (standard dicts OR special virtual dicts)
+        has_special = any(special in self.dictInt.getSelectedDictGroup()["dictionaries"] for special in [{"dict": "Images", "lang": ""}, {"dict": "LLM", "lang": ""}, {"dict": "Forvo", "lang": ""}])
+        # A more robust check for special dictionaries being present in the current group
+        group_dicts = [d["dict"] for d in self.dictInt.getSelectedDictGroup()["dictionaries"]]
+        has_special = any(d in ["Images", "LLM", "Forvo"] for d in group_dicts)
+        
+        if len(results) > 0 or has_special:
             html = self.getSideBar(results, term, font, frontBracket, backBracket)
             html += '<div class="mainDictDisplay">'
             dictCount = 0
             entryCount = 0
             imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
 
-            for dictName, dictResults in results.items():
+            group = self.dictInt.getSelectedDictGroup()
+            for dInfo in group["dictionaries"]:
+                dictName = dInfo["dict"]
                 if dictName == "Images":
                     html += self.getGoogleDictionaryResults(
                         term, dictCount, frontBracket, backBracket, entryCount, font
@@ -558,74 +584,102 @@ class MIDict(AnkiWebView):
                             + overwrite
                             + select
                             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-                            '<div class="definitionBlock"><i>Loading LLM definition...</i></div>'
+                            '<div class="definitionBlock llm-loading-placeholder"><i>Loading LLM definition...</i></div>'
                             "</div>"
                         )
                     dictCount += 1
                     entryCount += 1
                     continue
-                duplicateHeader = self.getDuplicateHeaderCB(dictName)
-                overwrite = self.getOverwriteChecks(dictCount, dictName)
-                select = self.getFieldChecks(dictName)
-                html += (
-                    '<div data-index="'
-                    + str(dictCount)
-                    + '" class="dictionaryTitleBlock"><div  '
-                    + font
-                    + '  class="dictionaryTitle">'
-                    + dictName.replace("_", " ")
-                    + '</div><div class="dictionarySettings">'
-                    + duplicateHeader
-                    + overwrite
-                    + select
-                    + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-                )
-                dictCount += 1
+                if dictName == "Forvo":
+                    if self.config.get("forvo_enabled", False):
+                        duplicateHeader = self.getDuplicateHeaderCB(dictName)
+                        overwrite = self.getOverwriteChecks(dictCount, dictName)
+                        select = self.getFieldChecks(dictName)
+                        # Use the unique forvoId for the loader container
+                        loaderId = forvoId if forvoId else "forvo-loader"
+                        html += (
+                            f'<div id="{loaderId}">'
+                            '<div data-index="'
+                            + str(dictCount)
+                            + '" class="dictionaryTitleBlock"><div '
+                            + font
+                            + ' class="dictionaryTitle">Forvo</div><div class="dictionarySettings">'
+                            + duplicateHeader
+                            + overwrite
+                            + select
+                            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
+                            '<div class="definitionBlock"><i>Loading Forvo pronunciations...</i></div>'
+                            "</div>"
+                        )
+                    dictCount += 1
+                    entryCount += 1
+                    continue
 
-                for idx, entry in enumerate(dictResults):
+                if dictName in results or self.db.cleanDictName(dictName) in results:
+                    cleanName = self.db.cleanDictName(dictName)
+                    dictResults = results.get(dictName) or results.get(cleanName)
+                    duplicateHeader = self.getDuplicateHeaderCB(dictName)
+                    overwrite = self.getOverwriteChecks(dictCount, dictName)
+                    select = self.getFieldChecks(dictName)
                     html += (
                         '<div data-index="'
-                        + str(entryCount)
-                        + '" class="termPronunciation"><span '
+                        + str(dictCount)
+                        + '" class="dictionaryTitleBlock"><div  '
                         + font
-                        + ' class="tpCont">'
-                        + self.getPreparedTermHeader(
-                            dictName,
-                            frontBracket,
-                            backBracket,
-                            term,
-                            entry["term"],
-                            entry["altterm"],
-                            entry["pronunciation"],
-                        )
-                        + ' <span class="starcount"'
-                        + self.getStarTooltip(entry["starCount"])
-                        + ">"
-                        + entry["starCount"]
-                        + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
-                        + dictName
-                        + '\')" class="ankiExportButton"><img '
-                        + imgTooltip
-                        + ' src="'
-                        + self.getBase64Icon("anki.png")
-                        + '"></div><div onclick="clipText(event)" '
-                        + clipTooltip
-                        + ' class="clipper">✂</div><div '
-                        + sendTooltip
-                        + " onclick=\"sendToField(event, '"
-                        + dictName
-                        + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div'
-                        + font
-                        + ' class="definitionBlock">'
-                        + self.highlightTarget(
-                            self.processDefinitionHTML(
-                                self.highlightExamples(entry["definition"])
-                            ),
-                            term,
-                        )
-                        + "</div>"
+                        + '  class="dictionaryTitle">'
+                        + cleanName.replace("_", " ")
+                        + '</div><div class="dictionarySettings">'
+                        + duplicateHeader
+                        + overwrite
+                        + select
+                        + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
                     )
-                    entryCount += 1
+                    dictCount += 1
+
+                    for idx, entry in enumerate(dictResults):
+                        html += (
+                            '<div data-index="'
+                            + str(entryCount)
+                            + '" class="termPronunciation"><span '
+                            + font
+                            + ' class="tpCont">'
+                            + self.getPreparedTermHeader(
+                                dictName,
+                                frontBracket,
+                                backBracket,
+                                term,
+                                entry["term"],
+                                entry["altterm"],
+                                entry["pronunciation"],
+                            )
+                            + ' <span class="starcount"'
+                            + self.getStarTooltip(entry["starCount"])
+                            + ">"
+                            + entry["starCount"]
+                            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+                            + dictName
+                            + '\')" class="ankiExportButton"><img '
+                            + imgTooltip
+                            + ' src="'
+                            + self.getBase64Icon("anki.png")
+                            + '"></div><div onclick="clipText(event)" '
+                            + clipTooltip
+                            + ' class="clipper">✂</div><div '
+                            + sendTooltip
+                            + " onclick=\"sendToField(event, '"
+                            + dictName
+                            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div'
+                            + font
+                            + ' class="definitionBlock">'
+                            + self.highlightTarget(
+                                self.processDefinitionHTML(
+                                    self.highlightExamples(entry["definition"])
+                                ),
+                                term,
+                            )
+                            + "</div>"
+                        )
+                        entryCount += 1
 
         else:
             html = (
@@ -643,7 +697,8 @@ class MIDict(AnkiWebView):
         dictName = "Images"
         overwrite = self.getOverwriteChecks(dictCount, dictName)
         select = self.getFieldChecks(dictName)
-        idName = "gcon" + str(time.time())
+        # Sanitize idName by removing dots to prevent JS selector issues
+        idName = "gcon" + str(time.time()).replace(".", "")
         imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
         html = (
             '<div data-index="'
@@ -825,9 +880,14 @@ class MIDict(AnkiWebView):
         self.eval(
             f"var loader = document.getElementById('{idName}'); "
             f"if(loader) {{ "
-            f"  var oldContent = loader.querySelector('.definitionBlock'); "
-            f"  if(oldContent) oldContent.remove(); "
-            f"  loader.querySelector('.dictionaryTitleBlock').insertAdjacentHTML('afterend', {escaped_html}); "
+            f"  var placeholder = loader.querySelector('.llm-loading-placeholder'); "
+            f"  if(placeholder) {{ "
+            f"    placeholder.outerHTML = {escaped_html}; "
+            f"  }} else {{ "
+            f"    var oldContent = loader.querySelector('.definitionBlock'); "
+            f"    if(oldContent) oldContent.remove(); "
+            f"    loader.querySelector('.dictionaryTitleBlock').insertAdjacentHTML('afterend', {escaped_html}); "
+            f"  }} "
             f"}}"
         )
 
@@ -944,13 +1004,175 @@ class MIDict(AnkiWebView):
         )
         return html
 
-    def showLLMError(self, error_msg):
+    def showLLMError(self, result):
         """Show LLM error in the UI."""
+        error_msg = result.get("error", "Unknown LLM error")
+        # Handle both missing key and empty string for idName
+        idName = result.get("idName") or "llm-loader"
+        
+        # Use consistent logic with loadLLMResults to ensure the loading state is cleared
+        escaped_msg = json.dumps(
+            f'<div class="definitionBlock llm-error" style="color: #ff5555; border: 1px solid #ff5555; padding: 15px; border-radius: 8px; background-color: rgba(255, 85, 85, 0.05);">'
+            f'<div style="font-weight: bold; margin-bottom: 8px; font-size: 1.1em;">LLM Connection Error</div>'
+            f'<div style="margin-bottom: 12px; font-family: monospace; font-size: 0.9em; opacity: 0.9; word-break: break-all;">{error_msg}</div>'
+            f'<div style="font-size: 0.85em; opacity: 0.8;">'
+            f'Possible causes:<ul>'
+            f'<li>Local LLM (like Ollama) is not running</li>'
+            f'<li>Wrong API key or Base URL</li>'
+            f'<li>Network timeout (current timeout: {self.config.get("llm_timeout", 15)}s)</li>'
+            f'</ul></div></div>'
+        )
+        self.eval(
+            f"var loader = document.getElementById('{idName}'); "
+            f"if(loader) {{ "
+            f"  console.log('LLM Error ID found: ' + '{idName}'); "
+            f"  var oldContent = loader.querySelector('.definitionBlock'); "
+            f"  if(oldContent) oldContent.remove(); "
+            f"  var titleBlock = loader.querySelector('.dictionaryTitleBlock'); "
+            f"  if(titleBlock) {{ "
+            f"    titleBlock.insertAdjacentHTML('afterend', {escaped_msg}); "
+            f"  }} else {{ "
+            f"    loader.insertAdjacentHTML('beforeend', {escaped_msg}); "
+            f"  }} "
+            f"}} else {{ "
+            f"  console.warn('LLM Error ID not found: ' + '{idName}'); "
+            f"}}"
+        )
+
+    def triggerForvoSearch(self, term, idName="", language=None):
+        """Initiate an asynchronous Forvo search."""
+        if not language:
+            language = self.config.get("forvo_language", "ja")
+        worker = forvo_integration.ForvoWorker(term, language, self.config, idName)
+        worker.signals.result_ready.connect(self.onForvoResult)
+        worker.signals.error_occurred.connect(self.onForvoError)
+        self.threadpool.start(worker)
+
+    def onForvoResult(self, result):
+        """Handle results from Forvo search and inject into the UI."""
+        idName = result.get("idName", "forvo-loader")
+        term = result.get("term", "")
+        items = result.get("items", [])
+
+        if not items:
+            group = self.dictInt.getSelectedDictGroup()
+            if len(group.get("dictionaries", [])) > 1:
+                # If there are other dictionaries, just remove the Forvo section entirely
+                self.eval(
+                    f"var el = document.getElementById('{idName}'); "
+                    f"if(el) el.remove(); "
+                    f"var titles = document.querySelectorAll('.listTitle'); "
+                    f"for (var i = 0; i < titles.length; i++) {{ "
+                    f"  if (titles[i].textContent === 'Forvo') {{ "
+                    f"    var list = titles[i].nextElementSibling; "
+                    f"    if (list && list.classList.contains('foundEntriesList')) list.remove(); "
+                    f"    titles[i].remove(); "
+                    f"    break; "
+                    f"  }} "
+                    f"}}"
+                )
+                return
+            else:
+                self.onForvoError({"error": "No pronunciations found on Forvo.", "idName": idName})
+                return
+
+        font = self.getFontFamily({"font": False, "customFont": False})
+        imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
+
+        # Header part (only once)
+        frontBracket = self.config["frontBracket"]
+        backBracket = self.config["backBracket"]
+        dictName = "Forvo"
+
+        header_html = (
+            f'<div class="termPronunciation"><span {font} class="tpCont">'
+            f"{frontBracket}<span class=\"terms\">{self.highlightTarget(term, term)}</span>{backBracket} "
+            f'</span><div class="defTools">'
+            f'<div onclick="ankiExport(event, \'{dictName}\')" class="ankiExportButton"><img '
+            + imgTooltip
+            + ' src="'
+            + self.getBase64Icon("anki.png")
+            + '"></div><div onclick="clipText(event)" '
+            + clipTooltip
+            + ' class="clipper">✂</div><div '
+            + sendTooltip
+            + " onclick=\"sendToField(event, '"
+            + dictName
+            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
+        )
+
+        # Content part (pronunciations with limit)
+        forvo_limit = self.config.get("forvo_limit", 3)
+        content_html = f'<div {font} class="definitionBlock"><div class="forvo-container" style="padding: var(--spacing-sm) 0;">'
+        
+        for idx, item in enumerate(items):
+            user = item.get("user", "Unknown")
+            votes = item.get("votes", 0)
+            origin = item.get("origin", "")
+            audio_url = item.get("audio_url", "")
+            
+            # Hide items beyond the limit
+            item_style = "display: flex; align-items: center; margin-bottom: var(--spacing-sm); padding: var(--spacing-sm); border-bottom: 1px solid var(--border);"
+            extra_class = ""
+            if idx >= forvo_limit:
+                item_style += " display: none;"
+                extra_class = "forvo-extra"
+
+            content_html += (
+                f'<div class="forvo-item {extra_class}" style="{item_style}">'
+                f'<div onclick="animateForvoPlay(this); playAudio(\'{audio_url}\')" style="cursor:pointer; font-size: 20px; margin-right: var(--spacing-md); color: var(--primary); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--primary-light, rgba(33, 150, 243, 0.1)); transition: transform var(--transition-fast);" title="Play Pronunciation" onmouseover="this.style.transform=\'scale(1.1)\'" onmouseout="this.style.transform=\'scale(1)\'">'
+                f'<span class="forvo-icon">▶</span>'
+                f'<span class="equalizer-bar"></span>'
+                f'<span class="equalizer-bar"></span>'
+                f'<span class="equalizer-bar"></span>'
+                f'</div>'
+                f'<div style="flex-grow: 1;">'
+                f'<b style="color: var(--text);">{user}</b> <span style="font-size: 0.85em; color: var(--text-muted, #666);">{origin}</span>'
+                f'<div style="font-size: 0.8em; color: var(--text-muted, #666); opacity: 0.8;">Votes: {votes}</div>'
+                f"</div>"
+                f'<div class="defTools" style="margin-left: auto; display: flex; gap: var(--spacing-sm);">'
+                f"<div onclick=\"ankiAudioExport('{term}', '{audio_url}')\" class=\"ankiExportButton\" title=\"Export Audio\">"
+                f'<img {imgTooltip} src="{self.getBase64Icon("anki.png")}" style="width: 18px; height: 18px;"></div>'
+                f'<div onclick="sendAudioToField(\'{audio_url}\')" {sendTooltip} class="sendToField" title=\"Send Audio to Field\" style="font-size: 16px;">➠</div>'
+                f"</div>"
+                f"</div>"
+            )
+        
+        # Add "Load More" button if there are more items
+        if len(items) > forvo_limit:
+            content_html += (
+                f'<div onclick="showMoreForvo(this)" class="forvo-load-more" style="text-align: center; padding: var(--spacing-sm); cursor: pointer; color: var(--primary); font-weight: bold; margin-top: var(--spacing-sm); border: 1px dashed var(--primary); border-radius: var(--border-radius-sm);">'
+                f'Load more ({len(items) - forvo_limit})'
+                f'</div>'
+            )
+            
+        content_html += "</div></div>"
+
+        # Combine header and content
+        full_html = header_html + content_html
+        escaped_html = json.dumps(full_html)
+        
+        self.eval(
+            f"var loader = document.getElementById('{idName}'); "
+            f"if(loader) {{ "
+            f"  var titleBlock = loader.querySelector('.dictionaryTitleBlock'); "
+            f"  if(titleBlock) {{ "
+            f"    loader.innerHTML = ''; "
+            f"    loader.appendChild(titleBlock); "
+            f"    titleBlock.insertAdjacentHTML('afterend', {escaped_html}); "
+            f"  }} "
+            f"}}"
+        )
+
+    def onForvoError(self, result):
+        """Show Forvo error in the UI."""
+        error_msg = result.get("error", "Unknown Forvo error")
+        idName = result.get("idName", "forvo-loader")
         escaped_msg = json.dumps(
             f'<div class="definitionBlock" style="color: red;">{error_msg}</div>'
         )
         self.eval(
-            f"var loader = document.getElementById('llm-loader'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
+            f"var loader = document.getElementById('{idName}'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
         )
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
@@ -961,11 +1183,18 @@ class MIDict(AnkiWebView):
         if self.config["tooltips"]:
             tooltip = ' title="Enable this option if this dictionary has the target word\'s header within the definition. Enabling this will prevent the addon from exporting duplicate header."'
         checked = " "
-        className = "checkDict" + re.sub(r"\s", "", dictName)
-        if dictName in self.dupHeaders:
-            num = self.dupHeaders[dictName]
+        
+        # Clean name for both internal settings and HTML classes
+        clean_name = self.db.cleanDictName(dictName)
+        className = "checkDict" + re.sub(r"\s", "", clean_name)
+        
+        # Check settings using both original and clean name
+        lookup_name = dictName if dictName in self.dupHeaders else clean_name
+        if lookup_name in self.dupHeaders:
+            num = self.dupHeaders[lookup_name]
             if num == 1:
                 checked = " checked "
+        
         return (
             '<div class="dupHeadCB" data-dictname="'
             + dictName
@@ -1005,6 +1234,8 @@ class MIDict(AnkiWebView):
                 self.dictInt.writeConfig("ImageFields", fields["fields"])
             elif fields["dictName"] == "LLM":
                 self.dictInt.writeConfig("LLMFields", fields["fields"])
+            elif fields["dictName"] == "Forvo":
+                self.dictInt.writeConfig("ForvoFields", fields["fields"])
             else:
                 self.dictInt.updateFieldsSetting(fields["dictName"], fields["fields"])
         elif dAct.startswith("overwriteSetting:"):
@@ -1013,6 +1244,8 @@ class MIDict(AnkiWebView):
                 self.dictInt.writeConfig("ImageAddType", addType["type"])
             elif addType["name"] == "LLM":
                 self.dictInt.writeConfig("LLMAddType", addType["type"])
+            elif addType["name"] == "Forvo":
+                self.dictInt.writeConfig("ForvoAddType", addType["type"])
             else:
                 self.dictInt.updateAddType(addType["name"], addType["type"])
         elif dAct.startswith("clipped:"):
@@ -1027,6 +1260,9 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("sendImgToField:"):
             urls = dAct[15:]
             self.sendImgToField(urls)
+        elif dAct.startswith("playAudio:"):
+            url = dAct[10:]
+            self.playAudio(url)
         elif dAct.startswith("addDef:"):
             dictName, word, text = dAct[7:].split("◳◴")
             self.addDefToExportWindow(dictName, word, text)
@@ -1089,7 +1325,7 @@ class MIDict(AnkiWebView):
             js_code = f"appendNewImages({escaped_html});"
             self.eval(js_code)
         except Exception as e:
-            print(f"Error in loadMoreImageResults: {e}")
+            logger.error(f"Error in loadMoreImageResults: {e}")
             self.showNoMoreImagesMessage()
 
     def showNoMoreImagesMessage(self) -> None:
@@ -1108,10 +1344,7 @@ class MIDict(AnkiWebView):
         for imgurl in urls:
             try:
                 if imgurl.startswith("data:"):
-                    filename = (
-                        str(time.time())[:-4].replace(".", "")
-                        + "base64.jpg"
-                    )
+                    filename = str(time.time())[:-4].replace(".", "") + "base64.jpg"
                 else:
                     url = re.sub(r"\?.*$", "", imgurl)
                     filename = (
@@ -1138,7 +1371,7 @@ class MIDict(AnkiWebView):
                 header, encoded = url.split(",", 1)
                 file = base64.b64decode(encoded)
             except Exception as e:
-                print(f"Error decoding data URL: {e}")
+                logger.error(f"Error decoding data URL: {e}")
                 return
         else:
             req = Request(
@@ -1148,7 +1381,7 @@ class MIDict(AnkiWebView):
                 },
             )
             file = urlopen(req, timeout=30).read()
-        
+
         image = QImage()
         image.loadFromData(file)
         if not image.isNull():
@@ -1280,8 +1513,7 @@ class MIDict(AnkiWebView):
                         # Handle remote URL or data URL
                         if imgurl.startswith("data:"):
                             filename = (
-                                str(time.time())[:-4].replace(".", "")
-                                + "base64.jpg"
+                                str(time.time())[:-4].replace(".", "") + "base64.jpg"
                             )
                         else:
                             url = re.sub(r"\?.*$", "", imgurl)
@@ -1297,17 +1529,89 @@ class MIDict(AnkiWebView):
                         urlsList.append(f'<img src="{filename}">')
 
                 except Exception as e:
-                    print(f"Failed to process image: {imgurl}")
-                    print(f"Error: {str(e)}")
+                    logger.error(f"Failed to process image: {imgurl}")
+                    logger.error(f"Error: {str(e)}")
                     continue
             if len(urlsList) > 0:
                 self.sendToField("Images", imgSeparator.join(urlsList))
 
         else:
-            print("no reviewer or editor")
+            logger.warning("no reviewer or editor")
             tooltip(
                 "No active reviewer or editor found. Please open a card to send images to a field."
             )
+
+    def addAudioToExportWindow(self, word: str, url: str) -> None:
+        """Download audio from URL and add it to the export window."""
+        self.initCardExporterIfNeeded()
+        try:
+            filename = str(time.time()).replace(".", "") + ".mp3"
+            fullpath = join(self.temp_dir, filename)
+
+            req = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+                },
+            )
+            with open(fullpath, "wb") as f:
+                f.write(urlopen(req, timeout=30).read())
+
+            tag = f"[sound:{filename}]"
+            self.exportAudio((fullpath, tag, filename))
+            self.addWindow.exportWord(word)
+        except Exception as e:
+            logger.error(f"Error downloading Forvo audio: {e}")
+            tooltip(f"Failed to download audio: {e}")
+
+    def sendAudioToField(self, url: str) -> None:
+        """Download audio from URL and send it to the selected field."""
+        if not (self.reviewer and self.reviewer.card) and not (
+            self.currentEditor and self.currentEditor.note
+        ):
+            tooltip("No active reviewer or editor found.")
+            return
+
+        try:
+            filename = str(time.time()).replace(".", "") + ".mp3"
+            fullpath = join(self.dictInt.mw.col.media.dir(), filename)
+
+            req = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+                },
+            )
+            with open(fullpath, "wb") as f:
+                f.write(urlopen(req, timeout=30).read())
+
+            tag = f"[sound:{filename}]"
+            self.sendToField("Forvo", tag)
+        except Exception as e:
+            logger.error(f"Error sending Forvo audio to field: {e}")
+            tooltip(f"Failed to send audio to field: {e}")
+
+    def playAudio(self, url: str) -> None:
+        """Download and play audio from URL using Anki's sound system."""
+        try:
+            filename = "temp_forvo_play.mp3"
+            fullpath = join(self.temp_dir, filename)
+
+            req = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+                },
+            )
+            with open(fullpath, "wb") as f:
+                f.write(urlopen(req, timeout=30).read())
+
+            from aqt.sound import play
+
+            play(fullpath)
+        except Exception as e:
+            logger.error(f"Error playing Forvo audio: {e}")
+            tooltip(f"Failed to play audio: {e}")
 
     def sendToField(self, name: str, definition: str) -> None:
         display_name = name.replace("_", " ")
@@ -1325,6 +1629,9 @@ class MIDict(AnkiWebView):
         elif name == "LLM":
             tFields = self.config.get("LLMFields", [])
             addType = self.config.get("LLMAddType", "add")
+        elif name == "Forvo":
+            tFields = self.config.get("ForvoFields", [])
+            addType = self.config.get("ForvoAddType", "add")
         else:
             res = self.db.getAddTypeAndFields(name)
             if not res:
@@ -1398,12 +1705,15 @@ class MIDict(AnkiWebView):
                 return
 
     def getOverwriteChecks(self, dictCount: int, dictName: str) -> str:
-        if dictName == "Images":
+        clean_name = self.db.cleanDictName(dictName)
+        if dictName == "Images" or clean_name == "Images":
             addType = self.config.get("ImageAddType", "add")
-        elif dictName == "LLM":
+        elif dictName == "LLM" or clean_name == "LLM":
             addType = self.config.get("LLMAddType", "add")
+        elif dictName == "Forvo" or clean_name == "Forvo":
+            addType = self.config.get("ForvoAddType", "add")
         else:
-            addType = self.db.getAddType(dictName) or "add"
+            addType = self.db.getAddType(dictName) or self.db.getAddType(clean_name) or "add"
 
         tooltip = ""
         if self.config["tooltips"]:
@@ -1481,12 +1791,15 @@ class MIDict(AnkiWebView):
         return checks
 
     def getFieldChecks(self, dictName):
-        if dictName == "Images":
+        clean_name = self.db.cleanDictName(dictName)
+        if dictName == "Images" or clean_name == "Images":
             selF = self.config.get("ImageFields", [])
-        elif dictName == "LLM":
+        elif dictName == "LLM" or clean_name == "LLM":
             selF = self.config.get("LLMFields", [])
+        elif dictName == "Forvo" or clean_name == "Forvo":
+            selF = self.config.get("ForvoFields", [])
         else:
-            selF = self.db.getFieldsSetting(dictName) or []
+            selF = self.db.getFieldsSetting(dictName) or self.db.getFieldsSetting(clean_name) or []
 
         tooltip = ""
         if self.config["tooltips"]:
@@ -1590,18 +1903,18 @@ def imageResizer(img_path):
         image = QImage(img_path)
         if image.isNull():
             return False
-            
+
         max_size = 300
         if image.width() > max_size or image.height() > max_size:
             image = image.scaled(
                 QSize(max_size, max_size),
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+                Qt.TransformationMode.SmoothTransformation,
             )
             return image.save(img_path)
         return True
     except Exception as e:
-        print(f"Error resizing image: {e}")
+        logger.error(f"Error resizing image: {e}")
         return False
 
 
@@ -1892,9 +2205,9 @@ class DictInterface(QWidget):
         return QColor("#ffffff")  # Default color if anything fails
 
     def hex_to_rgba(self, hex_color, alpha):
-        hex_color = hex_color.lstrip('#')
+        hex_color = hex_color.lstrip("#")
         if len(hex_color) == 3:
-            hex_color = ''.join([c*2 for c in hex_color])
+            hex_color = "".join([c * 2 for c in hex_color])
         r = int(hex_color[0:2], 16)
         g = int(hex_color[2:4], 16)
         r_b = int(hex_color[4:6], 16)
@@ -2828,6 +3141,8 @@ class DictInterface(QWidget):
         defaults = ["All", "Images"]
         if self.config.get("llm_enabled", False):
             defaults.append("LLM")
+        if self.config.get("forvo_enabled", False):
+            defaults.append("Forvo")
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
         dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
@@ -2885,6 +3200,13 @@ class DictInterface(QWidget):
                 "customFont": False,
                 "font": False,
             }
+        if cur == "Forvo":
+            return {
+                "dictionaries": [{"dict": "Forvo", "lang": ""}],
+                "customFont": False,
+                "font": False,
+            }
+
         if cur in self.defaultGroups:
             return self.defaultGroups[cur]
 

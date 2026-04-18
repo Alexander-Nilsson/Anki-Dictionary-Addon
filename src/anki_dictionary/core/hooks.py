@@ -263,25 +263,31 @@ def setup_hooks():
     Reviewer.show = wrap(Reviewer.show, addBodyClick)
 
 
+from ..utils.logger import get_logger
+
+logger = get_logger("Hooks")
+
+# ... (middle of file)
+
 def setup_gui_menu():
     """Setup GUI menu items."""
-    print("--- Anki Dictionary: Setting up GUI menu ---")
+    logger.debug("--- Anki Dictionary: Setting up GUI menu ---")
 
     # Defer imports of main_window functions to avoid circularity during initialization
     def trigger_dictionary_init(terms=False):
-        print("Action triggered: Opening Dictionary")
+        logger.debug("Action triggered: Opening Dictionary")
         from ..ui.main_window import dictionaryInit
 
         dictionaryInit(terms)
 
     def trigger_open_settings():
-        print("Action triggered: Opening Settings")
+        logger.debug("Action triggered: Opening Settings")
         from ..ui.main_window import openDictionarySettings
 
         openDictionarySettings()
 
     def trigger_search_term():
-        print("Action triggered: Search Term")
+        logger.debug("Action triggered: Search Term")
         from ..ui.main_window import searchTerm
 
         focused_widget = mw.app.focusWidget()
@@ -317,7 +323,7 @@ def setup_gui_menu():
         searchTerm(mw.web)
 
     def trigger_search_col():
-        print("Action triggered: Search Collection")
+        logger.debug("Action triggered: Search Collection")
         from ..ui.main_window import searchCol
 
         focused_widget = mw.app.focusWidget()
@@ -340,12 +346,12 @@ def setup_gui_menu():
 
     # Use a more stable location for the menu to avoid issues with standard shortcuts
     if not hasattr(mw, "DictMainMenu"):
-        print("Creating new DictMainMenu")
+        logger.debug("Creating new DictMainMenu")
         mw.DictMainMenu = QMenu("Anki Dictionary", mw)
         # Insert before Help menu
         mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.DictMainMenu)
     else:
-        print("Updating existing DictMainMenu")
+        logger.debug("Updating existing DictMainMenu")
         mw.DictMainMenu.clear()
 
     # Dictionary Settings Action
@@ -383,4 +389,4 @@ def setup_gui_menu():
     mw.DictMainMenu.addAction(search_col_action)
     mw.dict_actions["search_col"] = search_col_action
 
-    print("Menu setup completed with shortcuts: Ctrl+W, Ctrl+S, Ctrl+Shift+B")
+    logger.debug("Menu setup completed with shortcuts: Ctrl+W, Ctrl+S, Ctrl+Shift+B")

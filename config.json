@@ -95,5 +95,7 @@
   "llm_base_url": "http://100.102.234.5:11434/api/chat",
   "llm_model": "qwen3.5:4b-q4_K_M",
   "llm_prompt": "提供该词的简明词典定义：{term}（请优先使用简单易懂的表达）",
-  "llm_timeout": 20
+  "llm_timeout": 20,
+  "forvo_enabled": true,
+  "forvo_language": "ja"
 }

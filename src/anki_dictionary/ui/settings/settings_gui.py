@@ -19,7 +19,7 @@ from .templates import TemplateEditor
 from ...utils.common import miInfo, miAsk
 from ..dialogs.dictionary_manager import DictionaryManagerWidget
 from ...utils.config import get_addon_config, save_addon_config
-from ...utils.constants import COUNTRY_LIST
+from ...utils.constants import COUNTRY_LIST, FORVO_LANGUAGES
 
 try:
     from PyQt5.QtSvg import QSvgWidget
@@ -69,9 +69,7 @@ class SettingsGui(QTabWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
-        self.setWindowIcon(
-            QIcon(join(self.addonPath, "assets", "icons", "anki.png"))
-        )
+        self.setWindowIcon(QIcon(join(self.addonPath, "assets", "icons", "anki.png")))
         self.addDictGroup = QPushButton("Add Dictionary Group")
         self.addExportTemplate = QPushButton("Add Export Template")
         self.dictGroups = self.getGroupTemplateTable()
@@ -118,16 +116,25 @@ class SettingsGui(QTabWidget):
         self.llmStatusLabel.setWordWrap(True)
         self.llmStatusLabel.setStyleSheet("font-weight: bold;")
 
+        # Forvo Settings
+        self.forvoEnabled = QCheckBox()
+        self.forvoLanguage = QComboBox()
+        self.forvoLanguage.setEditable(True)
+        for lang in FORVO_LANGUAGES:
+            self.forvoLanguage.addItem(lang["English name"], lang["Code"])
+
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
         self.layout = QVBoxLayout()
         self.settingsTab = QWidget(self)
         self.llmTab = self.getLLMTab()
+        self.forvoTab = self.getForvoTab()
         # self.userGuideTab = self.getUserGuideTab()
         self.setupLayout()
         self.addTab(self.settingsTab, "Settings")
         self.addTab(self.llmTab, "LLM")
+        self.addTab(self.forvoTab, "Forvo")
         self.addTab(DictionaryManagerWidget(), "Dictionaries")
         # self.addTab(self.userGuideTab, "User Guide")
         # self.addTab(self.getAboutTab(), "About")
@@ -245,6 +252,13 @@ class SettingsGui(QTabWidget):
             )
         )
 
+        # Load Forvo settings
+        self.forvoEnabled.setChecked(config.get("forvo_enabled", True))
+        forvo_lang = config.get("forvo_language", "ja")
+        index = self.forvoLanguage.findData(forvo_lang)
+        if index != -1:
+            self.forvoLanguage.setCurrentIndex(index)
+
         if config.get("condensedAudioDirectory", False) is not False:
             self.chooseAudioDirectory.setText(config["condensedAudioDirectory"])
         else:
@@ -277,6 +291,10 @@ class SettingsGui(QTabWidget):
         nc["llm_base_url"] = self.llmBaseUrl.text()
         nc["llm_model"] = self.llmModel.text()
         nc["llm_prompt"] = self.llmPrompt.toPlainText()
+
+        # Save Forvo settings
+        nc["forvo_enabled"] = self.forvoEnabled.isChecked()
+        nc["forvo_language"] = self.forvoLanguage.currentData()
 
         if self.chooseAudioDirectory.text() != "Choose Directory":
             nc["condensedAudioDirectory"] = self.chooseAudioDirectory.text()
@@ -447,6 +465,10 @@ class SettingsGui(QTabWidget):
         # Check current UI state for LLM enabled
         if self.llmEnabled.isChecked() and "LLM" not in dictionaryList:
             dictionaryList.append("LLM")
+
+        # Check current UI state for Forvo enabled
+        if self.forvoEnabled.isChecked() and "Forvo" not in dictionaryList:
+            dictionaryList.append("Forvo")
 
         dictionaryList = sorted(dictionaryList, key=str.casefold)
         return dictionaryList
@@ -683,6 +705,35 @@ class SettingsGui(QTabWidget):
         buttonLayout.addWidget(self.llmStatusLabel)
         buttonLayout.addStretch()
         layout.addLayout(buttonLayout)
+
+        layout.addStretch()
+
+        tab.setLayout(layout)
+        return tab
+
+    def getForvoTab(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        infoLabel = QLabel(
+            "Enable Forvo to fetch native pronunciations for your search terms."
+        )
+        infoLabel.setWordWrap(True)
+        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
+        layout.addWidget(infoLabel)
+
+        formGroup = QGroupBox("Forvo Configuration")
+        formLayout = QFormLayout()
+
+        formLayout.addRow("Enable Forvo Dictionary:", self.forvoEnabled)
+        formLayout.addRow("Forvo Language:", self.forvoLanguage)
+
+        langHint = QLabel("Select the language for Forvo pronunciation searches.")
+        langHint.setStyleSheet("font-size: 10px; color: gray;")
+        formLayout.addRow("", langHint)
+
+        formGroup.setLayout(formLayout)
+        layout.addWidget(formGroup)
 
         layout.addStretch()
 
