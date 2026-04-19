@@ -79,3 +79,4 @@ meta.json
 *.log
 GEMINI.md
 .github/
+logs/
