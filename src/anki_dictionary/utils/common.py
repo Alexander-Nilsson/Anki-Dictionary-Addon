@@ -14,9 +14,9 @@ from .paths import get_addon_root, get_icons_dir
 @contextlib.contextmanager
 def prefer_ipv4():
     """Context manager to temporarily prefer IPv4 for network operations by disabling IPv6 in urllib3."""
-    old_has_ipv6 = connection.HAS_IPV6
-    connection.HAS_IPV6 = False
+    old_has_ipv6 = getattr(connection, "HAS_IPV6", False)
     try:
+        connection.HAS_IPV6 = False
         yield
     finally:
         connection.HAS_IPV6 = old_has_ipv6

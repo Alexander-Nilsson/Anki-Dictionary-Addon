@@ -219,8 +219,7 @@ class MIDict(AnkiWebView):
 
     def cleanTerm(self, term):
         return (
-            term.replace("'", "'")
-            .replace("%", "")
+            term.replace("%", "")
             .replace("_", "")
             .replace("「", "")
             .replace("」", "")
@@ -236,7 +235,9 @@ class MIDict(AnkiWebView):
 
     def injectFont(self, font):
         name = re.sub(r"\..*$", "", font)
-        self.eval("addCustomFont('%s', '%s');" % (font, name))
+        js_font = json.dumps(font)
+        js_name = json.dumps(name)
+        self.eval(f"addCustomFont({js_font}, {js_name});")
 
     def getTabMode(self):
         if self.dictInt.tabB.singleTab:
@@ -657,7 +658,7 @@ class MIDict(AnkiWebView):
                             + ">"
                             + entry["starCount"]
                             + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
-                            + dictName
+                            + cleanName
                             + '\')" class="ankiExportButton"><img '
                             + imgTooltip
                             + ' src="'
@@ -667,7 +668,7 @@ class MIDict(AnkiWebView):
                             + ' class="clipper">✂</div><div '
                             + sendTooltip
                             + " onclick=\"sendToField(event, '"
-                            + dictName
+                            + cleanName
                             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div'
                             + font
                             + ' class="definitionBlock">'
@@ -689,7 +690,7 @@ class MIDict(AnkiWebView):
                 + term
                 + '".</h3> </div></div>'
             )
-        return html.replace("'", "\\'")
+        return html
 
     def getGoogleDictionaryResults(
         self, term, dictCount, bracketFront, bracketBack, entryCount, font
@@ -1251,6 +1252,9 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("clipped:"):
             text = dAct[8:]
             self.dictInt.mw.app.clipboard().setText(text.replace("<br>", "\n"))
+        elif dAct.startswith("clipped_images:"):
+            urls_json = dAct[15:]
+            self.copyImagesToClipboard(urls_json)
         elif dAct.startswith("sendToField:"):
             name, text = dAct[12:].split("◳◴")
             self.sendToField(name, text)
@@ -1391,6 +1395,68 @@ class MIDict(AnkiWebView):
                 Qt.TransformationMode.SmoothTransformation,
             )
             image.save(filename)
+
+    def copyImagesToClipboard(self, urls_json: str) -> None:
+        """Copy images from a list of URLs (data: or http:) to the system clipboard."""
+        try:
+            urls = json.loads(urls_json)
+            if not urls:
+                return
+
+            from urllib.request import Request, urlopen
+            from aqt.qt import QMimeData, QUrl
+
+            mime_data = QMimeData()
+            urls_list = []
+            
+            # For a single image, we can also set the image directly for convenience
+            first_image = None
+
+            for idx, url in enumerate(urls):
+                try:
+                    if url.startswith("data:"):
+                        # Handle data:image/xxx;base64,xxxx
+                        header, encoded = url.split(",", 1)
+                        file_data = base64.b64decode(encoded)
+                        ext = header.split("/")[1].split(";")[0]
+                    else:
+                        req = Request(
+                            url,
+                            headers={
+                                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+                            },
+                        )
+                        file_data = urlopen(req, timeout=10).read()
+                        ext = url.split(".")[-1].split("?")[0]
+                        if len(ext) > 4 or "/" in ext:
+                            ext = "png"
+
+                    image = QImage()
+                    image.loadFromData(file_data)
+                    
+                    if not image.isNull():
+                        if first_image is None:
+                            first_image = image
+                            
+                        # Save to temp file to provide as URI
+                        temp_path = join(self.temp_dir, f"clipboard_img_{idx}.{ext}")
+                        image.save(temp_path)
+                        urls_list.append(QUrl.fromLocalFile(temp_path))
+                except Exception as e:
+                    logger.error(f"Error processing image {idx} for clipboard: {e}")
+
+            if urls_list:
+                mime_data.setUrls(urls_list)
+                if first_image:
+                    mime_data.setImageData(first_image)
+                
+                self.dictInt.mw.app.clipboard().setMimeData(mime_data)
+                logger.debug(f"Successfully copied {len(urls_list)} images to clipboard.")
+            else:
+                logger.warning("No valid images found to copy to clipboard.")
+
+        except Exception as e:
+            logger.error(f"Error copying images to clipboard: {e}")
 
     def getThumbs(self, paths: List[str]) -> QWidget:
         thumbCase = QWidget()

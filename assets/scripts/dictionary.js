@@ -171,38 +171,47 @@ function displayEntry(entry) {
 /**
  * Export definitions to Anki
  */
-function getDefExport(event, dictName) {
+function getDefExport(ev, dictName) {
     var definition = getSelectionText();
-    var termTitle = event.target.parentElement.parentElement.parentElement;
+    var termTitle = ev.target.closest('.termPronunciation');
+    if (!termTitle) return;
+    
     var termBody = termTitle.nextElementSibling;
     var dictionaryElement = termTitle.previousElementSibling;
-    while (!dictionaryElement.classList.contains('dictionaryTitleBlock')) {
+    while (dictionaryElement && !dictionaryElement.classList.contains('dictionaryTitleBlock')) {
         dictionaryElement = dictionaryElement.previousElementSibling;
     }
+    
+    if (!dictionaryElement) return;
+    
     var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle);
     if (!definition) {
         definition = wordDefinition[1];
     } else {
         definition = cleanTermDef(termTitle.textContent) + '<br>' + definition.replace(/\n/g, '<br>');
     }
-    pycmd('addDef:' + dictName + '◳◴' + wordDefinition[0] + '◳◴' + definition);
+    pycmd('addDef:' + dictName + '\u25f3\u25f4' + wordDefinition[0] + '\u25f3\u25f4' + definition);
 }
 
 /**
  * Export images to Anki
  */
-function getImageExport(event, dictName) {
-    var termTitle = event.target.parentElement.parentElement.parentElement
+function getImageExport(ev, dictName) {
+    var termTitle = ev.target.closest('.termPronunciation');
+    if (!termTitle) return;
+    
     var defBlock = termTitle.nextElementSibling;
-    var word = cleanTermDef(termTitle.querySelector('.terms').innerHTML)
-    var selImgs = defBlock.getElementsByClassName('selectedImage')
+    var termsEl = termTitle.querySelector('.terms');
+    var word = termsEl ? cleanTermDef(termsEl.innerHTML) : "";
+    
+    var selImgs = defBlock.getElementsByClassName('selectedImage');
     var urls = [];
 
     if (selImgs.length > 0) {
         for (var i = 0; i < selImgs.length; i++) {
-            urls.push(selImgs[i].dataset.url)
+            urls.push(selImgs[i].dataset.url);
         }
-        pycmd('imgExport:' + word + '◳◴' + JSON.stringify(urls));
+        pycmd('imgExport:' + word + '\u25f3\u25f4' + JSON.stringify(urls));
     }
 }
 
@@ -211,9 +220,9 @@ function getImageExport(event, dictName) {
  */
 function ankiExport(ev, dictName) {
     if (dictName == 'Images') {
-        getImageExport(event, dictName)
+        getImageExport(ev, dictName);
     } else {
-        getDefExport(event, dictName.replace(/ /g, '_'))
+        getDefExport(ev, dictName);
     }
 }
 
@@ -235,11 +244,11 @@ function getWordPron(dictEl, termBody, termTitle) {
         var term1 = terms[0].textContent;
         var term2 = terms[1].textContent;
         if (term1 != '' && term2 != '') {
-            word = term1 + ', ' + term2
+            word = term1 + ', ' + term2;
         } else if (term1 != '') {
-            word = term1
+            word = term1;
         } else if (term2 != '') {
-            word = term2
+            word = term2;
         }
     } else if (terms.length >= 1) {
         word = terms[0].textContent;
@@ -255,18 +264,41 @@ function getWordPron(dictEl, termBody, termTitle) {
  */
 function clipText(ev) {
     var definition = getSelectionText();
-    var termTitle = event.target.parentElement.parentElement
-    var termBody = termTitle.nextElementSibling
-    var dictionaryElement = termTitle.previousElementSibling
-    while (!dictionaryElement.classList.contains('dictionaryTitleBlock')) {
-        dictionaryElement = dictionaryElement.previousElementSibling
+    var termTitle = ev.target.closest('.termPronunciation');
+    if (!termTitle) return;
+    
+    var termBody = termTitle.nextElementSibling;
+    
+    // Check if we're in an image block
+    var isImages = false;
+    var dictionaryElement = termTitle.previousElementSibling;
+    while (dictionaryElement && !dictionaryElement.classList.contains('dictionaryTitleBlock')) {
+        dictionaryElement = dictionaryElement.previousElementSibling;
     }
+    
+    if (dictionaryElement && dictionaryElement.querySelector('.dictionaryTitle').textContent.trim() === 'Images') {
+        isImages = true;
+    }
+
+    if (isImages) {
+        var selImgs = termBody.querySelectorAll('.selectedImage, .imgBox.selected .imageHighlight');
+        if (selImgs.length > 0) {
+            var urls = [];
+            for (var i = 0; i < selImgs.length; i++) {
+                urls.push(selImgs[i].dataset.url);
+            }
+            // Send images to clipboard via Python
+            pycmd('clipped_images:' + JSON.stringify(urls));
+            return;
+        }
+    }
+
     if (!definition) {
-        var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle)
-        definition = wordDefinition[1]
+        var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle);
+        definition = wordDefinition[1];
     } else {
-        var wordDefinition = getWordPron(dictionaryElement, termBody, termTitle)
-        definition = wordDefinition + definition
+        var wordDefinition = getWordPron(dictionaryElement, termBody, termTitle);
+        definition = wordDefinition + definition;
     }
     pycmd('clipped:' + definition.replace('&lt', '<').replace('&gt;', '>'));
 }
@@ -274,31 +306,39 @@ function clipText(ev) {
 /**
  * Send definition to field
  */
-function getDefForField(event, dictName) {
+function getDefForField(ev, dictName) {
     var definition = getSelectionText();
-    var termTitle = event.target.parentElement.parentElement
-    if (!definition) {
-        var termBody = termTitle.nextElementSibling
-        var dictionaryElement = termTitle.previousElementSibling
-        while (!dictionaryElement.classList.contains('dictionaryTitleBlock')) {
-            dictionaryElement = dictionaryElement.previousElementSibling
-        }
-        var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle)
-        definition = wordDefinition[1]
-    } else {
-        definition = cleanTermDef(termTitle.textContent) + '<br>' + definition.replace(/\n/g, '<br>')
+    var termTitle = ev.target.closest('.termPronunciation');
+    if (!termTitle) return;
+    
+    var termBody = termTitle.nextElementSibling;
+    var dictionaryElement = termTitle.previousElementSibling;
+    while (dictionaryElement && !dictionaryElement.classList.contains('dictionaryTitleBlock')) {
+        dictionaryElement = dictionaryElement.previousElementSibling;
     }
-    pycmd('sendToField:' + dictName + '◳◴' + definition);
+    
+    if (!dictionaryElement) return;
+    
+    var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle);
+    if (!definition) {
+        definition = wordDefinition[1];
+    } else {
+        definition = cleanTermDef(termTitle.textContent) + '<br>' + definition.replace(/\n/g, '<br>');
+    }
+    pycmd('sendToField:' + dictName + '\u25f3\u25f4' + definition);
 }
 
 /**
  * Send image to field
  */
-function getImageForField(event, dictName) {
-    var defBlock = event.target.parentElement.parentElement.nextElementSibling;
+function getImageForField(ev, dictName) {
+    var termTitle = ev.target.closest('.termPronunciation');
+    if (!termTitle) return;
+    
+    var defBlock = termTitle.nextElementSibling;
     // Look for both selected images and selected imgBox containers
     var selImgs = defBlock.querySelectorAll('.selectedImage, .imgBox.selected .imageHighlight');
-    var urls = []
+    var urls = [];
     if (selImgs.length > 0) {
         for (var i = 0; i < selImgs.length; i++) {
             var url = selImgs[i].dataset.url;
@@ -315,11 +355,11 @@ function getImageForField(event, dictName) {
 /**
  * Main send to field function
  */
-function sendToField(event, dictName) {
+function sendToField(ev, dictName) {
     if (dictName == 'Images') {
-        getImageForField(event, dictName)
+        getImageForField(ev, dictName)
     } else {
-        getDefForField(event, dictName.replace(/ /g, '_'))
+        getDefForField(ev, dictName)
     }
 }
 
@@ -1220,10 +1260,10 @@ function closeAllDropdowns() {
     document.body.classList.remove('dropdown-open');
 }
 
-function showCheckboxes(event) {
+function showCheckboxes(ev) {
     try {
-        event.stopPropagation();
-        const container = event.target.closest('.fieldSelectCont, .overwriteSelectCont');
+        ev.stopPropagation();
+        const container = ev.target.closest('.fieldSelectCont, .overwriteSelectCont');
         if (!container) return;
         
         const isOpen = container.classList.contains('open');
@@ -1243,8 +1283,8 @@ function showCheckboxes(event) {
 }
 
 // Global click handler to close dropdowns
-document.addEventListener('click', (event) => {
-    if (!event.target.closest('.fieldSelectCont') && !event.target.closest('.overwriteSelectCont')) {
+document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('.fieldSelectCont') && !ev.target.closest('.overwriteSelectCont')) {
         closeAllDropdowns();
     }
 });
@@ -1289,7 +1329,7 @@ function handleDupChange(checkbox, className) {
         
         if (dictName && typeof pycmd !== 'undefined') {
             const value = checkbox.checked ? 1 : 0;
-            pycmd('setDup:' + value + '◳' + dictName);
+            pycmd('setDup:' + value + '\u25f3' + dictName);
         }
     } catch (error) {
         console.error('Error in handleDupChange:', error);
@@ -1395,7 +1435,7 @@ function playAudio(url) {
 function ankiAudioExport(word, url) {
     if (!word || !url) return;
     try {
-        pycmd('audioExport:' + word + '◳◴' + url);
+        pycmd('audioExport:' + word + '\u25f3\u25f4' + url);
     } catch (error) {
         console.error('Error in ankiAudioExport:', error);
     }
