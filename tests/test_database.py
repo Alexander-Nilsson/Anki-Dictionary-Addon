@@ -115,6 +115,16 @@ class TestDictDB(unittest.TestCase):
         html = "Line 1\nLine 2<br/>Line 3 &lt;b&gt;bold&lt;/b&gt;"
         processed = self.db.processDefinitionHTML(html)
         self.assertIn("Line 1<br>Line 2<br>Line 3 <b>bold</b>", processed)
+        
+        # Test leading/trailing whitespace and <br>
+        html2 = "  \n<br>  Definition content  <br/>\n  "
+        processed2 = self.db.processDefinitionHTML(html2)
+        self.assertEqual(processed2, "Definition content")
+        
+        # Test multiple <br> tags
+        html3 = "<br><br>Content<br>   <br>"
+        processed3 = self.db.processDefinitionHTML(html3)
+        self.assertEqual(processed3, "Content")
 
     def test_dictionary_data_lifecycle(self):
         """Test creating a dictionary, importing data, and searching."""

@@ -197,7 +197,7 @@ class DictDB:
 
         self.dropTables(table_name)
         cursor = self._get_cursor()
-        cursor.execute("DELETE FROM dictnames WHERE dictname = ?;", (d_clean,))
+        cursor.execute("DELETE FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (d_clean,))
         self.commitChanges()
         cursor.execute("VACUUM;")
 
@@ -206,7 +206,7 @@ class DictDB:
         if not self._ensure_connection():
             return None
         cursor = self._get_cursor()
-        cursor.execute("SELECT lid FROM dictnames WHERE dictname = ?;", (dictname,))
+        cursor.execute("SELECT lid FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (dictname,))
         result = cursor.fetchone()
         return result[0] if result else None
 
@@ -237,7 +237,7 @@ class DictDB:
         clean_name = self.normalize_dict_name(dictname)
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT 1 FROM dictnames WHERE dictname = ? AND lid = ?;", (clean_name, lid)
+            "SELECT 1 FROM dictnames WHERE dictname = ? COLLATE NOCASE AND lid = ?;", (clean_name, lid)
         )
         return cursor.fetchone() is not None
 
@@ -254,7 +254,7 @@ class DictDB:
 
             # Check if it already exists
             cursor.execute(
-                "SELECT lid FROM dictnames WHERE dictname = ?;", (clean_name,)
+                "SELECT lid FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (clean_name,)
             )
             existing = cursor.fetchone()
             if existing:
@@ -509,7 +509,7 @@ class DictDB:
             return None
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT duplicateHeader, termHeader  FROM dictnames WHERE dictname=?",
+            "SELECT duplicateHeader, termHeader  FROM dictnames WHERE dictname=? COLLATE NOCASE",
             (name,),
         )
         try:
@@ -745,6 +745,9 @@ class DictDB:
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
 
+        # Strip leading/trailing whitespace first
+        text = text.strip()
+
         # First convert any newlines to <br> tags
         text = text.replace("\n", "<br>")
 
@@ -759,7 +762,11 @@ class DictDB:
         # Replace multiple consecutive <br> tags with proper spacing
         text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
 
-        return text
+        # Strip leading and trailing <br> tags that might have been created or were already there
+        text = re.sub(r"^(<br>\s*)+", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"(<br>\s*)+$", "", text, flags=re.IGNORECASE)
+
+        return text.strip()
 
     def resultToDict(self, r):
         # Create the output dictionary
@@ -889,11 +896,14 @@ class DictDB:
 
     def setFieldsSetting(self, name: str, fields: str) -> None:
         """Set the fields setting for a dictionary."""
+        clean_name = self.cleanDictName(name)
+        logger.debug(f"DB: Setting fields for {clean_name} to {fields}")
         if not self._ensure_connection():
             return
         cursor = self._get_cursor()
         cursor.execute(
-            "UPDATE dictnames SET fields = ? WHERE dictname=?", (fields, name)
+            "UPDATE dictnames SET fields = ? WHERE dictname=? COLLATE NOCASE",
+            (fields, clean_name),
         )
         self.commitChanges()
 
@@ -901,9 +911,11 @@ class DictDB:
         """Set add type for a dictionary."""
         if not self._ensure_connection():
             return
+        clean_name = self.cleanDictName(name)
         cursor = self._get_cursor()
         cursor.execute(
-            "UPDATE dictnames SET addtype = ? WHERE dictname=?", (addType, name)
+            "UPDATE dictnames SET addtype = ? WHERE dictname=? COLLATE NOCASE",
+            (addType, clean_name),
         )
         self.commitChanges()
 
@@ -911,12 +923,17 @@ class DictDB:
         """Get fields setting for a dictionary."""
         if not self._ensure_connection():
             return None
+        clean_name = self.cleanDictName(name)
         cursor = self._get_cursor()
-        cursor.execute("SELECT fields FROM dictnames WHERE dictname=?", (name,))
+        cursor.execute(
+            "SELECT fields FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,)
+        )
         try:
             result = cursor.fetchone()
             if result:
+                logger.debug(f"DB: Retrieved fields for {clean_name}: {result[0]}")
                 return json.loads(result[0])
+            logger.debug(f"DB: No fields found for {clean_name}")
             return None
         except:
             return None
@@ -927,10 +944,11 @@ class DictDB:
         """Get add type and fields for a dictionary."""
         if not self._ensure_connection():
             return None
+        clean_name = self.cleanDictName(dictName)
         cursor = self._get_cursor()
         cursor.execute(
             "SELECT fields, addtype FROM dictnames WHERE dictname=? COLLATE NOCASE",
-            (dictName,),
+            (clean_name,),
         )
         try:
             result = cursor.fetchone()
@@ -962,7 +980,7 @@ class DictDB:
             return
         cursor = self._get_cursor()
         cursor.execute(
-            "UPDATE dictnames SET duplicateHeader = ? WHERE dictname=?",
+            "UPDATE dictnames SET duplicateHeader = ? WHERE dictname=? COLLATE NOCASE",
             (duplicateHeader, name),
         )
         self.commitChanges()
@@ -986,20 +1004,20 @@ class DictDB:
         """Get add type for a dictionary."""
         if not self._ensure_connection():
             return None
+        clean_name = self.cleanDictName(name)
         cursor = self._get_cursor()
-        cursor.execute("SELECT addtype FROM dictnames WHERE dictname=?", (name,))
-        try:
-            result = cursor.fetchone()
-            return result[0] if result else None
-        except:
-            return None
+        cursor.execute(
+            "SELECT addtype FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,)
+        )
+        result = cursor.fetchone()
+        return result[0] if result else None
 
     def getDictTermHeader(self, dictname: str) -> Optional[str]:
         """Get term header for a specific dictionary."""
         if not self._ensure_connection():
             return None
         cursor = self._get_cursor()
-        cursor.execute("SELECT termHeader FROM dictnames WHERE dictname=?", (dictname,))
+        cursor.execute("SELECT termHeader FROM dictnames WHERE dictname=? COLLATE NOCASE", (dictname,))
         result = cursor.fetchone()
         return result[0] if result else None
 
@@ -1009,7 +1027,7 @@ class DictDB:
             return
         cursor = self._get_cursor()
         cursor.execute(
-            "UPDATE dictnames SET termHeader = ? WHERE dictname=?",
+            "UPDATE dictnames SET termHeader = ? WHERE dictname=? COLLATE NOCASE",
             (termheader, dictname),
         )
         self.commitChanges()

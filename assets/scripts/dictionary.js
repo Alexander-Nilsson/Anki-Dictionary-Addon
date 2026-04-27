@@ -106,7 +106,14 @@ function cleanTermDef(text, rep) {
     // Handle all variants of <br> tags (case insensitive, with or without closing slash)
     text = text.replace(/<br\s*\/?>/gi, '---NL---');
     text = text.replace(/<[^>]+>/g, '').replace('✂', '').replace('➠', '').replace('▲', '').replace('▼', '');
-    return text.replace(/---NL---/g, rep);
+    text = text.replace(/---NL---/g, rep);
+    
+    // Strip leading/trailing line breaks and whitespace
+    var escapedRep = rep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var leadingRegex = new RegExp('^(' + escapedRep + '|\\s)+', 'g');
+    var trailingRegex = new RegExp('(' + escapedRep + '|\\s)+$', 'g');
+    
+    return text.replace(leadingRegex, '').replace(trailingRegex, '');
 }
 
 /**
