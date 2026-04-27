@@ -47,6 +47,7 @@ def qt_message_handler(mode, context, message):
         "QObject::disconnect",
         "zwp_text_input_v3",
         "Got leave event for surface",
+        "GPUInfo not initialized on GpuInfoUpdate",
     ]
     if any(pattern in message for pattern in suppress_patterns):
         return  # Suppress these specific warnings
@@ -387,7 +388,11 @@ class MIDict(AnkiWebView):
         # Replace multiple consecutive <br> tags with proper spacing
         text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
 
-        return text
+        # Strip leading and trailing <br> tags
+        text = re.sub(r"^(<br>\s*)+", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"(<br>\s*)+$", "", text, flags=re.IGNORECASE)
+
+        return text.strip()
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
         html = "<div" + font + 'class="definitionSideBar"><div class="innerSideBar">'
@@ -638,6 +643,45 @@ class MIDict(AnkiWebView):
                     dictCount += 1
 
                     for idx, entry in enumerate(dictResults):
+                        # Extract frequency data and clean definition
+                        # Pattern: 【word】[freq]
+                        extracted_freq = ""
+                        definition = entry["definition"].strip()
+                        
+                        # Loop to remove all leading 【...】 blocks and leading <br> tags
+                        while True:
+                            # 0. Strip leading/trailing <br> tags and whitespace that might be left from previous iterations
+                            definition = re.sub(r"^(<br>\s*)+|(<br>\s*)+$", "", definition, flags=re.IGNORECASE).strip()
+                            
+                            # 1. Match 【word】[freq]
+                            freq_match = re.search(r'^【[^】]+】\s*\[([\dk+]+)\]\s*', definition)
+                            if freq_match:
+                                if not extracted_freq:
+                                    extracted_freq = freq_match.group(1)
+                                definition = definition[freq_match.end():].strip()
+                                continue
+                            
+                            # 2. Match 【word】 pattern without frequency
+                            head_match = re.search(r'^【[^】]+】\s*', definition)
+                            if head_match:
+                                definition = definition[head_match.end():].strip()
+                                continue
+                            
+                            break
+                        
+                        # 3. Remove other bracketed headword repeats: (word), （word）, [word], ［word］
+                        # Also handles cases like (Simplified, Traditional) if the term is part of it
+                        term_escaped = re.escape(entry["term"])
+                        # Matches (anything term anything) where brackets are () or （） or [] or ［］
+                        repeat_pattern = r'^\s*[\(\（\[［][^）\)]*?' + term_escaped + r'[^）\)]*?[\)\）\]］]\s*'
+                        definition = re.sub(repeat_pattern, '', definition)
+                        
+                        # Final strip of leading/trailing <br> and whitespace
+                        definition = re.sub(r"^(<br>\s*)+|(<br>\s*)+$", "", definition, flags=re.IGNORECASE).strip()
+                        
+                        # Update the entry's definition with the cleaned version
+                        entry["definition"] = definition
+
                         html += (
                             '<div data-index="'
                             + str(entryCount)
@@ -657,7 +701,9 @@ class MIDict(AnkiWebView):
                             + self.getStarTooltip(entry["starCount"])
                             + ">"
                             + entry["starCount"]
-                            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+                            + "</span>"
+                            + (f' <span class="starcount frequency-rank">[{extracted_freq}]</span>' if extracted_freq else '')
+                            + '</span><div class="defTools"><div onclick="ankiExport(event, \''
                             + cleanName
                             + '\')" class="ankiExportButton"><img '
                             + imgTooltip
@@ -865,6 +911,13 @@ class MIDict(AnkiWebView):
                 if last_line == term:
                     definition = "\n".join(lines[:-1]).strip()
 
+        # Remove bracketed headword repeats: (word), （word）, [word], ［word］
+        # Also handles cases like (Simplified, Traditional) if the term is part of it
+        term_escaped = re.escape(result["term"])
+        # Matches (anything term anything) where brackets are () or （） or [] or ［］
+        repeat_pattern = r'^\s*[\(\（\[［][^）\)]*?' + term_escaped + r'[^）\)]*?[\)\）\]］]\s*'
+        definition = re.sub(repeat_pattern, '', definition).strip()
+
         html += (
             "<div"
             + font
@@ -875,7 +928,6 @@ class MIDict(AnkiWebView):
             )
             + "</div>"
         )
-
         # Inject into the webview by replacing only the loading placeholder
         escaped_html = json.dumps(html)
         self.eval(
@@ -992,6 +1044,13 @@ class MIDict(AnkiWebView):
                 )
                 if last_line == term:
                     definition = "\n".join(lines[:-1]).strip()
+
+        # Remove bracketed headword repeats: (word), （word）, [word], ［word］
+        # Also handles cases like (Simplified, Traditional) if the term is part of it
+        term_escaped = re.escape(result["term"])
+        # Matches (anything term anything) where brackets are () or （） or [] or ［］
+        repeat_pattern = r'^\s*[\(\（\[［][^）\)]*?' + term_escaped + r'[^）\)]*?[\)\）\]］]\s*'
+        definition = re.sub(repeat_pattern, '', definition).strip()
 
         html += (
             "<div"
@@ -1227,10 +1286,12 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("setDup:"):
             dup, name = dAct[7:].split("◳")
             dup = int(dup)
-            self.dictInt.db.setDupHeader(dup, name)
+            clean_name = self.db.cleanDictName(name)
+            self.dictInt.db.setDupHeader(dup, clean_name)
             self.dupHeaders = self.db.getDupHeaders()
         elif dAct.startswith("fieldsSetting:"):
             fields = json.loads(dAct[14:])
+            logger.debug(f"Received fieldsSetting command: {fields}")
             if fields["dictName"] == "Images":
                 self.dictInt.writeConfig("ImageFields", fields["fields"])
             elif fields["dictName"] == "LLM":
@@ -1680,7 +1741,8 @@ class MIDict(AnkiWebView):
             tooltip(f"Failed to play audio: {e}")
 
     def sendToField(self, name: str, definition: str) -> None:
-        display_name = name.replace("_", " ")
+        clean_name = self.db.cleanDictName(name)
+        display_name = clean_name.replace("_", " ")
         if not (self.reviewer and self.reviewer.card) and not (
             self.currentEditor and self.currentEditor.note
         ):
@@ -1689,17 +1751,17 @@ class MIDict(AnkiWebView):
             )
             return
 
-        if name == "Images":
+        if clean_name == "Images":
             tFields = self.config.get("ImageFields", [])
             addType = self.config.get("ImageAddType", "add")
-        elif name == "LLM":
+        elif clean_name == "LLM":
             tFields = self.config.get("LLMFields", [])
             addType = self.config.get("LLMAddType", "add")
-        elif name == "Forvo":
+        elif clean_name == "Forvo":
             tFields = self.config.get("ForvoFields", [])
             addType = self.config.get("ForvoAddType", "add")
         else:
-            res = self.db.getAddTypeAndFields(name)
+            res = self.db.getAddTypeAndFields(clean_name)
             if not res:
                 tooltip(f"Configuration for '{display_name}' not found.")
                 return
@@ -1858,6 +1920,7 @@ class MIDict(AnkiWebView):
 
     def getFieldChecks(self, dictName):
         clean_name = self.db.cleanDictName(dictName)
+        logger.debug(f"getFieldChecks: dictName={dictName}, clean_name={clean_name}")
         if dictName == "Images" or clean_name == "Images":
             selF = self.config.get("ImageFields", [])
         elif dictName == "LLM" or clean_name == "LLM":
@@ -3334,10 +3397,14 @@ class DictInterface(QWidget):
             return []
 
     def updateFieldsSetting(self, dictName, fields):
-        self.db.setFieldsSetting(dictName, json.dumps(fields, ensure_ascii=False))
+        clean_name = self.db.cleanDictName(dictName)
+        logger.debug(f"Updating fields for {dictName} (clean: {clean_name}): {fields}")
+        self.db.setFieldsSetting(clean_name, json.dumps(fields, ensure_ascii=False))
 
     def updateAddType(self, dictName, addType):
-        self.db.setAddType(dictName, addType)
+        clean_name = self.db.cleanDictName(dictName)
+        logger.debug(f"Updating addType for {dictName} (clean: {clean_name}): {addType}")
+        self.db.setAddType(clean_name, addType)
 
     def setupSearch(self):
         searchBox = QLineEdit()
