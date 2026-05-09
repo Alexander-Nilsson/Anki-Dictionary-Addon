@@ -48,6 +48,8 @@ def qt_message_handler(mode, context, message):
         "zwp_text_input_v3",
         "Got leave event for surface",
         "GPUInfo not initialized on GpuInfoUpdate",
+        "Autofill.enable",
+        "Autofill.setAddresses",
     ]
     if any(pattern in message for pattern in suppress_patterns):
         return  # Suppress these specific warnings

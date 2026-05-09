@@ -558,15 +558,32 @@ def importDict(lang_name, file, dict_name, parent=None):
     except zipfile.BadZipFile:
         raise ValueError("Dictionary archive is invalid.")
 
-    is_pitch_dict = any(
-        fn.endswith(".json") and "pitches" in zfile.read(fn).decode(errors="ignore")
-        for fn in zfile.namelist()
-    )
-    is_yomichan = (
-        any(fn.startswith("term_bank_") for fn in zfile.namelist()) or is_pitch_dict
-    )
-
+    has_term_bank = any(fn.startswith("term_bank_") for fn in zfile.namelist())
     has_index = any(fn == "index.json" for fn in zfile.namelist())
+
+    is_pitch_dict = False
+    if has_index:
+        # Only check for pitches if it has an index.json (likely Yomichan)
+        for fn in zfile.namelist():
+            if fn.endswith(".json") and ("pitch" in fn.lower() or "accent" in fn.lower()):
+                try:
+                    content = zfile.read(fn)
+                    # Try utf-8 first, fallback to utf-16 if it looks like it
+                    try:
+                        decoded = content.decode("utf-8")
+                    except UnicodeDecodeError:
+                        try:
+                            decoded = content.decode("utf-16")
+                        except UnicodeDecodeError:
+                            decoded = content.decode("latin-1")
+                    
+                    if "pitches" in decoded:
+                        is_pitch_dict = True
+                        break
+                except Exception:
+                    continue
+
+    is_yomichan = has_term_bank or (has_index and is_pitch_dict)
 
     print("Importing dict")
     frequency_dict = getFrequencyList(lang_name)
@@ -597,10 +614,11 @@ def importDict(lang_name, file, dict_name, parent=None):
 
     dict_files = []
     for fn in zfile.namelist():
-        if not fn.endswith(".json"):
+        if not fn.endswith(".json") or fn == "index.json":
             continue
-        if is_yomichan and not fn.startswith("term_bank_"):
-            continue
+        if is_yomichan:
+            if not (fn.startswith("term_bank_") or "pitch" in fn.lower() or "accent" in fn.lower()):
+                continue
         dict_files.append(fn)
     dict_files = natural_sort(dict_files)
 
@@ -619,7 +637,16 @@ def loadDict(zfile, filenames, lang, dictName, frequencyDict, miDict=False):
     jsonDict = []
     for filename in filenames:
         with zfile.open(filename, "r") as jsonDictFile:
-            jsonDict += json.loads(jsonDictFile.read())
+            content = jsonDictFile.read()
+            # Try utf-8 first, then utf-16, then latin-1
+            try:
+                decoded = content.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                try:
+                    decoded = content.decode("utf-16")
+                except UnicodeDecodeError:
+                    decoded = content.decode("latin-1")
+            jsonDict += json.loads(decoded)
     if frequencyDict:
         print("FreqDICT!")
         if miDict:
