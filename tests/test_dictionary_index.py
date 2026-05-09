@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from anki_dictionary.utils.common import prefer_ipv4
 
 class TestDictionaryIndex(unittest.TestCase):
-    INDEX_URL = "https://raw.githubusercontent.com/Alexander-Nilsson/dictionaries/main/index.json"
-    SERVER_ROOT = "https://raw.githubusercontent.com/Alexander-Nilsson/dictionaries/main"
+    INDEX_URL = "https://github.com/Alexander-Nilsson/dictionaries/raw/main/index.json"
+    SERVER_ROOT = "https://github.com/Alexander-Nilsson/dictionaries/raw/main"
 
     def test_index_is_valid_json(self):
         """Test that the dictionary index can be fetched and is valid JSON."""
@@ -86,14 +86,21 @@ class TestDictionaryIndex(unittest.TestCase):
         
         try:
             with prefer_ipv4():
-                # Using head request to be faster
-                resp = requests.head(quoted_url, allow_redirects=True, timeout=10)
-                if resp.status_code == 200:
-                    return True
-                # Some servers might not support HEAD properly
-                resp = requests.get(quoted_url, stream=True, timeout=10)
-                return resp.status_code == 200
-        except Exception as e:
+                # Use GET with stream=True so we can check the size without downloading everything
+                resp = requests.get(quoted_url, stream=True, timeout=10, allow_redirects=True)
+                if resp.status_code != 200:
+                    return False
+                
+                # If it's a dictionary (zip), it should definitely be larger than an LFS pointer (approx 130 bytes)
+                content_length = resp.headers.get("Content-Length")
+                if content_length and int(content_length) < 500:
+                    # Check if it looks like an LFS pointer
+                    chunk = next(resp.iter_content(chunk_size=500), b"")
+                    if b"git-lfs" in chunk:
+                        return False
+                
+                return True
+        except Exception:
             return False
 
 if __name__ == "__main__":
