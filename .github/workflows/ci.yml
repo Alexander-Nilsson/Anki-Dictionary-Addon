@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: write
+
+jobs:
+  pipeline:
+    name: Test, Build, and Release
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install Python Dependencies
+        run: uv sync --frozen --dev
+
+      - name: Run CI Suite (Lint + Tests)
+        run: xvfb-run -a uv run python dev.py ci
+
+      # --- RELEASE SECTION (Only runs on master branch push) ---
+
+      - name: Version and Build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: build_step
+        run: |
+          # Safe version bump logic
+          NEW_VERSION=$(uv run python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              v = tomllib.load(f)['project']['version'].split('.')
+          v[-1] = str(int(v[-1]) + 1)
+          print('.'.join(v))
+          ")
+          
+          # Update pyproject.toml
+          uv run python -c "
+          import re
+          with open('pyproject.toml', 'r+') as f:
+              c = f.read(); f.seek(0)
+              f.write(re.sub(r'^version = \".*\"', f'version = \"$NEW_VERSION\"', c, flags=re.MULTILINE))
+              f.truncate()
+          "
+          
+          # Build the package
+          uv run python dev.py build
+          
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Push Changes and Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.build_step.outputs.tag }}
+          name: Release ${{ steps.build_step.outputs.tag }}
+          files: build/*.ankiaddon
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
