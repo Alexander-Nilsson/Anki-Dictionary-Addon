@@ -1,9 +1,11 @@
 import unittest
+import os
 import time
 from anki_dictionary.integrations.forvo import ForvoWorker
 
 
 class TestForvoIntegration(unittest.TestCase):
+    @unittest.skipIf(os.environ.get("GITHUB_ACTIONS") == "true", "Skipping real Forvo search in GitHub Actions due to 403 Forbidden errors.")
     def test_real_forvo_search(self):
         """Perform a real search on Forvo to verify functionality without mocks."""
         # We'll search for a very common word to ensure results exist

@@ -21,6 +21,7 @@ The **Anki Dictionary Addon** is a high-performance lookup and card-creation too
   * **Fast Export to Anki:** Create rich, formatted flashcards instantly. Export definitions, example sentences, and frequency data directly to your cards without leaving Anki.
   * **AI-Powered Definitions:** Integrated **LLM API support** (OpenAI, Ollama, etc.) allows you to generate custom definitions and simplified explanations for complex terms.
   * **Integrated Image Search:** Quickly find and attach visual aids to your cards via built-in DuckDuckGo image search, ensuring your cards are highly memorable.
+  * **Native Audio Integration:** Scraping support for **Forvo**, allowing you to find and attach high-quality native speaker pronunciations to your cards.
   * **Multi-Dictionary Support:** Aggregate results from multiple local dictionaries.
 
 
