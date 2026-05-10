@@ -43,19 +43,18 @@ def discover_and_run_tests():
         end_time = time.time()
 
         # Print summary
+        skipped_count = len(result.skipped) if hasattr(result, "skipped") else 0
         print("\n" + "=" * 50)
         print("📈 TEST SUMMARY")
         print("=" * 50)
         print(f"⏱️  Total time: {end_time - start_time:.2f} seconds")
         print(f"🧪 Tests run: {result.testsRun}")
         print(
-            f"✅ Successes: {result.testsRun - len(result.failures) - len(result.errors)}"
+            f"✅ Successes: {result.testsRun - len(result.failures) - len(result.errors) - skipped_count}"
         )
         print(f"❌ Failures: {len(result.failures)}")
         print(f"💥 Errors: {len(result.errors)}")
-        print(
-            f"⏭️  Skipped: {len(result.skipped) if hasattr(result, 'skipped') else 0}"
-        )
+        print(f"⏭️  Skipped: {skipped_count}")
 
         if result.failures:
             print("\n🔴 FAILURES:")
@@ -66,6 +65,11 @@ def discover_and_run_tests():
             print("\n💥 ERRORS:")
             for test, traceback in result.errors:
                 print(f"  - {test}")
+
+        if skipped_count:
+            print("\n⏭️  SKIPPED:")
+            for test, reason in result.skipped:
+                print(f"  - {test}: {reason}")
 
         # Return success/failure
         success = len(result.failures) == 0 and len(result.errors) == 0
