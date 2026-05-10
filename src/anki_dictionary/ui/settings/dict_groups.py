@@ -101,7 +101,9 @@ class DictGroupEditor(QDialog):
         count = 1
         for d in dicts:
             for i in range(self.dictionaries.rowCount()):
-                if d == self.dictionaries.item(i, 0).text():
+                item_text = self.dictionaries.item(i, 0).text()
+                # Match original name, or with spaces/underscores swapped
+                if d == item_text or d.replace("_", " ") == item_text or d.replace(" ", "_") == item_text:
                     self.dictionaries.item(i, 1).setText(str(count))
                     self.dictionaries.cellWidget(i, 2).setChecked(True)
                     count += 1

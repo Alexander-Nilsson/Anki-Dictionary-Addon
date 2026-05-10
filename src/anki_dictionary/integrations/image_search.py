@@ -194,10 +194,10 @@ class DuckDuckGo(QRunnable):
         if not image.loadFromData(content): return ""
         
         image = image.scaled(QSize(200, 200), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        filename = f"dict_img_{hashlib.md5(url.encode()).hexdigest()}.jpg"
+        filename = f"dict_img_{hashlib.md5(url.encode()).hexdigest()}.avif"
         filepath = join(temp_dir, filename)
         
-        return filename if image.save(filepath, "JPG", 85) else ""
+        return filename if image.save(filepath, "AVIF") else ""
 
     def download_and_process_image_sync(self, url: str, dl_session: requests.Session) -> str:
         try:
@@ -239,7 +239,7 @@ class DuckDuckGo(QRunnable):
         image_path = join(temp_dir, filename)
         try:
             with open(image_path, "rb") as f:
-                data_url = f"data:image/jpeg;base64,{base64.b64encode(f.read()).decode()}"
+                data_url = f"data:image/avif;base64,{base64.b64encode(f.read()).decode()}"
             return (
                 f'<div class="imgBox">'
                 f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'

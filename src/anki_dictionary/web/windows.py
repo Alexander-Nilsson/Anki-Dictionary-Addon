@@ -24,7 +24,7 @@ class FreqConjWebWindow(QDialog):
         self.mode_str = "frequency" if self.mode == self.Mode.Freq else "conjugation"
 
         self.setWindowTitle("Anki Dictionary - Web Installer")
-        self.setWindowIcon(QIcon(os.path.join(get_icons_dir(), "anki.png")))
+        self.setWindowIcon(QIcon(os.path.join(get_icons_dir(), "anki.svg")))
 
         lyt = QVBoxLayout()
         self.setLayout(lyt)

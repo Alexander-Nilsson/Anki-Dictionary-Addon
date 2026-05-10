@@ -146,7 +146,7 @@ class TestDictDB(unittest.TestCase):
         self.db.commitChanges()
         
         # Search
-        selected_group = {"dictionaries": [{"dict": table_name, "lang": "Japanese"}]}
+        selected_group = {"dictionaries": [{"dict": "TestJP", "lang": "Japanese"}]}
         results = self.db.searchTerm(
             term="食べる",
             selectedGroup=selected_group,

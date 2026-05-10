@@ -794,15 +794,23 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
             if isinstance(item, str):
                 return item.strip()
             elif isinstance(item, dict):
+                # Handle structured content
+                if "text" in item:
+                    return item["text"].strip()
+                
+                content = item.get("content", "")
                 if "name" in item.get("data", {}) and item["data"]["name"] == "語釈":
-                    return recursive_extract(item.get("content", ""))
-                return recursive_extract(item.get("content", ""))
+                    return recursive_extract(content)
+                return recursive_extract(content)
             elif isinstance(item, list):
                 return " ".join(
                     recursive_extract(x) for x in item if recursive_extract(x)
                 )
             return ""
 
+        if isinstance(items, str):
+            return getAdjustedDefinition(items)
+        
         definitions = []
         for item in items:
             text = recursive_extract(item)
@@ -866,12 +874,13 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
     definition = ""
     pitch_accents = []
 
-    if len(entry) > 5 and isinstance(entry[5], list):
+    if len(entry) > 5:
         definition = extract_definition(entry[5])
 
-        header_section = find_header_section(entry[5])
-        if header_section:
-            pitch_accents = extract_pitch(header_section)
+        if isinstance(entry[5], list):
+            header_section = find_header_section(entry[5])
+            if header_section:
+                pitch_accents = extract_pitch(header_section)
 
     # Always create a 9-element tuple
     jsonDict[count] = (

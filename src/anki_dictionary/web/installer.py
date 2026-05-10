@@ -32,7 +32,7 @@ class DictionaryWebInstallWizard(MiWizard):
 
         self.setWindowTitle("Anki Dictionary - Web Installer")
         self.setWindowIcon(
-            QIcon(os.path.join(addon_path, "assets", "icons", "anki.png"))
+            QIcon(os.path.join(addon_path, "assets", "icons", "anki.svg"))
         )
 
         server_add_page = self.add_page(ServerAskPage(self))

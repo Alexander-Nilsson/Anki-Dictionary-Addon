@@ -69,7 +69,7 @@ class SettingsGui(QTabWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
-        self.setWindowIcon(QIcon(join(self.addonPath, "assets", "icons", "anki.png")))
+        self.setWindowIcon(QIcon(join(self.addonPath, "assets", "icons", "anki.svg")))
         self.addDictGroup = QPushButton("Add Dictionary Group")
         self.addExportTemplate = QPushButton("Add Export Template")
         self.dictGroups = self.getGroupTemplateTable()
@@ -454,7 +454,7 @@ class SettingsGui(QTabWidget):
         dictList = self.mw.miDictDB.getAllDictsWithLang()
         dictionaryList = []
         for dictionary in dictList:
-            dictName = self.cleanDictName(dictionary["dict"])
+            dictName = self.cleanDictName(dictionary["dict"]).replace("_", " ")
             if dictName not in dictionaryList:
                 dictionaryList.append(dictName)
 
