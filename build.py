@@ -106,7 +106,7 @@ def install_dependencies(addon_dir):
     to_install = []
     for dep in dependencies:
         name = dep.split(">=")[0].split("==")[0].split(";")[0].strip()
-        if name.lower() in ["pynput"]:
+        if name.lower() in ["pynput", "beautifulsoup4"]:
             to_install.append(dep)
         elif name.lower() in ["requests", "urllib3"]:
             # Anki provides requests, but if users experience SSL/version issues,
