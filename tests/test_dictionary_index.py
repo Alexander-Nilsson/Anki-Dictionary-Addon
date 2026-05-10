@@ -26,46 +26,6 @@ class TestDictionaryIndex(unittest.TestCase):
         except json.JSONDecodeError:
             self.fail("Index is not valid JSON")
 
-    def test_all_dictionary_urls(self):
-        """Test all dictionary URLs in the index and report which ones are broken."""
-        # Use a random param to bust cache just in case
-        import time
-        cache_buster = f"?t={int(time.time())}"
-        with prefer_ipv4():
-            resp = requests.get(self.INDEX_URL + cache_buster, headers={"Cache-Control": "no-cache"})
-        self.assertEqual(resp.status_code, 200)
-        index = resp.json()
-        
-        broken_urls = []
-        checked_count = 0
-        
-        languages = index.get("languages", [])
-        for lang in languages:
-            # Check dictionaries in main language
-            for d in lang.get("dictionaries", []):
-                url = d.get("url")
-                if url:
-                    full_url = self._construct_url(url)
-                    checked_count += 1
-                    if not self._check_url(full_url):
-                        broken_urls.append(f"{lang['name_en']} -> {d['name']}: {full_url}")
-            
-            # Check to_languages
-            for to_lang in lang.get("to_languages", []):
-                for d in to_lang.get("dictionaries", []):
-                    url = d.get("url")
-                    if url:
-                        full_url = self._construct_url(url)
-                        checked_count += 1
-                        if not self._check_url(full_url):
-                            broken_urls.append(f"{lang['name_en']} to {to_lang['name_en']} -> {d['name']}: {full_url}")
-        
-        if broken_urls:
-            report = "\n".join(broken_urls)
-            self.fail(f"Found {len(broken_urls)} broken URLs out of {checked_count} checked:\n{report}")
-        else:
-            print(f"Successfully checked {checked_count} dictionary URLs.")
-
     def _construct_url(self, url):
         if not url.startswith("http"):
             # Ensure we don't have double slashes if url starts with /
@@ -89,7 +49,7 @@ class TestDictionaryIndex(unittest.TestCase):
                 # Use GET with stream=True so we can check the size without downloading everything
                 resp = requests.get(quoted_url, stream=True, timeout=10, allow_redirects=True)
                 if resp.status_code != 200:
-                    return False
+                    return False, f"HTTP {resp.status_code}"
                 
                 # If it's a dictionary (zip), it should definitely be larger than an LFS pointer (approx 130 bytes)
                 content_length = resp.headers.get("Content-Length")
@@ -97,11 +57,53 @@ class TestDictionaryIndex(unittest.TestCase):
                     # Check if it looks like an LFS pointer
                     chunk = next(resp.iter_content(chunk_size=500), b"")
                     if b"git-lfs" in chunk:
-                        return False
+                        return False, "LFS pointer detected"
                 
-                return True
-        except Exception:
-            return False
+                return True, "OK"
+        except Exception as e:
+            return False, str(e)
+
+    def test_all_dictionary_urls(self):
+        """Test all dictionary URLs in the index and report which ones are broken."""
+        # Use a random param to bust cache just in case
+        import time
+        cache_buster = f"?t={int(time.time())}"
+        with prefer_ipv4():
+            resp = requests.get(self.INDEX_URL + cache_buster, headers={"Cache-Control": "no-cache"})
+        self.assertEqual(resp.status_code, 200)
+        index = resp.json()
+        
+        broken_urls = []
+        checked_count = 0
+        
+        languages = index.get("languages", [])
+        for lang in languages:
+            # Check dictionaries in main language
+            for d in lang.get("dictionaries", []):
+                url = d.get("url")
+                if url:
+                    full_url = self._construct_url(url)
+                    checked_count += 1
+                    success, error = self._check_url(full_url)
+                    if not success:
+                        broken_urls.append(f"{lang['name_en']} -> {d['name']}: {full_url} ({error})")
+            
+            # Check to_languages
+            for to_lang in lang.get("to_languages", []):
+                for d in to_lang.get("dictionaries", []):
+                    url = d.get("url")
+                    if url:
+                        full_url = self._construct_url(url)
+                        checked_count += 1
+                        success, error = self._check_url(full_url)
+                        if not success:
+                            broken_urls.append(f"{lang['name_en']} to {to_lang['name_en']} -> {d['name']}: {full_url} ({error})")
+        
+        if broken_urls:
+            report = "\n".join(broken_urls)
+            self.fail(f"Found {len(broken_urls)} broken URLs out of {checked_count} checked:\n{report}")
+        else:
+            print(f"Successfully checked {checked_count} dictionary URLs.")
 
 if __name__ == "__main__":
     unittest.main()

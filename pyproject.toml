@@ -4,7 +4,7 @@ version = "0.1.24"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [ "pyqt6>=6.9.1", "pyqt6-webengine>=6.9.0", "requests>=2.31.0", "pynput>=1.7.6", "pyobjc-core; sys_platform == 'darwin'", "pyobjc-framework-cocoa; sys_platform == 'darwin'", "pyobjc-framework-Quartz; sys_platform == 'darwin'"]
+dependencies = [ "pyqt6>=6.9.1", "pyqt6-webengine>=6.9.0", "requests>=2.31.0", "pynput>=1.7.6", "beautifulsoup4>=4.12.0", "pyobjc-core; sys_platform == 'darwin'", "pyobjc-framework-cocoa; sys_platform == 'darwin'", "pyobjc-framework-Quartz; sys_platform == 'darwin'"]
 
 [dependency-groups]
 dev = [
