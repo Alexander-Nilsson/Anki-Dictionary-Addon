@@ -33,7 +33,7 @@ def miInfo(text, parent=False, level="msg", day=True):
         title = "Anki Dictionary"
     if parent is False:
         parent = aqt.mw.app.activeWindow() or aqt.mw
-    icon = QIcon(os.path.join(get_icons_dir(), "anki.png"))
+    icon = QIcon(os.path.join(get_icons_dir(), "anki.svg"))
     mb = QMessageBox(parent)
     if not day:
         mb.setStyleSheet(" QMessageBox {background-color: #272828;}")
@@ -52,7 +52,7 @@ def miAsk(text, parent=None, day=True, customText=False):
     msg = QMessageBox(parent)
     msg.setWindowTitle("Anki Dictionary")
     msg.setText(text)
-    icon = QIcon(os.path.join(get_icons_dir(), "anki.png"))
+    icon = QIcon(os.path.join(get_icons_dir(), "anki.svg"))
     b = msg.addButton(QMessageBox.StandardButton.Yes)
 
     b.setFixedSize(100, 30)

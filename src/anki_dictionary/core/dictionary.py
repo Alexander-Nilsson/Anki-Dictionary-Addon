@@ -134,7 +134,7 @@ class MIDict(AnkiWebView):
 
     def downloadImage(self, url):
         try:
-            filename = str(time.time()).replace(".", "") + ".png"
+            filename = str(time.time()).replace(".", "") + ".avif"
             if url.startswith("data:"):
                 # Handle data:image/xxx;base64,xxxx
                 header, encoded = url.split(",", 1)
@@ -151,7 +151,7 @@ class MIDict(AnkiWebView):
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
                 )
-                image.save(filename)
+                image.save(filename, "AVIF")
                 return '<img src="' + filename + '">'
         except:
             return ""
@@ -163,8 +163,8 @@ class MIDict(AnkiWebView):
         """Convert icon to base64 data URL for embedding in HTML, handling dark theme if needed"""
         if self.dictInt.theme_manager.is_dark:
             # Handle special cases first
-            if icon_name == "anki.png":
-                icon_name = "nightanki.png"
+            if icon_name == "anki.svg":
+                icon_name = "nightanki.svg"
             elif "." in icon_name:
                 name, ext = icon_name.rsplit(".", 1)
                 # Avoid adding "night" twice
@@ -401,12 +401,13 @@ class MIDict(AnkiWebView):
         dictCount = 0
         entryCount = 0
         for dictName, dictResults in results.items():
+            display_name = self.db.cleanDictName(dictName).replace("_", " ")
             if dictName in ["Images", "LLM", "Forvo"]:
                 html += (
                     '<div data-index="'
                     + str(dictCount)
                     + '" class="listTitle">'
-                    + dictName
+                    + display_name
                     + '</div><ol class="foundEntriesList"><li data-index="'
                     + str(entryCount)
                     + '">'
@@ -429,7 +430,7 @@ class MIDict(AnkiWebView):
                 '<div data-index="'
                 + str(dictCount)
                 + '" class="listTitle">'
-                + dictName
+                + display_name
                 + '</div><ol class="foundEntriesList">'
             )
             dictCount += 1
@@ -623,9 +624,19 @@ class MIDict(AnkiWebView):
                     entryCount += 1
                     continue
 
-                if dictName in results or self.db.cleanDictName(dictName) in results:
-                    cleanName = self.db.cleanDictName(dictName)
-                    dictResults = results.get(dictName) or results.get(cleanName)
+                # Robust result lookup: check original name, clean name, and normalized name
+                cleanName = self.db.cleanDictName(dictName)
+                normalizedName = self.db.normalize_dict_name(dictName)
+                
+                dictResults = None
+                if dictName in results:
+                    dictResults = results[dictName]
+                elif cleanName in results:
+                    dictResults = results[cleanName]
+                elif normalizedName in results:
+                    dictResults = results[normalizedName]
+
+                if dictResults is not None:
                     duplicateHeader = self.getDuplicateHeaderCB(dictName)
                     overwrite = self.getOverwriteChecks(dictCount, dictName)
                     select = self.getFieldChecks(dictName)
@@ -710,7 +721,7 @@ class MIDict(AnkiWebView):
                             + '\')" class="ankiExportButton"><img '
                             + imgTooltip
                             + ' src="'
-                            + self.getBase64Icon("anki.png")
+                            + self.getBase64Icon("anki.svg")
                             + '"></div><div onclick="clipText(event)" '
                             + clipTooltip
                             + ' class="clipper">✂</div><div '
@@ -733,7 +744,7 @@ class MIDict(AnkiWebView):
         else:
             html = (
                 '<style>.noresults{font-family: Arial;}.vertical-center{height: 400px; width: 60%; margin: 0 auto; display: flex; justify-content: center; align-items: center;}</style> </head> <div class="vertical-center noresults"> <div align="center"> <img src="'
-                + self.getBase64Icon("search.png")
+                + self.getBase64Icon("search.svg")
                 + '" width="50px" height="40px"> <h3 align="center">No dictionary entries were found for "'
                 + term
                 + '".</h3> </div></div>'
@@ -773,7 +784,7 @@ class MIDict(AnkiWebView):
             + '\')" class="ankiExportButton"><img '
             + imgTooltip
             + ' src="'
-            + self.getBase64Icon("anki.png")
+            + self.getBase64Icon("anki.svg")
             + '"></div><div onclick="clipText(event)" '
             + clipTooltip
             + ' class="clipper">✂</div><div '
@@ -855,7 +866,7 @@ class MIDict(AnkiWebView):
             + '\')" class="ankiExportButton"><img '
             + imgTooltip
             + ' src="'
-            + self.getBase64Icon("anki.png")
+            + self.getBase64Icon("anki.svg")
             + '"></div><div onclick="clipText(event)" '
             + clipTooltip
             + ' class="clipper">✂</div><div '
@@ -990,7 +1001,7 @@ class MIDict(AnkiWebView):
             + '\')" class="ankiExportButton"><img '
             + imgTooltip
             + ' src="'
-            + self.getBase64Icon("anki.png")
+            + self.getBase64Icon("anki.svg")
             + '"></div><div onclick="clipText(event)" '
             + clipTooltip
             + ' class="clipper">✂</div><div '
@@ -1153,7 +1164,7 @@ class MIDict(AnkiWebView):
             f'<div onclick="ankiExport(event, \'{dictName}\')" class="ankiExportButton"><img '
             + imgTooltip
             + ' src="'
-            + self.getBase64Icon("anki.png")
+            + self.getBase64Icon("anki.svg")
             + '"></div><div onclick="clipText(event)" '
             + clipTooltip
             + ' class="clipper">✂</div><div '
@@ -1194,7 +1205,7 @@ class MIDict(AnkiWebView):
                 f"</div>"
                 f'<div class="defTools" style="margin-left: auto; display: flex; gap: var(--spacing-sm);">'
                 f"<div onclick=\"ankiAudioExport('{term}', '{audio_url}')\" class=\"ankiExportButton\" title=\"Export Audio\">"
-                f'<img {imgTooltip} src="{self.getBase64Icon("anki.png")}" style="width: 18px; height: 18px;"></div>'
+                f'<img {imgTooltip} src="{self.getBase64Icon("anki.svg")}" style="width: 18px; height: 18px;"></div>'
                 f'<div onclick="sendAudioToField(\'{audio_url}\')" {sendTooltip} class="sendToField" title=\"Send Audio to Field\" style="font-size: 16px;">➠</div>'
                 f"</div>"
                 f"</div>"
@@ -1411,13 +1422,13 @@ class MIDict(AnkiWebView):
         for imgurl in urls:
             try:
                 if imgurl.startswith("data:"):
-                    filename = str(time.time())[:-4].replace(".", "") + "base64.jpg"
+                    filename = str(time.time())[:-4].replace(".", "") + "base64.avif"
                 else:
                     url = re.sub(r"\?.*$", "", imgurl)
                     filename = (
                         str(time.time())[:-4].replace(".", "")
                         + re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                        + ".jpg"
+                        + ".avif"
                     )
                 fullpath = join(self.dictInt.mw.col.media.dir(), filename)
                 self.saveQImage(imgurl, fullpath)
@@ -1457,7 +1468,10 @@ class MIDict(AnkiWebView):
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-            image.save(filename)
+            if filename.lower().endswith(".avif"):
+                image.save(filename, "AVIF")
+            else:
+                image.save(filename)
 
     def copyImagesToClipboard(self, urls_json: str) -> None:
         """Copy images from a list of URLs (data: or http:) to the system clipboard."""
@@ -1492,7 +1506,7 @@ class MIDict(AnkiWebView):
                         file_data = urlopen(req, timeout=10).read()
                         ext = url.split(".")[-1].split("?")[0]
                         if len(ext) > 4 or "/" in ext:
-                            ext = "png"
+                            ext = "avif"
 
                     image = QImage()
                     image.loadFromData(file_data)
@@ -1642,14 +1656,14 @@ class MIDict(AnkiWebView):
                         # Handle remote URL or data URL
                         if imgurl.startswith("data:"):
                             filename = (
-                                str(time.time())[:-4].replace(".", "") + "base64.jpg"
+                                str(time.time())[:-4].replace(".", "") + "base64.avif"
                             )
                         else:
                             url = re.sub(r"\?.*$", "", imgurl)
                             filename = (
                                 str(time.time())[:-4].replace(".", "")
                                 + re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                                + ".jpg"
+                                + ".avif"
                             )
 
                         self.saveQImage(
@@ -2213,6 +2227,10 @@ class ClipThread(QObject):
     def saveScaledImage(self, imageTempPath, imageFileName):
         maxW = self.mw.AnkiDictConfig["maxWidth"]
         maxH = self.mw.AnkiDictConfig["maxHeight"]
+        # Ensure the extension is .avif for the final path
+        if not imageFileName.lower().endswith(".avif"):
+            imageFileName = re.sub(r"\.[^.]+$", ".avif", imageFileName)
+        
         path = join(self.mw.col.media.dir(), imageFileName)
         image = QImage(imageTempPath)
         image = image.scaled(
@@ -2220,7 +2238,7 @@ class ClipThread(QObject):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
-        image.save(path)
+        image.save(path, "AVIF")
 
     def removeFile(self, file):
         os.remove(file)
@@ -2250,7 +2268,7 @@ class ClipThread(QObject):
 
             if not clip.endswith(".mp3") and mime.hasImage():
                 image = mime.imageData()
-                filename = str(time.time()) + ".png"
+                filename = str(time.time()) + ".avif"
                 fullpath = join(self.temp_dir, filename)
                 maxW = max(self.maxW, image.width())
                 maxH = max(self.maxH, image.height())
@@ -2259,7 +2277,7 @@ class ClipThread(QObject):
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
                 )
-                image.save(fullpath)
+                image.save(fullpath, "AVIF")
                 self.image.emit([fullpath, filename])
             elif clip.endswith(".mp3"):
                 if not is_lin:
@@ -2355,7 +2373,7 @@ class DictInterface(QWidget):
 
     def update_window_icon(self):
         """Update the window icon based on the current theme."""
-        icon_name = "nightanki.png" if self.theme_manager.is_dark else "anki.png"
+        icon_name = "nightanki.svg" if self.theme_manager.is_dark else "anki.svg"
         self.setWindowIcon(QIcon(join(self.iconpath, icon_name)))
 
     def refresh_application_theme(self, reload_html=True):
@@ -3179,7 +3197,7 @@ class DictInterface(QWidget):
         # Get theme color for icons
         theme_color = self.load_theme_color("header_text")
         return widget.setSvg(
-            join(self.iconpath, "dictsvgs", name + ".svg"), theme_color.name()
+            join(self.iconpath, name + ".svg"), theme_color.name()
         )
 
     def setAllIcons(self):
@@ -3478,7 +3496,7 @@ QCombobox:selected{
 
 QComboBox::down-arrow {
     image: url("""
-            + join(self.iconpath, "blackdown.png").replace("\\", "/")
+            + join(self.iconpath, "down.svg").replace("\\", "/")
             + """);
 }
 

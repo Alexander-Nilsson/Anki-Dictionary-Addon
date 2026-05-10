@@ -39,14 +39,14 @@ def get_base64_icon(icon_name: str) -> str:
             icon_base64 = base64.b64encode(icon_data).decode("utf-8")
 
             # Determine MIME type based on file extension
-            if icon_name.endswith(".png"):
-                mime_type = "image/png"
-            elif icon_name.endswith(".svg"):
+            if icon_name.endswith(".svg"):
                 mime_type = "image/svg+xml"
+            elif icon_name.endswith(".png"):
+                mime_type = "image/png"
             elif icon_name.endswith(".jpg") or icon_name.endswith(".jpeg"):
                 mime_type = "image/jpeg"
             else:
-                mime_type = "image/png"  # Default fallback
+                mime_type = "image/svg+xml"  # Default fallback to SVG
 
             return f"data:{mime_type};base64,{icon_base64}"
     except Exception as e:

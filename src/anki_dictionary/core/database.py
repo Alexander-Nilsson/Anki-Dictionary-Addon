@@ -419,8 +419,12 @@ class DictDB:
                         "dict": table_name,
                         "lang": d[2],
                     }
+                    # Store with original casing
                     dicts[d[0]] = info
                     dicts[table_name] = info
+                    # Also store with lowercase for case-insensitive lookup
+                    dicts[d[0].lower()] = info
+                    dicts[table_name.lower()] = info
             return dicts
         except:
             return {}
@@ -509,10 +513,11 @@ class DictDB:
         """Get duplicate setting for a dictionary."""
         if not self._ensure_connection():
             return None
+        clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
             "SELECT duplicateHeader, termHeader  FROM dictnames WHERE dictname=? COLLATE NOCASE",
-            (name,),
+            (clean_name,),
         )
         try:
             result = cursor.fetchone()
@@ -598,6 +603,7 @@ class DictDB:
 
         # Get dictionary to table mapping for all dictionaries
         dict_mapping = self.getDictToTable()
+        logger.debug(f"Search: Term='{term}', Group='{selectedGroup.get('name', 'unknown')}', Type='{sT}'")
 
         # Pre-load frequency lists for all unique languages in the group
         langs = set()
@@ -627,7 +633,15 @@ class DictDB:
                 continue
 
             # Resolve table name and language
-            info = dict_mapping.get(d_name) or dict_mapping.get(self.cleanDictName(d_name))
+            # Try original name, then clean name, then normalized name (all case-insensitive)
+            info = (
+                dict_mapping.get(d_name)
+                or dict_mapping.get(d_name.lower())
+                or dict_mapping.get(self.cleanDictName(d_name))
+                or dict_mapping.get(self.cleanDictName(d_name).lower())
+                or dict_mapping.get(self.normalize_dict_name(d_name))
+                or dict_mapping.get(self.normalize_dict_name(d_name).lower())
+            )
             if info:
                 table_name = info["dict"]
                 lang = info["lang"]
@@ -662,8 +676,6 @@ class DictDB:
             termTuple = tuple(current_terms)
             allRs = self.executeSearch(table_name, toQuery, dictLimit, termTuple)
             
-            cleaned_name = self.cleanDictName(table_name)
-            
             if len(allRs) > 0:
                 dictRes = []
                 for r in allRs:
@@ -694,9 +706,9 @@ class DictDB:
 
                     dictRes.append(entry)
                     if totalDefs >= maxDefs:
-                        results[cleaned_name] = dictRes
+                        results[d_name] = dictRes
                         return results
-                results[cleaned_name] = dictRes
+                results[d_name] = dictRes
             elif not defEx and not sT == "Pronunciation":
                 columns = ["altterm", "pronunciation"]
                 for col in columns:
@@ -736,9 +748,9 @@ class DictDB:
 
                             dictRes.append(entry)
                             if totalDefs >= maxDefs:
-                                results[cleaned_name] = dictRes
+                                results[d_name] = dictRes
                                 return results
-                        results[cleaned_name] = dictRes
+                        results[d_name] = dictRes
                         break
         return results
 
@@ -793,20 +805,24 @@ class DictDB:
             return []
         try:
             cursor = self._get_cursor()
-            cursor.execute(
-                "SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM "
+            # Quote table name to handle spaces and special characters
+            query = (
+                'SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM "'
                 + dictName
-                + " WHERE "
+                + '" WHERE '
                 + toQuery
                 + " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT "
                 + dictLimit
-                + " ;",
-                termTuple,
+                + " ;"
             )
+            cursor.execute(query, termTuple)
             out = cursor.fetchall()
-            # print("executeSearch", out)
             return out
-        except:
+        except sqlite3.Error as e:
+            logger.error(f"Search error in dictionary '{dictName}': {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error searching dictionary '{dictName}': {e}")
             return []
 
     def getQueryCriteria(self, col, terms, op="LIKE"):
@@ -840,33 +856,34 @@ class DictDB:
     def createDB(self, text: str) -> None:
         """Create a new dictionary table with indexes."""
         cursor = self._get_cursor()
+        # Quote table name to handle spaces and special characters
         cursor.execute(
-            "CREATE TABLE  IF NOT EXISTS  "
+            'CREATE TABLE IF NOT EXISTS "'
             + text
-            + "(term CHAR(40) NOT NULL, altterm CHAR(40), pronunciation CHAR(100), pos CHAR(40), definition TEXT, examples TEXT, audio TEXT, frequency MEDIUMINT, starCount TEXT);"
+            + '" (term CHAR(40) NOT NULL, altterm CHAR(40), pronunciation CHAR(100), pos CHAR(40), definition TEXT, examples TEXT, audio TEXT, frequency MEDIUMINT, starCount TEXT);'
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS it" + text + " ON " + text + " (term);"
+            'CREATE INDEX IF NOT EXISTS "it' + text + '" ON "' + text + '" (term);'
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS itp"
+            'CREATE INDEX IF NOT EXISTS "itp'
             + text
-            + " ON "
+            + '" ON "'
             + text
-            + " ( term, pronunciation );"
+            + '" ( term, pronunciation );'
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS ia" + text + " ON " + text + " (altterm);"
+            'CREATE INDEX IF NOT EXISTS "ia' + text + '" ON "' + text + '" (altterm);'
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS iap"
+            'CREATE INDEX IF NOT EXISTS "iap'
             + text
-            + " ON "
+            + '" ON "'
             + text
-            + " ( altterm, pronunciation );"
+            + '" ( altterm, pronunciation );'
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS ia" + text + " ON " + text + " (pronunciation);"
+            'CREATE INDEX IF NOT EXISTS "ip' + text + '" ON "' + text + '" (pronunciation);'
         )
 
     def importToDict(
@@ -876,10 +893,11 @@ class DictDB:
         if not self._ensure_connection():
             return
         cursor = self._get_cursor()
+        # Quote table name to handle spaces and special characters
         cursor.executemany(
-            "INSERT INTO "
+            'INSERT INTO "'
             + dictName
-            + " (term, altterm, pronunciation, pos, definition, examples, audio, frequency, starCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+            + '" (term, altterm, pronunciation, pos, definition, examples, audio, frequency, starCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
             dictionaryData,
         )
 
@@ -894,11 +912,12 @@ class DictDB:
         )
         dicts = cursor.fetchall()
         for name in dicts:
-            cursor.execute("DROP TABLE " + name[0] + " ;")
+            # Quote table name to handle spaces and special characters
+            cursor.execute('DROP TABLE IF EXISTS "' + name[0] + '" ;')
 
     def setFieldsSetting(self, name: str, fields: str) -> None:
         """Set the fields setting for a dictionary."""
-        clean_name = self.cleanDictName(name)
+        clean_name = self.normalize_dict_name(self.cleanDictName(name))
         logger.debug(f"DB: Setting fields for {clean_name} to {fields}")
         if not self._ensure_connection():
             return
@@ -913,7 +932,7 @@ class DictDB:
         """Set add type for a dictionary."""
         if not self._ensure_connection():
             return
-        clean_name = self.cleanDictName(name)
+        clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
             "UPDATE dictnames SET addtype = ? WHERE dictname=? COLLATE NOCASE",
@@ -925,7 +944,7 @@ class DictDB:
         """Get fields setting for a dictionary."""
         if not self._ensure_connection():
             return None
-        clean_name = self.cleanDictName(name)
+        clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
             "SELECT fields FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,)
@@ -946,7 +965,7 @@ class DictDB:
         """Get add type and fields for a dictionary."""
         if not self._ensure_connection():
             return None
-        clean_name = self.cleanDictName(dictName)
+        clean_name = self.normalize_dict_name(self.cleanDictName(dictName))
         cursor = self._get_cursor()
         cursor.execute(
             "SELECT fields, addtype FROM dictnames WHERE dictname=? COLLATE NOCASE",
@@ -980,10 +999,11 @@ class DictDB:
         """Set duplicate header for a dictionary."""
         if not self._ensure_connection():
             return
+        clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
             "UPDATE dictnames SET duplicateHeader = ? WHERE dictname=? COLLATE NOCASE",
-            (duplicateHeader, name),
+            (duplicateHeader, clean_name),
         )
         self.commitChanges()
 
@@ -1006,7 +1026,7 @@ class DictDB:
         """Get add type for a dictionary."""
         if not self._ensure_connection():
             return None
-        clean_name = self.cleanDictName(name)
+        clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
             "SELECT addtype FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,)
@@ -1018,8 +1038,9 @@ class DictDB:
         """Get term header for a specific dictionary."""
         if not self._ensure_connection():
             return None
+        clean_name = self.normalize_dict_name(self.cleanDictName(dictname))
         cursor = self._get_cursor()
-        cursor.execute("SELECT termHeader FROM dictnames WHERE dictname=? COLLATE NOCASE", (dictname,))
+        cursor.execute("SELECT termHeader FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,))
         result = cursor.fetchone()
         return result[0] if result else None
 
@@ -1027,10 +1048,11 @@ class DictDB:
         """Set term header for a dictionary."""
         if not self._ensure_connection():
             return
+        clean_name = self.normalize_dict_name(self.cleanDictName(dictname))
         cursor = self._get_cursor()
         cursor.execute(
             "UPDATE dictnames SET termHeader = ? WHERE dictname=? COLLATE NOCASE",
-            (termheader, dictname),
+            (termheader, clean_name),
         )
         self.commitChanges()
 

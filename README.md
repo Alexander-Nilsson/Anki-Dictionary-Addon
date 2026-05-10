@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/demo/demo.gif" alt="Anki Dictionary Addon Demo" width="800">
+  <img src="assets/demo/demo.avif" alt="Anki Dictionary Addon Demo" width="800">
 </p>
 
 ## Core Features
@@ -31,17 +31,17 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 
   - **Modern Architecture:** Completely reorganized codebase following Python best practices for better stability.
   - **Enhanced UX:** Improved styling and responsive interface design.
-  - **Theme Support:** Includes popular themes like Catppuccin and supports custom theming.
+  - - **Theme Support:** Includes popular themes like Catppuccin and supports custom theming.
 
 ### Themes
 
 <p align="center">
-<img src="assets/demo/startscreen.png" alt="Start Screen" width="400">
-<img src="assets/demo/gruvbox.png" alt="Gruvbox Retro Theme" width="400">
+<img src="assets/demo/startscreen.avif" alt="Start Screen" width="400">
+<img src="assets/demo/gruvbox.avif" alt="Gruvbox Retro Theme" width="400">
 </p>
 <p align="center">
-<img src="assets/demo/mocha.png" alt="Catppuccin Mocha Theme" width="400">
-<img src="assets/demo/dark.png" alt="Dark Theme" width="400">
+<img src="assets/demo/mocha.avif" alt="Catppuccin Mocha Theme" width="400">
+<img src="assets/demo/dark.avif" alt="Dark Theme" width="400">
 </p>
 
 
