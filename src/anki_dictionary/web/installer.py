@@ -408,14 +408,14 @@ class DictionaryInstallPage(MiWizardPage):
         def fetch_data(self, client, url):
             """Fetch data from URL with standard quoting."""
             import urllib.parse
-            
+
             # Simple quoting to handle spaces in URLs
             parts = url.split("://")
             if len(parts) > 1:
                 quoted_url = parts[0] + "://" + urllib.parse.quote(parts[1], safe="/")
             else:
                 quoted_url = urllib.parse.quote(url, safe="/")
-            
+
             with prefer_ipv4():
                 return client.session.get(quoted_url, timeout=60, stream=True)
 
@@ -530,9 +530,9 @@ class DictionaryInstallPage(MiWizardPage):
                         for chunk in dl_resp.iter_content(chunk_size=16384):
                             if chunk:
                                 chunks.append(chunk)
-                        
+
                         ddata = b"".join(chunks)
-                        
+
                         try:
                             # Pass wizard as parent to allow message boxes if needed
                             # Note: calling GUI from thread is usually bad, but QMessageBox.exec()

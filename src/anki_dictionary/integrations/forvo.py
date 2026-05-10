@@ -54,27 +54,45 @@ class ForvoWorker(QRunnable):
         self.search_url = "https://forvo.com/word/"
 
     def _make_session(self):
-        session = requests.Session()
-        # session.verify = False # Removing this might help with some security checks
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://forvo.com/",
-            "DNT": "1",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1",
-            "Cache-Control": "max-age=0",
-        })
-        return session
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
 
+        session = requests.Session()
+
+        # Setup retry strategy
+        retry_strategy = Retry(
+            total=3,
+            status_forcelist=[429, 500, 502, 503, 504],
+            backoff_factor=1,
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+
+        # session.verify = False # Removing this might help with some security checks
+        session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://forvo.com/",
+                "DNT": "1",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0",
+            }
+        )
+        return session
 
     def run(self):
         """Execute the scrape."""
-        logger.debug(f"Starting Forvo search for term: '{self.term}' (lang: {self.language_code})")
+        logger.debug(
+            f"Starting Forvo search for term: '{self.term}' (lang: {self.language_code})"
+        )
         try:
             url = self.search_url + urllib.parse.quote(self.term)
             logger.debug(f"Forvo URL: {url}")
@@ -82,7 +100,7 @@ class ForvoWorker(QRunnable):
             with prefer_ipv4():
                 response = self.session.get(url, timeout=15)
             logger.debug(f"Forvo response status: {response.status_code}")
-            
+
             if response.status_code == 404:
                 logger.debug("Forvo term not found (404)")
                 self.signals.result_ready.emit(
@@ -103,7 +121,9 @@ class ForvoWorker(QRunnable):
             # Forvo uses IDs like "language-container-ja" or "language-container-en"
             container_id = f"language-container-{self.language_code}"
             container = soup.find(id=container_id)
-            logger.debug(f"Language container '{container_id}' found: {container is not None}")
+            logger.debug(
+                f"Language container '{container_id}' found: {container is not None}"
+            )
 
             if not container:
                 # Try with underscores (some languages use them)
@@ -184,10 +204,10 @@ class ForvoWorker(QRunnable):
 
             # Sort by votes descending
             results.sort(key=lambda x: x["votes"], reverse=True)
-            
+
             # Limit to 15 results
             results = results[:15]
-            
+
             logger.debug(f"Emitting {len(results)} Forvo results")
 
             self.signals.result_ready.emit(

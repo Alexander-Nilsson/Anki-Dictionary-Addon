@@ -565,7 +565,9 @@ def importDict(lang_name, file, dict_name, parent=None):
     if has_index:
         # Only check for pitches if it has an index.json (likely Yomichan)
         for fn in zfile.namelist():
-            if fn.endswith(".json") and ("pitch" in fn.lower() or "accent" in fn.lower()):
+            if fn.endswith(".json") and (
+                "pitch" in fn.lower() or "accent" in fn.lower()
+            ):
                 try:
                     content = zfile.read(fn)
                     # Try utf-8 first, fallback to utf-16 if it looks like it
@@ -576,7 +578,7 @@ def importDict(lang_name, file, dict_name, parent=None):
                             decoded = content.decode("utf-16")
                         except UnicodeDecodeError:
                             decoded = content.decode("latin-1")
-                    
+
                     if "pitches" in decoded:
                         is_pitch_dict = True
                         break
@@ -617,7 +619,11 @@ def importDict(lang_name, file, dict_name, parent=None):
         if not fn.endswith(".json") or fn == "index.json":
             continue
         if is_yomichan:
-            if not (fn.startswith("term_bank_") or "pitch" in fn.lower() or "accent" in fn.lower()):
+            if not (
+                fn.startswith("term_bank_")
+                or "pitch" in fn.lower()
+                or "accent" in fn.lower()
+            ):
                 continue
         dict_files.append(fn)
     dict_files = natural_sort(dict_files)
@@ -797,7 +803,7 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
                 # Handle structured content
                 if "text" in item:
                     return item["text"].strip()
-                
+
                 content = item.get("content", "")
                 if "name" in item.get("data", {}) and item["data"]["name"] == "語釈":
                     return recursive_extract(content)
@@ -810,7 +816,7 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
 
         if isinstance(items, str):
             return getAdjustedDefinition(items)
-        
+
         definitions = []
         for item in items:
             text = recursive_extract(item)

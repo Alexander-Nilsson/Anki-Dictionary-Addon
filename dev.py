@@ -15,13 +15,18 @@ def run_tests():
     """Run the test suite"""
     print("🧪 Running test suite...")
 
-    # Some tests check for build artifacts, so ensure build exists
+    # Some tests check for build artifacts, so ensure build exists and is complete
     build_dir = Path("build/anki_dictionary_addon")
-    if not build_dir.exists():
-        print("  ⚠️  Build directory missing, building addon before tests...")
-        build_addon()
+    if not (build_dir / "manifest.json").exists():
+        print("  ⚠️  Build incomplete or missing, building addon before tests...")
+        if not build_addon():
+            print("❌ Failed to build addon, skipping tests.")
+            return False
 
     try:
+        # We need to capture the output to parse it if we want custom exit logic,
+        # but the run_tests.py already handles the logic.
+        # We just need to make sure we return the correct boolean.
         result = subprocess.run([sys.executable, "tests/run_tests.py"], check=False)
         return result.returncode == 0
     except Exception as e:
@@ -34,6 +39,7 @@ def lint_code():
     print("🔍 Running code linting...")
 
     success = True
+    is_ci = os.environ.get("GITHUB_ACTIONS") == "true"
 
     # Run flake8
     try:
@@ -43,6 +49,9 @@ def lint_code():
             success = False
     except FileNotFoundError:
         print("  ⚠️  flake8 not found, skipping...")
+        # In CI, we expect tools to be there, but if uv sync didn't install them
+        # (e.g. because of --no-dev), we might want to fail.
+        # However, for now we follow the user instruction to be lenient.
 
     # Check black formatting
     try:

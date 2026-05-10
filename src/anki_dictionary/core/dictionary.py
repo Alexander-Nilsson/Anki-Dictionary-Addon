@@ -222,10 +222,7 @@ class MIDict(AnkiWebView):
 
     def cleanTerm(self, term):
         return (
-            term.replace("%", "")
-            .replace("_", "")
-            .replace("「", "")
-            .replace("」", "")
+            term.replace("%", "").replace("_", "").replace("「", "").replace("」", "")
         )
 
     def getFontFamily(self, group):
@@ -291,7 +288,7 @@ class MIDict(AnkiWebView):
                 if d["dict"] == "Forvo" and d.get("lang"):
                     forvo_lang = d["lang"]
                     break
-            
+
             forvoId = f"forvo-loader-{int(time.time() * 1000)}"
             self.triggerForvoSearch(cleaned, forvoId, forvo_lang)
 
@@ -313,8 +310,8 @@ class MIDict(AnkiWebView):
         idName = f"llm-loader-{int(time.time() * 1000)}"
 
         html, cleaned, singleTab = self.getHTMLResult(term, selectedGroup, idName)
-        
-        # Use json.dumps for all string arguments to safely handle single quotes, 
+
+        # Use json.dumps for all string arguments to safely handle single quotes,
         # newlines, and other special characters in the HTML or term.
         js_html = json.dumps(html.replace("\r", "").replace("\n", ""))
         js_cleaned = json.dumps(cleaned)
@@ -515,10 +512,14 @@ class MIDict(AnkiWebView):
         if altterm == "":
             altFB = ""
             altBB = ""
-            
+
         clean_name = self.db.cleanDictName(dictName)
-        
-        if not self.termHeaders or dictName in ["Images", "LLM", "Forvo"] or clean_name in ["Images", "LLM", "Forvo"]:
+
+        if (
+            not self.termHeaders
+            or dictName in ["Images", "LLM", "Forvo"]
+            or clean_name in ["Images", "LLM", "Forvo"]
+        ):
             if sb:
                 header = '◳f<span class="listTerm">◳t</span>◳b ◳x<span class="listAltTerm">◳a</span>◳y <span class="listPronunciation">◳p</span>'
             else:
@@ -551,13 +552,22 @@ class MIDict(AnkiWebView):
     def prepareResults(self, results, term, font, idName="", forvoId=""):
         frontBracket = self.config["frontBracket"]
         backBracket = self.config["backBracket"]
-        
+
         # Determine if we should show results (standard dicts OR special virtual dicts)
-        has_special = any(special in self.dictInt.getSelectedDictGroup()["dictionaries"] for special in [{"dict": "Images", "lang": ""}, {"dict": "LLM", "lang": ""}, {"dict": "Forvo", "lang": ""}])
+        has_special = any(
+            special in self.dictInt.getSelectedDictGroup()["dictionaries"]
+            for special in [
+                {"dict": "Images", "lang": ""},
+                {"dict": "LLM", "lang": ""},
+                {"dict": "Forvo", "lang": ""},
+            ]
+        )
         # A more robust check for special dictionaries being present in the current group
-        group_dicts = [d["dict"] for d in self.dictInt.getSelectedDictGroup()["dictionaries"]]
+        group_dicts = [
+            d["dict"] for d in self.dictInt.getSelectedDictGroup()["dictionaries"]
+        ]
         has_special = any(d in ["Images", "LLM", "Forvo"] for d in group_dicts)
-        
+
         if len(results) > 0 or has_special:
             html = self.getSideBar(results, term, font, frontBracket, backBracket)
             html += '<div class="mainDictDisplay">'
@@ -627,7 +637,7 @@ class MIDict(AnkiWebView):
                 # Robust result lookup: check original name, clean name, and normalized name
                 cleanName = self.db.cleanDictName(dictName)
                 normalizedName = self.db.normalize_dict_name(dictName)
-                
+
                 dictResults = None
                 if dictName in results:
                     dictResults = results[dictName]
@@ -660,38 +670,54 @@ class MIDict(AnkiWebView):
                         # Pattern: 【word】[freq]
                         extracted_freq = ""
                         definition = entry["definition"].strip()
-                        
+
                         # Loop to remove all leading 【...】 blocks and leading <br> tags
                         while True:
                             # 0. Strip leading/trailing <br> tags and whitespace that might be left from previous iterations
-                            definition = re.sub(r"^(<br>\s*)+|(<br>\s*)+$", "", definition, flags=re.IGNORECASE).strip()
-                            
+                            definition = re.sub(
+                                r"^(<br>\s*)+|(<br>\s*)+$",
+                                "",
+                                definition,
+                                flags=re.IGNORECASE,
+                            ).strip()
+
                             # 1. Match 【word】[freq]
-                            freq_match = re.search(r'^【[^】]+】\s*\[([\dk+]+)\]\s*', definition)
+                            freq_match = re.search(
+                                r"^【[^】]+】\s*\[([\dk+]+)\]\s*", definition
+                            )
                             if freq_match:
                                 if not extracted_freq:
                                     extracted_freq = freq_match.group(1)
-                                definition = definition[freq_match.end():].strip()
+                                definition = definition[freq_match.end() :].strip()
                                 continue
-                            
+
                             # 2. Match 【word】 pattern without frequency
-                            head_match = re.search(r'^【[^】]+】\s*', definition)
+                            head_match = re.search(r"^【[^】]+】\s*", definition)
                             if head_match:
-                                definition = definition[head_match.end():].strip()
+                                definition = definition[head_match.end() :].strip()
                                 continue
-                            
+
                             break
-                        
+
                         # 3. Remove other bracketed headword repeats: (word), （word）, [word], ［word］
                         # Also handles cases like (Simplified, Traditional) if the term is part of it
                         term_escaped = re.escape(entry["term"])
                         # Matches (anything term anything) where brackets are () or （） or [] or ［］
-                        repeat_pattern = r'^\s*[\(\（\[［][^）\)]*?' + term_escaped + r'[^）\)]*?[\)\）\]］]\s*'
-                        definition = re.sub(repeat_pattern, '', definition)
-                        
+                        repeat_pattern = (
+                            r"^\s*[\(\（\[［][^）\)]*?"
+                            + term_escaped
+                            + r"[^）\)]*?[\)\）\]］]\s*"
+                        )
+                        definition = re.sub(repeat_pattern, "", definition)
+
                         # Final strip of leading/trailing <br> and whitespace
-                        definition = re.sub(r"^(<br>\s*)+|(<br>\s*)+$", "", definition, flags=re.IGNORECASE).strip()
-                        
+                        definition = re.sub(
+                            r"^(<br>\s*)+|(<br>\s*)+$",
+                            "",
+                            definition,
+                            flags=re.IGNORECASE,
+                        ).strip()
+
                         # Update the entry's definition with the cleaned version
                         entry["definition"] = definition
 
@@ -715,7 +741,11 @@ class MIDict(AnkiWebView):
                             + ">"
                             + entry["starCount"]
                             + "</span>"
-                            + (f' <span class="starcount frequency-rank">[{extracted_freq}]</span>' if extracted_freq else '')
+                            + (
+                                f' <span class="starcount frequency-rank">[{extracted_freq}]</span>'
+                                if extracted_freq
+                                else ""
+                            )
                             + '</span><div class="defTools"><div onclick="ankiExport(event, \''
                             + cleanName
                             + '\')" class="ankiExportButton"><img '
@@ -928,8 +958,10 @@ class MIDict(AnkiWebView):
         # Also handles cases like (Simplified, Traditional) if the term is part of it
         term_escaped = re.escape(result["term"])
         # Matches (anything term anything) where brackets are () or （） or [] or ［］
-        repeat_pattern = r'^\s*[\(\（\[［][^）\)]*?' + term_escaped + r'[^）\)]*?[\)\）\]］]\s*'
-        definition = re.sub(repeat_pattern, '', definition).strip()
+        repeat_pattern = (
+            r"^\s*[\(\（\[［][^）\)]*?" + term_escaped + r"[^）\)]*?[\)\）\]］]\s*"
+        )
+        definition = re.sub(repeat_pattern, "", definition).strip()
 
         html += (
             "<div"
@@ -1062,8 +1094,10 @@ class MIDict(AnkiWebView):
         # Also handles cases like (Simplified, Traditional) if the term is part of it
         term_escaped = re.escape(result["term"])
         # Matches (anything term anything) where brackets are () or （） or [] or ［］
-        repeat_pattern = r'^\s*[\(\（\[［][^）\)]*?' + term_escaped + r'[^）\)]*?[\)\）\]］]\s*'
-        definition = re.sub(repeat_pattern, '', definition).strip()
+        repeat_pattern = (
+            r"^\s*[\(\（\[［][^）\)]*?" + term_escaped + r"[^）\)]*?[\)\）\]］]\s*"
+        )
+        definition = re.sub(repeat_pattern, "", definition).strip()
 
         html += (
             "<div"
@@ -1082,18 +1116,18 @@ class MIDict(AnkiWebView):
         error_msg = result.get("error", "Unknown LLM error")
         # Handle both missing key and empty string for idName
         idName = result.get("idName") or "llm-loader"
-        
+
         # Use consistent logic with loadLLMResults to ensure the loading state is cleared
         escaped_msg = json.dumps(
             f'<div class="definitionBlock llm-error" style="color: #ff5555; border: 1px solid #ff5555; padding: 15px; border-radius: 8px; background-color: rgba(255, 85, 85, 0.05);">'
             f'<div style="font-weight: bold; margin-bottom: 8px; font-size: 1.1em;">LLM Connection Error</div>'
             f'<div style="margin-bottom: 12px; font-family: monospace; font-size: 0.9em; opacity: 0.9; word-break: break-all;">{error_msg}</div>'
             f'<div style="font-size: 0.85em; opacity: 0.8;">'
-            f'Possible causes:<ul>'
-            f'<li>Local LLM (like Ollama) is not running</li>'
-            f'<li>Wrong API key or Base URL</li>'
+            f"Possible causes:<ul>"
+            f"<li>Local LLM (like Ollama) is not running</li>"
+            f"<li>Wrong API key or Base URL</li>"
             f'<li>Network timeout (current timeout: {self.config.get("llm_timeout", 15)}s)</li>'
-            f'</ul></div></div>'
+            f"</ul></div></div>"
         )
         self.eval(
             f"var loader = document.getElementById('{idName}'); "
@@ -1146,7 +1180,9 @@ class MIDict(AnkiWebView):
                 )
                 return
             else:
-                self.onForvoError({"error": "No pronunciations found on Forvo.", "idName": idName})
+                self.onForvoError(
+                    {"error": "No pronunciations found on Forvo.", "idName": idName}
+                )
                 return
 
         font = self.getFontFamily({"font": False, "customFont": False})
@@ -1159,7 +1195,7 @@ class MIDict(AnkiWebView):
 
         header_html = (
             f'<div class="termPronunciation"><span {font} class="tpCont">'
-            f"{frontBracket}<span class=\"terms\">{self.highlightTarget(term, term)}</span>{backBracket} "
+            f'{frontBracket}<span class="terms">{self.highlightTarget(term, term)}</span>{backBracket} '
             f'</span><div class="defTools">'
             f'<div onclick="ankiExport(event, \'{dictName}\')" class="ankiExportButton"><img '
             + imgTooltip
@@ -1177,13 +1213,13 @@ class MIDict(AnkiWebView):
         # Content part (pronunciations with limit)
         forvo_limit = self.config.get("forvo_limit", 3)
         content_html = f'<div {font} class="definitionBlock"><div class="forvo-container" style="padding: var(--spacing-sm) 0;">'
-        
+
         for idx, item in enumerate(items):
             user = item.get("user", "Unknown")
             votes = item.get("votes", 0)
             origin = item.get("origin", "")
             audio_url = item.get("audio_url", "")
-            
+
             # Hide items beyond the limit
             item_style = "display: flex; align-items: center; margin-bottom: var(--spacing-sm); padding: var(--spacing-sm); border-bottom: 1px solid var(--border);"
             extra_class = ""
@@ -1198,33 +1234,33 @@ class MIDict(AnkiWebView):
                 f'<span class="equalizer-bar"></span>'
                 f'<span class="equalizer-bar"></span>'
                 f'<span class="equalizer-bar"></span>'
-                f'</div>'
+                f"</div>"
                 f'<div style="flex-grow: 1;">'
                 f'<b style="color: var(--text);">{user}</b> <span style="font-size: 0.85em; color: var(--text-muted, #666);">{origin}</span>'
                 f'<div style="font-size: 0.8em; color: var(--text-muted, #666); opacity: 0.8;">Votes: {votes}</div>'
                 f"</div>"
                 f'<div class="defTools" style="margin-left: auto; display: flex; gap: var(--spacing-sm);">'
-                f"<div onclick=\"ankiAudioExport('{term}', '{audio_url}')\" class=\"ankiExportButton\" title=\"Export Audio\">"
+                f'<div onclick="ankiAudioExport(\'{term}\', \'{audio_url}\')" class="ankiExportButton" title="Export Audio">'
                 f'<img {imgTooltip} src="{self.getBase64Icon("anki.svg")}" style="width: 18px; height: 18px;"></div>'
-                f'<div onclick="sendAudioToField(\'{audio_url}\')" {sendTooltip} class="sendToField" title=\"Send Audio to Field\" style="font-size: 16px;">➠</div>'
+                f'<div onclick="sendAudioToField(\'{audio_url}\')" {sendTooltip} class="sendToField" title="Send Audio to Field" style="font-size: 16px;">➠</div>'
                 f"</div>"
                 f"</div>"
             )
-        
+
         # Add "Load More" button if there are more items
         if len(items) > forvo_limit:
             content_html += (
                 f'<div onclick="showMoreForvo(this)" class="forvo-load-more" style="text-align: center; padding: var(--spacing-sm); cursor: pointer; color: var(--primary); font-weight: bold; margin-top: var(--spacing-sm); border: 1px dashed var(--primary); border-radius: var(--border-radius-sm);">'
-                f'Load more ({len(items) - forvo_limit})'
-                f'</div>'
+                f"Load more ({len(items) - forvo_limit})"
+                f"</div>"
             )
-            
+
         content_html += "</div></div>"
 
         # Combine header and content
         full_html = header_html + content_html
         escaped_html = json.dumps(full_html)
-        
+
         self.eval(
             f"var loader = document.getElementById('{idName}'); "
             f"if(loader) {{ "
@@ -1256,18 +1292,18 @@ class MIDict(AnkiWebView):
         if self.config["tooltips"]:
             tooltip = ' title="Enable this option if this dictionary has the target word\'s header within the definition. Enabling this will prevent the addon from exporting duplicate header."'
         checked = " "
-        
+
         # Clean name for both internal settings and HTML classes
         clean_name = self.db.cleanDictName(dictName)
         className = "checkDict" + re.sub(r"\s", "", clean_name)
-        
+
         # Check settings using both original and clean name
         lookup_name = dictName if dictName in self.dupHeaders else clean_name
         if lookup_name in self.dupHeaders:
             num = self.dupHeaders[lookup_name]
             if num == 1:
                 checked = " checked "
-        
+
         return (
             '<div class="dupHeadCB" data-dictname="'
             + dictName
@@ -1485,7 +1521,7 @@ class MIDict(AnkiWebView):
 
             mime_data = QMimeData()
             urls_list = []
-            
+
             # For a single image, we can also set the image directly for convenience
             first_image = None
 
@@ -1510,11 +1546,11 @@ class MIDict(AnkiWebView):
 
                     image = QImage()
                     image.loadFromData(file_data)
-                    
+
                     if not image.isNull():
                         if first_image is None:
                             first_image = image
-                            
+
                         # Save to temp file to provide as URI
                         temp_path = join(self.temp_dir, f"clipboard_img_{idx}.{ext}")
                         image.save(temp_path)
@@ -1526,9 +1562,11 @@ class MIDict(AnkiWebView):
                 mime_data.setUrls(urls_list)
                 if first_image:
                     mime_data.setImageData(first_image)
-                
+
                 self.dictInt.mw.app.clipboard().setMimeData(mime_data)
-                logger.debug(f"Successfully copied {len(urls_list)} images to clipboard.")
+                logger.debug(
+                    f"Successfully copied {len(urls_list)} images to clipboard."
+                )
             else:
                 logger.warning("No valid images found to copy to clipboard.")
 
@@ -1857,7 +1895,9 @@ class MIDict(AnkiWebView):
         elif dictName == "Forvo" or clean_name == "Forvo":
             addType = self.config.get("ForvoAddType", "add")
         else:
-            addType = self.db.getAddType(dictName) or self.db.getAddType(clean_name) or "add"
+            addType = (
+                self.db.getAddType(dictName) or self.db.getAddType(clean_name) or "add"
+            )
 
         tooltip = ""
         if self.config["tooltips"]:
@@ -1944,7 +1984,11 @@ class MIDict(AnkiWebView):
         elif dictName == "Forvo" or clean_name == "Forvo":
             selF = self.config.get("ForvoFields", [])
         else:
-            selF = self.db.getFieldsSetting(dictName) or self.db.getFieldsSetting(clean_name) or []
+            selF = (
+                self.db.getFieldsSetting(dictName)
+                or self.db.getFieldsSetting(clean_name)
+                or []
+            )
 
         tooltip = ""
         if self.config["tooltips"]:
@@ -2230,7 +2274,7 @@ class ClipThread(QObject):
         # Ensure the extension is .avif for the final path
         if not imageFileName.lower().endswith(".avif"):
             imageFileName = re.sub(r"\.[^.]+$", ".avif", imageFileName)
-        
+
         path = join(self.mw.col.media.dir(), imageFileName)
         image = QImage(imageTempPath)
         image = image.scaled(
@@ -3196,9 +3240,7 @@ class DictInterface(QWidget):
     def setSvg(self, widget, name):
         # Get theme color for icons
         theme_color = self.load_theme_color("header_text")
-        return widget.setSvg(
-            join(self.iconpath, name + ".svg"), theme_color.name()
-        )
+        return widget.setSvg(join(self.iconpath, name + ".svg"), theme_color.name())
 
     def setAllIcons(self):
         self.setSvg(self.setB, "settings")
@@ -3423,7 +3465,9 @@ class DictInterface(QWidget):
 
     def updateAddType(self, dictName, addType):
         clean_name = self.db.cleanDictName(dictName)
-        logger.debug(f"Updating addType for {dictName} (clean: {clean_name}): {addType}")
+        logger.debug(
+            f"Updating addType for {dictName} (clean: {clean_name}): {addType}"
+        )
         self.db.setAddType(clean_name, addType)
 
     def setupSearch(self):

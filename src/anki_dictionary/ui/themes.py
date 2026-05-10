@@ -247,7 +247,7 @@ class ThemeManager:
         """Check if the current theme is dark"""
         if self.current_theme == "dark":
             return True
-        
+
         # Check background color brightness as a fallback for user themes
         theme = self.get_active_theme()
         bg = theme.header_background.lstrip("#")
@@ -259,7 +259,7 @@ class ThemeManager:
                 return luminance < 0.5
             except ValueError:
                 pass
-        
+
         return False
 
     def set_active_theme(self, theme_name: str):

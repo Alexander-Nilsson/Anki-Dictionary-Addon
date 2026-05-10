@@ -37,6 +37,39 @@ def get_version():
     """Get version from pyproject.toml"""
     return get_project_config()['project'].get('version', '0.1.0')
 
+def run_pip_command(args, env=None):
+    """Run a pip command using 'uv pip', mapping flags correctly."""
+    try:
+        # User requested to always use uv pip
+        # We need to map some flags because uv pip is stricter than pip
+        mapped_args = []
+        skip_next = False
+        for i, arg in enumerate(args):
+            if skip_next:
+                skip_next = False
+                continue
+            
+            if arg == "-t":
+                mapped_args.append("--target")
+            elif arg == "-r":
+                mapped_args.append("--requirements")
+            elif arg == "--platform":
+                mapped_args.append("--python-platform")
+            elif arg == "--no-compile":
+                # uv doesn't have --no-compile, it's the default unless --compile-bytecode is passed
+                pass
+            else:
+                mapped_args.append(arg)
+        
+        cmd = ["uv", "pip"] + mapped_args
+        return subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
+    except FileNotFoundError:
+        print("❌ 'uv' not found. Please install uv: https://docs.astral.sh/uv/getting-started/installation/")
+        raise
+    except subprocess.CalledProcessError as e:
+        # Re-raise to be handled by caller
+        raise e
+
 def install_macos_curl_cffi(vendor_dir):
     """Download and extract curl_cffi for macOS (ARM64 and x86_64)"""
     print("📦 Downloading macOS-specific curl_cffi (via pip --platform)...")
@@ -66,11 +99,8 @@ def install_macos_curl_cffi(vendor_dir):
             else:
                 platform_args = ["--platform", p["platform"]]
 
-            subprocess.run(
+            run_pip_command(
                 [
-                    sys.executable,
-                    "-m",
-                    "pip",
                     "install",
                     "curl_cffi==0.7.4",
                     "-t",
@@ -78,16 +108,12 @@ def install_macos_curl_cffi(vendor_dir):
                     *platform_args,
                     "--only-binary=:all:",
                     "--no-compile",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
+                ]
             )
 
-
             print(f"   ✓ curl_cffi for {p['name']} completed")
-        except subprocess.CalledProcessError as e:
-            print(f"   ⚠️ Could not install curl_cffi for {p['name']}: {e.stderr}")
+        except Exception as e:
+            print(f"   ⚠️ Could not install curl_cffi for {p['name']}: {e}")
 
 
 def install_dependencies(addon_dir):
@@ -128,21 +154,15 @@ def install_dependencies(addon_dir):
                 f.write(f"{dep}\n")
 
         try:
-            subprocess.run(
+            run_pip_command(
                 [
-                    sys.executable,
-                    "-m",
-                    "pip",
                     "install",
                     "-t",
                     str(vendor_dir),
                     "-r",
                     str(req_file),
                     "--no-compile",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
+                ]
             )
             print("   ✓ Dependencies installed successfully")
 
@@ -150,10 +170,8 @@ def install_dependencies(addon_dir):
             req_file.unlink()
 
 
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             print(f"   ❌ Error installing dependencies: {e}")
-            print(f"   Output: {e.stdout}")
-            print(f"   Error: {e.stderr}")
             raise
     else:
         print("   No standard dependencies to bundle.")
@@ -282,11 +300,11 @@ def build_addon():
     # Create user_files structure
     create_user_files_structure(addon_dir)
     
-    # Install dependencies
-    install_dependencies(addon_dir)
-    
     # Generate manifest.json
     generate_manifest()
+    
+    # Install dependencies
+    install_dependencies(addon_dir)
     
     # Create empty database using separate script
     db_path = addon_dir / 'user_files' / 'db' / 'dictionaries.sqlite'

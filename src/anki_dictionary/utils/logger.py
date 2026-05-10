@@ -45,19 +45,19 @@ def get_logger(name: str) -> logging.Logger:
                 os.makedirs(log_dir, exist_ok=True)
 
                 log_file = os.path.join(log_dir, "addon.log")
-                
-                # TimedRotatingFileHandler: 
+
+                # TimedRotatingFileHandler:
                 # when='midnight' (daily rotation)
                 # interval=1 (every 1 day)
                 # backupCount=3 (keep last 3 days of logs)
                 file_handler = TimedRotatingFileHandler(
-                    log_file, 
-                    when="midnight", 
-                    interval=1, 
-                    backupCount=3, 
-                    encoding="utf-8"
+                    log_file,
+                    when="midnight",
+                    interval=1,
+                    backupCount=3,
+                    encoding="utf-8",
                 )
-                
+
                 # Enable DEBUG level for the file
                 file_handler.setLevel(logging.DEBUG)
                 file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
