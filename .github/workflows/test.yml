@@ -66,7 +66,7 @@ jobs:
     - name: Run test suite
       run: |
         # Use xvfb for headless GUI testing
-        xvfb-run -a python tests/run_tests.py || python tests/run_tests.py
+        xvfb-run -a python tests/run_tests.py
 
   build:
     name: Build Addon
