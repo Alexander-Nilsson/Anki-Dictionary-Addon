@@ -197,7 +197,9 @@ class DictDB:
 
         self.dropTables(table_name)
         cursor = self._get_cursor()
-        cursor.execute("DELETE FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (d_clean,))
+        cursor.execute(
+            "DELETE FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (d_clean,)
+        )
         self.commitChanges()
         cursor.execute("VACUUM;")
 
@@ -206,7 +208,9 @@ class DictDB:
         if not self._ensure_connection():
             return None
         cursor = self._get_cursor()
-        cursor.execute("SELECT lid FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (dictname,))
+        cursor.execute(
+            "SELECT lid FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (dictname,)
+        )
         result = cursor.fetchone()
         return result[0] if result else None
 
@@ -237,7 +241,8 @@ class DictDB:
         clean_name = self.normalize_dict_name(dictname)
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT 1 FROM dictnames WHERE dictname = ? COLLATE NOCASE AND lid = ?;", (clean_name, lid)
+            "SELECT 1 FROM dictnames WHERE dictname = ? COLLATE NOCASE AND lid = ?;",
+            (clean_name, lid),
         )
         return cursor.fetchone() is not None
 
@@ -254,7 +259,8 @@ class DictDB:
 
             # Check if it already exists
             cursor.execute(
-                "SELECT lid FROM dictnames WHERE dictname = ? COLLATE NOCASE;", (clean_name,)
+                "SELECT lid FROM dictnames WHERE dictname = ? COLLATE NOCASE;",
+                (clean_name,),
             )
             existing = cursor.fetchone()
             if existing:
@@ -603,7 +609,9 @@ class DictDB:
 
         # Get dictionary to table mapping for all dictionaries
         dict_mapping = self.getDictToTable()
-        logger.debug(f"Search: Term='{term}', Group='{selectedGroup.get('name', 'unknown')}', Type='{sT}'")
+        logger.debug(
+            f"Search: Term='{term}', Group='{selectedGroup.get('name', 'unknown')}', Type='{sT}'"
+        )
 
         # Pre-load frequency lists for all unique languages in the group
         langs = set()
@@ -612,7 +620,9 @@ class DictDB:
             if d_name in ["Images", "LLM", "Forvo"]:
                 continue
 
-            info = dict_mapping.get(d_name) or dict_mapping.get(self.cleanDictName(d_name))
+            info = dict_mapping.get(d_name) or dict_mapping.get(
+                self.cleanDictName(d_name)
+            )
             if info:
                 langs.add(info["lang"])
             elif "lang" in dic:
@@ -656,7 +666,9 @@ class DictDB:
                     current_terms = alreadyConjTyped[lang]
                 elif lang in conjugations:
                     # Start from a fresh copy of base_terms
-                    current_terms = self.deconjugate(list(base_terms), conjugations[lang])
+                    current_terms = self.deconjugate(
+                        list(base_terms), conjugations[lang]
+                    )
                     current_terms = self.applySearchType(current_terms, sT)
                     alreadyConjTyped[lang] = current_terms
                 else:
@@ -675,7 +687,7 @@ class DictDB:
             toQuery = self.getQueryCriteria(column, current_terms, op)
             termTuple = tuple(current_terms)
             allRs = self.executeSearch(table_name, toQuery, dictLimit, termTuple)
-            
+
             if len(allRs) > 0:
                 dictRes = []
                 for r in allRs:
@@ -883,7 +895,11 @@ class DictDB:
             + '" ( altterm, pronunciation );'
         )
         cursor.execute(
-            'CREATE INDEX IF NOT EXISTS "ip' + text + '" ON "' + text + '" (pronunciation);'
+            'CREATE INDEX IF NOT EXISTS "ip'
+            + text
+            + '" ON "'
+            + text
+            + '" (pronunciation);'
         )
 
     def importToDict(
@@ -947,7 +963,8 @@ class DictDB:
         clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT fields FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,)
+            "SELECT fields FROM dictnames WHERE dictname=? COLLATE NOCASE",
+            (clean_name,),
         )
         try:
             result = cursor.fetchone()
@@ -1029,7 +1046,8 @@ class DictDB:
         clean_name = self.normalize_dict_name(self.cleanDictName(name))
         cursor = self._get_cursor()
         cursor.execute(
-            "SELECT addtype FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,)
+            "SELECT addtype FROM dictnames WHERE dictname=? COLLATE NOCASE",
+            (clean_name,),
         )
         result = cursor.fetchone()
         return result[0] if result else None
@@ -1040,7 +1058,10 @@ class DictDB:
             return None
         clean_name = self.normalize_dict_name(self.cleanDictName(dictname))
         cursor = self._get_cursor()
-        cursor.execute("SELECT termHeader FROM dictnames WHERE dictname=? COLLATE NOCASE", (clean_name,))
+        cursor.execute(
+            "SELECT termHeader FROM dictnames WHERE dictname=? COLLATE NOCASE",
+            (clean_name,),
+        )
         result = cursor.fetchone()
         return result[0] if result else None
 

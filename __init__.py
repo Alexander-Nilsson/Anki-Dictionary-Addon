@@ -107,6 +107,7 @@ def initialize_addon() -> None:
     # Initialize configuration
     try:
         from anki_dictionary.utils.config import get_addon_config
+
         state.config = get_addon_config()
     except ImportError:
         # Fallback if config module can't be imported yet

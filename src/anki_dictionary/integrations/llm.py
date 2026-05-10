@@ -30,7 +30,9 @@ class LLMWorkerSignals(QObject):
 class LLMWorker(QRunnable):
     """Worker for making LLM calls in a separate thread."""
 
-    def __init__(self, term: str, config: Dict[str, Any], star_count: str = "", idName: str = ""):
+    def __init__(
+        self, term: str, config: Dict[str, Any], star_count: str = "", idName: str = ""
+    ):
         super().__init__()
         self.term = term
         self.config = config
@@ -110,7 +112,9 @@ class LLMWorker(QRunnable):
         except Exception as e:
             error_msg = f"LLM Error: {str(e)}"
             logger.debug(f"[LLM] {error_msg}")
-            self.signals.error_occurred.emit({"error": error_msg, "idName": self.idName})
+            self.signals.error_occurred.emit(
+                {"error": error_msg, "idName": self.idName}
+            )
         finally:
             self.signals.finished.emit()
 

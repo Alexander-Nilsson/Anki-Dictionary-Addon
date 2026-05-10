@@ -40,7 +40,7 @@ def get_current_version():
 def update_version(new_version):
     """Update version in all tracking files"""
     success = True
-    
+
     # 1. Update pyproject.toml
     try:
         with open("pyproject.toml", "r") as f:
@@ -108,7 +108,7 @@ def commit_version_change(version):
     try:
         # Files to stage
         files_to_add = ["pyproject.toml", "src/anki_dictionary/__init__.py"]
-        
+
         for file_path in files_to_add:
             if Path(file_path).exists():
                 subprocess.run(["git", "add", file_path], check=True)
@@ -161,7 +161,9 @@ def check_github_actions():
     """Check if GitHub Actions workflow exists"""
     workflow_file = Path(".github/workflows/auto-release.yml")
     if not workflow_file.exists():
-        print("⚠️  GitHub Actions workflow not found at .github/workflows/auto-release.yml")
+        print(
+            "⚠️  GitHub Actions workflow not found at .github/workflows/auto-release.yml"
+        )
         print("   The release process may not work automatically.")
         return False
     return True

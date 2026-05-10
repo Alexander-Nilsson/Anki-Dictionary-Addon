@@ -13,6 +13,7 @@ import os
 import re
 import json
 from typing import Optional
+
 try:
     from anki.hooks import addHook, wrap
     from anki.utils import is_win, is_mac, is_lin
@@ -45,6 +46,7 @@ except ImportError:
     showInfo = lambda *args: None
     AddCards = EditCurrent = Browser = TagEdit = Reviewer = Previewer = object
     import sys
+
     aqt = sys.modules.get("aqt") or object()
 
 from ..utils.common import miInfo, getTarget, gt
@@ -142,10 +144,10 @@ def announceParent(self, event=False):
                     parent = parent.parentWidget()
                 except (TypeError, AttributeError):
                     parent = None
-        
+
         if not parent:
             return
-            
+
         pName = gt(parent)
         if gt(parent) not in ["AddCards", "EditCurrent"]:
             parent = aqt.DialogManager._dialogs["Browser"][1]
@@ -268,6 +270,7 @@ from ..utils.logger import get_logger
 logger = get_logger("Hooks")
 
 # ... (middle of file)
+
 
 def setup_gui_menu():
     """Setup GUI menu items."""
