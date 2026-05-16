@@ -48,6 +48,18 @@ class TestDictDB(unittest.TestCase):
         )
         self.mock_get_db_dir = self.patcher.start()
 
+        # Patch get_addon_config to return default values
+        self.config_patcher = patch("anki_dictionary.core.database.get_addon_config")
+        self.mock_get_config = self.config_patcher.start()
+        self.mock_get_config.return_value = {
+            "star_char": "★",
+            "star_thresholds": [1501, 5001, 15001, 30001, 60001],
+            "show_stars": True,
+            "show_rank": False,
+            "show_hsk": True,
+            "hsk_mode": "hsk3",
+        }
+
         # Use the REAL creation script to set up the database
         create_empty_database(self.db_path)
 
@@ -57,6 +69,7 @@ class TestDictDB(unittest.TestCase):
     def tearDown(self):
         self.db.closeConnection()
         self.patcher.stop()
+        self.config_patcher.stop()
         self.test_dir.cleanup()
 
     def test_add_languages(self):

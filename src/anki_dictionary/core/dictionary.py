@@ -718,6 +718,9 @@ class MIDict(AnkiWebView):
                             flags=re.IGNORECASE,
                         ).strip()
 
+                        if not extracted_freq and entry.get("frequency"):
+                            extracted_freq = str(entry["frequency"])
+
                         # Update the entry's definition with the cleaned version
                         entry["definition"] = definition
 
@@ -744,6 +747,11 @@ class MIDict(AnkiWebView):
                             + (
                                 f' <span class="starcount frequency-rank">[{extracted_freq}]</span>'
                                 if extracted_freq
+                                else ""
+                            )
+                            + (
+                                f' <span class="starcount hsk-level">{entry["hskLevel"]}</span>'
+                                if entry.get("hskLevel")
                                 else ""
                             )
                             + '</span><div class="defTools"><div onclick="ankiExport(event, \''
@@ -891,7 +899,13 @@ class MIDict(AnkiWebView):
             + self.getStarTooltip(str(result.get("starCount", "")))
             + ">"
             + str(result.get("starCount", ""))
-            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + "</span>"
+            + (
+                f' <span class="starcount hsk-level">{result["hskLevel"]}</span>'
+                if result.get("hskLevel")
+                else ""
+            )
+            + '</span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
             + '\')" class="ankiExportButton"><img '
             + imgTooltip
@@ -1028,7 +1042,13 @@ class MIDict(AnkiWebView):
             + self.getStarTooltip(str(result.get("starCount", "")))
             + ">"
             + str(result.get("starCount", ""))
-            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + "</span>"
+            + (
+                f' <span class="starcount hsk-level">{result["hskLevel"]}</span>'
+                if result.get("hskLevel")
+                else ""
+            )
+            + '</span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
             + '\')" class="ankiExportButton"><img '
             + imgTooltip

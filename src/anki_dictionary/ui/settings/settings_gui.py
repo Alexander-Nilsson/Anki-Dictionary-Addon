@@ -123,6 +123,29 @@ class SettingsGui(QTabWidget):
         for lang in FORVO_LANGUAGES:
             self.forvoLanguage.addItem(lang["English name"], lang["Code"])
 
+        # Frequency Lists Settings
+        self.freqStarChar = QLineEdit()
+        self.freqStarChar.setMaxLength(2)
+        self.freqThreshold1 = QSpinBox()
+        self.freqThreshold1.setRange(1, 1000000)
+        self.freqThreshold2 = QSpinBox()
+        self.freqThreshold2.setRange(1, 1000000)
+        self.freqThreshold3 = QSpinBox()
+        self.freqThreshold3.setRange(1, 1000000)
+        self.freqThreshold4 = QSpinBox()
+        self.freqThreshold4.setRange(1, 1000000)
+        self.freqThreshold5 = QSpinBox()
+        self.freqThreshold5.setRange(1, 1000000)
+
+        self.showStars = QCheckBox("Display Stars")
+        self.showRank = QCheckBox("Display Frequency Rank")
+        self.showHSK = QCheckBox("Display HSK Levels")
+
+        self.hskMode = QComboBox()
+        self.hskMode.addItem("HSK 3.0", "hsk3")
+        self.hskMode.addItem("HSK 2.0", "hsk2")
+        self.hskMode.addItem("Both (HSK 2.0 & 3.0)", "both")
+
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
@@ -130,11 +153,13 @@ class SettingsGui(QTabWidget):
         self.settingsTab = QWidget(self)
         self.llmTab = self.getLLMTab()
         self.forvoTab = self.getForvoTab()
+        self.frequencyTab = self.getFrequencyTab()
         # self.userGuideTab = self.getUserGuideTab()
         self.setupLayout()
         self.addTab(self.settingsTab, "Settings")
         self.addTab(self.llmTab, "LLM")
         self.addTab(self.forvoTab, "Forvo")
+        self.addTab(self.frequencyTab, "Frequency Lists")
         self.addTab(DictionaryManagerWidget(), "Dictionaries")
         # self.addTab(self.userGuideTab, "User Guide")
         # self.addTab(self.getAboutTab(), "About")
@@ -259,6 +284,24 @@ class SettingsGui(QTabWidget):
         if index != -1:
             self.forvoLanguage.setCurrentIndex(index)
 
+        # Load Frequency/HSK settings
+        self.freqStarChar.setText(config.get("star_char", "★"))
+        thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+        self.freqThreshold1.setValue(thresholds[0])
+        self.freqThreshold2.setValue(thresholds[1])
+        self.freqThreshold3.setValue(thresholds[2])
+        self.freqThreshold4.setValue(thresholds[3])
+        self.freqThreshold5.setValue(thresholds[4])
+
+        self.showStars.setChecked(config.get("show_stars", True))
+        self.showRank.setChecked(config.get("show_rank", False))
+        self.showHSK.setChecked(config.get("show_hsk", True))
+
+        hsk_mode = config.get("hsk_mode", "hsk3")
+        index = self.hskMode.findData(hsk_mode)
+        if index != -1:
+            self.hskMode.setCurrentIndex(index)
+
         if config.get("condensedAudioDirectory", False) is not False:
             self.chooseAudioDirectory.setText(config["condensedAudioDirectory"])
         else:
@@ -295,6 +338,20 @@ class SettingsGui(QTabWidget):
         # Save Forvo settings
         nc["forvo_enabled"] = self.forvoEnabled.isChecked()
         nc["forvo_language"] = self.forvoLanguage.currentData()
+
+        # Save Frequency/HSK settings
+        nc["star_char"] = self.freqStarChar.text()
+        nc["star_thresholds"] = [
+            self.freqThreshold1.value(),
+            self.freqThreshold2.value(),
+            self.freqThreshold3.value(),
+            self.freqThreshold4.value(),
+            self.freqThreshold5.value(),
+        ]
+        nc["show_stars"] = self.showStars.isChecked()
+        nc["show_rank"] = self.showRank.isChecked()
+        nc["show_hsk"] = self.showHSK.isChecked()
+        nc["hsk_mode"] = self.hskMode.currentData()
 
         if self.chooseAudioDirectory.text() != "Choose Directory":
             nc["condensedAudioDirectory"] = self.chooseAudioDirectory.text()
@@ -737,6 +794,62 @@ class SettingsGui(QTabWidget):
 
         layout.addStretch()
 
+        tab.setLayout(layout)
+        return tab
+
+    def getFrequencyTab(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        infoLabel = QLabel(
+            "Configure how frequency information and HSK levels are displayed."
+        )
+        infoLabel.setWordWrap(True)
+        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
+        layout.addWidget(infoLabel)
+
+        # Visibility Group
+        visGroup = QGroupBox("Visibility Options")
+        visLayout = QVBoxLayout()
+        visLayout.addWidget(self.showStars)
+        visLayout.addWidget(self.showRank)
+        visLayout.addWidget(self.showHSK)
+        visGroup.setLayout(visLayout)
+        layout.addWidget(visGroup)
+
+        # Stars Configuration
+        starGroup = QGroupBox("Star Configuration")
+        starLayout = QFormLayout()
+        starLayout.addRow("Star Character:", self.freqStarChar)
+        
+        threshLayout = QHBoxLayout()
+        threshLayout.addWidget(self.freqThreshold1)
+        threshLayout.addWidget(self.freqThreshold2)
+        threshLayout.addWidget(self.freqThreshold3)
+        threshLayout.addWidget(self.freqThreshold4)
+        threshLayout.addWidget(self.freqThreshold5)
+        
+        starLayout.addRow("Rank Thresholds:", threshLayout)
+        starHint = QLabel("Rank thresholds for 5, 4, 3, 2, and 1 star(s) respectively.")
+        starHint.setStyleSheet("font-size: 10px; color: gray;")
+        starLayout.addRow("", starHint)
+        
+        starGroup.setLayout(starLayout)
+        layout.addWidget(starGroup)
+
+        # HSK Configuration
+        hskGroup = QGroupBox("HSK Configuration")
+        hskLayout = QFormLayout()
+        hskLayout.addRow("HSK Level Mode:", self.hskMode)
+        hskHint = QLabel(
+            "Choose HSK 3.0 (9 levels), HSK 2.0 (6 levels), or show both simultaneously."
+        )
+        hskHint.setStyleSheet("font-size: 10px; color: gray;")
+        hskLayout.addRow("", hskHint)
+        hskGroup.setLayout(hskLayout)
+        layout.addWidget(hskGroup)
+
+        layout.addStretch()
         tab.setLayout(layout)
         return tab
 

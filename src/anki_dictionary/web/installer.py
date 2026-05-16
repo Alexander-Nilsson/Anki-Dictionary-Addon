@@ -4,6 +4,8 @@ import json
 import io
 import os
 import aqt
+import zipfile
+import logging
 
 from ..ui.dialogs.wizard import MiWizard, MiWizardPage
 from . import config as webConfig
@@ -134,13 +136,17 @@ class DictionarySelectPage(MiWizardPage):
         options_lyt = QHBoxLayout()
         lyt.addLayout(options_lyt)
 
-        self.install_freq = QCheckBox("Install Language Frequency Data")
+        self.install_freq = QCheckBox("Install Frequency Data")
         self.install_freq.setChecked(True)
         options_lyt.addWidget(self.install_freq)
 
-        self.install_conj = QCheckBox("Install Language Conjugation Data")
+        self.install_conj = QCheckBox("Install Conjugation Data")
         self.install_conj.setChecked(True)
         options_lyt.addWidget(self.install_conj)
+
+        self.install_hsk = QCheckBox("Install HSK Data")
+        self.install_hsk.setChecked(True)
+        options_lyt.addWidget(self.install_hsk)
 
         options_lyt.addStretch()
 
@@ -206,6 +212,7 @@ class DictionarySelectPage(MiWizardPage):
         self.wizard.dictionary_install_index = dictionaries_to_install
         self.wizard.dictionary_install_frequency = self.install_freq.isChecked()
         self.wizard.dictionary_install_conjugation = self.install_conj.isChecked()
+        self.wizard.dictionary_install_hsk = self.install_hsk.isChecked()
 
         return True
 
@@ -317,6 +324,7 @@ class DictionaryConfirmPage(MiWizardPage):
         install_index = getattr(self.wizard, "dictionary_install_index", [])
         install_freq = getattr(self.wizard, "dictionary_install_frequency", False)
         install_conj = getattr(self.wizard, "dictionary_install_conjugation", False)
+        install_hsk = getattr(self.wizard, "dictionary_install_hsk", False)
 
         has_selection = len(install_index) > 0
         has_multiple_langs = len(install_index) > 1
@@ -351,15 +359,35 @@ class DictionaryConfirmPage(MiWizardPage):
                 txt += "</b><ul>"
 
                 if install_freq:
-                    if "frequency_url" in language:
+                    has_freq = "frequency_url" in language
+                    if not has_freq and "frequency_lists" in language:
+                        has_freq = len(language["frequency_lists"]) > 0
+                    
+                    if has_freq:
                         txt += "<li>Installing frequency data</li>"
                     else:
                         txt += "<li><b>No frequency data available</b></li>"
                 if install_conj:
-                    if "conjugation_url" in language:
+                    has_conj = "conjugation_url" in language
+                    if not has_conj and "conjugation_lists" in language:
+                        has_conj = len(language["conjugation_lists"]) > 0
+
+                    if has_conj:
                         txt += "<li>Installing conjugation data</li>"
                     else:
                         txt += "<li><b>No conjugation data available</b></li>"
+                if install_hsk:
+                    has_hsk = "hsk_url" in language
+                    if not has_hsk and "word_lists" in language:
+                        has_hsk = any(
+                            "hsk" in wl.get("name", "").lower()
+                            for wl in language["word_lists"]
+                        )
+
+                    if has_hsk:
+                        txt += "<li>Installing HSK data</li>"
+                    else:
+                        txt += "<li><b>No HSK data available</b></li>"
 
                 for dictionary in language.get("dictionaries", []):
                     txt += "<li>"
@@ -389,6 +417,7 @@ class DictionaryInstallPage(MiWizardPage):
             install_index,
             install_freq,
             install_conj,
+            install_hsk,
             force_lang=None,
         ):
             QThread.__init__(self)
@@ -397,6 +426,7 @@ class DictionaryInstallPage(MiWizardPage):
             self.install_index = install_index
             self.install_freq = install_freq
             self.install_conj = install_conj
+            self.install_hsk = install_hsk
             self.force_lang = force_lang
             self.cancel_requested = False
 
@@ -446,6 +476,9 @@ class DictionaryInstallPage(MiWizardPage):
             conj_path = os.path.join(addon_path, "user_files", "db", "conjugation")
             os.makedirs(conj_path, exist_ok=True)
 
+            hsk_path = os.path.join(addon_path, "user_files", "db", "hsk")
+            os.makedirs(hsk_path, exist_ok=True)
+
             for l in self.install_index:
                 if self.cancel_requested:
                     return
@@ -465,17 +498,40 @@ class DictionaryInstallPage(MiWizardPage):
 
                 # Install frequency data
                 if self.install_freq:
-                    furl = l.get("frequency_url")
-                    if furl:
-                        self.log_update.emit("Installing %s frequency data..." % lname)
-                        furl = self.construct_url(furl)
+                    furls = []
+                    if l.get("frequency_url"):
+                        furls.append({"name": "Frequency", "url": l["frequency_url"]})
+                    for fl in l.get("frequency_lists", []):
+                        furls.append(fl)
+
+                    for f_info in furls:
+                        fname = f_info["name"]
+                        furl = self.construct_url(f_info["url"])
+                        self.log_update.emit("Installing %s %s data..." % (lname, fname))
                         dl_resp = self.fetch_data(client, furl)
                         if dl_resp.status_code == 200:
+                            # Handle ZIP if necessary
+                            chunks = []
+                            for chunk in dl_resp.iter_content(chunk_size=16384):
+                                if chunk:
+                                    chunks.append(chunk)
+                            data = b"".join(chunks)
+
+                            if furl.lower().endswith(".zip"):
+                                try:
+                                    z = zipfile.ZipFile(io.BytesIO(data))
+                                    # Find first json file
+                                    json_files = [n for n in z.namelist() if n.endswith(".json")]
+                                    if json_files:
+                                        data = z.read(json_files[0])
+                                except Exception as e:
+                                    self.log_update.emit(" ERROR: Failed to unzip: %s" % str(e))
+
                             dst_path = os.path.join(freq_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
-                                for chunk in dl_resp.iter_content(chunk_size=16384):
-                                    if chunk:
-                                        f.write(chunk)
+                                f.write(data)
+                            # Only install one frequency list for now to avoid overwriting
+                            break
                         else:
                             self.log_update.emit(
                                 " ERROR: Download failed (%d)." % dl_resp.status_code
@@ -483,15 +539,60 @@ class DictionaryInstallPage(MiWizardPage):
 
                 # Install conjugation data
                 if self.install_conj:
-                    curl = l.get("conjugation_url")
-                    if curl:
-                        self.log_update.emit(
-                            "Installing %s conjugation data..." % lname
-                        )
-                        curl = self.construct_url(curl)
+                    curls = []
+                    if l.get("conjugation_url"):
+                        curls.append({"name": "Conjugation", "url": l["conjugation_url"]})
+                    for cl in l.get("conjugation_lists", []):
+                        curls.append(cl)
+
+                    for c_info in curls:
+                        cname = c_info["name"]
+                        curl = self.construct_url(c_info["url"])
+                        self.log_update.emit("Installing %s %s data..." % (lname, cname))
                         dl_resp = self.fetch_data(client, curl)
                         if dl_resp.status_code == 200:
+                            chunks = []
+                            for chunk in dl_resp.iter_content(chunk_size=16384):
+                                if chunk:
+                                    chunks.append(chunk)
+                            data = b"".join(chunks)
+
                             dst_path = os.path.join(conj_path, "%s.json" % lname)
+                            with open(dst_path, "wb") as f:
+                                f.write(data)
+                            # Only install one conjugation list
+                            break
+                        else:
+                            self.log_update.emit(
+                                " ERROR: Download failed (%d)." % dl_resp.status_code
+                            )
+
+                # Install HSK data
+                if self.install_hsk:
+                    hurls = []
+                    if l.get("hsk_url"):
+                        hurls.append({"name": "HSK", "url": l["hsk_url"]})
+
+                    # Also check word_lists for items containing 'HSK'
+                    for wl in l.get("word_lists", []):
+                        if "hsk" in wl.get("name", "").lower():
+                            hurls.append(wl)
+
+                    for h in hurls:
+                        hname = h["name"]
+                        hurl = self.construct_url(h["url"])
+                        self.log_update.emit("Installing %s %s data..." % (lname, hname))
+
+                        dl_resp = self.fetch_data(client, hurl)
+                        if dl_resp.status_code == 200:
+                            # Map names to expected filenames for database.py
+                            suffix = ""
+                            if "2.0" in hname:
+                                suffix = "_hsk2"
+                            elif "3.0" in hname:
+                                suffix = "_hsk3"
+
+                            dst_path = os.path.join(hsk_path, "%s%s.json" % (lname, suffix))
                             with open(dst_path, "wb") as f:
                                 for chunk in dl_resp.iter_content(chunk_size=16384):
                                     if chunk:
@@ -636,6 +737,7 @@ class DictionaryInstallPage(MiWizardPage):
         install_index = getattr(self.wizard, "dictionary_install_index", [])
         install_freq = getattr(self.wizard, "dictionary_install_frequency", False)
         install_conj = getattr(self.wizard, "dictionary_install_conjugation", False)
+        install_hsk = getattr(self.wizard, "dictionary_install_hsk", False)
         force_lang = getattr(self.wizard, "dictionary_force_lang", None)
 
         self.install_thread = self.InstallThread(
@@ -644,6 +746,7 @@ class DictionaryInstallPage(MiWizardPage):
             install_index,
             install_freq,
             install_conj,
+            install_hsk,
             force_lang,
         )
         self.install_thread.finished.connect(self.on_thread_finish)

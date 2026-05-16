@@ -7,9 +7,10 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 from aqt.utils import showInfo
 from aqt import mw
-from ..utils.paths import get_addon_root, get_db_dir, get_frequency_dir, get_addon_name
+from ..utils.paths import get_addon_root, get_db_dir, get_frequency_dir, get_hsk_dir, get_addon_name
 from ..utils.common import miInfo
 from ..utils.logger import get_logger
+from ..utils.config import get_addon_config
 
 # Initialize logger
 logger = get_logger("database")
@@ -24,6 +25,7 @@ class DictDB:
         self.c: Optional[sqlite3.Cursor] = None
         self.oldConnection: Optional[sqlite3.Cursor] = None
         self._freq_cache: Dict[str, Dict[str, Any]] = {}
+        self._hsk_cache: Dict[str, Dict[str, int]] = {}
 
         # Get the root addon directory
         self.addon_root = get_addon_root()
@@ -130,20 +132,131 @@ class DictDB:
             logger.error(f"Error loading frequency list for {lang}: {e}")
             return None
 
+    def _get_hsk_list(self, lang: str, mode: str = "hsk3") -> Optional[Dict[str, Any]]:
+        """Load HSK level list(s) from central file."""
+        cache_key = f"{lang}_{mode}"
+        if cache_key in self._hsk_cache:
+            return self._hsk_cache[cache_key]
+
+        hsk_dir = get_hsk_dir()
+        result = {}
+
+        def load_file(filename):
+            path = os.path.join(hsk_dir, filename)
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8-sig") as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.error(f"Error loading HSK file {filename}: {e}")
+            return None
+
+        if mode == "hsk2":
+            data = load_file(f"{lang}_hsk2.json") or load_file("zh_hsk2.json") or load_file(f"{lang}.json") or load_file("zh.json")
+            if data:
+                result["2.0"] = data
+        elif mode == "hsk3":
+            data = load_file(f"{lang}_hsk3.json") or load_file("zh_hsk3.json") or load_file(f"{lang}.json") or load_file("zh.json")
+            if data:
+                result["3.0"] = data
+        elif mode == "both":
+            d2 = load_file(f"{lang}_hsk2.json") or load_file("zh_hsk2.json")
+            d3 = load_file(f"{lang}_hsk3.json") or load_file("zh_hsk3.json")
+            if d2:
+                result["2.0"] = d2
+            if d3:
+                result["3.0"] = d3
+            if not d2 and not d3:
+                data = load_file(f"{lang}.json") or load_file("zh.json")
+                if data:
+                    result["both"] = data
+
+        if not result:
+            return None
+
+        self._hsk_cache[cache_key] = result
+        return result
+
     def getStarCount(self, freq: int) -> str:
         """Convert frequency rank to star rating."""
-        if freq < 1501:
-            return "★★★★★"
-        elif freq < 5001:
-            return "★★★★"
-        elif freq < 15001:
-            return "★★★"
-        elif freq < 30001:
-            return "★★"
-        elif freq < 60001:
-            return "★"
+        config = get_addon_config()
+        star_char = config.get("star_char", "★")
+        thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+
+        if freq < thresholds[0]:
+            return star_char * 5
+        elif freq < thresholds[1]:
+            return star_char * 4
+        elif freq < thresholds[2]:
+            return star_char * 3
+        elif freq < thresholds[3]:
+            return star_char * 2
+        elif freq < thresholds[4]:
+            return star_char * 1
         else:
             return ""
+
+    def _apply_frequency_info(self, entry, freq_dict, hsk_dict, config):
+        """Apply HSK and star/rank information to an entry based on config."""
+        show_stars = config.get("show_stars", True)
+        show_rank = config.get("show_rank", False)
+        show_hsk = config.get("show_hsk", True)
+
+        # Apply HSK level if enabled and available
+        if show_hsk and hsk_dict:
+            levels = []
+            term = entry["term"]
+            alt = entry["altterm"]
+            if "2.0" in hsk_dict:
+                lvl = hsk_dict["2.0"].get(term) or hsk_dict["2.0"].get(alt)
+                if lvl:
+                    levels.append(f"HSK {lvl}")
+            if "3.0" in hsk_dict:
+                lvl = hsk_dict["3.0"].get(term) or hsk_dict["3.0"].get(alt)
+                if lvl:
+                    levels.append(f"HSK 3.0 {lvl}")
+            if "both" in hsk_dict:
+                lvl = hsk_dict["both"].get(term) or hsk_dict["both"].get(alt)
+                if lvl:
+                    levels.append(f"HSK {lvl}")
+
+            if levels:
+                entry["hskLevel"] = " / ".join(levels)
+
+        # Apply Star/Rank if enabled
+        if show_stars or show_rank:
+            frequency = 999999
+            
+            # 1. Try central frequency list if available
+            if freq_dict:
+                entry_term = entry["term"]
+                entry_reading = self.adjustReading(entry["pronunciation"] or entry_term)
+
+                if freq_dict.get("readingDictionaryType"):
+                    if entry_term in freq_dict and entry_reading in freq_dict[entry_term]:
+                        frequency = freq_dict[entry_term][entry_reading]
+                elif entry_term in freq_dict:
+                    frequency = freq_dict[entry_term]
+
+            # 2. If not found in central list, use entry's own frequency if it has one
+            if frequency == 999999 and entry.get("frequency"):
+                try:
+                    frequency = int(entry["frequency"])
+                except (ValueError, TypeError):
+                    pass
+
+            if frequency != 999999:
+                if show_stars:
+                    entry["starCount"] = self.getStarCount(frequency)
+                if show_rank:
+                    entry["frequency"] = frequency
+            else:
+                # If we have no frequency number but we DO have a starCount string from the dict
+                # and stars are enabled, keep it. Otherwise clear it.
+                if not show_stars:
+                    entry["starCount"] = ""
+                if not show_rank:
+                    entry["frequency"] = ""
 
     def kaner(self, to_translate: str, hiraganer: bool = False) -> str:
         """Convert between Hiragana and Katakana."""
@@ -629,6 +742,13 @@ class DictDB:
                 langs.add(dic["lang"])
 
         freq_dicts = {lang: self._get_frequency_list(lang) for lang in langs}
+        config = get_addon_config()
+        hsk_mode = config.get("hsk_mode", "hsk3")
+        hsk_dicts = {
+            lang: self._get_hsk_list(lang, hsk_mode)
+            for lang in langs
+            if "zh" in lang.lower() or "chinese" in lang.lower() or "cn" in lang.lower()
+        }
 
         for dic in group:
             d_name = dic["dict"]
@@ -660,6 +780,7 @@ class DictDB:
                 lang = dic.get("lang", "")
 
             freq_dict = freq_dicts.get(lang)
+            hsk_dict = hsk_dicts.get(lang)
 
             if deinflect:
                 if lang in alreadyConjTyped:
@@ -694,27 +815,7 @@ class DictDB:
                     totalDefs += 1
                     entry = self.resultToDict(r)
 
-                    # Apply dynamic frequency if enabled and not already set
-                    if freq_dict and (
-                        not entry.get("starCount") or entry.get("starCount") == ""
-                    ):
-                        entry_term = entry["term"]
-                        entry_reading = self.adjustReading(
-                            entry["pronunciation"] or entry_term
-                        )
-
-                        frequency = 999999
-                        if freq_dict.get("readingDictionaryType"):
-                            if (
-                                entry_term in freq_dict
-                                and entry_reading in freq_dict[entry_term]
-                            ):
-                                frequency = freq_dict[entry_term][entry_reading]
-                        elif entry_term in freq_dict:
-                            frequency = freq_dict[entry_term]
-
-                        if frequency != 999999:
-                            entry["starCount"] = self.getStarCount(frequency)
+                    self._apply_frequency_info(entry, freq_dict, hsk_dict, config)
 
                     dictRes.append(entry)
                     if totalDefs >= maxDefs:
@@ -735,28 +836,9 @@ class DictDB:
                             totalDefs += 1
                             entry = self.resultToDict(r)
 
-                            # Apply dynamic frequency if enabled
-                            if freq_dict and (
-                                not entry.get("starCount")
-                                or entry.get("starCount") == ""
-                            ):
-                                entry_term = entry["term"]
-                                entry_reading = self.adjustReading(
-                                    entry["pronunciation"] or entry_term
-                                )
-
-                                frequency = 999999
-                                if freq_dict.get("readingDictionaryType"):
-                                    if (
-                                        entry_term in freq_dict
-                                        and entry_reading in freq_dict[entry_term]
-                                    ):
-                                        frequency = freq_dict[entry_term][entry_reading]
-                                elif entry_term in freq_dict:
-                                    frequency = freq_dict[entry_term]
-
-                                if frequency != 999999:
-                                    entry["starCount"] = self.getStarCount(frequency)
+                            self._apply_frequency_info(
+                                entry, freq_dict, hsk_dict, config
+                            )
 
                             dictRes.append(entry)
                             if totalDefs >= maxDefs:
@@ -805,6 +887,7 @@ class DictDB:
             "examples": r[5],
             "audio": r[6],
             "starCount": r[7],
+            "hskLevel": "",
         }
 
         return output

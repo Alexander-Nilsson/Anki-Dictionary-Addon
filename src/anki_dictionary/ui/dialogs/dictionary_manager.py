@@ -10,7 +10,7 @@ from aqt.qt import *
 from aqt import mw
 from ...web.installer import DictionaryWebInstallWizard
 from ...web.windows import FreqConjWebWindow
-from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir
+from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir, get_hsk_dir
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,8 @@ class DictionaryManagerWidget(QWidget):
         lang_lyt.addLayout(lang_lyt3)
         lang_lyt4 = QHBoxLayout()
         lang_lyt.addLayout(lang_lyt4)
+        lang_lyt5 = QHBoxLayout()
+        lang_lyt.addLayout(lang_lyt5)
         lang_lyt.addLayout(lang_lyt1)
 
         remove_lang_btn = QPushButton("Remove Language")
@@ -93,10 +95,15 @@ class DictionaryManagerWidget(QWidget):
         set_conj_data_btn.clicked.connect(self.set_conj_data)
         lang_lyt4.addWidget(set_conj_data_btn)
 
+        set_hsk_data_btn = QPushButton("Install HSK Data From File")
+        set_hsk_data_btn.clicked.connect(self.set_hsk_data)
+        lang_lyt5.addWidget(set_hsk_data_btn)
+
         lang_lyt1.addStretch()
         lang_lyt2.addStretch()
         lang_lyt3.addStretch()
         lang_lyt4.addStretch()
+        lang_lyt5.addStretch()
 
         self.dict_grp = QGroupBox("Dictionary Options")
         right_lyt.addWidget(self.dict_grp)
@@ -288,6 +295,13 @@ class DictionaryManagerWidget(QWidget):
         except OSError:
             pass
 
+        # Remove HSK data
+        try:
+            path = os.path.join(get_hsk_dir(), "%s.json" % lang_name)
+            os.remove(path)
+        except OSError:
+            pass
+
         aqt.qt.sip.delete(lang_item)
         # Refresh dictionary window to remove language's dictionaries
         if hasattr(mw, "refreshAnkiDictConfig"):
@@ -357,6 +371,33 @@ class DictionaryManagerWidget(QWidget):
             return
 
         self.info('Imported conjugation data for "%s".' % lang_name)
+
+    def set_hsk_data(self):
+        lang_name = self.get_current_lang_dict()[0]
+        if lang_name is None:
+            return
+
+        path = QFileDialog.getOpenFileName(
+            self,
+            "Select the HSK data you want to import",
+            os.path.expanduser("~"),
+            "JSON Files (*.json);;All Files (*.*)",
+        )[0]
+        if not path:
+            return
+
+        hsk_path = get_hsk_dir()
+        os.makedirs(hsk_path, exist_ok=True)
+
+        dst_path = os.path.join(hsk_path, "%s.json" % lang_name)
+
+        try:
+            shutil.copy(path, dst_path)
+        except shutil.Error:
+            self.info("Importing HSK data failed.")
+            return
+
+        self.info('Imported HSK data for "%s".' % lang_name)
 
     def web_conj_data(self):
         lang_item = self.get_current_lang_item()
