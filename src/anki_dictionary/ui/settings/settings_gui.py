@@ -139,7 +139,7 @@ class SettingsGui(QTabWidget):
 
         self.showStars = QCheckBox("Display Stars")
         self.showRank = QCheckBox("Display Frequency Rank")
-        self.showHSK = QCheckBox("Display HSK Levels")
+        self.showHSK = QCheckBox("Display Level Labels (HSK, JLPT, etc.)")
 
         self.hskMode = QComboBox()
         self.hskMode.addItem("HSK 3.0", "hsk3")
@@ -802,7 +802,7 @@ class SettingsGui(QTabWidget):
         layout = QVBoxLayout()
 
         infoLabel = QLabel(
-            "Configure how frequency information and HSK levels are displayed."
+            "Configure how frequency information and level labels are displayed."
         )
         infoLabel.setWordWrap(True)
         infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
@@ -838,11 +838,11 @@ class SettingsGui(QTabWidget):
         layout.addWidget(starGroup)
 
         # HSK Configuration
-        hskGroup = QGroupBox("HSK Configuration")
+        hskGroup = QGroupBox("Chinese HSK Configuration")
         hskLayout = QFormLayout()
-        hskLayout.addRow("HSK Level Mode:", self.hskMode)
+        hskLayout.addRow("HSK Version Preference:", self.hskMode)
         hskHint = QLabel(
-            "Choose HSK 3.0 (9 levels), HSK 2.0 (6 levels), or show both simultaneously."
+            "For Chinese, choose HSK 3.0 (9 levels), HSK 2.0 (6 levels), or show both simultaneously."
         )
         hskHint.setStyleSheet("font-size: 10px; color: gray;")
         hskLayout.addRow("", hskHint)
