@@ -190,6 +190,7 @@ def create_user_files_structure(addon_dir):
     dirs = [
         'db',
         'db/frequency',
+        'db/hsk',
         'db/conjugation',
         'dictionaries',
         'fonts',

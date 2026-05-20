@@ -39,17 +39,37 @@ class FreqConjWebWindow(QDialog):
         lyt.addWidget(self.lst)
 
         for lang in index_data.get("languages", []):
-            url = lang.get(self.mode_str + "_url")
-            if url is None:
+            lists = []
+            if self.mode == self.Mode.Freq:
+                if lang.get("frequency_url"):
+                    lists.append({"name": "Frequency", "url": lang["frequency_url"]})
+                for fl in lang.get("frequency_lists", []):
+                    lists.append(fl)
+            else:
+                if lang.get("conjugation_url"):
+                    lists.append({"name": "Conjugation", "url": lang["conjugation_url"]})
+                for cl in lang.get("conjugation_lists", []):
+                    lists.append(cl)
+
+            if not lists:
                 continue
-            if not url.startswith("http"):
-                url = webConfig.normalize_url(webConfig.DEFAULT_SERVER + url)
+
             lang_str = lang.get("name_en", "<Unnamed>")
             if "name_native" in lang:
                 lang_str += " (" + lang["name_native"] + ")"
-            itm = QListWidgetItem(lang_str)
-            itm.setData(Qt.ItemDataRole.UserRole, url)
-            self.lst.addItem(itm)
+            
+            for l_info in lists:
+                url = l_info["url"]
+                name = l_info["name"]
+
+                if not url.startswith("http"):
+                    url = webConfig.normalize_url(webConfig.DEFAULT_SERVER + url)
+                
+                display_str = f"{lang_str} - {name}"
+                itm = QListWidgetItem(display_str)
+                itm.setData(Qt.ItemDataRole.UserRole, url)
+                itm.setData(Qt.ItemDataRole.UserRole + 1, name)
+                self.lst.addItem(itm)
 
         btn = QPushButton("Download")
         btn.clicked.connect(self.download)
@@ -108,15 +128,25 @@ class FreqConjWebWindow(QDialog):
         dir_path = os.path.join(get_db_dir(), self.mode_str)
         os.makedirs(dir_path, exist_ok=True)
 
-        dst_path = os.path.join(dir_path, "%s.json" % self.dst_lang)
+        list_name = idx.data(Qt.ItemDataRole.UserRole + 1)
+        if self.mode == self.Mode.Freq and list_name != "Frequency":
+            filename = "%s_%s.json" % (self.dst_lang, list_name)
+        else:
+            filename = "%s.json" % self.dst_lang
+
+        dst_path = os.path.join(dir_path, filename)
 
         with open(dst_path, "wb") as f:
             f.write(data)
 
+        # Clear database cache to reflect changes
+        if hasattr(aqt.mw, "miDictDB"):
+            aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)
+
         if self.mode == self.Mode.Freq:
             msg = (
-                'Imported frequency data for "%s".\n\nNote that the frequency data is only applied to newly imported dictionaries for this language.'
-                % self.dst_lang
+                'Imported data as "%s" for "%s".\n\nNote that some data is only applied to newly imported dictionaries.'
+                % (filename, self.dst_lang)
             )
         else:
             msg = 'Imported conjugation data for "%s".' % self.dst_lang

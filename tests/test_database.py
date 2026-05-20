@@ -5,6 +5,7 @@ import os
 import sqlite3
 import tempfile
 import sys
+import json
 from pathlib import Path
 
 # Add src to path
@@ -48,6 +49,18 @@ class TestDictDB(unittest.TestCase):
         )
         self.mock_get_db_dir = self.patcher.start()
 
+        # Patch get_addon_config to return default values
+        self.config_patcher = patch("anki_dictionary.core.database.get_addon_config")
+        self.mock_get_config = self.config_patcher.start()
+        self.mock_get_config.return_value = {
+            "star_char": "★",
+            "star_thresholds": [1501, 5001, 15001, 30001, 60001],
+            "show_stars": True,
+            "show_rank": False,
+            "show_hsk": True,
+            "hsk_mode": "hsk3",
+        }
+
         # Use the REAL creation script to set up the database
         create_empty_database(self.db_path)
 
@@ -57,6 +70,7 @@ class TestDictDB(unittest.TestCase):
     def tearDown(self):
         self.db.closeConnection()
         self.patcher.stop()
+        self.config_patcher.stop()
         self.test_dir.cleanup()
 
     def test_add_languages(self):
@@ -187,6 +201,75 @@ class TestDictDB(unittest.TestCase):
         self.assertEqual(len(results["TestJP"]), 1)
         self.assertEqual(results["TestJP"][0]["term"], "食べる")
         self.assertEqual(results["TestJP"][0]["definition"], "To eat")
+
+    def test_extra_data_unification(self):
+        """Test that frequency and level data are unified correctly."""
+        # Setup mock files
+        lang = "Klingon"
+        self.db.addLanguages([lang])
+        
+        # Mock paths
+        with patch("anki_dictionary.core.database.get_frequency_dir") as mock_freq_dir:
+            mock_freq_dir.return_value = self.test_dir.name
+            
+            # Create a frequency list
+            freq_data = ["的", "我", "你"] # Rank 0, 1, 2
+            with open(os.path.join(self.test_dir.name, f"{lang}.json"), "w", encoding="utf-8") as f:
+                json.dump(freq_data, f)
+            
+            # Create an extra level list (e.g. HSK equivalent)
+            hsk_data = {"的": 1, "我": 1}
+            with open(os.path.join(self.test_dir.name, f"{lang}_Level.json"), "w", encoding="utf-8") as f:
+                json.dump(hsk_data, f)
+            
+            # Get extra data
+            providers = self.db._get_extra_data(lang)
+            
+            self.assertEqual(len(providers), 2)
+            # Find the rank provider
+            rank_p = next(p for p in providers if p["type"] == "rank")
+            self.assertEqual(rank_p["name"], "Frequency")
+            self.assertEqual(rank_p["data"]["的"], 0)
+            
+            # Find the level provider
+            level_p = next(p for p in providers if p["type"] == "level")
+            self.assertEqual(level_p["name"], "Level")
+            self.assertEqual(level_p["data"]["的"], 1)
+            
+            # Test applying to an entry
+            entry = {"term": "我", "altterm": "", "pronunciation": "", "frequency": 999999}
+            config = self.mock_get_config.return_value
+            
+            self.db._apply_frequency_info(entry, providers, config)
+            
+            self.assertEqual(entry["starCount"], "★★★★★") # Rank 1 is < 1501
+            self.assertEqual(entry["hskLevel"], "Level:1")
+
+    def test_get_term_frequency_info(self):
+        """Test the get_term_frequency_info public method."""
+        lang = "TestLang"
+        self.db.addLanguages([lang])
+        
+        # Mock frequency directory
+        with patch("anki_dictionary.core.database.get_frequency_dir") as mock_freq_dir:
+            mock_freq_dir.return_value = self.test_dir.name
+            
+            # Create a frequency list
+            freq_data = ["Word1", "Word2"]
+            with open(os.path.join(self.test_dir.name, f"{lang}.json"), "w", encoding="utf-8") as f:
+                json.dump(freq_data, f)
+            
+            # Test lookup
+            config = self.mock_get_config.return_value
+            result = self.db.get_term_frequency_info("Word1", lang, config)
+            
+            self.assertEqual(result["term"], "Word1")
+            self.assertEqual(result["starCount"], "★★★★★")
+            self.assertEqual(result["hskLevel"], "")
+            
+            # Test empty lang
+            result_empty = self.db.get_term_frequency_info("Word1", "", config)
+            self.assertEqual(result_empty["starCount"], "")
 
 
 if __name__ == "__main__":
