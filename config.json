@@ -46,7 +46,6 @@
   ],
   "ImageAddType": "add",
   "dictOnStart": true,
-  "highlightSentences": true,
   "highlightTarget": true,
   "maxSearch": 1000,
   "dictSearch": 50,
@@ -96,6 +95,11 @@
   "llm_model": "qwen3.5:4b-q4_K_M",
   "llm_prompt": "提供该词的简明词典定义：{term}（请优先使用简单易懂的表达）",
   "llm_timeout": 20,
+  "llm_temperature": 0.3,
+  "llm_keep_alive": "30m",
+  "llm_think": false,
+  "llm_stream": false,
   "forvo_enabled": true,
-  "forvo_language": "ja"
+  "forvo_language": "ja",
+  "hsk_mode": "hsk3"
 }

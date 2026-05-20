@@ -266,18 +266,45 @@ class MIDict(AnkiWebView):
 
         # Trigger LLM search if enabled and in selected group
         if self.config.get("llm_enabled", False) and "LLM" in group_dicts:
-            # Find the highest star count from results to reuse it for LLM
+            # Find the best frequency/level info from results to reuse it for LLM
             star_count = ""
+            hsk_level = ""
             for d_name, d_results in results.items():
                 if not isinstance(d_results, list):
                     continue
                 for entry in d_results:
+                    # Collect starCount
                     s = entry.get("starCount", "")
-                    if s.startswith("★"):
-                        # If we found stars, we use the longest one (most stars)
-                        if len(s) > len(star_count):
+                    if s:
+                        # Prioritize stars but keep other formats if stars aren't found yet
+                        if s.startswith("★"):
+                            if not star_count.startswith("★") or len(s) > len(star_count):
+                                star_count = s
+                        elif not star_count:
                             star_count = s
-            self.triggerLLMSearch(cleaned, star_count, idName)
+
+                    # Collect hskLevel
+                    hsk = entry.get("hskLevel", "")
+                    if hsk and len(hsk) > len(hsk_level):
+                        hsk_level = hsk
+
+            # If still empty, try a direct DB lookup for the term's frequency/level
+            if not star_count and not hsk_level:
+                # Find any language associated with this group
+                for d in selectedGroup["dictionaries"]:
+                    lang = d.get("lang")
+                    if lang:
+                        freq_info = self.db.get_term_frequency_info(
+                            cleaned, lang, self.config
+                        )
+                        if freq_info.get("starCount"):
+                            star_count = freq_info["starCount"]
+                        if freq_info.get("hskLevel"):
+                            hsk_level = freq_info["hskLevel"]
+                        if star_count or hsk_level:
+                            break
+
+            self.triggerLLMSearch(cleaned, star_count, hsk_level, idName)
 
         # Trigger Forvo search if enabled and in selected group
         forvoId = ""
@@ -360,15 +387,6 @@ class MIDict(AnkiWebView):
             except Exception as e:
                 logger.error(f"Error during highlightTarget: {e}")
                 return text  # Fallback to the original text
-        return text
-
-    def highlightExamples(self, text):
-        if self.config["highlightSentences"]:
-            return re.sub(
-                r"「([^」]+)」(?![^<]*>)",
-                r'<span class="exampleSentence">「\1」</span>',
-                text,
-            )
         return text
 
     def processDefinitionHTML(self, text):
@@ -718,6 +736,9 @@ class MIDict(AnkiWebView):
                             flags=re.IGNORECASE,
                         ).strip()
 
+                        if not extracted_freq and entry.get("frequency"):
+                            extracted_freq = str(entry["frequency"])
+
                         # Update the entry's definition with the cleaned version
                         entry["definition"] = definition
 
@@ -746,6 +767,11 @@ class MIDict(AnkiWebView):
                                 if extracted_freq
                                 else ""
                             )
+                            + (
+                                f' <span class="starcount hsk-level">{entry["hskLevel"]}</span>'
+                                if entry.get("hskLevel")
+                                else ""
+                            )
                             + '</span><div class="defTools"><div onclick="ankiExport(event, \''
                             + cleanName
                             + '\')" class="ankiExportButton"><img '
@@ -762,9 +788,7 @@ class MIDict(AnkiWebView):
                             + font
                             + ' class="definitionBlock">'
                             + self.highlightTarget(
-                                self.processDefinitionHTML(
-                                    self.highlightExamples(entry["definition"])
-                                ),
+                                self.processDefinitionHTML(entry["definition"]),
                                 term,
                             )
                             + "</div>"
@@ -855,9 +879,11 @@ class MIDict(AnkiWebView):
     def showNoImagesMessage(self):
         tooltip("No images found")
 
-    def triggerLLMSearch(self, term, star_count="", idName=""):
+    def triggerLLMSearch(self, term, star_count="", hsk_level="", idName=""):
         """Initiate an asynchronous LLM search."""
-        worker = llm_integration.LLMWorker(term, self.config, star_count, idName)
+        worker = llm_integration.LLMWorker(
+            term, self.config, star_count, hsk_level, idName
+        )
         worker.signals.result_ready.connect(self.loadLLMResults)
         worker.signals.error_occurred.connect(self.showLLMError)
         self.threadpool.start(worker)
@@ -865,7 +891,8 @@ class MIDict(AnkiWebView):
     def loadLLMResults(self, result):
         """Handle result from LLM and inject into the UI."""
         dictName = result.get("dictName", "LLM")
-        idName = result.get("idName", "llm-loader")
+        # Handle both missing key and empty string for idName
+        idName = result.get("idName") or "llm-loader"
         font = self.getFontFamily({"font": False, "customFont": False})
 
         # Format just the content part (without header and title block)
@@ -891,7 +918,13 @@ class MIDict(AnkiWebView):
             + self.getStarTooltip(str(result.get("starCount", "")))
             + ">"
             + str(result.get("starCount", ""))
-            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + "</span>"
+            + (
+                f' <span class="starcount hsk-level">{result["hskLevel"]}</span>'
+                if result.get("hskLevel")
+                else ""
+            )
+            + '</span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
             + '\')" class="ankiExportButton"><img '
             + imgTooltip
@@ -968,7 +1001,7 @@ class MIDict(AnkiWebView):
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
-                self.processDefinitionHTML(self.highlightExamples(definition)),
+                self.processDefinitionHTML(definition),
                 result["term"],
             )
             + "</div>"
@@ -976,18 +1009,36 @@ class MIDict(AnkiWebView):
         # Inject into the webview by replacing only the loading placeholder
         escaped_html = json.dumps(html)
         self.eval(
+            f"console.log('LLM: Starting injection for ID: {idName}'); "
             f"var loader = document.getElementById('{idName}'); "
             f"if(loader) {{ "
+            f"  console.log('LLM: Found loader element'); "
             f"  var placeholder = loader.querySelector('.llm-loading-placeholder'); "
             f"  if(placeholder) {{ "
+            f"    console.log('LLM: Found placeholder, replacing with content'); "
             f"    placeholder.outerHTML = {escaped_html}; "
             f"  }} else {{ "
+            f"    console.log('LLM: Placeholder not found, looking for definitionBlock'); "
             f"    var oldContent = loader.querySelector('.definitionBlock'); "
-            f"    if(oldContent) oldContent.remove(); "
-            f"    loader.querySelector('.dictionaryTitleBlock').insertAdjacentHTML('afterend', {escaped_html}); "
+            f"    if(oldContent) {{ "
+            f"      console.log('LLM: Removing old definitionBlock'); "
+            f"      oldContent.remove(); "
+            f"    }} "
+            f"    var titleBlock = loader.querySelector('.dictionaryTitleBlock'); "
+            f"    if(titleBlock) {{ "
+            f"       console.log('LLM: Injecting after titleBlock'); "
+            f"       titleBlock.insertAdjacentHTML('afterend', {escaped_html}); "
+            f"    }} else {{ "
+            f"       console.log('LLM: Title block not found, appending to loader'); "
+            f"       loader.insertAdjacentHTML('beforeend', {escaped_html}); "
+            f"    }} "
             f"  }} "
+            f"}} else {{ "
+            f"  console.error('LLM: Container ID not found in DOM: {idName}'); "
             f"}}"
         )
+
+
 
     def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
         """Helper to format a single dictionary entry (LLM or other) to HTML."""
@@ -1028,7 +1079,13 @@ class MIDict(AnkiWebView):
             + self.getStarTooltip(str(result.get("starCount", "")))
             + ">"
             + str(result.get("starCount", ""))
-            + '</span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + "</span>"
+            + (
+                f' <span class="starcount hsk-level">{result["hskLevel"]}</span>'
+                if result.get("hskLevel")
+                else ""
+            )
+            + '</span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
             + '\')" class="ankiExportButton"><img '
             + imgTooltip
@@ -1104,7 +1161,7 @@ class MIDict(AnkiWebView):
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
-                self.processDefinitionHTML(self.highlightExamples(definition)),
+                self.processDefinitionHTML(definition),
                 result["term"],
             )
             + "</div>"
@@ -1157,7 +1214,8 @@ class MIDict(AnkiWebView):
 
     def onForvoResult(self, result):
         """Handle results from Forvo search and inject into the UI."""
-        idName = result.get("idName", "forvo-loader")
+        # Handle both missing key and empty string for idName
+        idName = result.get("idName") or "forvo-loader"
         term = result.get("term", "")
         items = result.get("items", [])
 
@@ -1276,13 +1334,15 @@ class MIDict(AnkiWebView):
     def onForvoError(self, result):
         """Show Forvo error in the UI."""
         error_msg = result.get("error", "Unknown Forvo error")
-        idName = result.get("idName", "forvo-loader")
+        # Handle both missing key and empty string for idName
+        idName = result.get("idName") or "forvo-loader"
         escaped_msg = json.dumps(
             f'<div class="definitionBlock" style="color: red;">{error_msg}</div>'
         )
         self.eval(
             f"var loader = document.getElementById('{idName}'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
         )
+
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]
@@ -2607,7 +2667,10 @@ class DictInterface(QWidget):
     def initTooltips(self):
         if self.config["tooltips"]:
             self.dictGroups.setToolTip("Select the dictionary group.")
-            self.sType.setToolTip("Select the search type.")
+            self.sType.setToolTip(
+                "Select the search type (e.g., Forward, Backward, Exact, Definition, etc.).\n"
+                "Hover over individual options in the list for more details."
+            )
             self.openSB.setToolTip("Open/Close the definition sidebar.")
             self.minusB.setToolTip("Decrease the dictionary's font size.")
             self.plusB.setToolTip("Increase the dictionary's font size.")
@@ -3353,6 +3416,23 @@ class DictInterface(QWidget):
     def setupSearchType(self):
         searchTypes = QComboBox()
         searchTypes.addItems(self.searchOptions)
+
+        # Add tooltips for each search option to help users understand how they work
+        search_option_tooltips = {
+            "Forward": "Find words starting with your search term.",
+            "Backward": "Find words ending with your search term (matches words with at least one character before the term).",
+            "Exact": "Find words that match your search term exactly.",
+            "Anywhere": "Find words containing your search term anywhere in the headword.",
+            "Definition": "Search for your term within the dictionary definitions.",
+            "Example": "Search for your term within example sentences (looks for text inside 「...」 markers).",
+            "Pronunciation": "Find words with pronunciations starting with your search term.",
+        }
+
+        for i, option in enumerate(self.searchOptions):
+            tooltip = search_option_tooltips.get(option, "")
+            if tooltip:
+                searchTypes.setItemData(i, tooltip, Qt.ItemDataRole.ToolTipRole)
+
         current = self.config["searchMode"]
         if current in self.searchOptions:
             searchTypes.setCurrentText(current)

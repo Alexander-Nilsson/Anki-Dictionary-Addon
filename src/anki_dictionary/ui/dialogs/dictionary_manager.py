@@ -10,7 +10,7 @@ from aqt.qt import *
 from aqt import mw
 from ...web.installer import DictionaryWebInstallWizard
 from ...web.windows import FreqConjWebWindow
-from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir
+from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir, get_hsk_dir
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,8 @@ class DictionaryManagerWidget(QWidget):
         lang_lyt.addLayout(lang_lyt3)
         lang_lyt4 = QHBoxLayout()
         lang_lyt.addLayout(lang_lyt4)
+        lang_lyt5 = QHBoxLayout()
+        lang_lyt.addLayout(lang_lyt5)
         lang_lyt.addLayout(lang_lyt1)
 
         remove_lang_btn = QPushButton("Remove Language")
@@ -77,11 +79,11 @@ class DictionaryManagerWidget(QWidget):
         import_dicts_btn.clicked.connect(self.import_dicts)
         lang_lyt2.addWidget(import_dicts_btn)
 
-        web_freq_data_btn = QPushButton("Install Frequency Data in Wizard")
+        web_freq_data_btn = QPushButton("Install Frequency/Level Data in Wizard")
         web_freq_data_btn.clicked.connect(self.web_freq_data)
         lang_lyt3.addWidget(web_freq_data_btn)
 
-        set_freq_data_btn = QPushButton("Install Frequency Data From File")
+        set_freq_data_btn = QPushButton("Install Frequency/Level Data From File")
         set_freq_data_btn.clicked.connect(self.set_freq_data)
         lang_lyt3.addWidget(set_freq_data_btn)
 
@@ -276,8 +278,11 @@ class DictionaryManagerWidget(QWidget):
 
         # Remove frequency data
         try:
-            path = os.path.join(get_db_dir(), "frequency", "%s.json" % lang_name)
-            os.remove(path)
+            freq_dir = get_frequency_dir()
+            if os.path.exists(freq_dir):
+                for filename in os.listdir(freq_dir):
+                    if filename.startswith(lang_name):
+                        os.remove(os.path.join(freq_dir, filename))
         except OSError:
             pass
 
@@ -285,6 +290,16 @@ class DictionaryManagerWidget(QWidget):
         try:
             path = os.path.join(get_db_dir(), "conjugation", "%s.json" % lang_name)
             os.remove(path)
+        except OSError:
+            pass
+
+        # Remove HSK data (legacy location)
+        try:
+            path = os.path.join(get_hsk_dir(), "%s.json" % lang_name)
+            os.remove(path)
+            # Also try language code variants if lang_name is long
+            # (e.g. "Chinese Simplified" -> "zh")
+            # But for now we just stick to what was likely installed
         except OSError:
             pass
 
@@ -300,28 +315,55 @@ class DictionaryManagerWidget(QWidget):
 
         path = QFileDialog.getOpenFileName(
             self,
-            "Select the frequency list you want to import",
+            "Select the frequency or level data you want to import",
             os.path.expanduser("~"),
             "JSON Files (*.json);;All Files (*.*)",
         )[0]
         if not path:
             return
 
-        freq_path = os.path.join(get_db_dir(), "frequency")
+        # Ask if this is the main frequency list or an extra level list
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Data Type")
+        msg.setText("What type of data are you importing?")
+        btn_main = msg.addButton("Main Frequency List", QMessageBox.ButtonRole.ActionRole)
+        btn_extra = msg.addButton("Extra Level/HSK List", QMessageBox.ButtonRole.ActionRole)
+        msg.addButton(QMessageBox.StandardButton.Cancel)
+        msg.exec()
+
+        clicked = msg.clickedButton()
+        if clicked == btn_main:
+            filename = "%s.json" % lang_name
+        elif clicked == btn_extra:
+            # Ask for a label
+            label, ok = QInputDialog.getText(
+                self, "Label", "Enter a label for this data (e.g. HSK, JLPT, CEFR):"
+            )
+            if not ok or not label:
+                return
+            filename = "%s_%s.json" % (lang_name, label)
+        else:
+            return
+
+        freq_path = get_frequency_dir()
         os.makedirs(freq_path, exist_ok=True)
 
-        dst_path = os.path.join(freq_path, "%s.json" % lang_name)
+        dst_path = os.path.join(freq_path, filename)
 
         try:
             shutil.copy(path, dst_path)
         except shutil.Error:
-            self.info("Importing frequency data failed.")
+            self.info("Importing data failed.")
             return
 
         self.info(
-            'Imported frequency data for "%s".\n\nNote that the frequency data is only applied to newly imported dictionaries for this language.'
-            % lang_name
+            'Imported data as "%s" for "%s".\n\nNote that some data is only applied to newly imported dictionaries.'
+            % (filename, lang_name)
         )
+        
+        # Clear database cache to reflect changes
+        if hasattr(mw, "miDictDB"):
+            mw.miDictDB._extra_data_cache.pop(lang_name, None)
 
     def web_freq_data(self):
         lang_item = self.get_current_lang_item()

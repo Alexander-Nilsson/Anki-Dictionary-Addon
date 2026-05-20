@@ -52,6 +52,11 @@ def get_frequency_dir() -> str:
     return os.path.join(get_db_dir(), "frequency")
 
 
+def get_hsk_dir() -> str:
+    """Get the path to the HSK data directory."""
+    return os.path.join(get_db_dir(), "hsk")
+
+
 def get_conjugation_dir() -> str:
     """Get the path to the conjugation data directory."""
     return os.path.join(get_db_dir(), "conjugation")

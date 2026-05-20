@@ -61,11 +61,11 @@ class SettingsGui(QTabWidget):
         self.mw = mw
         self.reboot = reboot
         self.imageSearchCountries = COUNTRY_LIST
-        self.setMinimumSize(850, 550)
+        self.setMinimumSize(500, 500)
         if not is_win:
-            self.resize(1034, 550)
+            self.resize(1034, 650)
         else:
-            self.resize(920, 550)
+            self.resize(920, 650)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.addonPath = path
@@ -82,9 +82,6 @@ class SettingsGui(QTabWidget):
         self.maxImgHeight.setRange(0, 9999)
         self.imageSearchCountry = QComboBox()
         self.imageSearchCountry.addItems(self.imageSearchCountries)
-        self.condensedAudioDirectoryLabel = QLabel("Condensed Audio Save Location:")
-        self.chooseAudioDirectory = QPushButton("Choose Directory")
-        self.disableCondensedMessages = QCheckBox()
         self.dictOnTop = QCheckBox()
         self.showTarget = QCheckBox()
         self.totalDefs = QSpinBox()
@@ -94,12 +91,7 @@ class SettingsGui(QTabWidget):
         self.frontBracket = QLineEdit()
         self.backBracket = QLineEdit()
         self.highlightTarget = QCheckBox()
-        self.highlightSentence = QCheckBox()
-        self.openOnStart = QCheckBox()
-        self.globalHotkeys = QCheckBox()
-        self.globalOpen = QCheckBox()
         self.genJSExport = QCheckBox()
-        self.genJSEdit = QCheckBox()
 
         # LLM Settings
         self.llmEnabled = QCheckBox()
@@ -110,11 +102,25 @@ class SettingsGui(QTabWidget):
         self.llmPrompt = QTextEdit()
         self.llmPrompt.setAcceptRichText(False)
         self.llmPrompt.setFixedHeight(100)
+        
+        # New LLM Parameters
+        self.llmTemperature = QDoubleSpinBox()
+        self.llmTemperature.setRange(0.0, 2.0)
+        self.llmTemperature.setSingleStep(0.1)
+        self.llmTemperature.setDecimals(1)
+        
+        self.llmKeepAlive = QLineEdit()
+        self.llmKeepAlive.setPlaceholderText("e.g., 30m, 1h, 0")
+        
+        self.llmThink = QCheckBox()
+        self.llmStream = QCheckBox()
+        
         self.testLLMButton = QPushButton("Test API Connection")
         self.testLLMButton.clicked.connect(self.testLLM)
         self.llmStatusLabel = QLabel("")
         self.llmStatusLabel.setWordWrap(True)
         self.llmStatusLabel.setStyleSheet("font-weight: bold;")
+
 
         # Forvo Settings
         self.forvoEnabled = QCheckBox()
@@ -123,21 +129,46 @@ class SettingsGui(QTabWidget):
         for lang in FORVO_LANGUAGES:
             self.forvoLanguage.addItem(lang["English name"], lang["Code"])
 
+        # Frequency Lists Settings
+        self.freqStarChar = QLineEdit()
+        self.freqStarChar.setMaxLength(2)
+        self.freqThreshold1 = QSpinBox()
+        self.freqThreshold1.setRange(1, 1000000)
+        self.freqThreshold2 = QSpinBox()
+        self.freqThreshold2.setRange(1, 1000000)
+        self.freqThreshold3 = QSpinBox()
+        self.freqThreshold3.setRange(1, 1000000)
+        self.freqThreshold4 = QSpinBox()
+        self.freqThreshold4.setRange(1, 1000000)
+        self.freqThreshold5 = QSpinBox()
+        self.freqThreshold5.setRange(1, 1000000)
+
+        self.showStars = QCheckBox("Display Stars")
+        self.showRank = QCheckBox("Display Frequency Rank")
+        self.showHSK = QCheckBox("Display Level Labels (HSK, JLPT, etc.)")
+
+        self.hskMode = QComboBox()
+        self.hskMode.addItem("HSK 3.0", "hsk3")
+        self.hskMode.addItem("HSK 2.0", "hsk2")
+        self.hskMode.addItem("Both (HSK 2.0 & 3.0)", "both")
+
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
         self.layout = QVBoxLayout()
-        self.settingsTab = QWidget(self)
+        self.settingsTab = QWidget()
         self.llmTab = self.getLLMTab()
         self.forvoTab = self.getForvoTab()
-        # self.userGuideTab = self.getUserGuideTab()
+        self.frequencyTab = self.getFrequencyTab()
+        
         self.setupLayout()
-        self.addTab(self.settingsTab, "Settings")
-        self.addTab(self.llmTab, "LLM")
-        self.addTab(self.forvoTab, "Forvo")
-        self.addTab(DictionaryManagerWidget(), "Dictionaries")
-        # self.addTab(self.userGuideTab, "User Guide")
-        # self.addTab(self.getAboutTab(), "About")
+        
+        self.addTab(self.wrapInScrollArea(self.settingsTab), "Settings")
+        self.addTab(self.wrapInScrollArea(self.llmTab), "LLM")
+        self.addTab(self.wrapInScrollArea(self.forvoTab), "Forvo")
+        self.addTab(self.wrapInScrollArea(self.frequencyTab), "Frequency Lists")
+        self.addTab(self.wrapInScrollArea(DictionaryManagerWidget()), "Dictionaries")
+        
         self.loadTemplateTable()
         self.loadGroupTable()
         self.initHandlers()
@@ -147,6 +178,13 @@ class SettingsGui(QTabWidget):
         self.hotkeyEsc.activated.connect(self.close)
 
         self.show()
+
+    def wrapInScrollArea(self, widget):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        return scroll
 
     def hideEvent(self, event):
         self.mw.dictSettings = None
@@ -187,9 +225,6 @@ class SettingsGui(QTabWidget):
         self.genJSExport.setToolTip(
             "If this is enabled and you have Anki Japanese With Pitch Accent installed in Anki,\nthen when a card is exported, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your Anki Japanese With Pitch Accent Sentence Button (文) settings."
         )
-        self.genJSEdit.setToolTip(
-            "If this is enabled and you have Anki Japanese With Pitch Accent installed in Anki,\nthen when a definition is sent to a field, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your Anki Japanese With Pitch Accent Sentence Button (文) settings."
-        )
         self.frontBracket.setToolTip(
             "This is the text that will be placed in front of each term\n in the dictionary."
         )
@@ -199,44 +234,39 @@ class SettingsGui(QTabWidget):
         self.highlightTarget.setToolTip(
             "The dictionary will highlight the searched term in\nthe search results."
         )
-        self.highlightSentence.setToolTip(
-            "The dictionary will highlight example sentences in\nthe search results. This feature is experimental and currently only\nfunctions on Japanese monolingual dictionaries."
+        
+        # LLM Tooltips
+        self.llmTemperature.setToolTip(
+            "Controls randomness: Lower is more focused/deterministic, higher is more creative."
         )
-        self.openOnStart.setToolTip(
-            "Enable/Disable launching the Anki Dictionary on profile load."
+        self.llmKeepAlive.setToolTip(
+            "How long the model stays loaded in memory after the request (e.g., '30m', '1h'). Set to '0' to unload immediately."
         )
-        linNote = ""
-        self.globalHotkeys.setToolTip("Enable/Disable global hotkeys." + linNote)
-        self.globalOpen.setToolTip(
-            "If enabled the dictionary will be opened on a global search."
+        self.llmThink.setToolTip(
+            "If enabled, internal reasoning/thinking tags (like <think>) will be visible in the results. Currently supported by models like DeepSeek."
         )
-        self.disableCondensedMessages.setToolTip(
-            "Disable messages shown when condensed audio files are successfully created."
+        self.llmStream.setToolTip(
+            "Enable streaming response. Note: The addon currently waits for the full response before displaying, but this can affect API behavior."
         )
+
 
     def getConfig(self):
         return get_addon_config()
 
     def loadConfig(self):
         config = self.getConfig()
-        self.openOnStart.setChecked(config["dictOnStart"])
-        self.highlightSentence.setChecked(config["highlightSentences"])
-        self.highlightTarget.setChecked(config["highlightTarget"])
-        self.totalDefs.setValue(config["maxSearch"])
-        self.dictDefs.setValue(config["dictSearch"])
-        self.imageSearchCountry.setCurrentText(config["imageSearchRegion"])
-        self.maxImgWidth.setValue(config["maxWidth"])
-        self.maxImgHeight.setValue(config["maxHeight"])
-        self.frontBracket.setText(config["frontBracket"])
-        self.backBracket.setText(config["backBracket"])
-        self.showTarget.setChecked(config["showTarget"])
-        self.tooltipCB.setChecked(config["tooltips"])
-        self.globalHotkeys.setChecked(config["globalHotkeys"])
-        self.globalOpen.setChecked(config["openOnGlobal"])
-        self.disableCondensedMessages.setChecked(config["disableCondensed"])
-        self.dictOnTop.setChecked(config["dictAlwaysOnTop"])
-        self.genJSExport.setChecked(config.get("jReadingCards", True))
-        self.genJSEdit.setChecked(config.get("jReadingEdit", True))
+        self.highlightTarget.setChecked(config.get("highlightTarget", True))
+        self.totalDefs.setValue(config.get("maxSearch", 1000))
+        self.dictDefs.setValue(config.get("dictSearch", 50))
+        self.imageSearchCountry.setCurrentText(config.get("imageSearchRegion", "United States"))
+        self.maxImgWidth.setValue(config.get("maxWidth", 1500))
+        self.maxImgHeight.setValue(config.get("maxHeight", 400))
+        self.frontBracket.setText(config.get("frontBracket", "【"))
+        self.backBracket.setText(config.get("backBracket", "】"))
+        self.showTarget.setChecked(config.get("showTarget", False))
+        self.tooltipCB.setChecked(config.get("tooltips", True))
+        self.dictOnTop.setChecked(config.get("dictAlwaysOnTop", False))
+        self.genJSExport.setChecked(config.get("jReadingCards", False))
 
         # Load LLM settings
         self.llmEnabled.setChecked(config.get("llm_enabled", False))
@@ -251,23 +281,39 @@ class SettingsGui(QTabWidget):
                 "Provide a concise dictionary definition for the word: {term}",
             )
         )
+        self.llmTemperature.setValue(config.get("llm_temperature", 0.3))
+        self.llmKeepAlive.setText(config.get("llm_keep_alive", "30m"))
+        self.llmThink.setChecked(config.get("llm_think", False))
+        self.llmStream.setChecked(config.get("llm_stream", False))
 
         # Load Forvo settings
+
         self.forvoEnabled.setChecked(config.get("forvo_enabled", True))
         forvo_lang = config.get("forvo_language", "ja")
         index = self.forvoLanguage.findData(forvo_lang)
         if index != -1:
             self.forvoLanguage.setCurrentIndex(index)
 
-        if config.get("condensedAudioDirectory", False) is not False:
-            self.chooseAudioDirectory.setText(config["condensedAudioDirectory"])
-        else:
-            self.chooseAudioDirectory.setText("Choose Directory")
+        # Load Frequency/HSK settings
+        self.freqStarChar.setText(config.get("star_char", "★"))
+        thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+        self.freqThreshold1.setValue(thresholds[0])
+        self.freqThreshold2.setValue(thresholds[1])
+        self.freqThreshold3.setValue(thresholds[2])
+        self.freqThreshold4.setValue(thresholds[3])
+        self.freqThreshold5.setValue(thresholds[4])
+
+        self.showStars.setChecked(config.get("show_stars", True))
+        self.showRank.setChecked(config.get("show_rank", False))
+        self.showHSK.setChecked(config.get("show_hsk", True))
+
+        hsk_mode = config.get("hsk_mode", "hsk3")
+        index = self.hskMode.findData(hsk_mode)
+        if index != -1:
+            self.hskMode.setCurrentIndex(index)
 
     def saveConfig(self):
         nc = self.getConfig()
-        nc["dictOnStart"] = self.openOnStart.isChecked()
-        nc["highlightSentences"] = self.highlightSentence.isChecked()
         nc["highlightTarget"] = self.highlightTarget.isChecked()
         nc["maxSearch"] = self.totalDefs.value()
         nc["dictSearch"] = self.dictDefs.value()
@@ -278,12 +324,8 @@ class SettingsGui(QTabWidget):
         nc["backBracket"] = self.backBracket.text()
         nc["showTarget"] = self.showTarget.isChecked()
         nc["tooltips"] = self.tooltipCB.isChecked()
-        nc["globalHotkeys"] = self.globalHotkeys.isChecked()
-        nc["openOnGlobal"] = self.globalOpen.isChecked()
-        nc["disableCondensed"] = self.disableCondensedMessages.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
         nc["jReadingCards"] = self.genJSExport.isChecked()
-        nc["jReadingEdit"] = self.genJSEdit.isChecked()
 
         # Save LLM settings
         nc["llm_enabled"] = self.llmEnabled.isChecked()
@@ -291,30 +333,36 @@ class SettingsGui(QTabWidget):
         nc["llm_base_url"] = self.llmBaseUrl.text()
         nc["llm_model"] = self.llmModel.text()
         nc["llm_prompt"] = self.llmPrompt.toPlainText()
+        nc["llm_temperature"] = self.llmTemperature.value()
+        nc["llm_keep_alive"] = self.llmKeepAlive.text()
+        nc["llm_think"] = self.llmThink.isChecked()
+        nc["llm_stream"] = self.llmStream.isChecked()
 
         # Save Forvo settings
+
         nc["forvo_enabled"] = self.forvoEnabled.isChecked()
         nc["forvo_language"] = self.forvoLanguage.currentData()
 
-        if self.chooseAudioDirectory.text() != "Choose Directory":
-            nc["condensedAudioDirectory"] = self.chooseAudioDirectory.text()
-        else:
-            nc["condensedAudioDirectory"] = False
+        # Save Frequency/HSK settings
+        nc["star_char"] = self.freqStarChar.text()
+        nc["star_thresholds"] = [
+            self.freqThreshold1.value(),
+            self.freqThreshold2.value(),
+            self.freqThreshold3.value(),
+            self.freqThreshold4.value(),
+            self.freqThreshold5.value(),
+        ]
+        nc["show_stars"] = self.showStars.isChecked()
+        nc["show_rank"] = self.showRank.isChecked()
+        nc["show_hsk"] = self.showHSK.isChecked()
+        nc["hsk_mode"] = self.hskMode.currentData()
+
         save_addon_config(nc)
         self.hide()
 
         # Refresh dictionary window with new settings
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(nc)
-
-    def updateAudioDirectory(self):
-        directory = str(
-            QFileDialog.getExistingDirectory(None, "Select Condensed Audio Directory")
-        )
-        if directory:
-            self.chooseAudioDirectory.setText(directory)
-        else:
-            self.chooseAudioDirectory.setText("Choose Directory")
 
     def getGroupTemplateTable(self):
         macLin = False
@@ -479,7 +527,6 @@ class SettingsGui(QTabWidget):
         self.restoreButton.clicked.connect(self.restoreDefaults)
         self.cancelButton.clicked.connect(self.close)
         self.applyButton.clicked.connect(self.saveConfig)
-        self.chooseAudioDirectory.clicked.connect(self.updateAudioDirectory)
 
     def restoreDefaults(self):
         if miAsk(
@@ -515,7 +562,8 @@ class SettingsGui(QTabWidget):
         return line
 
     def setupLayout(self):
-        groupLayout = QHBoxLayout()
+        # 1. Dictionary Groups & Export Templates
+        groupLayout = QVBoxLayout()
         dictsLayout = QVBoxLayout()
         exportsLayout = QVBoxLayout()
 
@@ -531,131 +579,60 @@ class SettingsGui(QTabWidget):
         groupLayout.addLayout(exportsLayout)
         self.layout.addLayout(groupLayout)
 
-        optionsBox = QGroupBox("Options")
-        optionsLayout = QHBoxLayout()
-        optLay1 = QVBoxLayout()
-        optLay2 = QVBoxLayout()
-        optLay3 = QVBoxLayout()
+        # 2. Options in categorized groups
+        optionsLayout = QVBoxLayout()
+        
+        # --- Search & Behavior Group ---
+        searchGroup = QGroupBox("Search & Behavior")
+        searchForm = QFormLayout()
+        searchForm.addRow("Max Total Results:", self.totalDefs)
+        searchForm.addRow("Max per Dictionary:", self.dictDefs)
+        searchForm.addRow("Image Search Region:", self.imageSearchCountry)
+        
+        bracketLayout = QHBoxLayout()
+        bracketLayout.addWidget(self.frontBracket)
+        bracketLayout.addWidget(QLabel("Term"))
+        bracketLayout.addWidget(self.backBracket)
+        searchForm.addRow("Surround Term:", bracketLayout)
+        
+        searchGroup.setLayout(searchForm)
+        optionsLayout.addWidget(searchGroup)
 
-        startupLay = QHBoxLayout()
-        startupLay.addWidget(self.miQLabel("Open on Startup:", 182))
-        startupLay.addWidget(self.openOnStart)
-        optLay1.addLayout(startupLay)
+        # --- Display & UI Group ---
+        displayGroup = QGroupBox("Display & UI")
+        displayLayout = QVBoxLayout()
+        
+        self.highlightTarget.setText("Highlight Searched Term")
+        displayLayout.addWidget(self.highlightTarget)
+        
+        self.showTarget.setText("Show Export Target Identifier")
+        displayLayout.addWidget(self.showTarget)
+        
+        self.tooltipCB.setText("Enable Tooltips")
+        displayLayout.addWidget(self.tooltipCB)
+        
+        self.dictOnTop.setText("Keep Dictionary Always on Top")
+        displayLayout.addWidget(self.dictOnTop)
+        
+        displayGroup.setLayout(displayLayout)
+        optionsLayout.addWidget(displayGroup)
 
-        highSentLay = QHBoxLayout()
-        highSentLay.addWidget(self.miQLabel("Highlight Examples Sentences:", 182))
-        highSentLay.addWidget(self.highlightSentence)
-        optLay1.addLayout(highSentLay)
+        # --- Media & Integration Group ---
+        mediaGroup = QGroupBox("Media & Integration")
+        mediaForm = QFormLayout()
+        mediaForm.addRow("Max Image Width:", self.maxImgWidth)
+        mediaForm.addRow("Max Image Height:", self.maxImgHeight)
+        
+        self.genJSExport.setText("Generate Japanese Readings (Export)")
+        mediaForm.addRow(self.genJSExport)
+        
+        mediaGroup.setLayout(mediaForm)
+        optionsLayout.addWidget(mediaGroup)
 
-        highWordLay = QHBoxLayout()
-        highWordLay.addWidget(self.miQLabel("Highlight Searched Term:", 182))
-        highWordLay.addWidget(self.highlightTarget)
-        optLay1.addLayout(highWordLay)
-
-        expTargetLay = QHBoxLayout()
-        expTargetLay.addWidget(self.miQLabel("Show Export Target:", 182))
-        expTargetLay.addWidget(self.showTarget)
-        optLay1.addLayout(expTargetLay)
-
-        toolTipLay = QHBoxLayout()
-        toolTipLay.addWidget(self.miQLabel("Dictionary Tooltips:", 182))
-        toolTipLay.addWidget(self.tooltipCB)
-        optLay1.addLayout(toolTipLay)
-
-        gHLay = QHBoxLayout()
-        gHLay.addWidget(self.miQLabel("Global Hotkeys:", 182))
-        gHLay.addWidget(self.globalHotkeys)
-        optLay1.addLayout(gHLay)
-
-        disableCondensedLay = QHBoxLayout()
-        disableCondensedLay.addWidget(
-            self.miQLabel("Disable Condensed Audio Messages:", 182)
-        )
-        disableCondensedLay.addWidget(self.disableCondensedMessages)
-        optLay1.addLayout(disableCondensedLay)
-
-        globalOpenLay = QHBoxLayout()
-        globalOpenLay.addWidget(self.miQLabel("Open on Global Search:", 323))
-        globalOpenLay.addWidget(self.globalOpen)
-        optLay2.addLayout(globalOpenLay)
-
-        totResLay = QHBoxLayout()
-        totResLay.addWidget(self.miQLabel("Max Total Search Results:", 180))
-        totResLay.addWidget(self.totalDefs)
-        self.totalDefs.setFixedWidth(160)
-        optLay2.addLayout(totResLay)
-
-        dictResLay = QHBoxLayout()
-        dictResLay.addWidget(self.miQLabel("Max Dictionary Search Results:", 180))
-        dictResLay.addWidget(self.dictDefs)
-        self.dictDefs.setFixedWidth(160)
-        optLay2.addLayout(dictResLay)
-
-        genJSELay = QHBoxLayout()
-        genJSELay.addWidget(self.miQLabel("Japanese Readings (Export):", 180))
-        genJSELay.addWidget(self.genJSExport)
-        optLay2.addLayout(genJSELay)
-
-        genJSEDLay = QHBoxLayout()
-        genJSEDLay.addWidget(self.miQLabel("Japanese Readings (Edit):", 180))
-        genJSEDLay.addWidget(self.genJSEdit)
-        optLay2.addLayout(genJSEDLay)
-
-        countryLay = QHBoxLayout()
-        countryLay.addWidget(self.miQLabel("Image Search Region:", 180))
-        countryLay.addWidget(self.imageSearchCountry)
-        self.imageSearchCountry.setFixedWidth(160)
-        optLay2.addLayout(countryLay)
-
-        optLay2.addStretch()
-
-        maxWidLay = QHBoxLayout()
-        maxWidLay.addWidget(self.miQLabel("Maximum Image Width:", 140))
-        maxWidLay.addWidget(self.maxImgWidth)
-        optLay3.addLayout(maxWidLay)
-
-        maxHeiLay = QHBoxLayout()
-        maxHeiLay.addWidget(self.miQLabel("Maximum Image Height:", 140))
-        maxHeiLay.addWidget(self.maxImgHeight)
-        optLay3.addLayout(maxHeiLay)
-
-        frontBracketLay = QHBoxLayout()
-        frontBracketLay.addWidget(self.miQLabel("Surround Term (Front):", 140))
-        frontBracketLay.addWidget(self.frontBracket)
-        optLay3.addLayout(frontBracketLay)
-
-        backBracketLay = QHBoxLayout()
-        backBracketLay.addWidget(self.miQLabel("Surround Term (Back):", 140))
-        backBracketLay.addWidget(self.backBracket)
-        optLay3.addLayout(backBracketLay)
-
-        dictOnTopLay = QHBoxLayout()
-        dictOnTopLay.addWidget(self.miQLabel("Always on Top:", 323))
-        dictOnTopLay.addWidget(self.dictOnTop)
-        optLay3.addLayout(dictOnTopLay)
-
-        extensionAudioLay = QHBoxLayout()
-        extensionAudioLay.addWidget(self.condensedAudioDirectoryLabel)
-        self.chooseAudioDirectory.setFixedWidth(100)
-        extensionAudioLay.addWidget(self.chooseAudioDirectory)
-        optLay3.addLayout(extensionAudioLay)
-
-        optLay3.addStretch()
-
-        optionsLayout.addLayout(optLay1)
-        optionsLayout.addStretch()
-        optionsLayout.addWidget(self.getLineSeparator())
-        optionsLayout.addStretch()
-        optionsLayout.addLayout(optLay2)
-        optionsLayout.addStretch()
-        optionsLayout.addWidget(self.getLineSeparator())
-        optionsLayout.addStretch()
-        optionsLayout.addLayout(optLay3)
-
-        optionsBox.setLayout(optionsLayout)
-        self.layout.addWidget(optionsBox)
+        self.layout.addLayout(optionsLayout)
         self.layout.addStretch()
 
+        # 3. Bottom Buttons
         buttonsLayout = QHBoxLayout()
         buttonsLayout.addWidget(self.restoreButton)
         buttonsLayout.addStretch()
@@ -690,8 +667,18 @@ class SettingsGui(QTabWidget):
         formLayout.addRow("Enable LLM Dictionary:", self.llmEnabled)
         formLayout.addRow("API Key:", self.llmApiKey)
         formLayout.addRow("Base URL:", self.llmBaseUrl)
+        
+        baseUrlHint = QLabel("Supports Ollama (e.g., http://localhost:11434/api/chat) or OpenAI-style endpoints.")
+        baseUrlHint.setStyleSheet("font-size: 10px; color: gray;")
+        formLayout.addRow("", baseUrlHint)
+        
         formLayout.addRow("Model:", self.llmModel)
+        formLayout.addRow("Temperature:", self.llmTemperature)
+        formLayout.addRow("Keep Alive:", self.llmKeepAlive)
+        formLayout.addRow("Enable Thinking", self.llmThink)
+        formLayout.addRow("Enable Streaming:", self.llmStream)
         formLayout.addRow("Prompt Template:", self.llmPrompt)
+
 
         promptHint = QLabel("Use {term} as a placeholder for the word being searched.")
         promptHint.setStyleSheet("font-size: 10px; color: gray;")
@@ -737,6 +724,62 @@ class SettingsGui(QTabWidget):
 
         layout.addStretch()
 
+        tab.setLayout(layout)
+        return tab
+
+    def getFrequencyTab(self):
+        tab = QWidget()
+        layout = QVBoxLayout()
+
+        infoLabel = QLabel(
+            "Configure how frequency information and level labels are displayed."
+        )
+        infoLabel.setWordWrap(True)
+        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
+        layout.addWidget(infoLabel)
+
+        # Visibility Group
+        visGroup = QGroupBox("Visibility Options")
+        visLayout = QVBoxLayout()
+        visLayout.addWidget(self.showStars)
+        visLayout.addWidget(self.showRank)
+        visLayout.addWidget(self.showHSK)
+        visGroup.setLayout(visLayout)
+        layout.addWidget(visGroup)
+
+        # Stars Configuration
+        starGroup = QGroupBox("Star Configuration")
+        starLayout = QFormLayout()
+        starLayout.addRow("Star Character:", self.freqStarChar)
+        
+        threshLayout = QHBoxLayout()
+        threshLayout.addWidget(self.freqThreshold1)
+        threshLayout.addWidget(self.freqThreshold2)
+        threshLayout.addWidget(self.freqThreshold3)
+        threshLayout.addWidget(self.freqThreshold4)
+        threshLayout.addWidget(self.freqThreshold5)
+        
+        starLayout.addRow("Rank Thresholds:", threshLayout)
+        starHint = QLabel("Rank thresholds for 5, 4, 3, 2, and 1 star(s) respectively.")
+        starHint.setStyleSheet("font-size: 10px; color: gray;")
+        starLayout.addRow("", starHint)
+        
+        starGroup.setLayout(starLayout)
+        layout.addWidget(starGroup)
+
+        # HSK Configuration
+        hskGroup = QGroupBox("Chinese HSK Configuration")
+        hskLayout = QFormLayout()
+        hskLayout.addRow("HSK Version Preference:", self.hskMode)
+        hskHint = QLabel(
+            "For Chinese, choose HSK 3.0 (9 levels), HSK 2.0 (6 levels), or show both simultaneously."
+        )
+        hskHint.setStyleSheet("font-size: 10px; color: gray;")
+        hskLayout.addRow("", hskHint)
+        hskGroup.setLayout(hskLayout)
+        layout.addWidget(hskGroup)
+
+        layout.addStretch()
         tab.setLayout(layout)
         return tab
 
