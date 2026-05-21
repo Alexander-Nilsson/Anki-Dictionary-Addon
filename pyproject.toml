@@ -12,7 +12,23 @@ dev = [
  "flake8>=7.3.0",
  "pyright>=1.1.403",
  "pytest>=8.4.1",
+ "pytest-qt>=4.4.0",
+ "pytest-xdist>=3.6.1",
+ "pytest-xvfb>=3.1.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+    "integration: marks tests that require a real Anki runtime",
+    "network: marks tests that make network requests (deselect with '-m \"not network\"')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+addopts = "-ra -q"
 
 [tool.pyright]
 include = [ "src",]

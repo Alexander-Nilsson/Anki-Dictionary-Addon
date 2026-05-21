@@ -326,8 +326,12 @@ class DictionaryManagerWidget(QWidget):
         msg = QMessageBox(self)
         msg.setWindowTitle("Data Type")
         msg.setText("What type of data are you importing?")
-        btn_main = msg.addButton("Main Frequency List", QMessageBox.ButtonRole.ActionRole)
-        btn_extra = msg.addButton("Extra Level/HSK List", QMessageBox.ButtonRole.ActionRole)
+        btn_main = msg.addButton(
+            "Main Frequency List", QMessageBox.ButtonRole.ActionRole
+        )
+        btn_extra = msg.addButton(
+            "Extra Level/HSK List", QMessageBox.ButtonRole.ActionRole
+        )
         msg.addButton(QMessageBox.StandardButton.Cancel)
         msg.exec()
 
@@ -360,7 +364,7 @@ class DictionaryManagerWidget(QWidget):
             'Imported data as "%s" for "%s".\n\nNote that some data is only applied to newly imported dictionaries.'
             % (filename, lang_name)
         )
-        
+
         # Clear database cache to reflect changes
         if hasattr(mw, "miDictDB"):
             mw.miDictDB._extra_data_cache.pop(lang_name, None)

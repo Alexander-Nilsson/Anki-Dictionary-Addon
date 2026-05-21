@@ -278,7 +278,9 @@ class MIDict(AnkiWebView):
                     if s:
                         # Prioritize stars but keep other formats if stars aren't found yet
                         if s.startswith("★"):
-                            if not star_count.startswith("★") or len(s) > len(star_count):
+                            if not star_count.startswith("★") or len(s) > len(
+                                star_count
+                            ):
                                 star_count = s
                         elif not star_count:
                             star_count = s
@@ -1038,8 +1040,6 @@ class MIDict(AnkiWebView):
             f"}}"
         )
 
-
-
     def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
         """Helper to format a single dictionary entry (LLM or other) to HTML."""
         # result now contains 'dictName' from LLMWorker
@@ -1342,7 +1342,6 @@ class MIDict(AnkiWebView):
         self.eval(
             f"var loader = document.getElementById('{idName}'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
         )
-
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]

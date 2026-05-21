@@ -49,12 +49,13 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 
 ## Table of Contents
 
-  - [Status & Compatibility](https://www.google.com/search?q=%23status)
-  - [Installation](https://www.google.com/search?q=%23installation)
-  - [Usage](https://www.google.com/search?q=%23usage)
-  - [Development](https://www.google.com/search?q=%23development)
-  - [Building](https://www.google.com/search?q=%23building)
-  - [License and Credits](https://www.google.com/search?q=%23license-and-credits)
+  - [Status & Compatibility](#status)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Project Structure](#project-structure)
+  - [Development](#development)
+  - [Testing](#testing)
+  - [License and Credits](#license-and-credits)
 
 
 
@@ -94,7 +95,7 @@ If you need a specific version or prefer manual installation:
 If you wish to contribute or run the latest source code:
 
 1.  Clone the repository.
-2.  Follow the [Development](https://www.google.com/search?q=%23development) instructions to build and link the source to your Anki addons folder:
+2.  Follow the [Development](#development) instructions to build and link the source to your Anki addons folder:
       - **macOS:** `~/Library/Application Support/Anki2/addons21/`
       - **Linux:** `~/.local/share/Anki2/addons21/`
       - **Windows:** `%APPDATA%\Anki2\addons21\`
@@ -116,6 +117,16 @@ src/anki_dictionary/     # Main package
 ├── integrations/        # LLM (AI) and Image search integrations
 ├── exporters/           # Anki card generation logic
 └── web/                 # HTML/JS rendering components
+tests/                   # Test suite
+├── conftest.py          # Shared fixtures and aqt/anki module mocks
+├── integration/         # Integration tests (real Anki runtime)
+│   ├── conftest.py      # Headless anki_session fixture
+│   └── test_addon_loads.py
+├── test_database.py     # DictDB unit tests
+├── test_forvo.py        # Forvo parsing tests
+├── test_llm.py          # LLM worker tests
+├── test_themes.py       # Theme tests
+└── test_addon_structure.py
 ```
 
 -----
@@ -138,6 +149,40 @@ The addon follows modern Python development practices:
     python dev.py ci     # Run linting + tests
     python dev.py build  # Build for testing
     ```
+
+### Testing
+
+Tests use **pytest** with marker-based filtering for unit, integration, and network tests.
+
+```bash
+# Run all tests (skips integration and network by default)
+uv run pytest tests/
+
+# Run only fast unit tests (no network, no Anki runtime needed)
+uv run pytest tests/ -m "not integration and not network"
+
+# Run integration tests (requires real `anki` package installed)
+uv run pytest tests/integration/
+
+# Run network-dependent tests
+uv run pytest tests/ -m "network"
+
+# Full CI pipeline (lint + test)
+python dev.py ci
+```
+
+**Test markers:**
+
+| Marker        | Description                                      |
+|---------------|--------------------------------------------------|
+| `integration` | Tests against a real `anki.collection.Collection` |
+| `network`     | Tests that make HTTP requests (Forvo, etc.)      |
+
+**Conventions:**
+
+- **Unit tests** (`tests/test_*.py`) use module-level mocks for `aqt`/`anki` so addon modules can be imported without an Anki runtime. The shared conftest at `tests/conftest.py` pre-installs stubs to prevent the root `__init__.py` (the Anki entry point) from being loaded during test collection.
+- **Integration tests** (`tests/integration/`) use a headless `anki.collection.Collection` fixture (no Qt GUI). They auto-skip when `anki` is not installed.
+- **Network tests** are marked `@pytest.mark.network` and are excluded from the default test run.
 
 -----
 
