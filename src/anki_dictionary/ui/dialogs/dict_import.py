@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from aqt.qt import QMessageBox, QWidget
 
 from ...utils.paths import get_db_dir
+from ...utils.logger import get_logger
+
+log = get_logger("dict_import")
 
 
 def importDict(
@@ -51,7 +54,7 @@ def importDict(
 
     is_yomichan = has_term_bank or (has_index and is_pitch_dict)
 
-    print("Importing dict")
+    log.info("Importing dict")
     frequency_dict = getFrequencyList(lang_name)
     term_header = json.dumps(["term", "altterm", "pronunciation"])
 
@@ -122,7 +125,7 @@ def loadDict(
                     decoded = content.decode("latin-1")
             jsonDict += json.loads(decoded)
     if frequencyDict:
-        print("FreqDICT!")
+        log.info("Frequency dictionary found")
         if miDict:
             jsonDict = organizeDictionaryByFrequency(
                 jsonDict, frequencyDict, dictName, lang, True

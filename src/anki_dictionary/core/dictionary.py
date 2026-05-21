@@ -2197,7 +2197,7 @@ class DictInterface(QWidget):
             color_value = getattr(active_theme, color_key, "#ffffff")
             return QColor(color_value)
         except Exception as e:
-            print(f"Error loading active theme color: {e}")
+            logger.error(f"Error loading active theme color: {e}")
         return QColor("#ffffff")  # Default color if anything fails
 
     def hex_to_rgba(self, hex_color, alpha):
@@ -2234,7 +2234,7 @@ class DictInterface(QWidget):
         try:
             active_theme = self.theme_manager.get_active_theme()
         except Exception as e:
-            print(f"Error loading active theme: {e}")
+            logger.error(f"Error loading active theme: {e}")
             return
 
         # Update the stylesheet for the entire widget
@@ -2448,7 +2448,7 @@ class DictInterface(QWidget):
             active_theme = self.theme_manager.get_active_theme()
             active_theme_dict = vars(active_theme)
         except Exception as e:
-            print(f"Error loading active theme: {e}")
+            logger.error(f"Error loading active theme: {e}")
             active_theme_dict = {
                 "header_background": "#51576d",
                 "selector": "#949cbb",
@@ -2998,7 +2998,7 @@ class DictInterface(QWidget):
                 self.writeConfig("onetab", True)
 
         except Exception as e:
-            print(f"Error in toggleTabMode: {e}")
+            logger.error(f"Error in toggleTabMode: {e}")
             import traceback
 
             traceback.print_exc()
@@ -3278,7 +3278,7 @@ class DictInterface(QWidget):
                     json.dump(empty_history, outfile, ensure_ascii=False)
                 return empty_history
         except Exception as e:
-            print(f"Warning: Could not load search history: {e}")
+            logger.warning(f"Could not load search history: {e}")
             return []
 
     def updateFieldsSetting(self, dictName, fields):
@@ -3473,4 +3473,4 @@ class SVGPushButton(QPushButton):
             self.svgWidget.setFixedSize(self.width() - 12, self.height() - 12)
             self.layout.addWidget(self.svgWidget, 0, Qt.AlignmentFlag.AlignCenter)
         except Exception as e:
-            print(f"Error loading SVG {svgPath}: {e}")
+            logger.error(f"Error loading SVG {svgPath}: {e}")

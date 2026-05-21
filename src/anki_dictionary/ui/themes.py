@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 import json
 import os
+from ..utils.logger import get_logger
+
+log = get_logger("themes")
 
 
 @dataclass
@@ -184,7 +187,7 @@ class ThemeManager:
                 for name, colors in user_themes.items():
                     self.themes[name] = ThemeColors(**colors)
             except Exception as e:
-                print(f"Error loading user themes: {e}")
+                log.error(f"Error loading user themes: {e}")
 
     def _load_active_theme(self):
         """Load the active theme from active.json"""
@@ -220,8 +223,7 @@ class ThemeManager:
 
                 self.themes["active"] = ThemeColors(**filtered_data)
             except Exception as e:
-                print(f"Error loading active theme: {e}")
-                # If loading fails, create a default active theme
+                log.error(f"Error loading active theme: {e}")
                 self.themes["active"] = self.themes[self.current_theme]
 
         # Validate current theme exists
@@ -230,9 +232,7 @@ class ThemeManager:
     def _validate_current_theme(self):
         """Ensure current_theme exists, reset to 'light' if not"""
         if self.current_theme not in self.themes:
-            print(
-                f"Warning: Current theme '{self.current_theme}' not found, resetting to 'light'"
-            )
+            log.warning(f"Current theme '{self.current_theme}' not found, resetting to 'light'")
             self.current_theme = "light"
 
     def get_active_theme(self) -> ThemeColors:
@@ -292,9 +292,7 @@ class ThemeManager:
 
         # Fallback to 'light' theme if the requested theme doesn't exist
         if requested_theme not in self.themes:
-            print(
-                f"Warning: Theme '{requested_theme}' not found, falling back to 'light' theme"
-            )
+            log.warning(f"Theme '{requested_theme}' not found, falling back to 'light' theme")
             requested_theme = "light"
 
         theme = self.themes[requested_theme]
@@ -364,9 +362,7 @@ class ThemeManager:
 
         # Fallback to 'light' theme if the requested theme doesn't exist
         if requested_theme not in self.themes:
-            print(
-                f"Warning: Theme '{requested_theme}' not found, falling back to 'light' theme"
-            )
+            log.warning(f"Theme '{requested_theme}' not found, falling back to 'light' theme")
             requested_theme = "light"
 
         theme = self.themes[requested_theme]
@@ -449,9 +445,7 @@ class ThemeManager:
 
         # Fallback to 'light' theme if the requested theme doesn't exist
         if requested_theme not in self.themes:
-            print(
-                f"Warning: Theme '{requested_theme}' not found, falling back to 'light' theme"
-            )
+            log.warning(f"Theme '{requested_theme}' not found, falling back to 'light' theme")
             requested_theme = "light"
 
         theme = self.themes[requested_theme]

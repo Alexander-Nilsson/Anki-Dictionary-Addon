@@ -233,16 +233,6 @@ class CardExporter:
             self.templateCB.setStyleSheet("")
             self.deckCB.setStyleSheet("")
             self.definitions.setStyleSheet("")
-        # if self.dictInt.nightModeToggler.day :
-        # else:
-        #     self.scrollArea.setPalette(self.dictInt.nightPalette)
-        #     if is_mac:
-        #         self.templateCB.setStyleSheet(self.dictInt.getMacNightComboStyle())
-        #         self.deckCB.setStyleSheet(self.dictInt.getMacNightComboStyle())
-        #     else:
-        #         self.templateCB.setStyleSheet(self.dictInt.getComboStyle())
-        #         self.deckCB.setStyleSheet(self.dictInt.getComboStyle())
-        #     self.definitions.setStyleSheet(self.dictInt.getTableStyle())
 
     def addNote(self, note, did):
         note.note_type()["did"] = int(did)

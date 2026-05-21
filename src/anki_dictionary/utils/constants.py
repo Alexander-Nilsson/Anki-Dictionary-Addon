@@ -356,6 +356,9 @@ def _load_forvo_languages():
     import os
     import json
     from os.path import dirname, join
+    from .logger import get_logger
+
+    log = get_logger("constants")
 
     try:
         # This file is located in src/anki_dictionary/utils/
@@ -365,7 +368,7 @@ def _load_forvo_languages():
             with open(langs_path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"Error loading Forvo languages: {e}")
+        log.error(f"Error loading Forvo languages: {e}")
     return []
 
 

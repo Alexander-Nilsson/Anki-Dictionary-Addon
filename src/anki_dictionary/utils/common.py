@@ -5,12 +5,10 @@ import aqt
 from aqt.qt import *
 from typing import Any
 import os
-from os.path import dirname, join
 import contextlib
 from collections.abc import Generator
 import urllib3.util.connection as connection
-from aqt.webview import AnkiWebView
-from .paths import get_addon_root, get_icons_dir
+from .paths import get_icons_dir
 
 
 @contextlib.contextmanager

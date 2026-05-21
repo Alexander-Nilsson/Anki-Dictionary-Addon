@@ -13,6 +13,9 @@ from aqt.qt import pyqtSignal
 from anki.utils import is_mac, is_win, is_lin
 
 from ..utils.config import get_addon_config
+from ..utils.logger import get_logger
+
+log = get_logger("clip_thread")
 
 
 class ClipThread(QObject):
@@ -46,7 +49,7 @@ class ClipThread(QObject):
                     self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
                     self.CGEventGetIntegerValueField = CGEventGetIntegerValueField
                 except ImportError:
-                    print("Warning: Quartz not available on this system")
+                    log.warning("Quartz not available on this system")
                     self.kCGKeyboardEventKeycode = None
                     self.CGEventGetIntegerValueField = None
             elif is_lin:
@@ -58,11 +61,11 @@ class ClipThread(QObject):
 
                 self.keyboard = keyboard
             except ImportError:
-                print("Warning: pynput not available - global hotkeys will not work")
+                log.warning("pynput not available - global hotkeys will not work")
                 self.keyboard = None
 
         except Exception as e:
-            print(f"Warning: Error initializing ClipThread: {e}")
+            log.warning(f"Error initializing ClipThread: {e}")
             self.keyboard = None
 
         self.addonPath = path
@@ -97,7 +100,7 @@ class ClipThread(QObject):
 
     def run(self) -> None:
         if not self.keyboard:
-            print("Keyboard monitoring not available - skipping hotkey setup")
+            log.warning("Keyboard monitoring not available - skipping hotkey setup")
             return
 
         try:
@@ -121,7 +124,7 @@ class ClipThread(QObject):
                 )
             self.listener.start()
         except Exception as e:
-            print(f"Warning: Could not start keyboard listener: {e}")
+            log.warning(f"Could not start keyboard listener: {e}")
 
     def attemptAddCard(self) -> None:
         self.add.emit("add")
