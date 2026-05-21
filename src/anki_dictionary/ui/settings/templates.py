@@ -17,8 +17,10 @@ from ...utils.config import get_addon_config, save_addon_config
 
 
 class TemplateEditor(QDialog):
-    def __init__(self, mw, parent=None, dictionaries=[], toEdit=False, tName=False):
+    def __init__(self, mw, parent=None, dictionaries=None, toEdit=False, tName=False):
         super(TemplateEditor, self).__init__(parent, Qt.WindowType.Window)
+        if dictionaries is None:
+            dictionaries = []
         self.setMinimumSize(QSize(400, 0))
         self.setWindowTitle("Add Export Template")
         self.settings = parent

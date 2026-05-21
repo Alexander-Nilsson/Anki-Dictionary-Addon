@@ -1,4 +1,4 @@
 """
 Utility modules for Anki Dictionary
-Contains common utilities, clipboard handling, history, and system tools.
+Contains common utilities, history, and system tools.
 """
