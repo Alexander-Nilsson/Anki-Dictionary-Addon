@@ -65,6 +65,7 @@ user_files/               # db/, dictionaries/, themes/, fonts/, media/
 | `python dev.py clean` | Clean build artifacts |
 | `pytest tests/ -m "not integration and not network"` | Fast unit tests only |
 | `pytest tests/integration/` | Integration tests (needs anki installed) |
+| `act -j pipeline --input=false` | Run CI workflow locally via act to verify before pushing |
 
 ## Code Conventions
 - **Naming:** `snake_case` for vars/funcs, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants

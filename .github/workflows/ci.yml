@@ -33,7 +33,7 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y xvfb
+          sudo apt-get update && sudo apt-get install -y xvfb libegl1 libgl1 libxkbcommon0
 
       - name: Install Python Dependencies
         run: uv sync --frozen --dev
