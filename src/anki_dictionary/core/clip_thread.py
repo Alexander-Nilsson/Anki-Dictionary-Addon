@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
 import time
 from os.path import join, exists, dirname
 from shutil import copyfile
+from typing import Any, Dict, List, Optional, Tuple
 
 from aqt.qt import *
 from aqt.qt import pyqtSignal
@@ -13,21 +16,22 @@ from ..utils.config import get_addon_config
 
 
 class ClipThread(QObject):
-    sentence = pyqtSignal(str)
-    search = pyqtSignal(str)
-    colSearch = pyqtSignal(str)
-    add = pyqtSignal(str)
-    image = pyqtSignal(list)
-    test = pyqtSignal(list)
-    release = pyqtSignal(list)
-    extensionCardExport = pyqtSignal(dict)
-    searchFromExtension = pyqtSignal(list)
-    extensionFileNotFound = pyqtSignal()
-    bulkTextExport = pyqtSignal(list)
-    bulkMediaExport = pyqtSignal(dict)
-    pageRefreshDuringBulkMediaImport = pyqtSignal()
+    sentence = pyqtSignal(str)  # type: ignore[valid-type]
+    search = pyqtSignal(str)  # type: ignore[valid-type]
+    colSearch = pyqtSignal(str)  # type: ignore[valid-type]
+    add = pyqtSignal(str)  # type: ignore[valid-type]
+    image = pyqtSignal(list)  # type: ignore[valid-type]
+    test = pyqtSignal(list)  # type: ignore[valid-type]
+    release = pyqtSignal(list)  # type: ignore[valid-type]
+    extensionCardExport = pyqtSignal(dict)  # type: ignore[valid-type]
+    searchFromExtension = pyqtSignal(list)  # type: ignore[valid-type]
+    extensionFileNotFound = pyqtSignal()  # type: ignore[valid-type]
+    bulkTextExport = pyqtSignal(list)  # type: ignore[valid-type]
+    bulkMediaExport = pyqtSignal(dict)  # type: ignore[valid-type]
+    pageRefreshDuringBulkMediaImport = pyqtSignal()  # type: ignore[valid-type]
 
-    def __init__(self, mw, path):
+    def __init__(self, mw: Any, path: str) -> None:
+        super().__init__(mw)
         try:
             if is_mac:
                 import ssl
@@ -61,21 +65,20 @@ class ClipThread(QObject):
             print(f"Warning: Error initializing ClipThread: {e}")
             self.keyboard = None
 
-        super(ClipThread, self).__init__(mw)
         self.addonPath = path
         self.addon_root = dirname(dirname(dirname(dirname(__file__))))
         self.temp_dir = join(self.addon_root, "temp")
         os.makedirs(self.temp_dir, exist_ok=True)
         self.config = get_addon_config()
 
-    def on_press(self, key):
+    def on_press(self, key: Any) -> None:
         self.test.emit([key])
 
-    def on_release(self, key):
+    def on_release(self, key: Any) -> bool:
         self.release.emit([key])
         return True
 
-    def darwinIntercept(self, event_type, event):
+    def darwinIntercept(self, event_type: Any, event: Any) -> Any:
         if not self.CGEventGetIntegerValueField or not self.kCGKeyboardEventKeycode:
             return event
         keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode)
@@ -92,7 +95,7 @@ class ClipThread(QObject):
             return None
         return event
 
-    def run(self):
+    def run(self) -> None:
         if not self.keyboard:
             print("Keyboard monitoring not available - skipping hotkey setup")
             return
@@ -120,30 +123,30 @@ class ClipThread(QObject):
         except Exception as e:
             print(f"Warning: Could not start keyboard listener: {e}")
 
-    def attemptAddCard(self):
+    def attemptAddCard(self) -> None:
         self.add.emit("add")
 
-    def checkDict(self):
+    def checkDict(self) -> bool:
         if not self.mw.ankiDictionary or not self.mw.ankiDictionary.isVisible():
             return False
         return True
 
-    def handleExtensionSearch(self, terms):
+    def handleExtensionSearch(self, terms: list) -> None:
         self.searchFromExtension.emit(terms)
 
-    def handleSystemSearch(self):
+    def handleSystemSearch(self) -> None:
         self.search.emit(self.mw.app.clipboard().text())
 
-    def handleColSearch(self):
+    def handleColSearch(self) -> None:
         self.colSearch.emit(self.mw.app.clipboard().text())
 
-    def getConfig(self):
+    def getConfig(self) -> Dict[str, Any]:
         return get_addon_config()
 
-    def handleBulkTextExport(self, cards):
+    def handleBulkTextExport(self, cards: list) -> None:
         self.bulkTextExport.emit(cards)
 
-    def handleExtensionCardExport(self, card):
+    def handleExtensionCardExport(self, card: dict) -> None:
         config = self.getConfig()
         audioFileName = card["audio"]
         imageFileName = card["image"]
@@ -165,7 +168,7 @@ class ClipThread(QObject):
         else:
             self.extensionCardExport.emit(card)
 
-    def saveScaledImage(self, imageTempPath, imageFileName):
+    def saveScaledImage(self, imageTempPath: str, imageFileName: str) -> None:
         maxW = self.mw.AnkiDictConfig["maxWidth"]
         maxH = self.mw.AnkiDictConfig["maxHeight"]
         if not imageFileName.lower().endswith(".avif"):
@@ -180,10 +183,10 @@ class ClipThread(QObject):
         )
         image.save(path, "AVIF")
 
-    def removeFile(self, file):
+    def removeFile(self, file: str) -> None:
         os.remove(file)
 
-    def checkFileExists(self, source):
+    def checkFileExists(self, source: str) -> bool:
         now = time.time()
         while True:
             if exists(source):
@@ -191,17 +194,18 @@ class ClipThread(QObject):
             if time.time() - now > 15:
                 return False
 
-    def moveExtensionFileToMediaFolder(self, source, filename):
+    def moveExtensionFileToMediaFolder(self, source: str, filename: str) -> bool | None:
         if exists(source):
             path = join(self.mw.col.media.dir(), filename)
             if not exists(path):
                 copyfile(source, path)
                 return True
+        return None
 
-    def handlePageRefreshDuringBulkMediaImport(self):
+    def handlePageRefreshDuringBulkMediaImport(self) -> None:
         self.pageRefreshDuringBulkMediaImport.emit()
 
-    def handleImageExport(self):
+    def handleImageExport(self) -> None:
         if self.checkDict():
             mime = self.mw.app.clipboard().mimeData()
             clip = self.mw.app.clipboard().text()
@@ -240,7 +244,7 @@ class ClipThread(QObject):
                         except Exception:
                             return
 
-    def moveAudioToTempFolder(self, path):
+    def moveAudioToTempFolder(self, path: str) -> Tuple[Any, Any]:
         try:
             if exists(path):
                 filename = str(time.time()).replace(".", "") + ".mp3"
@@ -252,6 +256,6 @@ class ClipThread(QObject):
         except Exception:
             return False, False
 
-    def handleSentenceExport(self):
+    def handleSentenceExport(self) -> None:
         if self.checkDict():
             self.sentence.emit(self.mw.app.clipboard().text())

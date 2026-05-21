@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from aqt.qt import *
 from aqt.utils import showInfo
 
@@ -5,7 +9,7 @@ from ...utils.common import miInfo
 
 
 class LLMSettingsTab(QWidget):
-    def __init__(self, mw, addon_path, parent=None):
+    def __init__(self, mw: Any, addon_path: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.mw = mw
         self.addon_path = addon_path
@@ -34,7 +38,7 @@ class LLMSettingsTab(QWidget):
 
         self._build_ui()
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         infoLabel = QLabel(
@@ -79,7 +83,7 @@ class LLMSettingsTab(QWidget):
 
         layout.addStretch()
 
-    def load_config(self, config):
+    def load_config(self, config: Dict[str, Any]) -> None:
         self.llmEnabled.setChecked(config.get("llm_enabled", False))
         self.llmApiKey.setText(config.get("llm_api_key", ""))
         self.llmBaseUrl.setText(
@@ -97,7 +101,7 @@ class LLMSettingsTab(QWidget):
         self.llmThink.setChecked(config.get("llm_think", False))
         self.llmStream.setChecked(config.get("llm_stream", False))
 
-    def save_config(self, config):
+    def save_config(self, config: Dict[str, Any]) -> None:
         config["llm_enabled"] = self.llmEnabled.isChecked()
         config["llm_api_key"] = self.llmApiKey.text()
         config["llm_base_url"] = self.llmBaseUrl.text()
@@ -108,7 +112,7 @@ class LLMSettingsTab(QWidget):
         config["llm_think"] = self.llmThink.isChecked()
         config["llm_stream"] = self.llmStream.isChecked()
 
-    def init_tooltips(self):
+    def init_tooltips(self) -> None:
         self.llmTemperature.setToolTip(
             "Controls randomness: Lower is more focused/deterministic, higher is more creative."
         )
@@ -122,7 +126,7 @@ class LLMSettingsTab(QWidget):
             "Enable streaming response. Note: The addon currently waits for the full response before displaying, but this can affect API behavior."
         )
 
-    def test_llm(self):
+    def test_llm(self) -> None:
         self.testLLMButton.setEnabled(False)
         self.testLLMButton.setText("Testing...")
         self.llmStatusLabel.setText("Testing...")
@@ -136,10 +140,10 @@ class LLMSettingsTab(QWidget):
 
         from ...integrations.llm import test_llm_config
 
-        def run_test():
+        def run_test() -> dict:
             result_data = {"success": False, "message": ""}
 
-            def test_callback(success, message):
+            def test_callback(success: bool, message: str) -> None:
                 result_data["success"] = success
                 result_data["message"] = message
 
@@ -148,7 +152,7 @@ class LLMSettingsTab(QWidget):
 
         self.mw.taskman.run_in_background(run_test, self._on_test_finished)
 
-    def _on_test_finished(self, future):
+    def _on_test_finished(self, future: Any) -> None:
         self.testLLMButton.setEnabled(True)
         self.testLLMButton.setText("Test API Connection")
 

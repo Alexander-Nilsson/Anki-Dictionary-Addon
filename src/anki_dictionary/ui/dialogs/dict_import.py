@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import aqt
 import json
 import zipfile
 import re
 import os
-from aqt.qt import QMessageBox
+from typing import Any, Dict, List, Optional, Tuple
+from aqt.qt import QMessageBox, QWidget
 
 from ...utils.paths import get_db_dir
 
 
-def importDict(lang_name, file, dict_name, parent=None):
+def importDict(
+    lang_name: str, file: str, dict_name: str, parent: QWidget | None = None
+) -> None:
     db = aqt.mw.miDictDB
 
     if parent is None:
@@ -89,13 +94,20 @@ def importDict(lang_name, file, dict_name, parent=None):
     return final_name
 
 
-def natural_sort(l):
+def natural_sort(l: List[str]) -> List[str]:
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
     return sorted(l, key=alphanum_key)
 
 
-def loadDict(zfile, filenames, lang, dictName, frequencyDict, miDict=False):
+def loadDict(
+    zfile: zipfile.ZipFile,
+    filenames: List[str],
+    lang: str,
+    dictName: str,
+    frequencyDict: Any,
+    miDict: bool = False,
+) -> None:
     tableName = "l" + str(aqt.mw.miDictDB.getLangId(lang)) + "name" + dictName
     jsonDict = []
     for filename in filenames:
@@ -135,18 +147,18 @@ def loadDict(zfile, filenames, lang, dictName, frequencyDict, miDict=False):
     aqt.mw.miDictDB.commitChanges()
 
 
-def getAdjustedTerm(term):
+def getAdjustedTerm(term: str) -> str:
     term = term.replace("\n", "")
     if len(term) > 1:
         term = term.replace("=", "")
     return term
 
 
-def getAdjustedPronunciation(pronunciation):
+def getAdjustedPronunciation(pronunciation: str) -> str:
     return pronunciation.replace("\n", "")
 
 
-def getAdjustedDefinition(definition):
+def getAdjustedDefinition(definition: str) -> str:
     definition = definition.replace("\n", "<br>")
     definition = definition.replace("◟", "<br>")
 
@@ -160,7 +172,7 @@ def getAdjustedDefinition(definition):
     return definition
 
 
-def handlePitchDictEntry(jsonDict, count, entry, freq=False):
+def handlePitchDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False) -> None:
     term = ""
     altterm = ""
     reading = ""
@@ -191,7 +203,7 @@ def handlePitchDictEntry(jsonDict, count, entry, freq=False):
     )
 
 
-def handleMiDictEntry(jsonDict, count, entry, freq=False):
+def handleMiDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False) -> None:
     if isinstance(entry, list):
         term = entry[0] if len(entry) > 0 else ""
         altterm = entry[1] if len(entry) > 1 else ""
@@ -234,8 +246,8 @@ def handleMiDictEntry(jsonDict, count, entry, freq=False):
     )
 
 
-def handleYomiDictEntry(jsonDict, count, entry, freq=False):
-    def extract_definition(items):
+def handleYomiDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False) -> None:
+    def extract_definition(items: Any) -> str:
         def recursive_extract(item):
             if isinstance(item, str):
                 return item.strip()
@@ -264,7 +276,7 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
                 definitions.append(text)
         return "<br/>".join(definitions)
 
-    def find_header_section(items):
+    def find_header_section(items: Any) -> List:
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, dict):
@@ -274,10 +286,10 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
                         return item.get("content", [])
         return []
 
-    def extract_pitch(content):
-        accents = []
+    def extract_pitch(content: Any) -> List[int]:
+        accents: List[int] = []
 
-        def recursive_search(item):
+        def recursive_search(item: Any) -> None:
             if isinstance(item, dict) and "data" in item:
                 name = item.get("data", {}).get("name", "")
 
@@ -334,7 +346,7 @@ def handleYomiDictEntry(jsonDict, count, entry, freq=False):
     )
 
 
-def kaner(to_translate, hiraganer=False):
+def kaner(to_translate: str, hiraganer: bool = False) -> str:
     hiragana = (
         "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
         "あいうえおかきくけこさしすせそたちつてと"
@@ -357,13 +369,13 @@ def kaner(to_translate, hiraganer=False):
         return to_translate.translate(translate_table)
 
 
-def adjustReading(reading):
+def adjustReading(reading: str) -> str:
     return kaner(reading)
 
 
 def organizeDictionaryByFrequency(
-    jsonDict, frequencyDict, dictName, lang, miDict=False
-):
+    jsonDict: List, frequencyDict: Any, dictName: str, lang: str, miDict: bool = False
+) -> List:
     readingHyouki = frequencyDict.get("readingDictionaryType", False)
 
     for idx, entry in enumerate(jsonDict):
@@ -409,7 +421,7 @@ def organizeDictionaryByFrequency(
 
     if miDict:
 
-        def get_frequency(item):
+        def get_frequency(item: Any) -> int:
             if isinstance(item, tuple) and len(item) > 7:
                 return item[7] if item[7] != "" else 999999
             elif isinstance(item, list) and len(item) > 2 and isinstance(item[2], dict):
@@ -422,7 +434,7 @@ def organizeDictionaryByFrequency(
         return sorted(jsonDict, key=lambda i: i[8] if len(i) > 8 else 999999)
 
 
-def getStarCount(freq):
+def getStarCount(freq: int) -> str:
     if freq < 1501:
         return "★★★★★"
     elif freq < 5001:
@@ -437,7 +449,7 @@ def getStarCount(freq):
         return ""
 
 
-def getFrequencyList(lang):
+def getFrequencyList(lang: str) -> Any:
     filePath = os.path.join(get_db_dir(), "frequency", "%s.json" % lang)
     frequencyDict = {}
     if os.path.exists(filePath):
