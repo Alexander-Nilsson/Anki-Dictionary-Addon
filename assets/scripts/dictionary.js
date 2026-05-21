@@ -121,14 +121,10 @@ function cleanTermDef(text, rep) {
  */
 function getDefinitionWord(dictEl, termBody, termTitle) {
     var definition = cleanTermDef(termBody.innerHTML, '<br>');
-    var dupHeaderCB = dictEl.querySelector('.dupHeadCB input');
-    var dupHeader = dupHeaderCB ? dupHeaderCB.checked : false;
     var terms = termTitle.getElementsByClassName('mainword');
     if (terms.length === 0) {
         terms = termTitle.getElementsByClassName('terms');
     }
-    var starcountEl = termTitle.getElementsByClassName('starcount')[0];
-    var stars = starcountEl ? starcountEl.textContent : '';
     
     var word = '';
     if (terms.length >= 2) {
@@ -145,17 +141,9 @@ function getDefinitionWord(dictEl, termBody, termTitle) {
         word = terms[0].textContent;
     }
     
-    if (!dupHeader) {
-        var tpCont = termTitle.querySelector('.tpCont');
-        var wordPron = tpCont ? tpCont.textContent : '';
-        definition = wordPron + '<br>' + definition;
-    } else {
-        if (definition.indexOf('】') !== -1) {
-            definition = definition.replace(/】/, '】' + stars + ' ');
-        } else {
-            definition = definition.replace(/<br>/, stars + '<br>');
-        }
-    }
+    var tpCont = termTitle.querySelector('.tpCont');
+    var wordPron = tpCont ? tpCont.textContent : '';
+    definition = wordPron + '<br>' + definition;
     return [word, definition];
 }
 
@@ -237,8 +225,6 @@ function ankiExport(ev, dictName) {
  * Get word pronunciation
  */
 function getWordPron(dictEl, termBody, termTitle) {
-    var dupHeaderCB = dictEl.querySelector('.dupHeadCB input');
-    var dupHeader = dupHeaderCB ? dupHeaderCB.checked : false;
     var terms = termTitle.getElementsByClassName('mainword');
     if (terms.length === 0) {
         terms = termTitle.getElementsByClassName('terms');
@@ -1324,23 +1310,6 @@ function handleFieldCheckbox(checkbox) {
     }
     
     pycmd('fieldsSetting:' + JSON.stringify({ dictName, fields: selectedFields }));
-}
-
-/**
- * Handle duplicate header change
- */
-function handleDupChange(checkbox, className) {
-    try {
-        const container = checkbox.closest('.dupHeadCB');
-        const dictName = container?.getAttribute('data-dictname');
-        
-        if (dictName && typeof pycmd !== 'undefined') {
-            const value = checkbox.checked ? 1 : 0;
-            pycmd('setDup:' + value + '\u25f3' + dictName);
-        }
-    } catch (error) {
-        console.error('Error in handleDupChange:', error);
-    }
 }
 
 /**

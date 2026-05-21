@@ -93,7 +93,6 @@ class MIDict(AnkiWebView):
         self.onBridgeCmd = self.handleDictAction
         self.db = db
         self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
-        self.dupHeaders = self.db.getDupHeaders() or {}
         self.sType = False
         self.radioCount = 0
         self.homeDir = path
@@ -115,7 +114,6 @@ class MIDict(AnkiWebView):
         self.maxW = self.config.get("maxWidth", 1500)
         self.maxH = self.config.get("maxHeight", 400)
         self.termHeaders = self.formatTermHeaders(self.db.getTermHeaders() or {})
-        self.dupHeaders = self.db.getDupHeaders() or {}
 
     def loadImageResults(self, results):
         """
@@ -605,7 +603,6 @@ class MIDict(AnkiWebView):
                     continue
                 if dictName == "LLM":
                     if self.config.get("llm_enabled", False):
-                        duplicateHeader = self.getDuplicateHeaderCB(dictName)
                         overwrite = self.getOverwriteChecks(dictCount, dictName)
                         select = self.getFieldChecks(dictName)
                         # Use the unique idName for the loader container
@@ -617,7 +614,6 @@ class MIDict(AnkiWebView):
                             + '" class="dictionaryTitleBlock"><div '
                             + font
                             + ' class="dictionaryTitle">LLM</div><div class="dictionarySettings">'
-                            + duplicateHeader
                             + overwrite
                             + select
                             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
@@ -629,7 +625,6 @@ class MIDict(AnkiWebView):
                     continue
                 if dictName == "Forvo":
                     if self.config.get("forvo_enabled", False):
-                        duplicateHeader = self.getDuplicateHeaderCB(dictName)
                         overwrite = self.getOverwriteChecks(dictCount, dictName)
                         select = self.getFieldChecks(dictName)
                         # Use the unique forvoId for the loader container
@@ -641,7 +636,6 @@ class MIDict(AnkiWebView):
                             + '" class="dictionaryTitleBlock"><div '
                             + font
                             + ' class="dictionaryTitle">Forvo</div><div class="dictionarySettings">'
-                            + duplicateHeader
                             + overwrite
                             + select
                             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
@@ -665,7 +659,6 @@ class MIDict(AnkiWebView):
                     dictResults = results[normalizedName]
 
                 if dictResults is not None:
-                    duplicateHeader = self.getDuplicateHeaderCB(dictName)
                     overwrite = self.getOverwriteChecks(dictCount, dictName)
                     select = self.getFieldChecks(dictName)
                     html += (
@@ -676,7 +669,6 @@ class MIDict(AnkiWebView):
                         + '  class="dictionaryTitle">'
                         + cleanName.replace("_", " ")
                         + '</div><div class="dictionarySettings">'
-                        + duplicateHeader
                         + overwrite
                         + select
                         + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
@@ -893,7 +885,8 @@ class MIDict(AnkiWebView):
         dictName = result.get("dictName", "LLM")
         # Handle both missing key and empty string for idName
         idName = result.get("idName") or "llm-loader"
-        font = self.getFontFamily({"font": False, "customFont": False})
+        selected_group = self.dictInt.getSelectedDictGroup()
+        font = self.getFontFamily(selected_group)
 
         # Format just the content part (without header and title block)
         imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
@@ -939,25 +932,18 @@ class MIDict(AnkiWebView):
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
         )
 
-        # Process markdown and clean up the definition
         definition = result["definition"]
 
         # Simple Markdown-like processing
-        # Bold: **text**, __text__, or ★★text★★
         definition = re.sub(r"(\*\*|__|★★)(.*?)\1", r"<b>\2</b>", definition)
-        # Italic: *text* or _text_
         definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
-        # Support for common dictionary stars
         definition = definition.replace("★", "<b>★</b>")
-        # Lists: - item or * item
         definition = re.sub(r"^\s*[-*+]\s+", r"• ", definition, flags=re.MULTILINE)
 
         # Remove a duplicate header if the LLM repeats the term at the beginning or end
-        # This addresses the user report about duplicate headers (one before, one after)
         term = result["term"].lower()
         lines = definition.split("\n")
         if len(lines) > 1:
-            # Check for header at the start (e.g. "**Word**\nDefinition")
             first_line = (
                 lines[0]
                 .strip()
@@ -970,8 +956,6 @@ class MIDict(AnkiWebView):
             )
             if first_line == term:
                 definition = "\n".join(lines[1:]).strip()
-
-            # Re-check for header at the end (e.g. "Definition\n**Word**")
             lines = definition.split("\n")
             if len(lines) > 1:
                 last_line = (
@@ -987,10 +971,7 @@ class MIDict(AnkiWebView):
                 if last_line == term:
                     definition = "\n".join(lines[:-1]).strip()
 
-        # Remove bracketed headword repeats: (word), （word）, [word], ［word］
-        # Also handles cases like (Simplified, Traditional) if the term is part of it
         term_escaped = re.escape(result["term"])
-        # Matches (anything term anything) where brackets are () or （） or [] or ［］
         repeat_pattern = (
             r"^\s*[\(\（\[［][^）\)]*?" + term_escaped + r"[^）\)]*?[\)\）\]］]\s*"
         )
@@ -1042,7 +1023,6 @@ class MIDict(AnkiWebView):
         """Helper to format a single dictionary entry (LLM or other) to HTML."""
         # result now contains 'dictName' from LLMWorker
         dictCount = 999  # Large index to avoid conflict
-        duplicateHeader = self.getDuplicateHeaderCB(dictName)
         overwrite = self.getOverwriteChecks(dictCount, dictName)
         select = self.getFieldChecks(dictName)
 
@@ -1052,7 +1032,6 @@ class MIDict(AnkiWebView):
             + ' class="dictionaryTitle">'
             + dictName
             + '</div><div class="dictionarySettings">'
-            + duplicateHeader
             + overwrite
             + select
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
@@ -1098,24 +1077,18 @@ class MIDict(AnkiWebView):
             + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
         )
 
-        # Process markdown and clean up the definition
         definition = result["definition"]
 
         # Simple Markdown-like processing
-        # Bold: **text**, __text__, or ★★text★★
         definition = re.sub(r"(\*\*|__|★★)(.*?)\1", r"<b>\2</b>", definition)
-        # Italic: *text* or _text_
         definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
-        # Support for common dictionary stars
         definition = definition.replace("★", "<b>★</b>")
-        # Lists: - item or * item
         definition = re.sub(r"^\s*[-*+]\s+", r"• ", definition, flags=re.MULTILINE)
 
         # Remove a duplicate header if the LLM repeats the term at the beginning or end
         term = result["term"].lower()
         lines = definition.split("\n")
         if len(lines) > 1:
-            # Check for header at the start (e.g. "**Word**\nDefinition")
             first_line = (
                 lines[0]
                 .strip()
@@ -1128,8 +1101,6 @@ class MIDict(AnkiWebView):
             )
             if first_line == term:
                 definition = "\n".join(lines[1:]).strip()
-
-            # Re-check for header at the end (e.g. "Definition\n**Word**")
             lines = definition.split("\n")
             if len(lines) > 1:
                 last_line = (
@@ -1145,10 +1116,7 @@ class MIDict(AnkiWebView):
                 if last_line == term:
                     definition = "\n".join(lines[:-1]).strip()
 
-        # Remove bracketed headword repeats: (word), （word）, [word], ［word］
-        # Also handles cases like (Simplified, Traditional) if the term is part of it
         term_escaped = re.escape(result["term"])
-        # Matches (anything term anything) where brackets are () or （） or [] or ［］
         repeat_pattern = (
             r"^\s*[\(\（\[［][^）\)]*?" + term_escaped + r"[^）\)]*?[\)\）\]］]\s*"
         )
@@ -1241,7 +1209,8 @@ class MIDict(AnkiWebView):
                 )
                 return
 
-        font = self.getFontFamily({"font": False, "customFont": False})
+        selected_group = self.dictInt.getSelectedDictGroup()
+        font = self.getFontFamily(selected_group)
         imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
 
         # Header part (only once)
@@ -1344,36 +1313,6 @@ class MIDict(AnkiWebView):
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]
 
-    def getDuplicateHeaderCB(self, dictName: str) -> str:
-        tooltip = ""
-        if self.config["tooltips"]:
-            tooltip = ' title="Enable this option if this dictionary has the target word\'s header within the definition. Enabling this will prevent the addon from exporting duplicate header."'
-        checked = " "
-
-        # Clean name for both internal settings and HTML classes
-        clean_name = self.db.cleanDictName(dictName)
-        className = "checkDict" + re.sub(r"\s", "", clean_name)
-
-        # Check settings using both original and clean name
-        lookup_name = dictName if dictName in self.dupHeaders else clean_name
-        if lookup_name in self.dupHeaders:
-            num = self.dupHeaders[lookup_name]
-            if num == 1:
-                checked = " checked "
-
-        return (
-            '<div class="dupHeadCB" data-dictname="'
-            + dictName
-            + '">Duplicate Header:<input '
-            + checked
-            + tooltip
-            + ' class="'
-            + className
-            + '" onclick="handleDupChange(this, \''
-            + className
-            + '\')" type="checkbox"></div>'
-        )
-
     def maybeSearchTerms(self, terms: str) -> None:
         if self.terms:
             for t in self.terms:
@@ -1389,12 +1328,6 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("saveFS:"):
             f1, f2 = dAct[7:].split(":")
             self.dictInt.writeConfig("fontSizes", [int(f1), int(f2)])
-        elif dAct.startswith("setDup:"):
-            dup, name = dAct[7:].split("◳")
-            dup = int(dup)
-            clean_name = self.db.cleanDictName(name)
-            self.dictInt.db.setDupHeader(dup, clean_name)
-            self.dupHeaders = self.db.getDupHeaders()
         elif dAct.startswith("fieldsSetting:"):
             fields = json.loads(dAct[14:])
             logger.debug(f"Received fieldsSetting command: {fields}")
