@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 import json
 import os
-from aqt import mw
 
 
 @dataclass
@@ -35,11 +34,9 @@ class ThemeColors:
 class ThemeManager:
     def __init__(self, addon_path: str) -> None:
         self.addon_path = addon_path
-        self.themes_file = os.path.join(
-            mw.pm.addonFolder(), addon_path, "user_files/themes", "themes.json"
-        )
+        self.themes_file = os.path.join(addon_path, "user_files/themes", "themes.json")
         self.active_theme_file = os.path.join(
-            mw.pm.addonFolder(), addon_path, "user_files/themes", "active.json"
+            addon_path, "user_files/themes", "active.json"
         )
         self.current_theme = "light"
         self.themes = self._load_default_themes()

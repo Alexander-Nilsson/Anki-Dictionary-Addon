@@ -4,8 +4,6 @@ Path utilities for the Anki Dictionary Addon.
 """
 
 import os
-from typing import Optional
-from aqt import mw
 
 
 def get_addon_root() -> str:
