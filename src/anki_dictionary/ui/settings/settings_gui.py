@@ -166,7 +166,9 @@ class SettingsGui(QTabWidget):
         self.addTab(self.wrapInScrollArea(self.llmTab), "LLM")
         self.addTab(self.wrapInScrollArea(self.forvoTab), "Forvo")
         self.addTab(self.wrapInScrollArea(self.frequencyTab), "Frequency Lists")
-        self.addTab(self.wrapInScrollArea(DictionaryManagerWidget()), "Dictionaries")
+        self.addTab(
+            self.wrapInScrollArea(DictionaryManagerWidget(self.mw)), "Dictionaries"
+        )
 
         self.loadTemplateTable()
         self.loadGroupTable()

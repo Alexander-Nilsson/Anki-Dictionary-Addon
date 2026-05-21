@@ -13,8 +13,6 @@ from aqt.webview import AnkiWebView
 import re
 import os
 from os.path import dirname, join, exists
-from aqt import mw
-
 from aqt.qt import Qt
 from ...utils.common import miInfo, miAsk
 from ...utils.config import get_addon_config, save_addon_config

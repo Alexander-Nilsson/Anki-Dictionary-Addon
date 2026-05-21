@@ -14,7 +14,6 @@ import re
 from typing import Optional, Tuple, List
 from os.path import dirname, join
 
-from aqt import mw
 import aqt
 from aqt.qt import *
 from aqt.webview import AnkiWebView
