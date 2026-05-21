@@ -6,7 +6,7 @@ import sys
 import time
 from os.path import join, exists, dirname
 from shutil import copyfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from aqt.qt import *
 from aqt.qt import pyqtSignal

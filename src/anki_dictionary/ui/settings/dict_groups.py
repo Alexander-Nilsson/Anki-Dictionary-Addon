@@ -22,8 +22,12 @@ import ntpath
 
 
 class DictGroupEditor(QDialog):
-    def __init__(self, mw, parent=None, dictionaries=[], group=False, groupName=False):
+    def __init__(
+        self, mw, parent=None, dictionaries=None, group=False, groupName=False
+    ):
         super(DictGroupEditor, self).__init__(parent, Qt.WindowType.Window)
+        if dictionaries is None:
+            dictionaries = []
         self.mw = mw
         self.settings = parent
         self.setWindowTitle("Add Dictionary Group")

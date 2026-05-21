@@ -355,7 +355,7 @@ def handleYomiDictEntry(
     )
 
 
-def kaner(to_translate: str, hiraganer: bool = False) -> str:
+def kana_converter(to_translate: str, hiraganer: bool = False) -> str:
     hiragana = (
         "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
         "あいうえおかきくけこさしすせそたちつてと"
@@ -379,7 +379,7 @@ def kaner(to_translate: str, hiraganer: bool = False) -> str:
 
 
 def adjustReading(reading: str) -> str:
-    return kaner(reading)
+    return kana_converter(reading)
 
 
 def organizeDictionaryByFrequency(
