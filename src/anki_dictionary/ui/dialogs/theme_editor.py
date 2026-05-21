@@ -5,6 +5,9 @@ from aqt.qt import *
 from aqt.utils import showInfo
 
 from ..themes import ThemeColors
+from ...utils.logger import get_logger
+
+log = get_logger("theme_editor")
 
 
 class ThemeEditorDialog(QDialog):
@@ -154,7 +157,7 @@ class ThemeEditorDialog(QDialog):
             )
             # editor.setStyleSheet(f"background-color: {color_value}; color: white;")
         except Exception as e:
-            print(f"Error updating color preview: {e}")
+            log.error(f"Error updating color preview: {e}")
 
     def load_theme(self, theme_name):
         theme = self.theme_manager.themes[theme_name]
@@ -175,7 +178,7 @@ class ThemeEditorDialog(QDialog):
             theme_name = self.theme_combo.currentText()
             self.theme_manager.save_active_theme(colors, theme_name)
         except Exception as e:
-            print(f"Error saving active theme: {e}")
+            log.error(f"Error saving active theme: {e}")
 
     def save_as_theme(self):
         name_dialog = QDialog(self)
@@ -207,7 +210,7 @@ class ThemeEditorDialog(QDialog):
             self.refresh_application_theme()
             self.applied.emit()
         else:
-            print(f"Error: Selected theme '{selected_theme_name}' not found.")
+            log.error(f"Selected theme '{selected_theme_name}' not found.")
 
     def refresh_application_theme(self):
         if self.dict_interface:
@@ -217,7 +220,7 @@ class ThemeEditorDialog(QDialog):
         try:
             return self.theme_manager.current_theme
         except Exception as e:
-            print(f"Error loading active theme name: {e}")
+            log.error(f"Error loading active theme name: {e}")
             return "light"
 
     def load_active_theme_colors(self):
@@ -226,7 +229,7 @@ class ThemeEditorDialog(QDialog):
             active_theme = self.theme_manager.get_active_theme()
             return vars(active_theme)
         except Exception as e:
-            print(f"Error loading active theme colors: {e}")
+            log.error(f"Error loading active theme colors: {e}")
             return {}
 
     def load_theme_color(self, color_key):
@@ -235,5 +238,5 @@ class ThemeEditorDialog(QDialog):
             color_value = getattr(active_theme, color_key, "#ffffff")
             return QColor(color_value)
         except Exception as e:
-            print(f"Error loading active theme color: {e}")
+            log.error(f"Error loading active theme color: {e}")
         return QColor("#ffffff")

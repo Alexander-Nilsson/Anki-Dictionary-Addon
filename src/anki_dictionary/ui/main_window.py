@@ -18,6 +18,9 @@ from operator import itemgetter
 
 from anki.utils import is_win, is_mac, is_lin
 from aqt import mw
+from ..utils.logger import get_logger
+
+log = get_logger("main_window")
 from aqt.qt import *
 from aqt.utils import showInfo
 import aqt.utils
@@ -68,10 +71,10 @@ def removeTempFiles():
                             os.remove(innerPath)
                     os.rmdir(path)
             except Exception as e:
-                print(f"Error removing {path}: {str(e)}")
+                log.error(f"Error removing {path}: {str(e)}")
 
     except Exception as e:
-        print(f"Error accessing temporary directory: {str(e)}")
+        log.error(f"Error accessing temporary directory: {str(e)}")
 
 
 def ankiDict(text):
@@ -137,7 +140,7 @@ def getWelcomeScreen():
             file = fh.read()
         return file
     except Exception as e:
-        print(f"Error loading welcome screen from {htmlPath}: {e}")
+        log.error(f"Error loading welcome screen from {htmlPath}: {e}")
         return ""
 
 
@@ -149,7 +152,7 @@ def getMacWelcomeScreen():
             file = fh.read()
         return file
     except Exception as e:
-        print(f"Error loading Mac welcome screen from {htmlPath}: {e}")
+        log.error(f"Error loading Mac welcome screen from {htmlPath}: {e}")
         return ""
 
 

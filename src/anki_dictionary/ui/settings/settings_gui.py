@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import re
-import os
 from os.path import dirname, join
 from typing import Any, Callable, Dict, List, Optional
 
