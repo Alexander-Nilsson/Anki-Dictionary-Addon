@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import MagicMock, patch
-from anki_dictionary.integrations.llm import LLMWorker, test_llm_config
+from anki_dictionary.integrations.llm import (
+    LLMWorker,
+    test_llm_config as _llm_config_check,
+)
 
 
 class TestLLMWorker(unittest.TestCase):
@@ -58,9 +61,7 @@ class TestLLMWorker(unittest.TestCase):
         # Mock API response for connection test
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "OK"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "OK"}}]}
         mock_post.return_value = mock_response
 
         callback_results = []
@@ -68,7 +69,7 @@ class TestLLMWorker(unittest.TestCase):
         def test_callback(success, message):
             callback_results.append((success, message))
 
-        test_llm_config(self.config, test_callback)
+        _llm_config_check(self.config, test_callback)
 
         self.assertEqual(len(callback_results), 1)
         self.assertTrue(callback_results[0][0])
@@ -86,9 +87,7 @@ class TestLLMWorker(unittest.TestCase):
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "message": {"content": "A fruit."}
-        }
+        mock_response.json.return_value = {"message": {"content": "A fruit."}}
         mock_post.return_value = mock_response
 
         worker = LLMWorker(self.term, config)

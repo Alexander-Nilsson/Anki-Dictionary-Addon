@@ -7,7 +7,13 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 from aqt.utils import showInfo
 from aqt import mw
-from ..utils.paths import get_addon_root, get_db_dir, get_frequency_dir, get_hsk_dir, get_addon_name
+from ..utils.paths import (
+    get_addon_root,
+    get_db_dir,
+    get_frequency_dir,
+    get_hsk_dir,
+    get_addon_name,
+)
 from ..utils.common import miInfo
 from ..utils.logger import get_logger
 from ..utils.config import get_addon_config
@@ -94,11 +100,7 @@ class DictDB:
         # 1. Try to load main frequency list from frequency/{lang}.json
         main_freq = self._get_frequency_list(lang)
         if main_freq:
-            providers.append({
-                "type": "rank",
-                "name": "Frequency",
-                "data": main_freq
-            })
+            providers.append({"type": "rank", "name": "Frequency", "data": main_freq})
 
         # 2. Try to load HSK data (Special case for Chinese for now)
         if any(x in lang.lower() for x in ["zh", "chinese", "cn"]):
@@ -111,11 +113,7 @@ class DictDB:
                         name = "HSK²"
                     elif version == "3.0":
                         name = "HSK³"
-                    providers.append({
-                        "type": "level",
-                        "name": name,
-                        "data": data
-                    })
+                    providers.append({"type": "level", "name": name, "data": data})
 
         # 3. Future: Scan frequency directory for any {lang}_*.json files
         # This allows for arbitrary extra data like JLPT, CEFR etc.
@@ -123,14 +121,16 @@ class DictDB:
         if os.path.exists(freq_dir):
             for filename in os.listdir(freq_dir):
                 if filename.startswith(lang + "_") and filename.endswith(".json"):
-                    label = filename[len(lang)+1:-5]
+                    label = filename[len(lang) + 1 : -5]
                     data = self._load_extra_file(os.path.join(freq_dir, filename))
                     if data:
-                        providers.append({
-                            "type": "level" if isinstance(data, dict) else "rank",
-                            "name": label,
-                            "data": data
-                        })
+                        providers.append(
+                            {
+                                "type": "level" if isinstance(data, dict) else "rank",
+                                "name": label,
+                                "data": data,
+                            }
+                        )
 
         self._extra_data_cache[lang] = providers
         return providers
@@ -214,11 +214,21 @@ class DictDB:
             return None
 
         if mode == "hsk2":
-            data = load_file(f"{lang}_hsk2.json") or load_file("zh_hsk2.json") or load_file(f"{lang}.json") or load_file("zh.json")
+            data = (
+                load_file(f"{lang}_hsk2.json")
+                or load_file("zh_hsk2.json")
+                or load_file(f"{lang}.json")
+                or load_file("zh.json")
+            )
             if data:
                 result["2.0"] = data
         elif mode == "hsk3":
-            data = load_file(f"{lang}_hsk3.json") or load_file("zh_hsk3.json") or load_file(f"{lang}.json") or load_file("zh.json")
+            data = (
+                load_file(f"{lang}_hsk3.json")
+                or load_file("zh_hsk3.json")
+                or load_file(f"{lang}.json")
+                or load_file("zh.json")
+            )
             if data:
                 result["3.0"] = data
         elif mode == "both":
@@ -268,22 +278,22 @@ class DictDB:
         frequency = 999999
         term = entry["term"]
         alt = entry["altterm"]
-        
+
         for provider in providers:
             p_type = provider.get("type")
             p_name = provider.get("name")
             p_data = provider.get("data")
-            
+
             if p_type == "level" and show_hsk:
                 # Level map: {"term": level}
                 lvl = p_data.get(term) or p_data.get(alt)
                 if lvl:
                     levels.append(f"{p_name}:{lvl}")
-            
+
             elif p_type == "rank" and (show_stars or show_rank):
                 # Rank list: {"term": rank} or {"term": {"reading": rank}}
                 entry_reading = self.adjustReading(entry["pronunciation"] or term)
-                
+
                 if p_data.get("readingDictionaryType"):
                     if term in p_data and entry_reading in p_data[term]:
                         p_rank = p_data[term][entry_reading]
@@ -912,9 +922,7 @@ class DictDB:
                             totalDefs += 1
                             entry = self.resultToDict(r)
 
-                            self._apply_frequency_info(
-                                entry, providers, config
-                            )
+                            self._apply_frequency_info(entry, providers, config)
 
                             dictRes.append(entry)
                             if totalDefs >= maxDefs:
