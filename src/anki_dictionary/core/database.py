@@ -329,7 +329,7 @@ class DictDB:
             if not show_rank:
                 entry["frequency"] = ""
 
-    def kaner(self, to_translate: str, hiraganer: bool = False) -> str:
+    def kana_converter(self, to_translate: str, hiraganer: bool = False) -> str:
         """Convert between Hiragana and Katakana."""
         hiragana = (
             "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
@@ -354,7 +354,7 @@ class DictDB:
 
     def adjustReading(self, reading: str) -> str:
         """Adjust reading for frequency lookup."""
-        return self.kaner(reading)
+        return self.kana_converter(reading)
 
     def getLangId(self, lang: str) -> Optional[int]:
         """Get language ID from language name."""

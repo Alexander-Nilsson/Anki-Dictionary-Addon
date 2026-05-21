@@ -127,9 +127,9 @@ class TestDictDB(unittest.TestCase):
 
     def test_kaner(self):
         # Katakana to Hiragana
-        self.assertEqual(self.db.kaner("リンゴ", True), "りんご")
+        self.assertEqual(self.db.kana_converter("リンゴ", True), "りんご")
         # Hiragana to Katakana
-        self.assertEqual(self.db.kaner("りんご", False), "リンゴ")
+        self.assertEqual(self.db.kana_converter("りんご", False), "リンゴ")
 
     def test_process_definition_html(self):
         html = "Line 1\nLine 2<br/>Line 3 &lt;b&gt;bold&lt;/b&gt;"
