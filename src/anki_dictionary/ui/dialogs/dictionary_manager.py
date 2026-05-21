@@ -7,6 +7,7 @@ from aqt.qt import (
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
+    QMenu,
     QMessageBox,
     QProgressDialog,
     QPushButton,
@@ -61,10 +62,6 @@ class DictionaryManagerWidget(QWidget):
         add_lang_btn.clicked.connect(self.add_lang)
         left_lyt.addWidget(add_lang_btn)
 
-        web_installer_btn = QPushButton("Install Languages in Wizard")
-        web_installer_btn.clicked.connect(self.web_installer)
-        left_lyt.addWidget(web_installer_btn)
-
         right_side = QWidget()
         splitter.addWidget(right_side)
         right_lyt = QVBoxLayout()
@@ -76,49 +73,31 @@ class DictionaryManagerWidget(QWidget):
         lang_lyt = QVBoxLayout()
         self.lang_grp.setLayout(lang_lyt)
 
-        lang_lyt1 = QHBoxLayout()
-        lang_lyt2 = QHBoxLayout()
-        lang_lyt.addLayout(lang_lyt2)
-        lang_lyt3 = QHBoxLayout()
-        lang_lyt.addLayout(lang_lyt3)
-        lang_lyt4 = QHBoxLayout()
-        lang_lyt.addLayout(lang_lyt4)
-        lang_lyt5 = QHBoxLayout()
-        lang_lyt.addLayout(lang_lyt5)
-        lang_lyt.addLayout(lang_lyt1)
+        lang_lyt_row1 = QHBoxLayout()
+        lang_lyt_row2 = QHBoxLayout()
+        lang_lyt.addLayout(lang_lyt_row1)
+        lang_lyt.addLayout(lang_lyt_row2)
+
+        install_dict_btn = QPushButton("Install Dictionaries")
+        install_menu = QMenu()
+        install_menu.addAction("From Web Wizard", self.web_installer_lang)
+        install_menu.addAction("From Files", self.import_dicts)
+        install_dict_btn.setMenu(install_menu)
+        lang_lyt_row1.addWidget(install_dict_btn)
+
+        install_freq_btn = QPushButton("Install Frequency Data")
+        freq_menu = QMenu()
+        freq_menu.addAction("From Web Wizard", self.web_freq_data)
+        freq_menu.addAction("From Files", self.set_freq_data)
+        install_freq_btn.setMenu(freq_menu)
+        lang_lyt_row1.addWidget(install_freq_btn)
 
         remove_lang_btn = QPushButton("Remove Language")
         remove_lang_btn.clicked.connect(self.remove_lang)
-        lang_lyt1.addWidget(remove_lang_btn)
+        lang_lyt_row2.addWidget(remove_lang_btn)
 
-        web_installer_lang_btn = QPushButton("Install Dictionary in Wizard")
-        web_installer_lang_btn.clicked.connect(self.web_installer_lang)
-        lang_lyt2.addWidget(web_installer_lang_btn)
-
-        import_dicts_btn = QPushButton("Install Dictionaries From Files")
-        import_dicts_btn.clicked.connect(self.import_dicts)
-        lang_lyt2.addWidget(import_dicts_btn)
-
-        web_freq_data_btn = QPushButton("Install Frequency/Level Data in Wizard")
-        web_freq_data_btn.clicked.connect(self.web_freq_data)
-        lang_lyt3.addWidget(web_freq_data_btn)
-
-        set_freq_data_btn = QPushButton("Install Frequency/Level Data From File")
-        set_freq_data_btn.clicked.connect(self.set_freq_data)
-        lang_lyt3.addWidget(set_freq_data_btn)
-
-        web_conj_data_btn = QPushButton("Install Conjugation Data in Wizard")
-        web_conj_data_btn.clicked.connect(self.web_conj_data)
-        lang_lyt4.addWidget(web_conj_data_btn)
-
-        set_conj_data_btn = QPushButton("Install Conjugation Data From File")
-        set_conj_data_btn.clicked.connect(self.set_conj_data)
-        lang_lyt4.addWidget(set_conj_data_btn)
-
-        lang_lyt1.addStretch()
-        lang_lyt2.addStretch()
-        lang_lyt3.addStretch()
-        lang_lyt4.addStretch()
+        lang_lyt_row1.addStretch()
+        lang_lyt_row2.addStretch()
 
         self.dict_grp = QGroupBox("Dictionary Options")
         right_lyt.addWidget(self.dict_grp)

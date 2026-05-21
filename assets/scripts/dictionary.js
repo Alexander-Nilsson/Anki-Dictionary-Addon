@@ -917,26 +917,25 @@ function attemptCloseFirstTab() {
  * Load more images for a search term
  * Called when the Load More button is clicked
  */
-function loadMoreImages(button, term) {
+function loadMoreImages(tile, term) {
     try {
-        // console.log('loadMoreImages called with term:', term);
+        tile.classList.add('loading');
+        tile.querySelector('.loadMoreIcon').textContent = '...';
+        tile.querySelector('.loadMoreText').textContent = 'Loading';
         
-        // Disable the button during loading
-        button.disabled = true;
-        button.textContent = 'Loading...';
-        
-        // Call Python backend to get more images
         if (typeof pycmd !== 'undefined') {
             pycmd('getMoreImages::' + term);
         } else {
             console.error('pycmd not available');
-            button.disabled = false;
-            button.textContent = 'Load More';
+            tile.classList.remove('loading');
+            tile.querySelector('.loadMoreIcon').textContent = '+';
+            tile.querySelector('.loadMoreText').textContent = 'Load More';
         }
     } catch (error) {
         console.error('Error in loadMoreImages:', error);
-        button.disabled = false;
-        button.textContent = 'Load More';
+        tile.classList.remove('loading');
+        tile.querySelector('.loadMoreIcon').textContent = '+';
+        tile.querySelector('.loadMoreText').textContent = 'Load More';
     }
 }
 
@@ -946,8 +945,6 @@ function loadMoreImages(button, term) {
  */
 function appendNewImages(html) {
     try {
-        // console.log('appendNewImages called');
-        
         // Find the image container
         const container = document.querySelector('.imageCont.horizontal-layout');
         if (!container) {
@@ -966,29 +963,32 @@ function appendNewImages(html) {
         // Find new images in the temporary div
         const newImages = tempDiv.querySelectorAll('.imgBox');
         
+        // Remove the old load-more tile from the container
+        const oldTile = container.querySelector('.imageLoader');
+        if (oldTile) {
+            oldTile.remove();
+        }
+        
         // Append new images to the existing container
         newImages.forEach((img, index) => {
-            // Reset animation for new images
             img.style.animationDelay = `${(index + 1) * 0.1}s`;
             container.appendChild(img);
         });
         
-        // Re-enable the Load More button if it exists in the new HTML
-        const newButton = tempDiv.querySelector('.imageLoader');
-        if (newButton) {
-            // Replace the old button with the new one
-            const oldButton = document.querySelector('.imageLoader');
-            if (oldButton) {
-                oldButton.parentNode.replaceChild(newButton.cloneNode(true), oldButton);
-            }
-        } else {
-            // If no new button found, re-enable existing button
-            const existingButton = document.querySelector('.imageLoader');
-            if (existingButton) {
-                existingButton.disabled = false;
-                existingButton.textContent = 'Load More';
+        // Add a fresh load-more tile at the end
+        const loadMoreTile = document.createElement('div');
+        loadMoreTile.className = 'imgBox imageLoader';
+        loadMoreTile.innerHTML = '<div class="imageHighlight"></div><div class="loadMoreIcon">+</div><div class="loadMoreText">Load More</div>';
+        
+        // Restore the term from an existing tile's onclick attribute
+        const existingTile = document.querySelector('.imageLoader');
+        if (existingTile) {
+            const match = existingTile.getAttribute('onclick').match(/loadMoreImages\(this,\s*['"](.+?)['"]\)/);
+            if (match) {
+                loadMoreTile.setAttribute('onclick', "loadMoreImages(this, '" + match[1] + "')");
             }
         }
+        container.appendChild(loadMoreTile);
         
         // Ensure the container maintains scrolling capability
         if (scrollContainer) {
@@ -1010,7 +1010,6 @@ function appendNewImages(html) {
             parentScrollContainer.style.overflowX = 'hidden';
         }
         
-        // console.log('Successfully appended', newImages.length, 'new images');
         return true;
     } catch (error) {
         console.error('Error in appendNewImages:', error);

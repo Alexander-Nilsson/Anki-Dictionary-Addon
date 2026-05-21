@@ -836,32 +836,19 @@ class MIDict(AnkiWebView):
             + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">Images</div><div class="dictionarySettings">'
             + overwrite
             + select
-            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div>'
-        )
-        html += (
-            '<div  data-index="'
-            + str(entryCount)
-            + '" class="termPronunciation"><span class="tpCont">'
-            + bracketFront
-            + "<span "
-            + font
-            + ' class="terms">'
-            + self.highlightTarget(term, term)
-            + "</span>"
-            + bracketBack
-            + ' <span></span></span><div class="defTools"><div onclick="ankiExport(event, \''
+            + '<div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton"><img '
+            + '\')" class="ankiExportButton" title="Export"><img '
             + imgTooltip
             + ' src="'
             + self.getBase64Icon("anki.svg")
             + '"></div><div onclick="clipText(event)" '
             + clipTooltip
-            + ' class="clipper">✂</div><div '
+            + ' class="clipper" title="Copy">✂</div><div '
             + sendTooltip
             + " onclick=\"sendToField(event, '"
             + dictName
-            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
+            + '\')" class="sendToField" title="Send to Field">➠</div><div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
             + '">'
             + self.getImages(term, idName)
@@ -1237,29 +1224,6 @@ class MIDict(AnkiWebView):
         font = self.getFontFamily(selected_group)
         imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
 
-        # Header part (only once)
-        frontBracket = self.config["frontBracket"]
-        backBracket = self.config["backBracket"]
-        dictName = "Forvo"
-
-        header_html = (
-            f'<div class="termPronunciation"><span {font} class="tpCont">'
-            f'{frontBracket}<span class="terms">{self.highlightTarget(term, term)}</span>{backBracket} '
-            f'</span><div class="defTools">'
-            f'<div onclick="ankiExport(event, \'{dictName}\')" class="ankiExportButton"><img '
-            + imgTooltip
-            + ' src="'
-            + self.getBase64Icon("anki.svg")
-            + '"></div><div onclick="clipText(event)" '
-            + clipTooltip
-            + ' class="clipper">✂</div><div '
-            + sendTooltip
-            + " onclick=\"sendToField(event, '"
-            + dictName
-            + '\')" class="sendToField">➠</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">▲</div><div onclick="navigateDef(event, true)" class="nextDef">▼</div></div></div></div>'
-        )
-
-        # Content part (pronunciations with limit)
         forvo_limit = self.config.get("forvo_limit", 3)
         content_html = f'<div {font} class="definitionBlock"><div class="forvo-container" style="padding: var(--spacing-sm) 0;">'
 
@@ -1306,9 +1270,7 @@ class MIDict(AnkiWebView):
 
         content_html += "</div></div>"
 
-        # Combine header and content
-        full_html = header_html + content_html
-        escaped_html = json.dumps(full_html)
+        escaped_html = json.dumps(content_html)
 
         self.eval(
             f"var loader = document.getElementById('{idName}'); "

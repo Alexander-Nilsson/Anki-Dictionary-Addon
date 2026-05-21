@@ -316,7 +316,7 @@
             color: var(--header_text);
             min-width: 0;
             word-break: break-word;
-            line-height: 1.4;
+            line-height: 1.6;
         }
 
         .term, .altterm, .pronunciation {
@@ -915,6 +915,53 @@
             transform: scale(1.05);
         }
 
+        .imgBox.imageLoader {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--background-secondary) 0%, var(--tab_hover) 100%);
+            border: 2px dashed var(--border);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            user-select: none;
+        }
+
+        .imgBox.imageLoader:hover {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--tab_hover) 0%, var(--selector) 100%);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .imgBox.imageLoader .loadMoreIcon {
+            font-size: clamp(24px, 4vw, 36px);
+            font-weight: var(--font-weight-light, 300);
+            color: var(--primary);
+            line-height: 1;
+            transition: transform var(--transition-base);
+        }
+
+        .imgBox.imageLoader:hover .loadMoreIcon {
+            transform: scale(1.2);
+        }
+
+        .imgBox.imageLoader .loadMoreText {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted, var(--text));
+            margin-top: clamp(4px, 0.5vw, 8px);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .imgBox.imageLoader.loading .loadMoreIcon {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
         /* ANIMATIONS */
         @keyframes fadeInUp {
             from {
@@ -962,6 +1009,25 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .tpCont {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 4px;
+                width: 100%;
+            }
+
+            .tpCont .starcount {
+                margin-left: 0;
+                padding: 2px 6px;
+                font-size: 10px;
+            }
+
+            .tpCont .frequency-rank,
+            .tpCont .hsk-level {
+                display: none;
+            }
             
             .defTools {
                 width: 100%;
@@ -985,6 +1051,25 @@
             
             .dictionarySettings {
                 gap: 8px;
+            }
+
+            .tpCont {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 4px;
+                width: 100%;
+            }
+
+            .tpCont .starcount {
+                margin-left: 0;
+                padding: 2px 8px;
+                font-size: 11px;
+            }
+
+            .tpCont .frequency-rank,
+            .tpCont .hsk-level {
+                display: none;
             }
             
             .imageCont.horizontal-layout {

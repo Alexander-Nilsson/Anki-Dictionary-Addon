@@ -296,8 +296,12 @@ class DuckDuckGo(QRunnable):
 
         escaped_term = json.dumps(term).replace('"', "&quot;")
         return (
-            f'<div class="imageCont horizontal-layout">{inner_html}</div>'
-            f'<button class="imageLoader" onclick="loadMoreImages(this, {escaped_term})">Load More</button>'
+            f'<div class="imageCont horizontal-layout">{inner_html}'
+            f'<div class="imgBox imageLoader" onclick="loadMoreImages(this, {escaped_term})">'
+            f'<div class="imageHighlight"></div>'
+            f'<div class="loadMoreIcon">+</div>'
+            f'<div class="loadMoreText">Load More</div>'
+            f'</div></div>'
         )
 
     def run(self):
