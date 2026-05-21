@@ -175,7 +175,9 @@ def getAdjustedDefinition(definition: str) -> str:
     return definition
 
 
-def handlePitchDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False) -> None:
+def handlePitchDictEntry(
+    jsonDict: List, count: int, entry: Any, freq: bool = False
+) -> None:
     term = ""
     altterm = ""
     reading = ""
@@ -206,7 +208,9 @@ def handlePitchDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = Fa
     )
 
 
-def handleMiDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False) -> None:
+def handleMiDictEntry(
+    jsonDict: List, count: int, entry: Any, freq: bool = False
+) -> None:
     if isinstance(entry, list):
         term = entry[0] if len(entry) > 0 else ""
         altterm = entry[1] if len(entry) > 1 else ""
@@ -249,7 +253,9 @@ def handleMiDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False
     )
 
 
-def handleYomiDictEntry(jsonDict: List, count: int, entry: Any, freq: bool = False) -> None:
+def handleYomiDictEntry(
+    jsonDict: List, count: int, entry: Any, freq: bool = False
+) -> None:
     def extract_definition(items: Any) -> str:
         def recursive_extract(item):
             if isinstance(item, str):

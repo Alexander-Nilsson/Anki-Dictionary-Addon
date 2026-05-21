@@ -85,7 +85,9 @@ class FrequencySettingsTab(QWidget):
 
     def load_config(self, config: Dict[str, Any]) -> None:
         self.freqStarChar.setText(config.get("star_char", "★"))
-        thresholds: List[int] = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+        thresholds: List[int] = config.get(
+            "star_thresholds", [1501, 5001, 15001, 30001, 60001]
+        )
         self.freqThreshold1.setValue(thresholds[0])
         self.freqThreshold2.setValue(thresholds[1])
         self.freqThreshold3.setValue(thresholds[2])
