@@ -3,17 +3,18 @@
 
 import aqt
 from aqt.qt import *
+from typing import Any
 import os
 from os.path import dirname, join
 import contextlib
+from collections.abc import Generator
 import urllib3.util.connection as connection
 from aqt.webview import AnkiWebView
 from .paths import get_addon_root, get_icons_dir
 
 
 @contextlib.contextmanager
-def prefer_ipv4():
-    """Context manager to temporarily prefer IPv4 for network operations by disabling IPv6 in urllib3."""
+def prefer_ipv4() -> Generator[None, None, None]:
     old_has_ipv6 = getattr(connection, "HAS_IPV6", False)
     try:
         connection.HAS_IPV6 = False
@@ -22,7 +23,9 @@ def prefer_ipv4():
         connection.HAS_IPV6 = old_has_ipv6
 
 
-def miInfo(text, parent=False, level="msg", day=True):
+def miInfo(
+    text: str, parent: QWidget | bool = False, level: str = "msg", day: bool = True
+) -> int:
     if level == "wrn":
         title = "Anki Dictionary Warning"
     elif level == "not":
@@ -47,8 +50,12 @@ def miInfo(text, parent=False, level="msg", day=True):
     return mb.exec()
 
 
-def miAsk(text, parent=None, day=True, customText=False):
-
+def miAsk(
+    text: str,
+    parent: QWidget | None = None,
+    day: bool = True,
+    customText: tuple[str, str] | bool = False,
+) -> bool:
     msg = QMessageBox(parent)
     msg.setWindowTitle("Anki Dictionary")
     msg.setText(text)
@@ -75,8 +82,7 @@ def miAsk(text, parent=None, day=True, customText=False):
         return False
 
 
-def getTarget(name):
-    """Get target window type."""
+def getTarget(name: str) -> str:
     if name == "AddCards":
         return "Add"
     elif name == "EditCurrent" or name == "DictEditCurrent":
@@ -86,6 +92,5 @@ def getTarget(name):
     return name
 
 
-def gt(obj):
-    """Get type name of object."""
+def gt(obj: Any) -> str:
     return type(obj).__name__

@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 #
 #
+from __future__ import annotations
+
 import re
 import os
 from os.path import dirname, join
+from typing import Any, Callable, Dict, List, Optional
+
 from aqt.qt import *
 from anki.utils import is_mac, is_win, is_lin
 from .dict_groups import DictGroupEditor
@@ -20,7 +24,7 @@ verNumber = "0.1"
 
 
 class SettingsGui(QTabWidget):
-    def __init__(self, mw, path, reboot):
+    def __init__(self, mw: Any, path: str, reboot: Callable[[], None]) -> None:
         super(SettingsGui, self).__init__()
         self.mw = mw
         self.reboot = reboot
@@ -87,26 +91,22 @@ class SettingsGui(QTabWidget):
 
         self.show()
 
-    def wrapInScrollArea(self, widget):
+    def wrapInScrollArea(self, widget: QWidget) -> QScrollArea:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(widget)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         return scroll
 
-    def hideEvent(self, event):
+    def hideEvent(self, event: QEvent) -> None:
         self.mw.dictSettings = None
-        # self.userGuideTab.close()
-        # self.userGuideTab.deleteLater()
         event.accept()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QEvent) -> None:
         self.mw.dictSettings = None
-        # self.userGuideTab.close()
-        # self.userGuideTab.deleteLater()
         event.accept()
 
-    def initTooltips(self):
+    def initTooltips(self) -> None:
         self.addDictGroup.setToolTip(
             "Add a new dictionary group.\nDictionary groups allow you to specify which dictionaries to search\nwithin. You can also set a specific font for that group."
         )
@@ -145,10 +145,10 @@ class SettingsGui(QTabWidget):
 
         self.llmTab.init_tooltips()
 
-    def getConfig(self):
+    def getConfig(self) -> Dict[str, Any]:
         return get_addon_config()
 
-    def loadConfig(self):
+    def loadConfig(self) -> None:
         config = self.getConfig()
         self.highlightTarget.setChecked(config.get("highlightTarget", True))
         self.totalDefs.setValue(config.get("maxSearch", 1000))
@@ -169,7 +169,7 @@ class SettingsGui(QTabWidget):
         self.forvoTab.load_config(config)
         self.frequencyTab.load_config(config)
 
-    def saveConfig(self):
+    def saveConfig(self) -> None:
         nc = self.getConfig()
         nc["highlightTarget"] = self.highlightTarget.isChecked()
         nc["maxSearch"] = self.totalDefs.value()
@@ -194,7 +194,7 @@ class SettingsGui(QTabWidget):
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(nc)
 
-    def getGroupTemplateTable(self):
+    def getGroupTemplateTable(self) -> QTableWidget:
         macLin = False
         if is_mac or is_lin:
             macLin = True
@@ -219,7 +219,7 @@ class SettingsGui(QTabWidget):
         tableHeader.hide()
         return groupTemplates
 
-    def loadGroupTable(self):
+    def loadGroupTable(self) -> None:
         self.dictGroups.setRowCount(0)
         dictGroups = self.getConfig()["DictionaryGroups"]
         for groupName in dictGroups:
@@ -243,13 +243,13 @@ class SettingsGui(QTabWidget):
             deleteButton.clicked.connect(self.removeGroupRow(rc))
             self.dictGroups.setCellWidget(rc, 2, deleteButton)
 
-    def removeGroupRow(self, x):
+    def removeGroupRow(self, x: int) -> Callable[[], None]:
         return lambda: self.removeGroup(x)
 
-    def editGroupRow(self, x):
+    def editGroupRow(self, x: int) -> Callable[[], None]:
         return lambda: self.editGroup(x)
 
-    def editGroup(self, row):
+    def editGroup(self, row: int) -> None:
         groupName = self.dictGroups.item(row, 0).text()
         dictGroups = self.getConfig()["DictionaryGroups"]
         if groupName in dictGroups:
@@ -261,7 +261,7 @@ class SettingsGui(QTabWidget):
 
             # dictEditor.exec()
 
-    def removeGroup(self, row):
+    def removeGroup(self, row: int) -> None:
         if miAsk(
             "Are you sure you would like to remove this dictionary group? This action will happen immediately and is not un-doable.",
             self,
@@ -274,7 +274,7 @@ class SettingsGui(QTabWidget):
             self.dictGroups.removeRow(row)
             self.loadGroupTable()
 
-    def loadTemplateTable(self):
+    def loadTemplateTable(self) -> None:
         self.exportTemplates.setRowCount(0)
         exportTemplates = self.getConfig()["ExportTemplates"]
         for template in exportTemplates:
@@ -298,7 +298,7 @@ class SettingsGui(QTabWidget):
             deleteButton.clicked.connect(self.removeTempRow(rc))
             self.exportTemplates.setCellWidget(rc, 2, deleteButton)
 
-    def removeTemplate(self, row):
+    def removeTemplate(self, row: int) -> None:
         if miAsk(
             "Are you sure you would like to remove this template? This action will happen immediately and is not un-doable.",
             self,
@@ -311,13 +311,13 @@ class SettingsGui(QTabWidget):
             self.exportTemplates.removeRow(row)
             self.loadTemplateTable()
 
-    def removeTempRow(self, x):
+    def removeTempRow(self, x: int) -> Callable[[], None]:
         return lambda: self.removeTemplate(x)
 
-    def editTempRow(self, x):
+    def editTempRow(self, x: int) -> Callable[[], None]:
         return lambda: self.editTemplate(x)
 
-    def editTemplate(self, row):
+    def editTemplate(self, row: int) -> None:
         templateName = self.exportTemplates.item(row, 0).text()
         exportTemplates = self.getConfig()["ExportTemplates"]
         if templateName in exportTemplates:
@@ -328,7 +328,7 @@ class SettingsGui(QTabWidget):
             templateEditor.loadTemplateEditor(template, templateName)
             templateEditor.exec()
 
-    def getDictionaryNames(self):
+    def getDictionaryNames(self) -> List[str]:
         dictList = self.mw.miDictDB.getAllDictsWithLang()
         dictionaryList = []
         for dictionary in dictList:
@@ -348,14 +348,14 @@ class SettingsGui(QTabWidget):
         dictionaryList = sorted(dictionaryList, key=str.casefold)
         return dictionaryList
 
-    def initHandlers(self):
+    def initHandlers(self) -> None:
         self.addDictGroup.clicked.connect(self.addGroup)
         self.addExportTemplate.clicked.connect(self.addTemplate)
         self.restoreButton.clicked.connect(self.restoreDefaults)
         self.cancelButton.clicked.connect(self.close)
         self.applyButton.clicked.connect(self.saveConfig)
 
-    def restoreDefaults(self):
+    def restoreDefaults(self) -> None:
         if miAsk(
             "This will remove any export templates and dictionary groups you have created, and is not undoable. Are you sure you would like to restore the default settings?"
         ):
@@ -366,30 +366,29 @@ class SettingsGui(QTabWidget):
             self.close()
             self.reboot()
 
-    def addGroup(self):
+    def addGroup(self) -> None:
         dictEditor = DictGroupEditor(self.mw, self, self.getDictionaryNames())
         dictEditor.clearGroupEditor(True)
         dictEditor.exec()
 
-    def addTemplate(self):
+    def addTemplate(self) -> None:
         templateEditor = TemplateEditor(self.mw, self, self.getDictionaryNames())
         templateEditor.exec()
 
-    def miQLabel(self, text, width):
+    def miQLabel(self, text: str, width: int) -> QLabel:
         label = QLabel(text)
         label.setFixedHeight(30)
         label.setFixedWidth(width)
         return label
 
-    def getLineSeparator(self):
+    def getLineSeparator(self) -> QFrame:
         line = QFrame()
         line.setFrameShape(QFrame.Shape.VLine)
         line.setFrameShadow(QFrame.Shadow.Plain)
         line.setStyleSheet('QFrame[frameShape="5"]{color: #D5DFE5;}')
         return line
 
-    def setupLayout(self):
-        # 1. Dictionary Groups & Export Templates
+    def setupLayout(self) -> None:
         groupLayout = QVBoxLayout()
         dictsLayout = QVBoxLayout()
         exportsLayout = QVBoxLayout()
@@ -469,10 +468,10 @@ class SettingsGui(QTabWidget):
         self.layout.addLayout(buttonsLayout)
         self.settingsTab.setLayout(self.layout)
 
-    def cleanDictName(self, name):
+    def cleanDictName(self, name: str) -> str:
         return re.sub(r"l\d+name", "", name)
 
-    def getHTML(self):
+    def getHTML(self) -> tuple:
         htmlPath = join(self.addonPath, "guide.html")
         url = QUrl.fromLocalFile(htmlPath)
         with open(htmlPath, "r", encoding="utf-8") as fh:

@@ -1,8 +1,12 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
 from aqt.qt import *
 
 
 class FrequencySettingsTab(QWidget):
-    def __init__(self, mw, addon_path, parent=None):
+    def __init__(self, mw: Any, addon_path: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.mw = mw
         self.addon_path = addon_path
@@ -29,7 +33,7 @@ class FrequencySettingsTab(QWidget):
 
         self._build_ui()
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         infoLabel = QLabel(
@@ -79,9 +83,9 @@ class FrequencySettingsTab(QWidget):
 
         layout.addStretch()
 
-    def load_config(self, config):
+    def load_config(self, config: Dict[str, Any]) -> None:
         self.freqStarChar.setText(config.get("star_char", "★"))
-        thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+        thresholds: List[int] = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
         self.freqThreshold1.setValue(thresholds[0])
         self.freqThreshold2.setValue(thresholds[1])
         self.freqThreshold3.setValue(thresholds[2])
@@ -97,7 +101,7 @@ class FrequencySettingsTab(QWidget):
         if index != -1:
             self.hskMode.setCurrentIndex(index)
 
-    def save_config(self, config):
+    def save_config(self, config: Dict[str, Any]) -> None:
         config["star_char"] = self.freqStarChar.text()
         config["star_thresholds"] = [
             self.freqThreshold1.value(),
