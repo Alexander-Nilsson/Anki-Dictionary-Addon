@@ -102,25 +102,24 @@ class SettingsGui(QTabWidget):
         self.llmPrompt = QTextEdit()
         self.llmPrompt.setAcceptRichText(False)
         self.llmPrompt.setFixedHeight(100)
-        
+
         # New LLM Parameters
         self.llmTemperature = QDoubleSpinBox()
         self.llmTemperature.setRange(0.0, 2.0)
         self.llmTemperature.setSingleStep(0.1)
         self.llmTemperature.setDecimals(1)
-        
+
         self.llmKeepAlive = QLineEdit()
         self.llmKeepAlive.setPlaceholderText("e.g., 30m, 1h, 0")
-        
+
         self.llmThink = QCheckBox()
         self.llmStream = QCheckBox()
-        
+
         self.testLLMButton = QPushButton("Test API Connection")
         self.testLLMButton.clicked.connect(self.testLLM)
         self.llmStatusLabel = QLabel("")
         self.llmStatusLabel.setWordWrap(True)
         self.llmStatusLabel.setStyleSheet("font-weight: bold;")
-
 
         # Forvo Settings
         self.forvoEnabled = QCheckBox()
@@ -160,15 +159,15 @@ class SettingsGui(QTabWidget):
         self.llmTab = self.getLLMTab()
         self.forvoTab = self.getForvoTab()
         self.frequencyTab = self.getFrequencyTab()
-        
+
         self.setupLayout()
-        
+
         self.addTab(self.wrapInScrollArea(self.settingsTab), "Settings")
         self.addTab(self.wrapInScrollArea(self.llmTab), "LLM")
         self.addTab(self.wrapInScrollArea(self.forvoTab), "Forvo")
         self.addTab(self.wrapInScrollArea(self.frequencyTab), "Frequency Lists")
         self.addTab(self.wrapInScrollArea(DictionaryManagerWidget()), "Dictionaries")
-        
+
         self.loadTemplateTable()
         self.loadGroupTable()
         self.initHandlers()
@@ -234,7 +233,7 @@ class SettingsGui(QTabWidget):
         self.highlightTarget.setToolTip(
             "The dictionary will highlight the searched term in\nthe search results."
         )
-        
+
         # LLM Tooltips
         self.llmTemperature.setToolTip(
             "Controls randomness: Lower is more focused/deterministic, higher is more creative."
@@ -249,7 +248,6 @@ class SettingsGui(QTabWidget):
             "Enable streaming response. Note: The addon currently waits for the full response before displaying, but this can affect API behavior."
         )
 
-
     def getConfig(self):
         return get_addon_config()
 
@@ -258,7 +256,9 @@ class SettingsGui(QTabWidget):
         self.highlightTarget.setChecked(config.get("highlightTarget", True))
         self.totalDefs.setValue(config.get("maxSearch", 1000))
         self.dictDefs.setValue(config.get("dictSearch", 50))
-        self.imageSearchCountry.setCurrentText(config.get("imageSearchRegion", "United States"))
+        self.imageSearchCountry.setCurrentText(
+            config.get("imageSearchRegion", "United States")
+        )
         self.maxImgWidth.setValue(config.get("maxWidth", 1500))
         self.maxImgHeight.setValue(config.get("maxHeight", 400))
         self.frontBracket.setText(config.get("frontBracket", "【"))
@@ -581,39 +581,39 @@ class SettingsGui(QTabWidget):
 
         # 2. Options in categorized groups
         optionsLayout = QVBoxLayout()
-        
+
         # --- Search & Behavior Group ---
         searchGroup = QGroupBox("Search & Behavior")
         searchForm = QFormLayout()
         searchForm.addRow("Max Total Results:", self.totalDefs)
         searchForm.addRow("Max per Dictionary:", self.dictDefs)
         searchForm.addRow("Image Search Region:", self.imageSearchCountry)
-        
+
         bracketLayout = QHBoxLayout()
         bracketLayout.addWidget(self.frontBracket)
         bracketLayout.addWidget(QLabel("Term"))
         bracketLayout.addWidget(self.backBracket)
         searchForm.addRow("Surround Term:", bracketLayout)
-        
+
         searchGroup.setLayout(searchForm)
         optionsLayout.addWidget(searchGroup)
 
         # --- Display & UI Group ---
         displayGroup = QGroupBox("Display & UI")
         displayLayout = QVBoxLayout()
-        
+
         self.highlightTarget.setText("Highlight Searched Term")
         displayLayout.addWidget(self.highlightTarget)
-        
+
         self.showTarget.setText("Show Export Target Identifier")
         displayLayout.addWidget(self.showTarget)
-        
+
         self.tooltipCB.setText("Enable Tooltips")
         displayLayout.addWidget(self.tooltipCB)
-        
+
         self.dictOnTop.setText("Keep Dictionary Always on Top")
         displayLayout.addWidget(self.dictOnTop)
-        
+
         displayGroup.setLayout(displayLayout)
         optionsLayout.addWidget(displayGroup)
 
@@ -622,10 +622,10 @@ class SettingsGui(QTabWidget):
         mediaForm = QFormLayout()
         mediaForm.addRow("Max Image Width:", self.maxImgWidth)
         mediaForm.addRow("Max Image Height:", self.maxImgHeight)
-        
+
         self.genJSExport.setText("Generate Japanese Readings (Export)")
         mediaForm.addRow(self.genJSExport)
-        
+
         mediaGroup.setLayout(mediaForm)
         optionsLayout.addWidget(mediaGroup)
 
@@ -667,18 +667,19 @@ class SettingsGui(QTabWidget):
         formLayout.addRow("Enable LLM Dictionary:", self.llmEnabled)
         formLayout.addRow("API Key:", self.llmApiKey)
         formLayout.addRow("Base URL:", self.llmBaseUrl)
-        
-        baseUrlHint = QLabel("Supports Ollama (e.g., http://localhost:11434/api/chat) or OpenAI-style endpoints.")
+
+        baseUrlHint = QLabel(
+            "Supports Ollama (e.g., http://localhost:11434/api/chat) or OpenAI-style endpoints."
+        )
         baseUrlHint.setStyleSheet("font-size: 10px; color: gray;")
         formLayout.addRow("", baseUrlHint)
-        
+
         formLayout.addRow("Model:", self.llmModel)
         formLayout.addRow("Temperature:", self.llmTemperature)
         formLayout.addRow("Keep Alive:", self.llmKeepAlive)
         formLayout.addRow("Enable Thinking", self.llmThink)
         formLayout.addRow("Enable Streaming:", self.llmStream)
         formLayout.addRow("Prompt Template:", self.llmPrompt)
-
 
         promptHint = QLabel("Use {term} as a placeholder for the word being searched.")
         promptHint.setStyleSheet("font-size: 10px; color: gray;")
@@ -751,19 +752,19 @@ class SettingsGui(QTabWidget):
         starGroup = QGroupBox("Star Configuration")
         starLayout = QFormLayout()
         starLayout.addRow("Star Character:", self.freqStarChar)
-        
+
         threshLayout = QHBoxLayout()
         threshLayout.addWidget(self.freqThreshold1)
         threshLayout.addWidget(self.freqThreshold2)
         threshLayout.addWidget(self.freqThreshold3)
         threshLayout.addWidget(self.freqThreshold4)
         threshLayout.addWidget(self.freqThreshold5)
-        
+
         starLayout.addRow("Rank Thresholds:", threshLayout)
         starHint = QLabel("Rank thresholds for 5, 4, 3, 2, and 1 star(s) respectively.")
         starHint.setStyleSheet("font-size: 10px; color: gray;")
         starLayout.addRow("", starHint)
-        
+
         starGroup.setLayout(starLayout)
         layout.addWidget(starGroup)
 

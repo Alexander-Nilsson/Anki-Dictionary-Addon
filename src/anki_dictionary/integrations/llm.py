@@ -29,14 +29,18 @@ class LLMWorkerSignals(QObject):
 
 
 def prepare_llm_payload(
-    base_url: str, model: str, content: str, config: Dict[str, Any], is_test: bool = False
+    base_url: str,
+    model: str,
+    content: str,
+    config: Dict[str, Any],
+    is_test: bool = False,
 ) -> Dict[str, Any]:
     """
     Prepare the request payload based on the endpoint type.
     Handles Ollama /api/chat and standard OpenAI formats.
     """
     is_ollama_chat = base_url.endswith("/api/chat")
-    
+
     # Get user configurable parameters
     temperature = config.get("llm_temperature", 0.3)
     keep_alive = config.get("llm_keep_alive", "30m")
@@ -105,13 +109,12 @@ def clean_llm_content(content: str, config: Dict[str, Any]) -> str:
     """
     if not content:
         return ""
-    
+
     # Remove thinking tags if NOT explicitly enabled in config
     if not config.get("llm_think", False):
         content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
-        
-    return content.strip()
 
+    return content.strip()
 
 
 class LLMWorker(QRunnable):
@@ -213,7 +216,11 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
             headers["Authorization"] = f"Bearer {api_key}"
 
         payload = prepare_llm_payload(
-            base_url, model, "Hello, respond with only the word 'OK'.", config, is_test=True
+            base_url,
+            model,
+            "Hello, respond with only the word 'OK'.",
+            config,
+            is_test=True,
         )
 
         logger.debug(f"Sending test request to {base_url}")

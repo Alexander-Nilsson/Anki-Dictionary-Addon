@@ -10,7 +10,11 @@ import os
 import sys
 import ssl
 from typing import Any, Dict, List, Optional
-from aqt import mw
+
+try:
+    from aqt import mw
+except ImportError:
+    mw = None
 
 # macOS SSL certificate fix
 if sys.platform == "darwin":

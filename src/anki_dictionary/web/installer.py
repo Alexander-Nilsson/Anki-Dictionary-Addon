@@ -362,7 +362,7 @@ class DictionaryConfirmPage(MiWizardPage):
                     has_freq = "frequency_url" in language
                     if not has_freq and "frequency_lists" in language:
                         has_freq = len(language["frequency_lists"]) > 0
-                    
+
                     if has_freq:
                         txt += "<li>Installing frequency data</li>"
                     else:
@@ -507,7 +507,9 @@ class DictionaryInstallPage(MiWizardPage):
                     for f_info in furls:
                         fname = f_info["name"]
                         furl = self.construct_url(f_info["url"])
-                        self.log_update.emit("Installing %s %s data..." % (lname, fname))
+                        self.log_update.emit(
+                            "Installing %s %s data..." % (lname, fname)
+                        )
                         dl_resp = self.fetch_data(client, furl)
                         if dl_resp.status_code == 200:
                             # Handle ZIP if necessary
@@ -521,11 +523,15 @@ class DictionaryInstallPage(MiWizardPage):
                                 try:
                                     z = zipfile.ZipFile(io.BytesIO(data))
                                     # Find first json file
-                                    json_files = [n for n in z.namelist() if n.endswith(".json")]
+                                    json_files = [
+                                        n for n in z.namelist() if n.endswith(".json")
+                                    ]
                                     if json_files:
                                         data = z.read(json_files[0])
                                 except Exception as e:
-                                    self.log_update.emit(" ERROR: Failed to unzip: %s" % str(e))
+                                    self.log_update.emit(
+                                        " ERROR: Failed to unzip: %s" % str(e)
+                                    )
 
                             dst_path = os.path.join(freq_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
@@ -541,14 +547,18 @@ class DictionaryInstallPage(MiWizardPage):
                 if self.install_conj:
                     curls = []
                     if l.get("conjugation_url"):
-                        curls.append({"name": "Conjugation", "url": l["conjugation_url"]})
+                        curls.append(
+                            {"name": "Conjugation", "url": l["conjugation_url"]}
+                        )
                     for cl in l.get("conjugation_lists", []):
                         curls.append(cl)
 
                     for c_info in curls:
                         cname = c_info["name"]
                         curl = self.construct_url(c_info["url"])
-                        self.log_update.emit("Installing %s %s data..." % (lname, cname))
+                        self.log_update.emit(
+                            "Installing %s %s data..." % (lname, cname)
+                        )
                         dl_resp = self.fetch_data(client, curl)
                         if dl_resp.status_code == 200:
                             chunks = []
@@ -581,7 +591,9 @@ class DictionaryInstallPage(MiWizardPage):
                     for h in hurls:
                         hname = h["name"]
                         hurl = self.construct_url(h["url"])
-                        self.log_update.emit("Installing %s %s data..." % (lname, hname))
+                        self.log_update.emit(
+                            "Installing %s %s data..." % (lname, hname)
+                        )
 
                         dl_resp = self.fetch_data(client, hurl)
                         if dl_resp.status_code == 200:
@@ -592,7 +604,9 @@ class DictionaryInstallPage(MiWizardPage):
                             elif "3.0" in hname:
                                 suffix = "_hsk3"
 
-                            dst_path = os.path.join(hsk_path, "%s%s.json" % (lname, suffix))
+                            dst_path = os.path.join(
+                                hsk_path, "%s%s.json" % (lname, suffix)
+                            )
                             with open(dst_path, "wb") as f:
                                 for chunk in dl_resp.iter_content(chunk_size=16384):
                                     if chunk:

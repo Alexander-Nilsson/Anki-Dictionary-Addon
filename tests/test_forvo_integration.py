@@ -1,7 +1,12 @@
 import unittest
 import os
 import time
+
+import pytest
+
 from anki_dictionary.integrations.forvo import ForvoWorker
+
+pytestmark = pytest.mark.network
 
 
 class TestForvoIntegration(unittest.TestCase):
