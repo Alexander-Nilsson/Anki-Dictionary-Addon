@@ -1,58 +1,22 @@
 # -*- coding: utf-8 -*-
 #
 #
-import json
-import sys
-import math
-from anki.hooks import addHook, wrap
-from aqt.qt import *
-from aqt.utils import openLink, tooltip, showInfo, askUser
-from anki.utils import is_mac, is_win, is_lin
-from anki.lang import _
-from aqt.webview import AnkiWebView
 import re
 import os
 from os.path import dirname, join
-import platform
+from aqt.qt import *
+from anki.utils import is_mac, is_win, is_lin
 from .dict_groups import DictGroupEditor
 from .templates import TemplateEditor
+from .llm_settings_tab import LLMSettingsTab
+from .forvo_settings_tab import ForvoSettingsTab
+from .frequency_settings_tab import FrequencySettingsTab
 from ...utils.common import miInfo, miAsk
 from ..dialogs.dictionary_manager import DictionaryManagerWidget
 from ...utils.config import get_addon_config, save_addon_config
-from ...utils.constants import COUNTRY_LIST, FORVO_LANGUAGES
-
-try:
-    from PyQt5.QtSvg import QSvgWidget
-except ModuleNotFoundError:
-    from PyQt6.QtSvgWidgets import QSvgWidget
-
+from ...utils.constants import COUNTRY_LIST
 
 verNumber = "0.1"
-
-
-def attemptOpenLink(cmd):
-    if cmd.startswith("openLink:"):
-        openLink(cmd[9:])
-
-
-class AnkiSVG(QSvgWidget):
-    clicked = pyqtSignal()
-
-    def __init__(self, parent=None):
-        QSvgWidget.__init__(self, parent)
-
-    def mousePressEvent(self, ev):
-        self.clicked.emit()
-
-
-class DictLabel(QLabel):
-    clicked = pyqtSignal()
-
-    def __init__(self, parent=None):
-        QLabel.__init__(self, parent)
-
-    def mousePressEvent(self, ev):
-        self.clicked.emit()
 
 
 class SettingsGui(QTabWidget):
@@ -60,6 +24,7 @@ class SettingsGui(QTabWidget):
         super(SettingsGui, self).__init__()
         self.mw = mw
         self.reboot = reboot
+        self.addonPath = path
         self.imageSearchCountries = COUNTRY_LIST
         self.setMinimumSize(500, 500)
         if not is_win:
@@ -68,8 +33,8 @@ class SettingsGui(QTabWidget):
             self.resize(920, 650)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
-        self.addonPath = path
         self.setWindowIcon(QIcon(join(self.addonPath, "assets", "icons", "anki.svg")))
+
         self.addDictGroup = QPushButton("Add Dictionary Group")
         self.addExportTemplate = QPushButton("Add Export Template")
         self.dictGroups = self.getGroupTemplateTable()
@@ -93,72 +58,14 @@ class SettingsGui(QTabWidget):
         self.highlightTarget = QCheckBox()
         self.genJSExport = QCheckBox()
 
-        # LLM Settings
-        self.llmEnabled = QCheckBox()
-        self.llmApiKey = QLineEdit()
-        self.llmApiKey.setEchoMode(QLineEdit.EchoMode.Password)
-        self.llmBaseUrl = QLineEdit()
-        self.llmModel = QLineEdit()
-        self.llmPrompt = QTextEdit()
-        self.llmPrompt.setAcceptRichText(False)
-        self.llmPrompt.setFixedHeight(100)
-
-        # New LLM Parameters
-        self.llmTemperature = QDoubleSpinBox()
-        self.llmTemperature.setRange(0.0, 2.0)
-        self.llmTemperature.setSingleStep(0.1)
-        self.llmTemperature.setDecimals(1)
-
-        self.llmKeepAlive = QLineEdit()
-        self.llmKeepAlive.setPlaceholderText("e.g., 30m, 1h, 0")
-
-        self.llmThink = QCheckBox()
-        self.llmStream = QCheckBox()
-
-        self.testLLMButton = QPushButton("Test API Connection")
-        self.testLLMButton.clicked.connect(self.testLLM)
-        self.llmStatusLabel = QLabel("")
-        self.llmStatusLabel.setWordWrap(True)
-        self.llmStatusLabel.setStyleSheet("font-weight: bold;")
-
-        # Forvo Settings
-        self.forvoEnabled = QCheckBox()
-        self.forvoLanguage = QComboBox()
-        self.forvoLanguage.setEditable(True)
-        for lang in FORVO_LANGUAGES:
-            self.forvoLanguage.addItem(lang["English name"], lang["Code"])
-
-        # Frequency Lists Settings
-        self.freqStarChar = QLineEdit()
-        self.freqStarChar.setMaxLength(2)
-        self.freqThreshold1 = QSpinBox()
-        self.freqThreshold1.setRange(1, 1000000)
-        self.freqThreshold2 = QSpinBox()
-        self.freqThreshold2.setRange(1, 1000000)
-        self.freqThreshold3 = QSpinBox()
-        self.freqThreshold3.setRange(1, 1000000)
-        self.freqThreshold4 = QSpinBox()
-        self.freqThreshold4.setRange(1, 1000000)
-        self.freqThreshold5 = QSpinBox()
-        self.freqThreshold5.setRange(1, 1000000)
-
-        self.showStars = QCheckBox("Display Stars")
-        self.showRank = QCheckBox("Display Frequency Rank")
-        self.showHSK = QCheckBox("Display Level Labels (HSK, JLPT, etc.)")
-
-        self.hskMode = QComboBox()
-        self.hskMode.addItem("HSK 3.0", "hsk3")
-        self.hskMode.addItem("HSK 2.0", "hsk2")
-        self.hskMode.addItem("Both (HSK 2.0 & 3.0)", "both")
-
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
         self.layout = QVBoxLayout()
         self.settingsTab = QWidget()
-        self.llmTab = self.getLLMTab()
-        self.forvoTab = self.getForvoTab()
-        self.frequencyTab = self.getFrequencyTab()
+        self.llmTab = LLMSettingsTab(mw, path, self)
+        self.forvoTab = ForvoSettingsTab(mw, path, self)
+        self.frequencyTab = FrequencySettingsTab(mw, path, self)
 
         self.setupLayout()
 
@@ -236,19 +143,7 @@ class SettingsGui(QTabWidget):
             "The dictionary will highlight the searched term in\nthe search results."
         )
 
-        # LLM Tooltips
-        self.llmTemperature.setToolTip(
-            "Controls randomness: Lower is more focused/deterministic, higher is more creative."
-        )
-        self.llmKeepAlive.setToolTip(
-            "How long the model stays loaded in memory after the request (e.g., '30m', '1h'). Set to '0' to unload immediately."
-        )
-        self.llmThink.setToolTip(
-            "If enabled, internal reasoning/thinking tags (like <think>) will be visible in the results. Currently supported by models like DeepSeek."
-        )
-        self.llmStream.setToolTip(
-            "Enable streaming response. Note: The addon currently waits for the full response before displaying, but this can affect API behavior."
-        )
+        self.llmTab.init_tooltips()
 
     def getConfig(self):
         return get_addon_config()
@@ -270,49 +165,9 @@ class SettingsGui(QTabWidget):
         self.dictOnTop.setChecked(config.get("dictAlwaysOnTop", False))
         self.genJSExport.setChecked(config.get("jReadingCards", False))
 
-        # Load LLM settings
-        self.llmEnabled.setChecked(config.get("llm_enabled", False))
-        self.llmApiKey.setText(config.get("llm_api_key", ""))
-        self.llmBaseUrl.setText(
-            config.get("llm_base_url", "https://api.openai.com/v1/chat/completions")
-        )
-        self.llmModel.setText(config.get("llm_model", "gpt-3.5-turbo"))
-        self.llmPrompt.setPlainText(
-            config.get(
-                "llm_prompt",
-                "Provide a concise dictionary definition for the word: {term}",
-            )
-        )
-        self.llmTemperature.setValue(config.get("llm_temperature", 0.3))
-        self.llmKeepAlive.setText(config.get("llm_keep_alive", "30m"))
-        self.llmThink.setChecked(config.get("llm_think", False))
-        self.llmStream.setChecked(config.get("llm_stream", False))
-
-        # Load Forvo settings
-
-        self.forvoEnabled.setChecked(config.get("forvo_enabled", True))
-        forvo_lang = config.get("forvo_language", "ja")
-        index = self.forvoLanguage.findData(forvo_lang)
-        if index != -1:
-            self.forvoLanguage.setCurrentIndex(index)
-
-        # Load Frequency/HSK settings
-        self.freqStarChar.setText(config.get("star_char", "★"))
-        thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
-        self.freqThreshold1.setValue(thresholds[0])
-        self.freqThreshold2.setValue(thresholds[1])
-        self.freqThreshold3.setValue(thresholds[2])
-        self.freqThreshold4.setValue(thresholds[3])
-        self.freqThreshold5.setValue(thresholds[4])
-
-        self.showStars.setChecked(config.get("show_stars", True))
-        self.showRank.setChecked(config.get("show_rank", False))
-        self.showHSK.setChecked(config.get("show_hsk", True))
-
-        hsk_mode = config.get("hsk_mode", "hsk3")
-        index = self.hskMode.findData(hsk_mode)
-        if index != -1:
-            self.hskMode.setCurrentIndex(index)
+        self.llmTab.load_config(config)
+        self.forvoTab.load_config(config)
+        self.frequencyTab.load_config(config)
 
     def saveConfig(self):
         nc = self.getConfig()
@@ -329,40 +184,13 @@ class SettingsGui(QTabWidget):
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
         nc["jReadingCards"] = self.genJSExport.isChecked()
 
-        # Save LLM settings
-        nc["llm_enabled"] = self.llmEnabled.isChecked()
-        nc["llm_api_key"] = self.llmApiKey.text()
-        nc["llm_base_url"] = self.llmBaseUrl.text()
-        nc["llm_model"] = self.llmModel.text()
-        nc["llm_prompt"] = self.llmPrompt.toPlainText()
-        nc["llm_temperature"] = self.llmTemperature.value()
-        nc["llm_keep_alive"] = self.llmKeepAlive.text()
-        nc["llm_think"] = self.llmThink.isChecked()
-        nc["llm_stream"] = self.llmStream.isChecked()
-
-        # Save Forvo settings
-
-        nc["forvo_enabled"] = self.forvoEnabled.isChecked()
-        nc["forvo_language"] = self.forvoLanguage.currentData()
-
-        # Save Frequency/HSK settings
-        nc["star_char"] = self.freqStarChar.text()
-        nc["star_thresholds"] = [
-            self.freqThreshold1.value(),
-            self.freqThreshold2.value(),
-            self.freqThreshold3.value(),
-            self.freqThreshold4.value(),
-            self.freqThreshold5.value(),
-        ]
-        nc["show_stars"] = self.showStars.isChecked()
-        nc["show_rank"] = self.showRank.isChecked()
-        nc["show_hsk"] = self.showHSK.isChecked()
-        nc["hsk_mode"] = self.hskMode.currentData()
+        self.llmTab.save_config(nc)
+        self.forvoTab.save_config(nc)
+        self.frequencyTab.save_config(nc)
 
         save_addon_config(nc)
         self.hide()
 
-        # Refresh dictionary window with new settings
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(nc)
 
@@ -508,16 +336,13 @@ class SettingsGui(QTabWidget):
             if dictName not in dictionaryList:
                 dictionaryList.append(dictName)
 
-        # Add special entries
         if "Images" not in dictionaryList:
             dictionaryList.append("Images")
 
-        # Check current UI state for LLM enabled
-        if self.llmEnabled.isChecked() and "LLM" not in dictionaryList:
+        if self.llmTab.llmEnabled.isChecked() and "LLM" not in dictionaryList:
             dictionaryList.append("LLM")
 
-        # Check current UI state for Forvo enabled
-        if self.forvoEnabled.isChecked() and "Forvo" not in dictionaryList:
+        if self.forvoTab.is_enabled() and "Forvo" not in dictionaryList:
             dictionaryList.append("Forvo")
 
         dictionaryList = sorted(dictionaryList, key=str.casefold)
@@ -647,200 +472,7 @@ class SettingsGui(QTabWidget):
     def cleanDictName(self, name):
         return re.sub(r"l\d+name", "", name)
 
-    def getSVGWidget(self, name):
-        widget = AnkiSVG(join(self.addonPath, "icons", name))
-        widget.setFixedSize(27, 27)
-        return widget
-
-    def getLLMTab(self):
-        tab = QWidget()
-        layout = QVBoxLayout()
-
-        infoLabel = QLabel(
-            "Configure an OpenAI-compatible LLM to get AI-generated definitions."
-        )
-        infoLabel.setWordWrap(True)
-        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
-        layout.addWidget(infoLabel)
-
-        formGroup = QGroupBox("LLM Configuration")
-        formLayout = QFormLayout()
-
-        formLayout.addRow("Enable LLM Dictionary:", self.llmEnabled)
-        formLayout.addRow("API Key:", self.llmApiKey)
-        formLayout.addRow("Base URL:", self.llmBaseUrl)
-
-        baseUrlHint = QLabel(
-            "Supports Ollama (e.g., http://localhost:11434/api/chat) or OpenAI-style endpoints."
-        )
-        baseUrlHint.setStyleSheet("font-size: 10px; color: gray;")
-        formLayout.addRow("", baseUrlHint)
-
-        formLayout.addRow("Model:", self.llmModel)
-        formLayout.addRow("Temperature:", self.llmTemperature)
-        formLayout.addRow("Keep Alive:", self.llmKeepAlive)
-        formLayout.addRow("Enable Thinking", self.llmThink)
-        formLayout.addRow("Enable Streaming:", self.llmStream)
-        formLayout.addRow("Prompt Template:", self.llmPrompt)
-
-        promptHint = QLabel("Use {term} as a placeholder for the word being searched.")
-        promptHint.setStyleSheet("font-size: 10px; color: gray;")
-        formLayout.addRow("", promptHint)
-
-        formGroup.setLayout(formLayout)
-        layout.addWidget(formGroup)
-
-        buttonLayout = QHBoxLayout()
-        buttonLayout.addWidget(self.testLLMButton)
-        buttonLayout.addWidget(self.llmStatusLabel)
-        buttonLayout.addStretch()
-        layout.addLayout(buttonLayout)
-
-        layout.addStretch()
-
-        tab.setLayout(layout)
-        return tab
-
-    def getForvoTab(self):
-        tab = QWidget()
-        layout = QVBoxLayout()
-
-        infoLabel = QLabel(
-            "Enable Forvo to fetch native pronunciations for your search terms."
-        )
-        infoLabel.setWordWrap(True)
-        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
-        layout.addWidget(infoLabel)
-
-        formGroup = QGroupBox("Forvo Configuration")
-        formLayout = QFormLayout()
-
-        formLayout.addRow("Enable Forvo Dictionary:", self.forvoEnabled)
-        formLayout.addRow("Forvo Language:", self.forvoLanguage)
-
-        langHint = QLabel("Select the language for Forvo pronunciation searches.")
-        langHint.setStyleSheet("font-size: 10px; color: gray;")
-        formLayout.addRow("", langHint)
-
-        formGroup.setLayout(formLayout)
-        layout.addWidget(formGroup)
-
-        layout.addStretch()
-
-        tab.setLayout(layout)
-        return tab
-
-    def getFrequencyTab(self):
-        tab = QWidget()
-        layout = QVBoxLayout()
-
-        infoLabel = QLabel(
-            "Configure how frequency information and level labels are displayed."
-        )
-        infoLabel.setWordWrap(True)
-        infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
-        layout.addWidget(infoLabel)
-
-        # Visibility Group
-        visGroup = QGroupBox("Visibility Options")
-        visLayout = QVBoxLayout()
-        visLayout.addWidget(self.showStars)
-        visLayout.addWidget(self.showRank)
-        visLayout.addWidget(self.showHSK)
-        visGroup.setLayout(visLayout)
-        layout.addWidget(visGroup)
-
-        # Stars Configuration
-        starGroup = QGroupBox("Star Configuration")
-        starLayout = QFormLayout()
-        starLayout.addRow("Star Character:", self.freqStarChar)
-
-        threshLayout = QHBoxLayout()
-        threshLayout.addWidget(self.freqThreshold1)
-        threshLayout.addWidget(self.freqThreshold2)
-        threshLayout.addWidget(self.freqThreshold3)
-        threshLayout.addWidget(self.freqThreshold4)
-        threshLayout.addWidget(self.freqThreshold5)
-
-        starLayout.addRow("Rank Thresholds:", threshLayout)
-        starHint = QLabel("Rank thresholds for 5, 4, 3, 2, and 1 star(s) respectively.")
-        starHint.setStyleSheet("font-size: 10px; color: gray;")
-        starLayout.addRow("", starHint)
-
-        starGroup.setLayout(starLayout)
-        layout.addWidget(starGroup)
-
-        # HSK Configuration
-        hskGroup = QGroupBox("Chinese HSK Configuration")
-        hskLayout = QFormLayout()
-        hskLayout.addRow("HSK Version Preference:", self.hskMode)
-        hskHint = QLabel(
-            "For Chinese, choose HSK 3.0 (9 levels), HSK 2.0 (6 levels), or show both simultaneously."
-        )
-        hskHint.setStyleSheet("font-size: 10px; color: gray;")
-        hskLayout.addRow("", hskHint)
-        hskGroup.setLayout(hskLayout)
-        layout.addWidget(hskGroup)
-
-        layout.addStretch()
-        tab.setLayout(layout)
-        return tab
-
-    def testLLM(self):
-        """Test the LLM configuration."""
-        self.testLLMButton.setEnabled(False)
-        self.testLLMButton.setText("Testing...")
-        self.llmStatusLabel.setText("Testing...")
-        self.llmStatusLabel.setStyleSheet("color: blue; font-weight: bold;")
-
-        # Get current settings from UI
-        config = {
-            "llm_api_key": self.llmApiKey.text().strip(),
-            "llm_base_url": self.llmBaseUrl.text().strip(),
-            "llm_model": self.llmModel.text().strip(),
-        }
-
-        from ...integrations.llm import test_llm_config
-
-        # Define a wrapper for taskman that includes the callback
-        def run_test():
-            result_data = {"success": False, "message": ""}
-
-            def test_callback(success, message):
-                result_data["success"] = success
-                result_data["message"] = message
-
-            test_llm_config(config, test_callback)
-            return result_data
-
-        # Use Anki's task manager for background operations
-        self.mw.taskman.run_in_background(run_test, self.on_test_finished)
-
-    def on_test_finished(self, future):
-        """Handle the completion of the background test."""
-        self.testLLMButton.setEnabled(True)
-        self.testLLMButton.setText("Test API Connection")
-
-        try:
-            result = future.result()
-            success = result["success"]
-            message = result["message"]
-
-            if success:
-                self.llmStatusLabel.setText("Success!")
-                self.llmStatusLabel.setStyleSheet("color: green; font-weight: bold;")
-                showInfo(message, self)
-            else:
-                self.llmStatusLabel.setText("Failed!")
-                self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
-                miInfo(message, self)
-        except Exception as e:
-            self.llmStatusLabel.setText("Error!")
-            self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
-            miInfo(f"Test crashed with error: {str(e)}", self)
-
     def getHTML(self):
-
         htmlPath = join(self.addonPath, "guide.html")
         url = QUrl.fromLocalFile(htmlPath)
         with open(htmlPath, "r", encoding="utf-8") as fh:

@@ -22,7 +22,8 @@ from aqt.qt import *
 from aqt.utils import showInfo
 import aqt.utils
 
-from ..core.dictionary import DictInterface, ClipThread
+from ..core.dictionary import DictInterface
+from ..core.clip_thread import ClipThread
 from ..ui.themes import *
 from ..ui.dialogs.theme_editor import *
 from ..ui.settings.settings_gui import SettingsGui
