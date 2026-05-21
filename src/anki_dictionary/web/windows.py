@@ -47,7 +47,9 @@ class FreqConjWebWindow(QDialog):
                     lists.append(fl)
             else:
                 if lang.get("conjugation_url"):
-                    lists.append({"name": "Conjugation", "url": lang["conjugation_url"]})
+                    lists.append(
+                        {"name": "Conjugation", "url": lang["conjugation_url"]}
+                    )
                 for cl in lang.get("conjugation_lists", []):
                     lists.append(cl)
 
@@ -57,14 +59,14 @@ class FreqConjWebWindow(QDialog):
             lang_str = lang.get("name_en", "<Unnamed>")
             if "name_native" in lang:
                 lang_str += " (" + lang["name_native"] + ")"
-            
+
             for l_info in lists:
                 url = l_info["url"]
                 name = l_info["name"]
 
                 if not url.startswith("http"):
                     url = webConfig.normalize_url(webConfig.DEFAULT_SERVER + url)
-                
+
                 display_str = f"{lang_str} - {name}"
                 itm = QListWidgetItem(display_str)
                 itm.setData(Qt.ItemDataRole.UserRole, url)

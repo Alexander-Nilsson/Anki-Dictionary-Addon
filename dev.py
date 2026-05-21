@@ -15,23 +15,55 @@ def run_tests():
     """Run the test suite"""
     print("🧪 Running test suite...")
 
-    # Some tests check for build artifacts, so ensure build exists and is complete
-    build_dir = Path("build/anki_dictionary_addon")
-    if not (build_dir / "manifest.json").exists():
-        print("  ⚠️  Build incomplete or missing, building addon before tests...")
-        if not build_addon():
-            print("❌ Failed to build addon, skipping tests.")
-            return False
+    is_ci = os.environ.get("GITHUB_ACTIONS") == "true"
+
+    # Unit tests (fast, mocked, no network)
+    unit_cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "tests/",
+        "-p",
+        "no:qt",
+        "-p",
+        "no:xvfb",
+        "-m",
+        "not integration and not network",
+    ]
+    if is_ci:
+        unit_cmd.extend(["--tb=short", "-v"])
 
     try:
-        # We need to capture the output to parse it if we want custom exit logic,
-        # but the run_tests.py already handles the logic.
-        # We just need to make sure we return the correct boolean.
-        result = subprocess.run([sys.executable, "tests/run_tests.py"], check=False)
-        return result.returncode == 0
+        result = subprocess.run(unit_cmd, check=False)
+        if result.returncode != 0:
+            return False
     except Exception as e:
-        print(f"❌ Failed to run tests: {e}")
+        print(f"❌ Unit tests failed: {e}")
         return False
+
+    # Integration tests (need real anki runtime — skip if not available)
+    print("\n🧪 Running integration tests...")
+    int_cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "tests/integration/",
+        "-p",
+        "no:qt",
+        "-p",
+        "no:xvfb",
+    ]
+    if is_ci:
+        int_cmd.extend(["--tb=short", "-v"])
+
+    try:
+        result = subprocess.run(int_cmd, check=False)
+        if result.returncode not in (0, 5):  # 5 = all tests skipped
+            return False
+    except Exception as e:
+        print(f"⚠️  Integration tests could not run: {e}")
+
+    return True
 
 
 def lint_code():

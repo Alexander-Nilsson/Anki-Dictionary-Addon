@@ -207,66 +207,79 @@ class TestDictDB(unittest.TestCase):
         # Setup mock files
         lang = "Klingon"
         self.db.addLanguages([lang])
-        
+
         # Mock paths
         with patch("anki_dictionary.core.database.get_frequency_dir") as mock_freq_dir:
             mock_freq_dir.return_value = self.test_dir.name
-            
+
             # Create a frequency list
-            freq_data = ["的", "我", "你"] # Rank 0, 1, 2
-            with open(os.path.join(self.test_dir.name, f"{lang}.json"), "w", encoding="utf-8") as f:
+            freq_data = ["的", "我", "你"]  # Rank 0, 1, 2
+            with open(
+                os.path.join(self.test_dir.name, f"{lang}.json"), "w", encoding="utf-8"
+            ) as f:
                 json.dump(freq_data, f)
-            
+
             # Create an extra level list (e.g. HSK equivalent)
             hsk_data = {"的": 1, "我": 1}
-            with open(os.path.join(self.test_dir.name, f"{lang}_Level.json"), "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(self.test_dir.name, f"{lang}_Level.json"),
+                "w",
+                encoding="utf-8",
+            ) as f:
                 json.dump(hsk_data, f)
-            
+
             # Get extra data
             providers = self.db._get_extra_data(lang)
-            
+
             self.assertEqual(len(providers), 2)
             # Find the rank provider
             rank_p = next(p for p in providers if p["type"] == "rank")
             self.assertEqual(rank_p["name"], "Frequency")
             self.assertEqual(rank_p["data"]["的"], 0)
-            
+
             # Find the level provider
             level_p = next(p for p in providers if p["type"] == "level")
             self.assertEqual(level_p["name"], "Level")
             self.assertEqual(level_p["data"]["的"], 1)
-            
+
             # Test applying to an entry
-            entry = {"term": "我", "altterm": "", "pronunciation": "", "frequency": 999999}
+            entry = {
+                "term": "我",
+                "altterm": "",
+                "pronunciation": "",
+                "frequency": 999999,
+            }
             config = self.mock_get_config.return_value
-            
+
             self.db._apply_frequency_info(entry, providers, config)
-            
-            self.assertEqual(entry["starCount"], "★★★★★") # Rank 1 is < 1501
+
+            self.assertEqual(entry["starCount"], "★★★★★")  # Rank 1 is < 1501
             self.assertEqual(entry["hskLevel"], "Level:1")
 
     def test_get_term_frequency_info(self):
         """Test the get_term_frequency_info public method."""
         lang = "TestLang"
         self.db.addLanguages([lang])
-        
+
         # Mock frequency directory
         with patch("anki_dictionary.core.database.get_frequency_dir") as mock_freq_dir:
             mock_freq_dir.return_value = self.test_dir.name
-            
+
             # Create a frequency list
             freq_data = ["Word1", "Word2"]
-            with open(os.path.join(self.test_dir.name, f"{lang}.json"), "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(self.test_dir.name, f"{lang}.json"), "w", encoding="utf-8"
+            ) as f:
                 json.dump(freq_data, f)
-            
+
             # Test lookup
             config = self.mock_get_config.return_value
             result = self.db.get_term_frequency_info("Word1", lang, config)
-            
+
             self.assertEqual(result["term"], "Word1")
             self.assertEqual(result["starCount"], "★★★★★")
             self.assertEqual(result["hskLevel"], "")
-            
+
             # Test empty lang
             result_empty = self.db.get_term_frequency_info("Word1", "", config)
             self.assertEqual(result_empty["starCount"], "")

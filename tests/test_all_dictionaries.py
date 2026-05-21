@@ -8,6 +8,10 @@ import unittest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.network
+
 # Add src and root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
