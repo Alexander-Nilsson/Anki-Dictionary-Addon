@@ -301,7 +301,7 @@ class DuckDuckGo(QRunnable):
             f'<div class="imageHighlight"></div>'
             f'<div class="loadMoreIcon">+</div>'
             f'<div class="loadMoreText">Load More</div>'
-            f'</div></div>'
+            f"</div></div>"
         )
 
     def run(self):

@@ -30,13 +30,12 @@ from aqt.qt import (
     QPushButton,
     QShortcut,
     QSize,
-    QSvgWidget,
     QVBoxLayout,
     QWidget,
     Qt,
     pyqtSignal,
 )
-from PyQt6.QtCore import QUrl, qInstallMessageHandler, QtMsgType
+from PyQt6.QtCore import QThreadPool, QUrl, qInstallMessageHandler, QtMsgType
 from aqt.utils import openLink, tooltip
 from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
@@ -97,7 +96,6 @@ from ..web.icons import get_base64_icon
 from PyQt6.QtSvgWidgets import QSvgWidget
 from ..ui.dialogs.theme_editor import *
 from ..ui.themes import *
-from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 
 class MIDict(AnkiWebView):
@@ -836,7 +834,8 @@ class MIDict(AnkiWebView):
             + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">Images</div><div class="dictionarySettings">'
             + overwrite
             + select
-            + '<div onclick="ankiExport(event, \''
+            + '<div class="defTools" style="margin-left: auto; display: flex; gap: var(--spacing-sm); align-items: center;">'
+            + "<div onclick=\"ankiExport(event, '"
             + dictName
             + '\')" class="ankiExportButton" title="Export"><img '
             + imgTooltip
@@ -848,7 +847,7 @@ class MIDict(AnkiWebView):
             + sendTooltip
             + " onclick=\"sendToField(event, '"
             + dictName
-            + '\')" class="sendToField" title="Send to Field">➠</div><div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
+            + '\')" class="sendToField" title="Send to Field">➠</div><div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">▲</div><div onclick="navigateDict(event, true)" class="nextDict">▼</div></div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
             + idName
             + '">'
             + self.getImages(term, idName)
@@ -1493,7 +1492,6 @@ class MIDict(AnkiWebView):
                 return
 
             from urllib.request import Request, urlopen
-            from aqt.qt import QMimeData, QUrl
 
             mime_data = QMimeData()
             urls_list = []
