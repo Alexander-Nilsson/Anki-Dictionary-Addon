@@ -118,9 +118,9 @@ src/anki_dictionary/     # Main package
 ├── exporters/           # Anki card generation logic
 └── web/                 # HTML/JS rendering components
 tests/                   # Test suite
-├── conftest.py          # Shared fixtures and aqt/anki module mocks
-├── integration/         # Integration tests (real Anki runtime)
-│   ├── conftest.py      # Headless anki_session fixture
+├── conftest.py          # Shared fixtures and qapp fixture
+├── integration/         # Integration tests (real Anki + aqt runtime)
+│   ├── conftest.py      # Headless anki_session + qapp fixtures
 │   └── test_addon_loads.py
 ├── test_database.py     # DictDB unit tests
 ├── test_forvo.py        # Forvo parsing tests
@@ -180,8 +180,8 @@ python dev.py ci
 
 **Conventions:**
 
-- **Unit tests** (`tests/test_*.py`) use module-level mocks for `aqt`/`anki` so addon modules can be imported without an Anki runtime. The shared conftest at `tests/conftest.py` pre-installs stubs to prevent the root `__init__.py` (the Anki entry point) from being loaded during test collection.
-- **Integration tests** (`tests/integration/`) use a headless `anki.collection.Collection` fixture (no Qt GUI). They auto-skip when `anki` is not installed.
+- **Unit tests** (`tests/test_*.py`) use the installed `anki` and `aqt` packages directly (no module-level mocks). The shared conftest at `tests/conftest.py` only stubs the addon's root `__init__.py` entry point.
+- **Integration tests** (`tests/integration/`) use a headless `anki.collection.Collection` fixture (no Qt GUI required for basic DB tests). Widget-level tests use the `qapp` fixture which sets `AA_ShareOpenGLContexts` before creating a shared `QApplication`. They auto-skip when `anki` is not installed.
 - **Network tests** are marked `@pytest.mark.network` and are excluded from the default test run.
 
 -----
