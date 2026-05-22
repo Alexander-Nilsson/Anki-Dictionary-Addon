@@ -2,10 +2,24 @@ import aqt
 import json
 import shutil
 import os
-from aqt.qt import *
+from aqt.qt import (
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QInputDialog,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QSplitter,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+    Qt,
+)
 from ...web.installer import DictionaryWebInstallWizard
 from ...web.windows import FreqConjWebWindow
-from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir, get_hsk_dir
+from ...utils.paths import get_addon_root, get_db_dir, get_icons_dir, get_hsk_dir, get_frequency_dir
 from .dict_import import (
     importDict,
     organizeDictionaryByFrequency,

@@ -6,7 +6,7 @@ from os.path import join, exists, dirname
 from shutil import copyfile
 from typing import Any, Dict, Tuple
 
-from aqt.qt import *
+from aqt.qt import QImage, QObject, QSize, Qt
 from aqt.qt import pyqtSignal
 from anki.utils import is_mac, is_win, is_lin
 

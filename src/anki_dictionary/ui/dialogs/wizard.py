@@ -15,7 +15,20 @@ from typing import Optional, Tuple, List
 from os.path import dirname, join
 
 import aqt
-from aqt.qt import *
+from aqt.qt import (
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QPalette,
+    QPushButton,
+    QSizePolicy,
+    QStyle,
+    QVBoxLayout,
+    QWidget,
+    Qt,
+)
 from aqt.webview import AnkiWebView
 from aqt.utils import openLink
 from anki.hooks import addHook

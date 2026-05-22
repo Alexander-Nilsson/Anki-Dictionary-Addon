@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from aqt.qt import *
+from aqt.qt import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class FrequencySettingsTab(QWidget):

@@ -21,7 +21,7 @@ from aqt import mw
 from ..utils.logger import get_logger
 
 log = get_logger("main_window")
-from aqt.qt import *
+from aqt.qt import Qt
 from aqt.utils import showInfo
 import aqt.utils
 

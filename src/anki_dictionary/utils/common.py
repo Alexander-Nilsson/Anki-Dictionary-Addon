@@ -2,7 +2,7 @@
 #
 
 import aqt
-from aqt.qt import *
+from aqt.qt import QIcon, QMessageBox, QWidget
 from typing import Any
 import os
 import contextlib

@@ -3,7 +3,21 @@
 
 import json
 
-from aqt.qt import *
+from aqt.qt import (
+    QAbstractItemView,
+    QAbstractTableModel,
+    QHBoxLayout,
+    QHeaderView,
+    QKeySequence,
+    QModelIndex,
+    QPalette,
+    QPushButton,
+    QShortcut,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+    Qt,
+)
 from aqt.utils import askUser, showInfo
 import datetime
 from .common import miInfo, miAsk

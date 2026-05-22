@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from aqt.qt import *
+from aqt.qt import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ...utils.constants import FORVO_LANGUAGES
 

@@ -7,7 +7,32 @@ import re
 from os.path import dirname, join
 from typing import Any, Callable, Dict, List, Optional
 
-from aqt.qt import *
+from aqt.qt import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QEvent,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QIcon,
+    QKeySequence,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QShortcut,
+    QSpinBox,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QUrl,
+    QVBoxLayout,
+    QWidget,
+    Qt,
+)
 from anki.utils import is_mac, is_win, is_lin
 from .dict_groups import DictGroupEditor
 from .templates import TemplateEditor

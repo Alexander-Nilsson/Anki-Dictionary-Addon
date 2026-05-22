@@ -23,7 +23,7 @@ except ImportError:
 
 try:
     from aqt import mw
-    from aqt.qt import *
+    from aqt.qt import QAction, QKeySequence, QMenu, Qt
     from aqt.utils import showInfo
     from aqt.addcards import AddCards
     from aqt.editcurrent import EditCurrent

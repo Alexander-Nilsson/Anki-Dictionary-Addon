@@ -1,6 +1,16 @@
 import os
 from enum import Enum
-from aqt.qt import *
+from aqt.qt import (
+    QDialog,
+    QIcon,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    Qt,
+)
 from anki.httpclient import HttpClient
 import aqt
 from ..utils.common import prefer_ipv4

@@ -14,8 +14,29 @@ import sys
 import math
 import base64
 from anki.hooks import runHook
-from aqt.qt import *
-from PyQt6.QtCore import QUrl
+from aqt.qt import (
+    QColor,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QIcon,
+    QImage,
+    QKeySequence,
+    QLabel,
+    QLineEdit,
+    QMimeData,
+    QPalette,
+    QPixmap,
+    QPushButton,
+    QShortcut,
+    QSize,
+    QSvgWidget,
+    QVBoxLayout,
+    QWidget,
+    Qt,
+    pyqtSignal,
+)
+from PyQt6.QtCore import QUrl, qInstallMessageHandler, QtMsgType
 from aqt.utils import openLink, tooltip
 from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _

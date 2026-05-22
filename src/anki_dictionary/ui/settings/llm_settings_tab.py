@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from aqt.qt import *
+from aqt.qt import (
+    QCheckBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from aqt.utils import showInfo
 
 from ...utils.common import miInfo

@@ -1,7 +1,21 @@
 import json
 import os
 
-from aqt.qt import *
+from aqt.qt import (
+    QColor,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+    pyqtSignal,
+)
 from aqt.utils import showInfo
 
 from ..themes import ThemeColors

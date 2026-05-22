@@ -1,4 +1,22 @@
-from aqt.qt import *
+from aqt.qt import (
+    QCheckBox,
+    QHBoxLayout,
+    QIcon,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QTextCursor,
+    QTextEdit,
+    QThread,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    Qt,
+    pyqtSignal,
+)
 from anki.httpclient import HttpClient
 import json
 import io

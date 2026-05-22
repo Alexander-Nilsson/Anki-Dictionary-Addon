@@ -5,7 +5,24 @@ import json
 import sys
 import math
 from anki.hooks import addHook
-from aqt.qt import *
+from aqt.qt import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFontDatabase,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QRadioButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    Qt,
+)
 from aqt.utils import tooltip, showInfo
 from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _

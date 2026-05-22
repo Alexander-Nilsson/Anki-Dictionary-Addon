@@ -2,7 +2,33 @@
 #
 
 from aqt import dialogs
-from aqt.qt import *
+from aqt.qt import (
+    QAbstractItemView,
+    QAction,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFont,
+    QHBoxLayout,
+    QHeaderView,
+    QIcon,
+    QKeySequence,
+    QLabel,
+    QLineEdit,
+    QPixmap,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QShortcut,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextCharFormat,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+    Qt,
+)
 from anki.utils import is_mac, is_lin, is_win
 from aqt.utils import ensureWidgetInScreenBoundaries
 from os.path import join, exists
