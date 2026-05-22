@@ -21,6 +21,7 @@ dev = [
  "flake8>=7.3.0",
  "pyright>=1.1.403",
  "pytest>=8.4.1",
+ "pytest-cov>=6.1.1",
  "pytest-qt>=4.4.0",
  "pytest-xdist>=3.6.1",
  "pytest-xvfb>=3.1.0",
@@ -35,6 +36,9 @@ markers = [
 ]
 filterwarnings = []
 addopts = "-ra -q"
+
+[tool.black]
+target-version = ["py313"]
 
 [tool.pyright]
 include = [ "src",]

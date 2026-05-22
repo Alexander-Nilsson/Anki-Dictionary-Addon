@@ -76,7 +76,9 @@ def lint_code():
     # Run flake8
     try:
         print("  Running flake8...")
-        result = subprocess.run(["uv", "run", "flake8", ".", "--config=.flake8"], check=False)
+        result = subprocess.run(
+            ["uv", "run", "flake8", ".", "--config=.flake8"], check=False
+        )
         if result.returncode != 0:
             success = False
     except FileNotFoundError:
@@ -121,7 +123,8 @@ def format_code():
     print("🎨 Formatting code...")
     try:
         result = subprocess.run(
-            ["uv", "run", "black", ".", "--exclude", "vendor|build|.venv|__pycache__"], check=False
+            ["uv", "run", "black", ".", "--exclude", "vendor|build|.venv|__pycache__"],
+            check=False,
         )
         if result.returncode == 0:
             print("✅ Code formatted successfully")
@@ -149,7 +152,9 @@ def clean_build():
     """Clean build artifacts"""
     print("🧹 Cleaning build artifacts...")
     try:
-        result = subprocess.run(["uv", "run", "python", "build.py", "clean"], check=False)
+        result = subprocess.run(
+            ["uv", "run", "python", "build.py", "clean"], check=False
+        )
         return result.returncode == 0
     except Exception as e:
         print(f"❌ Clean failed: {e}")
