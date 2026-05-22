@@ -1,32 +1,26 @@
+import tempfile
 import unittest
 import os
-import json
-from unittest.mock import MagicMock
 import sys
+from pathlib import Path
+from unittest.mock import MagicMock
 
-# Mock aqt and mw before importing ThemeManager
-sys.modules["aqt"] = MagicMock()
-sys.modules["aqt.qt"] = MagicMock()
-sys.modules["aqt.utils"] = MagicMock()
-mw_mock = MagicMock()
-mw_mock.pm.addonFolder.return_value = "/tmp/anki_addon_test"
-sys.modules["aqt"].mw = mw_mock
-sys.modules["anki"] = MagicMock()
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from src.anki_dictionary.ui.themes import ThemeManager, ThemeColors
+from anki_dictionary.ui.themes import ThemeManager, ThemeColors
 
 
 class TestThemes(unittest.TestCase):
     def setUp(self):
-        self.addon_path = "anki_dictionary"
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.addon_path = self.test_dir.name
         os.makedirs(
-            "/tmp/anki_addon_test/anki_dictionary/user_files/themes", exist_ok=True
-        )
-        self.dict_int_mock = MagicMock()
-        self.dict_int_mock.iconpath = (
-            "/tmp/anki_addon_test/anki_dictionary/assets/icons"
+            os.path.join(self.addon_path, "user_files", "themes"), exist_ok=True
         )
         self.theme_manager = ThemeManager(self.addon_path)
+
+    def tearDown(self):
+        self.test_dir.cleanup()
 
     def test_default_themes_loaded(self):
         expected_themes = [

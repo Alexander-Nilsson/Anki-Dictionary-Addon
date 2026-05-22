@@ -8,12 +8,6 @@ from pathlib import Path
 
 import sys
 
-sys.modules["aqt"] = MagicMock()
-sys.modules["aqt.qt"] = MagicMock()
-sys.modules["aqt.utils"] = MagicMock()
-sys.modules["anki"] = MagicMock()
-sys.modules["anki.hooks"] = MagicMock()
-sys.modules["anki.utils"] = MagicMock()
 _src = str(Path(__file__).parent.parent / "src")
 if _src not in sys.path:
     sys.path.insert(0, _src)

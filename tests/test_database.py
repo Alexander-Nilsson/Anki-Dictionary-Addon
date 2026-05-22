@@ -11,28 +11,6 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-# Mock aqt before importing DictDB
-import types
-
-aqt = types.ModuleType("aqt")
-aqt.qt = types.ModuleType("aqt.qt")
-aqt.utils = types.ModuleType("aqt.utils")
-aqt.webview = types.ModuleType("aqt.webview")
-sys.modules["aqt"] = aqt
-sys.modules["aqt.qt"] = aqt.qt
-sys.modules["aqt.utils"] = aqt.utils
-sys.modules["aqt.webview"] = aqt.webview
-
-# Add common mocks
-aqt.mw = MagicMock()
-aqt.utils.showInfo = MagicMock()
-aqt.webview.AnkiWebView = MagicMock
-
-# Also mock anki
-sys.modules["anki"] = MagicMock()
-sys.modules["anki.hooks"] = MagicMock()
-sys.modules["anki.utils"] = MagicMock()
-
 from anki_dictionary.core.database import DictDB
 from scripts.create_empty_db import create_empty_database
 
