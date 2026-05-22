@@ -5,7 +5,7 @@ import io
 import os
 import aqt
 import zipfile
-import logging
+
 
 from ..ui.dialogs.wizard import MiWizard, MiWizardPage
 from . import config as webConfig

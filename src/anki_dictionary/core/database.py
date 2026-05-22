@@ -5,7 +5,7 @@ import os
 import re
 import json
 from typing import Any, Dict, List, Optional, Tuple
-from aqt.utils import showInfo
+
 from aqt import mw
 from ..utils.paths import (
     get_addon_root,
@@ -65,6 +65,11 @@ class DictDB:
             logger.error(f"Database error: {e} - Path: {db_file}")
             miInfo(f"Database error: {e}\nAttempted path: {db_file}", level="err")
             raise
+
+    @staticmethod
+    def _quote_identifier(name: str) -> str:
+        """Safely quote a SQLite identifier (table/index name) to prevent injection."""
+        return '"' + name.replace('"', '""') + '"'
 
     def _ensure_connection(self) -> bool:
         """Ensure database connection is active. Returns True if connection is ready."""
@@ -412,7 +417,7 @@ class DictDB:
                 for l in allLs:
                     langs.append(l[0])
             return langs
-        except:
+        except Exception:
             return []
 
     def dictExists(self, dictname: str, lang: str) -> bool:
@@ -565,7 +570,7 @@ class DictDB:
                 for l in allLs:
                     langs.append(l[0])
             return langs
-        except:
+        except Exception:
             return []
 
     def getUserGroups(self, dicts: List[str]) -> List[Dict[str, str]]:
@@ -632,7 +637,7 @@ class DictDB:
                 for l in allLs:
                     langs.append(l[0])
             return langs
-        except:
+        except Exception:
             return []
 
     def getAllDicts(self) -> List[str]:
@@ -648,7 +653,7 @@ class DictDB:
                 for d in allDs:
                     dicts.append(self.formatDictName(d[1], d[0]))
             return dicts
-        except:
+        except Exception:
             return []
 
     def getAllDictsWithLang(self) -> List[Dict[str, str]]:
@@ -668,7 +673,7 @@ class DictDB:
                         {"dict": self.formatDictName(d[1], d[0]), "lang": d[2]}
                     )
             return dicts
-        except:
+        except Exception:
             return []
 
     def getDefaultGroups(self) -> Dict[str, Dict[str, Any]]:
@@ -715,7 +720,7 @@ class DictDB:
                 duplicateHeader, termHeader = result
                 return duplicateHeader, json.loads(termHeader)
             return None
-        except:
+        except Exception:
             return None
 
     def getDefEx(self, sT: str) -> bool:
@@ -987,17 +992,15 @@ class DictDB:
             return []
         try:
             cursor = self._get_cursor()
-            # Quote table name to handle spaces and special characters
+            safe_table = self._quote_identifier(dictName)
             query = (
-                'SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM "'
-                + dictName
-                + '" WHERE '
+                "SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM "
+                + safe_table
+                + " WHERE "
                 + toQuery
-                + " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT "
-                + dictLimit
-                + " ;"
+                + " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT ?"
             )
-            cursor.execute(query, termTuple)
+            cursor.execute(query, termTuple + (int(dictLimit),))
             out = cursor.fetchall()
             return out
         except sqlite3.Error as e:
@@ -1038,38 +1041,47 @@ class DictDB:
     def createDB(self, text: str) -> None:
         """Create a new dictionary table with indexes."""
         cursor = self._get_cursor()
-        # Quote table name to handle spaces and special characters
+        safe_table = self._quote_identifier(text)
+        safe_idx_it = self._quote_identifier("it" + text)
+        safe_idx_itp = self._quote_identifier("itp" + text)
+        safe_idx_ia = self._quote_identifier("ia" + text)
+        safe_idx_iap = self._quote_identifier("iap" + text)
+        safe_idx_ip = self._quote_identifier("ip" + text)
         cursor.execute(
-            'CREATE TABLE IF NOT EXISTS "'
-            + text
-            + '" (term CHAR(40) NOT NULL, altterm CHAR(40), pronunciation CHAR(100), pos CHAR(40), definition TEXT, examples TEXT, audio TEXT, frequency MEDIUMINT, starCount TEXT);'
+            "CREATE TABLE IF NOT EXISTS "
+            + safe_table
+            + " (term CHAR(40) NOT NULL, altterm CHAR(40), pronunciation CHAR(100), pos CHAR(40), definition TEXT, examples TEXT, audio TEXT, frequency MEDIUMINT, starCount TEXT);"
         )
         cursor.execute(
-            'CREATE INDEX IF NOT EXISTS "it' + text + '" ON "' + text + '" (term);'
+            "CREATE INDEX IF NOT EXISTS " + safe_idx_it + " ON " + safe_table + " (term);"
         )
         cursor.execute(
-            'CREATE INDEX IF NOT EXISTS "itp'
-            + text
-            + '" ON "'
-            + text
-            + '" ( term, pronunciation );'
+            "CREATE INDEX IF NOT EXISTS "
+            + safe_idx_itp
+            + " ON "
+            + safe_table
+            + " ( term, pronunciation );"
         )
         cursor.execute(
-            'CREATE INDEX IF NOT EXISTS "ia' + text + '" ON "' + text + '" (altterm);'
+            "CREATE INDEX IF NOT EXISTS "
+            + safe_idx_ia
+            + " ON "
+            + safe_table
+            + " (altterm);"
         )
         cursor.execute(
-            'CREATE INDEX IF NOT EXISTS "iap'
-            + text
-            + '" ON "'
-            + text
-            + '" ( altterm, pronunciation );'
+            "CREATE INDEX IF NOT EXISTS "
+            + safe_idx_iap
+            + " ON "
+            + safe_table
+            + " ( altterm, pronunciation );"
         )
         cursor.execute(
-            'CREATE INDEX IF NOT EXISTS "ip'
-            + text
-            + '" ON "'
-            + text
-            + '" (pronunciation);'
+            "CREATE INDEX IF NOT EXISTS "
+            + safe_idx_ip
+            + " ON "
+            + safe_table
+            + " (pronunciation);"
         )
 
     def importToDict(
@@ -1079,11 +1091,11 @@ class DictDB:
         if not self._ensure_connection():
             return
         cursor = self._get_cursor()
-        # Quote table name to handle spaces and special characters
+        safe_table = self._quote_identifier(dictName)
         cursor.executemany(
-            'INSERT INTO "'
-            + dictName
-            + '" (term, altterm, pronunciation, pos, definition, examples, audio, frequency, starCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
+            "INSERT INTO "
+            + safe_table
+            + " (term, altterm, pronunciation, pos, definition, examples, audio, frequency, starCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
             dictionaryData,
         )
 
@@ -1098,8 +1110,8 @@ class DictDB:
         )
         dicts = cursor.fetchall()
         for name in dicts:
-            # Quote table name to handle spaces and special characters
-            cursor.execute('DROP TABLE IF EXISTS "' + name[0] + '" ;')
+            safe_table = self._quote_identifier(name[0])
+            cursor.execute("DROP TABLE IF EXISTS " + safe_table + " ;")
 
     def setFieldsSetting(self, name: str, fields: str) -> None:
         """Set the fields setting for a dictionary."""
@@ -1143,7 +1155,7 @@ class DictDB:
                 return json.loads(result[0])
             logger.debug(f"DB: No fields found for {clean_name}")
             return None
-        except:
+        except Exception:
             return None
 
     def getAddTypeAndFields(
@@ -1164,7 +1176,7 @@ class DictDB:
                 fields, addType = result
                 return json.loads(fields), addType
             return None
-        except:
+        except Exception:
             return None
 
     def getDupHeaders(self) -> Optional[Dict[str, int]]:
@@ -1179,7 +1191,7 @@ class DictDB:
             for r in dictHeaders:
                 results[r[0]] = r[1]
             return results
-        except:
+        except Exception:
             return None
 
     def setDupHeader(self, duplicateHeader: int, name: str) -> None:
@@ -1206,7 +1218,7 @@ class DictDB:
             for r in dictHeaders:
                 results[r[0]] = json.loads(r[1])
             return results
-        except:
+        except Exception:
             return None
 
     def getAddType(self, name: str) -> Optional[str]:

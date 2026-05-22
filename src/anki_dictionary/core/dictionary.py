@@ -149,7 +149,7 @@ class MIDict(AnkiWebView):
                 )
                 image.save(filename, "AVIF")
                 return '<img src="' + filename + '">'
-        except:
+        except Exception:
             return ""
 
     def loadHTMLURL(self, html, url):
@@ -1464,7 +1464,7 @@ class MIDict(AnkiWebView):
                 rawPaths.append(fullpath)
                 # imgs.append('<img ankiDict="' + filename + '">')
                 imgs.append('<img src="' + filename + '">')
-            except:
+            except Exception:
                 continue
         if len(imgs) > 0:
             self.addWindow.addImgs(

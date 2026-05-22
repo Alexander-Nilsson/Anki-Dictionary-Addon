@@ -6,7 +6,7 @@ import sys
 import math
 from anki.hooks import addHook
 from aqt.qt import *
-from aqt.utils import openLink, tooltip, showInfo, askUser
+from aqt.utils import tooltip, showInfo
 from anki.utils import is_mac, is_win, is_lin
 from anki.lang import _
 from aqt.webview import AnkiWebView
@@ -16,6 +16,7 @@ from os.path import dirname, join, exists
 from aqt.qt import Qt
 from ...utils.common import miInfo, miAsk
 from ...utils.config import get_addon_config, save_addon_config
+
 from shutil import copyfile
 from operator import itemgetter
 import ntpath
@@ -262,7 +263,7 @@ class DictGroupEditor(QDialog):
                 return True
             else:
                 return False
-        except:
+        except Exception:
             return False
 
     def setOrder(self, x):

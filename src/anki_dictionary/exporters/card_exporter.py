@@ -708,7 +708,7 @@ Please review your template and notetype combination."""),
             row = self.definitions.selectionModel().currentIndex().row()
             self.definitions.removeRow(row)
             self.removeImgFromDefinitionList(imgs)
-        except:
+        except Exception:
             return
 
     def removeImgFromDefinitionList(self, imgs):
@@ -794,7 +794,7 @@ Please review your template and notetype combination."""),
             shortDef = self.definitions.item(row, 1).text()
             self.definitions.removeRow(row)
             self.removeFromDefinitionList(dictName, shortDef)
-        except:
+        except Exception:
             return
 
     def focusWindow(self):
@@ -1192,7 +1192,7 @@ Please review your template and notetype combination."""),
                     miInfo("{} cards have been imported.".format(total))
                 self.closeProgressBar(self.bulkMediaExportProgressWindow)
                 self.bulkMediaExportProgressWindow = False
-        except:
+        except Exception:
             pass
 
     def bulkMediaExportCancelledByBrowserRefresh(self):

@@ -24,9 +24,6 @@ except ImportError:
 from ..utils.common import prefer_ipv4
 from ..utils.logger import get_logger
 
-# Suppress insecure request warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 logger = get_logger("Forvo")
 
 
@@ -70,7 +67,6 @@ class ForvoWorker(QRunnable):
         session.mount("https://", adapter)
         session.mount("http://", adapter)
 
-        # session.verify = False # Removing this might help with some security checks
         session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

@@ -90,8 +90,8 @@ class HistoryBrowser(QWidget):
         self.main_layout = self.getLayout()
         self.setLayout(self.main_layout)
         self.setColors()
-        self.history_model = self.history_model
-        self.dictInt = self.dictInt
+        # These were previously self-assignments (no-ops) - kept as comments for reference
+        pass
         self.setup_ui()  # Call the setup_ui method
         self.hotkeyEsc = QShortcut(QKeySequence("Esc"), self)
         self.hotkeyEsc.activated.connect(self.hide)

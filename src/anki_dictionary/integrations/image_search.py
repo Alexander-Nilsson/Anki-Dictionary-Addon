@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import argparse
+
 import os
 import platform
 from os.path import dirname, join
@@ -237,7 +237,6 @@ class DuckDuckGo(QRunnable):
     def download_all_images(self, urls: list) -> list:
         # Create a fast, standard session strictly for image downloading
         dl_session = requests.Session()
-        dl_session.verify = False
         dl_session.headers.update(
             {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         )
@@ -317,16 +316,4 @@ class DuckDuckGo(QRunnable):
             self.signals.finished.emit()
 
 
-def search(target, number):
-    parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
-    parser.add_argument("-t", "--target", type=str, required=True)
-    parser.add_argument("-n", "--number", type=int, required=True)
-    parser.add_argument("-f", "--force", type=bool, default=False)
-    args = parser.parse_args()
 
-    data_dir = "./data"
-    os.makedirs(os.path.join(data_dir, target), exist_ok=args.force)
-
-    ddg = DuckDuckGo()
-    ddg.session = _make_session()  # Required since run() isn't called here
-    return ddg.search(target, maximum=number)

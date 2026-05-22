@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import re
 import sys
@@ -19,19 +17,19 @@ log = get_logger("clip_thread")
 
 
 class ClipThread(QObject):
-    sentence = pyqtSignal(str)  # type: ignore[valid-type]
-    search = pyqtSignal(str)  # type: ignore[valid-type]
-    colSearch = pyqtSignal(str)  # type: ignore[valid-type]
-    add = pyqtSignal(str)  # type: ignore[valid-type]
-    image = pyqtSignal(list)  # type: ignore[valid-type]
-    test = pyqtSignal(list)  # type: ignore[valid-type]
-    release = pyqtSignal(list)  # type: ignore[valid-type]
-    extensionCardExport = pyqtSignal(dict)  # type: ignore[valid-type]
-    searchFromExtension = pyqtSignal(list)  # type: ignore[valid-type]
-    extensionFileNotFound = pyqtSignal()  # type: ignore[valid-type]
-    bulkTextExport = pyqtSignal(list)  # type: ignore[valid-type]
-    bulkMediaExport = pyqtSignal(dict)  # type: ignore[valid-type]
-    pageRefreshDuringBulkMediaImport = pyqtSignal()  # type: ignore[valid-type]
+    sentence = pyqtSignal(str)
+    search = pyqtSignal(str)
+    colSearch = pyqtSignal(str)
+    add = pyqtSignal(str)
+    image = pyqtSignal(list)
+    test = pyqtSignal(list)
+    release = pyqtSignal(list)
+    extensionCardExport = pyqtSignal(dict)
+    searchFromExtension = pyqtSignal(list)
+    extensionFileNotFound = pyqtSignal()
+    bulkTextExport = pyqtSignal(list)
+    bulkMediaExport = pyqtSignal(dict)
+    pageRefreshDuringBulkMediaImport = pyqtSignal()
 
     def __init__(self, mw: Any, path: str) -> None:
         super().__init__(mw)

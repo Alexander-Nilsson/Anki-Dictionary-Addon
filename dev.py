@@ -235,18 +235,8 @@ def show_project_info():
         name = config["project"]["name"]
         print(f"Name: {name}")
         print(f"Version: {version}")
-    except:
-        try:
-            import toml
-
-            with open("pyproject.toml", "r") as f:
-                config = toml.load(f)
-            version = config["project"]["version"]
-            name = config["project"]["name"]
-            print(f"Name: {name}")
-            print(f"Version: {version}")
-        except:
-            print("Version: Unable to read from pyproject.toml")
+    except ImportError:
+        print("Version: Unable to read from pyproject.toml (tomllib not available)")
 
     # Check git status
     try:
@@ -265,7 +255,7 @@ def show_project_info():
             print("Git status: Working directory has changes")
         else:
             print("Git status: Working directory clean")
-    except:
+    except Exception:
         print("Git status: Unable to check")
 
     # Check build status

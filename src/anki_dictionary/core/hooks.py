@@ -9,9 +9,7 @@ This module handles all the integration points with Anki, including:
 - Window wrapping and event handling
 """
 
-import os
 import re
-import json
 from typing import Optional
 
 try:
@@ -175,26 +173,17 @@ def checkCurrentEditor(self):
 
 
 def addBodyClick(self):
-    """Add body click functionality."""
-    if hasattr(self, "web") and hasattr(self.web, "parentEditor"):
-        pass  # Already has parent editor
+    """Add body click functionality - handled by parent editor setup."""
+    pass
 
 
 def addHotkeys(self):
-    """Add hotkeys to editor window."""
-    # Note: Global shortcuts (Ctrl+W, Ctrl+S, Ctrl+Shift+B) are handled
-    # by the menu actions in setup_gui_menu() with ApplicationShortcut context.
-    # We don't need to duplicate them here as WidgetShortcuts, which would
-    # cause "Ambiguous shortcut" warnings when the dictionary window is focused.
+    """Hotkeys handled by setup_gui_menu() with ApplicationShortcut context."""
     pass
 
 
 def addHotkeysToPreview(self):
-    """Add hotkeys to preview window."""
-    # Note: Global shortcuts (Ctrl+W, Ctrl+S, Ctrl+Shift+B) are handled
-    # by the menu actions in setup_gui_menu() with ApplicationShortcut context.
-    # We don't need to duplicate them here as WidgetShortcuts, which would
-    # cause "Ambiguous shortcut" warnings when the dictionary window is focused.
+    """Hotkeys handled by setup_gui_menu() with ApplicationShortcut context."""
     pass
 
 
