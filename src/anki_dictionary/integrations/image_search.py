@@ -314,6 +314,3 @@ class DuckDuckGo(QRunnable):
             self.signals.noResults.emit("No Images Found.")
         finally:
             self.signals.finished.emit()
-
-
-

@@ -15,7 +15,7 @@ from anki.httpclient import HttpClient
 import aqt
 from ..utils.common import prefer_ipv4
 
-from ..utils.paths import get_addon_root, get_icons_dir, get_db_dir
+from ..utils.paths import get_icons_dir, get_db_dir
 from . import config as webConfig
 
 

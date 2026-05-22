@@ -1053,7 +1053,11 @@ class DictDB:
             + " (term CHAR(40) NOT NULL, altterm CHAR(40), pronunciation CHAR(100), pos CHAR(40), definition TEXT, examples TEXT, audio TEXT, frequency MEDIUMINT, starCount TEXT);"
         )
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS " + safe_idx_it + " ON " + safe_table + " (term);"
+            "CREATE INDEX IF NOT EXISTS "
+            + safe_idx_it
+            + " ON "
+            + safe_table
+            + " (term);"
         )
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS "
