@@ -407,6 +407,9 @@ class MIDict(AnkiWebView):
         text = re.sub(r"^(<br>\s*)+", "", text, flags=re.IGNORECASE)
         text = re.sub(r"(<br>\s*)+$", "", text, flags=re.IGNORECASE)
 
+        # Remove leading [?] placeholder markers from definition text
+        text = re.sub(r"^\[\?\]\s*", "", text)
+
         return text.strip()
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
