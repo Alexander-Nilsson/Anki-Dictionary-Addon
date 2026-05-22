@@ -8,13 +8,6 @@ src_path = str(Path(__file__).parent.parent.parent / "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-# Remove any stubs that the top-level conftest may have installed so the real
-# anki / aqt packages are used.
-for mod_name in list(sys.modules.keys()):
-    if mod_name.startswith(("aqt", "anki")):
-        if "unittest.mock" in str(type(sys.modules[mod_name])):
-            del sys.modules[mod_name]
-
 # Check if a real anki is available; skip all tests if not.
 _anki_available = False
 try:
@@ -45,6 +38,29 @@ def pytest_collection_modifyitems(items):
                         )
             except Exception:
                 pass
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """Create or reuse a QApplication for widget tests that need one.
+
+    Sets ``AA_ShareOpenGLContexts`` before creation to allow the
+    ``aqt.qt`` → ``PyQt6.QtWebEngineWidgets`` import chain to succeed
+    when a QCoreApplication already exists.
+
+    Uses a session scope so all widget tests share a single instance.
+    pytest-qt's built-in ``qapp`` fixture is function-scoped; we need
+    session scope for tests that construct widgets outside the test
+    function's lifetime.
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+        app = QApplication([])
+    yield app
 
 
 @pytest.fixture(scope="function")
