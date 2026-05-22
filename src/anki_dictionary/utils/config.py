@@ -40,12 +40,12 @@ def get_addon_config() -> Dict[str, Any]:
             if state.config:
                 return state.config
         except ImportError:
-            pass
+            logger.debug("get_addon_state not available, using fallback")
         finally:
             if addon_root in sys.path:
                 sys.path.remove(addon_root)
     except Exception:
-        pass
+        logger.debug("Could not load config from addon state")
 
     # Fallback 1: try to get config from mw.AnkiDictConfig (legacy compatibility)
     if (
@@ -64,7 +64,7 @@ def get_addon_config() -> Dict[str, Any]:
         if config:
             return config
     except Exception:
-        pass
+        logger.debug("Could not load config from addonManager")
 
     # Fallback 3: Load default config from file
     try:
@@ -74,7 +74,7 @@ def get_addon_config() -> Dict[str, Any]:
             with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
-        pass
+        logger.debug("Could not load config from config.json")
 
     # If all else fails, return basic defaults
     return {
@@ -166,12 +166,12 @@ def save_addon_config(config: Dict[str, Any]) -> bool:
             state = get_addon_state()
             state.config = config
         except ImportError:
-            pass
+            logger.debug("get_addon_state not available, skipping state save")
         finally:
             if addon_root in sys.path:
                 sys.path.remove(addon_root)
     except Exception:
-        pass
+        logger.debug("Could not save config to addon state")
 
     # 2. Update legacy location
     if hasattr(mw, "__dict__"):

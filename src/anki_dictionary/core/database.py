@@ -319,7 +319,7 @@ class DictDB:
             try:
                 frequency = int(entry["frequency"])
             except (ValueError, TypeError):
-                pass
+                logger.debug("Could not parse frequency: %s", entry.get("frequency"))
 
         if frequency != 999999:
             if show_stars:
