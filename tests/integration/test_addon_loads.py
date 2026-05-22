@@ -44,11 +44,18 @@ class TestAddonDatabase:
     """Test DictDB against a real SQLite database (without mocking)."""
 
     def test_db_creation(self, anki_session):
+        import aqt
+        from unittest.mock import MagicMock
+
+        aqt.mw = MagicMock()
+        aqt.mw.pm.addonFolder.return_value = anki_session.base
+
         from anki_dictionary.core.database import DictDB
 
         db = DictDB()
         assert db is not None
         db.closeConnection()
+        aqt.mw = None
 
 
 class TestAddonImports:
