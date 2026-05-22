@@ -19,8 +19,8 @@ def run_tests():
 
     # Unit tests (fast, mocked, no network)
     unit_cmd = [
-        sys.executable,
-        "-m",
+        "uv",
+        "run",
         "pytest",
         "tests/",
         "-p",
@@ -44,8 +44,8 @@ def run_tests():
     # Integration tests (need real anki runtime — skip if not available)
     print("\n🧪 Running integration tests...")
     int_cmd = [
-        sys.executable,
-        "-m",
+        "uv",
+        "run",
         "pytest",
         "tests/integration/",
         "-p",
@@ -76,7 +76,7 @@ def lint_code():
     # Run flake8
     try:
         print("  Running flake8...")
-        result = subprocess.run(["flake8", ".", "--config=.flake8"], check=False)
+        result = subprocess.run(["uv", "run", "flake8", ".", "--config=.flake8"], check=False)
         if result.returncode != 0:
             success = False
     except FileNotFoundError:
@@ -90,6 +90,8 @@ def lint_code():
         print("  Checking code formatting with black...")
         result = subprocess.run(
             [
+                "uv",
+                "run",
                 "black",
                 "--check",
                 "--diff",
@@ -119,7 +121,7 @@ def format_code():
     print("🎨 Formatting code...")
     try:
         result = subprocess.run(
-            ["black", ".", "--exclude", "vendor|build|.venv|__pycache__"], check=False
+            ["uv", "run", "black", ".", "--exclude", "vendor|build|.venv|__pycache__"], check=False
         )
         if result.returncode == 0:
             print("✅ Code formatted successfully")
@@ -136,7 +138,7 @@ def build_addon():
     """Build the addon"""
     print("🔨 Building addon...")
     try:
-        result = subprocess.run([sys.executable, "build.py", "all"], check=False)
+        result = subprocess.run(["uv", "run", "python", "build.py", "all"], check=False)
         return result.returncode == 0
     except Exception as e:
         print(f"❌ Build failed: {e}")
@@ -147,7 +149,7 @@ def clean_build():
     """Clean build artifacts"""
     print("🧹 Cleaning build artifacts...")
     try:
-        result = subprocess.run([sys.executable, "build.py", "clean"], check=False)
+        result = subprocess.run(["uv", "run", "python", "build.py", "clean"], check=False)
         return result.returncode == 0
     except Exception as e:
         print(f"❌ Clean failed: {e}")
