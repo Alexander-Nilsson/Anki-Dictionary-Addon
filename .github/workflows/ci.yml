@@ -96,11 +96,10 @@ jobs:
 
       # --- RELEASE SECTION (Only runs on master branch push) ---
 
-      - name: Version and Build
+      - name: Bump Version, Build, Commit, and Tag
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         id: build_step
         run: |
-          # Safe version bump logic
           NEW_VERSION=$(.venv/bin/python -c "
           import tomllib
           with open('pyproject.toml', 'rb') as f:
@@ -108,8 +107,7 @@ jobs:
           v[-1] = str(int(v[-1]) + 1)
           print('.'.join(v))
           ")
-          
-          # Update pyproject.toml
+
           .venv/bin/python -c "
           import re
           with open('pyproject.toml', 'r+') as f:
@@ -117,14 +115,29 @@ jobs:
               f.write(re.sub(r'^version = \".*\"', f'version = \"$NEW_VERSION\"', c, flags=re.MULTILINE))
               f.truncate()
           "
-          
-          # Rebuild with the new version for release
-          .venv/bin/python build.py all
-          
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      - name: Push Changes and Release
+          .venv/bin/python -c "
+          import re
+          with open('src/anki_dictionary/__init__.py', 'r+') as f:
+              c = f.read(); f.seek(0)
+              f.write(re.sub(r'^__version__ = \".*\"', f'__version__ = \"$NEW_VERSION\"', c, flags=re.MULTILINE))
+              f.truncate()
+          "
+
+          .venv/bin/python build.py all
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml src/anki_dictionary/__init__.py
+          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+          git tag -d "v$NEW_VERSION" 2>/dev/null || true
+          git tag "v$NEW_VERSION"
+          git push origin master +"refs/tags/v$NEW_VERSION"
+
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
