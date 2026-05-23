@@ -48,8 +48,17 @@ class _QLineEdit:
 
 
 _saved_modules = {}
-for _mod_name in ["aqt", "aqt.qt", "aqt.utils", "anki", "anki.utils", "anki.notes", "anki.sound"]:
+for _mod_name in [
+    "aqt",
+    "aqt.qt",
+    "aqt.utils",
+    "anki",
+    "anki.utils",
+    "anki.notes",
+    "anki.sound",
+]:
     _saved_modules[_mod_name] = sys.modules.get(_mod_name)
+
 
 class _QRunnable:
     """Stub so that DuckDuckGo(QRunnable), ForvoWorker(QRunnable), etc. yield real classes."""

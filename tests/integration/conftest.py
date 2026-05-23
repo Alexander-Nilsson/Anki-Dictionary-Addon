@@ -44,21 +44,29 @@ def pytest_collection_modifyitems(items):
 def qapp():
     """Create or reuse a QApplication for widget tests that need one.
 
-    Sets ``AA_ShareOpenGLContexts`` before creation to allow the
-    ``aqt.qt`` → ``PyQt6.QtWebEngineWidgets`` import chain to succeed
-    when a QCoreApplication already exists.
+    Imports ``PyQt6.QtWebEngineWidgets`` *before* creating
+    ``QApplication`` (instead of setting ``AA_ShareOpenGLContexts``)
+    to satisfy aqt's import chain without triggering the ``Fatal error:
+    Aborted`` crash that occurs in Qt 6.9 when the attribute is set
+    under a virtual framebuffer that doesn't support OpenGL.
 
-    Uses a session scope so all widget tests share a single instance.
-    pytest-qt's built-in ``qapp`` fixture is function-scoped; we need
-    session scope for tests that construct widgets outside the test
-    function's lifetime.
+    Uses the ``offscreen`` Qt platform plugin so tests can run without
+    a display server at all.  Session-scoped so all widget tests share
+    a single instance.
     """
-    from PyQt6.QtCore import Qt
+    import os
+
     from PyQt6.QtWidgets import QApplication
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
     app = QApplication.instance()
     if app is None:
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+        # Must happen *before* QApplication — same effect as
+        # Qt.AA_ShareOpenGLContexts but avoids the Qt 6.9 abort
+        # under virtual framebuffers.
+        import PyQt6.QtWebEngineWidgets  # noqa: F401
+
         app = QApplication([])
     yield app
 

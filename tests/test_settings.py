@@ -88,8 +88,15 @@ _QT_CLASSES = [
 
 # Save original modules so we can restore them at exit
 _saved_modules = {}
-for _mod_name in ["aqt.qt", "aqt", "aqt.utils", "aqt.webview",
-                   "anki.utils", "anki.hooks", "anki.lang"]:
+for _mod_name in [
+    "aqt.qt",
+    "aqt",
+    "aqt.utils",
+    "aqt.webview",
+    "anki.utils",
+    "anki.hooks",
+    "anki.lang",
+]:
     _saved_modules[_mod_name] = sys.modules.get(_mod_name)
 
 _mock_aqt_qt = types.ModuleType("aqt.qt")
@@ -132,9 +139,7 @@ sys.modules["anki.lang"] = _mock_anki_lang
 # -- anki_dictionary.ui.dialogs.dictionary_manager (deep import chain) --
 _mock_dict_mgr = types.ModuleType("anki_dictionary.ui.dialogs.dictionary_manager")
 _mock_dict_mgr.DictionaryManagerWidget = MagicMock()
-sys.modules[
-    "anki_dictionary.ui.dialogs.dictionary_manager"
-] = _mock_dict_mgr
+sys.modules["anki_dictionary.ui.dialogs.dictionary_manager"] = _mock_dict_mgr
 
 
 def _restore_modules():
@@ -192,7 +197,8 @@ class TestDictionaryGroupsTab(unittest.TestCase):
         self.tab.table.setRowCount.assert_called()
         count = self.tab.table.setItem.call_count
         self.assertEqual(
-            count, len(self.config["DictionaryGroups"]),
+            count,
+            len(self.config["DictionaryGroups"]),
             f"Expected {len(self.config['DictionaryGroups'])} setItem calls, got {count}",
         )
 
@@ -246,11 +252,12 @@ class TestDictionaryGroupsTab(unittest.TestCase):
             mock_editor_cls.assert_not_called()
 
     def test_removeGroup_removes_and_saves(self):
-        with patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.miAsk"
-        ) as mock_miAsk, patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"
-        ) as mock_save:
+        with (
+            patch("anki_dictionary.ui.settings.dict_groups_tab.miAsk") as mock_miAsk,
+            patch(
+                "anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"
+            ) as mock_save,
+        ):
             mock_miAsk.return_value = True
 
             mock_item = MagicMock()
@@ -265,11 +272,12 @@ class TestDictionaryGroupsTab(unittest.TestCase):
             self.tab.table.removeRow.assert_called_with(0)
 
     def test_removeGroup_skipped_when_cancelled(self):
-        with patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.miAsk"
-        ) as mock_miAsk, patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"
-        ) as mock_save:
+        with (
+            patch("anki_dictionary.ui.settings.dict_groups_tab.miAsk") as mock_miAsk,
+            patch(
+                "anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"
+            ) as mock_save,
+        ):
             mock_miAsk.return_value = False
 
             mock_item = MagicMock()
@@ -324,7 +332,8 @@ class TestExportTemplatesTab(unittest.TestCase):
         self.tab.table.setRowCount.assert_called()
         count = self.tab.table.setItem.call_count
         self.assertEqual(
-            count, len(self.config["ExportTemplates"]),
+            count,
+            len(self.config["ExportTemplates"]),
             f"Expected {len(self.config['ExportTemplates'])} setItem calls, got {count}",
         )
 
@@ -380,11 +389,14 @@ class TestExportTemplatesTab(unittest.TestCase):
             mock_editor_cls.assert_not_called()
 
     def test_removeTemplate_removes_and_saves(self):
-        with patch(
-            "anki_dictionary.ui.settings.export_templates_tab.miAsk"
-        ) as mock_miAsk, patch(
-            "anki_dictionary.ui.settings.export_templates_tab.save_addon_config"
-        ) as mock_save:
+        with (
+            patch(
+                "anki_dictionary.ui.settings.export_templates_tab.miAsk"
+            ) as mock_miAsk,
+            patch(
+                "anki_dictionary.ui.settings.export_templates_tab.save_addon_config"
+            ) as mock_save,
+        ):
             mock_miAsk.return_value = True
 
             mock_item = MagicMock()
@@ -399,11 +411,14 @@ class TestExportTemplatesTab(unittest.TestCase):
             self.tab.table.removeRow.assert_called_with(0)
 
     def test_removeTemplate_skipped_when_cancelled(self):
-        with patch(
-            "anki_dictionary.ui.settings.export_templates_tab.miAsk"
-        ) as mock_miAsk, patch(
-            "anki_dictionary.ui.settings.export_templates_tab.save_addon_config"
-        ) as mock_save:
+        with (
+            patch(
+                "anki_dictionary.ui.settings.export_templates_tab.miAsk"
+            ) as mock_miAsk,
+            patch(
+                "anki_dictionary.ui.settings.export_templates_tab.save_addon_config"
+            ) as mock_save,
+        ):
             mock_miAsk.return_value = False
 
             mock_item = MagicMock()
@@ -695,11 +710,12 @@ class TestSettingsGui(unittest.TestCase):
         mw.addonManager.addonConfigDefaults.return_value = {"default": "config"}
         gui = SettingsGui(mw, "/tmp", MagicMock())
 
-        with patch(
-            "anki_dictionary.ui.settings.settings_gui.miAsk"
-        ) as mock_miAsk, patch(
-            "anki_dictionary.ui.settings.settings_gui.save_addon_config"
-        ) as mock_save:
+        with (
+            patch("anki_dictionary.ui.settings.settings_gui.miAsk") as mock_miAsk,
+            patch(
+                "anki_dictionary.ui.settings.settings_gui.save_addon_config"
+            ) as mock_save,
+        ):
             mock_miAsk.return_value = True
             gui.restoreDefaults()
             mock_save.assert_called_once_with({"default": "config"})
@@ -711,11 +727,12 @@ class TestSettingsGui(unittest.TestCase):
         mw = MagicMock()
         gui = SettingsGui(mw, "/tmp", MagicMock())
 
-        with patch(
-            "anki_dictionary.ui.settings.settings_gui.miAsk"
-        ) as mock_miAsk, patch(
-            "anki_dictionary.ui.settings.settings_gui.save_addon_config"
-        ) as mock_save:
+        with (
+            patch("anki_dictionary.ui.settings.settings_gui.miAsk") as mock_miAsk,
+            patch(
+                "anki_dictionary.ui.settings.settings_gui.save_addon_config"
+            ) as mock_save,
+        ):
             mock_miAsk.return_value = False
             gui.restoreDefaults()
             mock_save.assert_not_called()
@@ -744,9 +761,7 @@ class TestSettingsGui(unittest.TestCase):
 
         gui.loadConfig()
 
-        gui.highlightTarget.setChecked.assert_called_with(
-            full_cfg["highlightTarget"]
-        )
+        gui.highlightTarget.setChecked.assert_called_with(full_cfg["highlightTarget"])
         gui.totalDefs.setValue.assert_called_with(full_cfg["maxSearch"])
         gui.dictDefs.setValue.assert_called_with(full_cfg["dictSearch"])
         gui.imageSearchCountry.setCurrentText.assert_called_with(

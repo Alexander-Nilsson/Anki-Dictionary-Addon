@@ -21,15 +21,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+
+      - name: Install Python 3.13
+        run: |
+          uv python install 3.13
+          uv python pin 3.13
+          rm -rf .venv
 
       - name: Install System Dependencies
         run: |
@@ -39,19 +40,59 @@ jobs:
             libxkbcommon0 libxkbcommon-x11-0 \
             libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-keysyms1 \
             libnss3 libnspr4 \
-            libfontconfig1 libdbus-1-3
+            libfontconfig1 libdbus-1-3 \
+            libxcomposite1 libxdamage1 libxrandr2 libxtst6 \
+            libxfixes3 libxrender1 libxi6 libxcursor1 \
+            libxxf86vm1 libxss1 \
+            libasound2t64 libpulse0 libpulse-mainloop-glib0
 
       - name: Install Python Dependencies
-        run: uv sync --frozen --dev
+        run: |
+          # ── Project deps via uv (none need manylinux_2_36) ──
+          uv venv --seed
+          uv sync --frozen --no-dev --no-cache
+
+          # ── Dev deps + anki/aqt transitive deps via pip ──
+          # (all pure Python or manylinux_2_35 compatible)
+          .venv/bin/pip install \
+            decorator distro markdown orjson protobuf PySocks \
+            flask jsonschema pip-system-certs send2trash waitress \
+            "black>=26.3.1" "flake8>=7.3.0" "pyright>=1.1.403" \
+            "pytest>=8.4.1" "pytest-cov>=6.1.1" "pytest-qt>=4.4.0" \
+            "pytest-xdist>=3.6.1" "pytest-xvfb>=3.1.0"
+
+          # ── anki/aqt: extract wheels directly into site-packages to
+          #    bypass platform tag checks (catthehacker containers have
+          #    compatible glibc but pip rejects manylinux_2_36 wheels) ──
+          .venv/bin/python -c "
+          import io, os, urllib.request, zipfile
+          site_pkgs = [p for p in __import__('sys').path if 'site-packages' in p][0]
+          for name, url in [
+              ('anki', 'https://files.pythonhosted.org/packages/2b/bc/36972ebb0c09effa41a1dc5f1e9c19b9fd85675cc3196f43559eeb3d0ceb/anki-25.9.4-cp39-abi3-manylinux_2_36_x86_64.whl'),
+              ('aqt',  'https://files.pythonhosted.org/packages/83/a1/a8e8c5bc7dda44c0decfdeb128ca308d65d7beca1a4131230e9abadef439/aqt-25.9.4-py3-none-any.whl'),
+          ]:
+              resp = urllib.request.urlopen(url)
+              zf = zipfile.ZipFile(io.BytesIO(resp.read()))
+              zf.extractall(site_pkgs)
+              print(f'Extracted {name} to {site_pkgs}')
+          "
 
       - name: Lint
-        run: uv run python dev.py lint
+        run: |
+          .venv/bin/flake8 . --config=.flake8
+          .venv/bin/black --check --diff . --exclude "vendor|build|.venv|__pycache__|_check_tags.py"
 
       - name: Test
-        run: xvfb-run -a uv run python dev.py test
+        run: |
+          .venv/bin/pytest tests/ -p no:qt -p no:xvfb \
+            -m "not integration and not network" \
+            --ignore=tests/test_all_dictionaries.py \
+            --ignore=tests/test_dictionary_index.py \
+            --tb=short -v
+          .venv/bin/pytest tests/integration/ -p no:qt -p no:xvfb --tb=short -v
 
       - name: Build
-        run: uv run python dev.py build
+        run: .venv/bin/python build.py all
 
       # --- RELEASE SECTION (Only runs on master branch push) ---
 
@@ -60,7 +101,7 @@ jobs:
         id: build_step
         run: |
           # Safe version bump logic
-          NEW_VERSION=$(uv run python -c "
+          NEW_VERSION=$(.venv/bin/python -c "
           import tomllib
           with open('pyproject.toml', 'rb') as f:
               v = tomllib.load(f)['project']['version'].split('.')
@@ -69,7 +110,7 @@ jobs:
           ")
           
           # Update pyproject.toml
-          uv run python -c "
+          .venv/bin/python -c "
           import re
           with open('pyproject.toml', 'r+') as f:
               c = f.read(); f.seek(0)
@@ -78,7 +119,7 @@ jobs:
           "
           
           # Rebuild with the new version for release
-          uv run python dev.py build
+          .venv/bin/python build.py all
           
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT

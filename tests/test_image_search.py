@@ -129,10 +129,7 @@ class TestDuckDuckGoSearch(unittest.TestCase):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
-            "results": [
-                {"image": f"http://example.com/img{i}.jpg"}
-                for i in range(20)
-            ]
+            "results": [{"image": f"http://example.com/img{i}.jpg"} for i in range(20)]
         }
         ddg.session.get.return_value = mock_resp
 
@@ -225,7 +222,9 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
                 self.assertEqual(kwargs, {})
                 # First arg should be QSize-like with width=200, height=200
                 size_arg = args[0]
-                self.assertTrue(hasattr(size_arg, 'width') and hasattr(size_arg, 'height'))
+                self.assertTrue(
+                    hasattr(size_arg, "width") and hasattr(size_arg, "height")
+                )
                 self.assertEqual(size_arg.width(), 200)
                 self.assertEqual(size_arg.height(), 200)
                 # Second and third args should be the enum values (we can't easily check exact values
@@ -242,16 +241,14 @@ class TestDuckDuckGoImageToHtml(unittest.TestCase):
 
     def test_returns_image_html_for_existing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch(
-                "anki_dictionary.integrations.image_search.temp_dir", tmpdir
-            ):
+            with patch("anki_dictionary.integrations.image_search.temp_dir", tmpdir):
                 filename = "test_img.avif"
                 with open(os.path.join(tmpdir, filename), "wb") as f:
                     f.write(b"fake_image_data")
 
                 ddg = DuckDuckGo()
                 result = ddg._image_to_html(filename)
-                self.assertIn('data:image/avif;base64,', result)
+                self.assertIn("data:image/avif;base64,", result)
                 self.assertIn('class="imgBox"', result)
                 self.assertIn('class="searchImage"', result)
                 self.assertIn(f'ankiDict="{os.path.join(tmpdir, filename)}"', result)
@@ -279,9 +276,7 @@ class TestDuckDuckGoDownloadAndProcessImageSync(unittest.TestCase):
         mock_resp.content = b"fake_image"
         dl_session.get.return_value = mock_resp
 
-        with patch.object(
-            ddg, "process_image", return_value="dict_img_abc.avif"
-        ):
+        with patch.object(ddg, "process_image", return_value="dict_img_abc.avif"):
             with patch("anki_dictionary.integrations.image_search.prefer_ipv4"):
                 result = ddg.download_and_process_image_sync(
                     "http://example.com/img.jpg", dl_session
@@ -334,17 +329,13 @@ class TestTLSAdapter(unittest.TestCase):
 
 class TestMakeSession(unittest.TestCase):
     def test_returns_requests_session_on_linux(self):
-        with patch(
-            "anki_dictionary.integrations.image_search._ON_MAC", False
-        ):
+        with patch("anki_dictionary.integrations.image_search._ON_MAC", False):
             session = _make_session()
             self.assertIsInstance(session, requests.Session)
             self.assertFalse(session.verify)
 
     def test_mounts_tls_adapter_on_https(self):
-        with patch(
-            "anki_dictionary.integrations.image_search._ON_MAC", False
-        ):
+        with patch("anki_dictionary.integrations.image_search._ON_MAC", False):
             session = _make_session()
             adapter = session.get_adapter("https://duckduckgo.com")
             self.assertIsInstance(adapter, TLSAdapter)
@@ -353,9 +344,7 @@ class TestMakeSession(unittest.TestCase):
 class TestLogDebug(unittest.TestCase):
     def test_writes_to_log_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch(
-                "anki_dictionary.integrations.image_search.temp_dir", tmpdir
-            ):
+            with patch("anki_dictionary.integrations.image_search.temp_dir", tmpdir):
                 log_debug("test message")
                 log_path = os.path.join(tmpdir, "image_search_debug.log")
                 self.assertTrue(os.path.exists(log_path))
