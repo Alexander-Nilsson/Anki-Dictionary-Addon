@@ -128,6 +128,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git add pyproject.toml src/anki_dictionary/__init__.py
           git commit -m "Bump version to $NEW_VERSION [skip ci]"
           git tag -d "v$NEW_VERSION" 2>/dev/null || true
