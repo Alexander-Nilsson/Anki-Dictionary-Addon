@@ -775,7 +775,7 @@ class SearchPipeline:
         definition = re.sub(r"(\*\*|__|\u2605\u2605)(.*?)\1", r"<b>\2</b>", definition)
         definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
         definition = definition.replace("\u2605", "<b>\u2605</b>")
-        definition = re.sub(r"^\s*[-*+]\s+", r"\u2022 ", definition, flags=re.MULTILINE)
+        definition = re.sub(r"^\s*[-*+]\s+", "\u2022 ", definition, flags=re.MULTILINE)
 
         term = result["term"].lower()
         lines = definition.split("\n")
@@ -917,7 +917,7 @@ class SearchPipeline:
         definition = re.sub(r"(\*\*|__|\u2605\u2605)(.*?)\1", r"<b>\2</b>", definition)
         definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
         definition = definition.replace("\u2605", "<b>\u2605</b>")
-        definition = re.sub(r"^\s*[-*+]\s+", r"\u2022 ", definition, flags=re.MULTILINE)
+        definition = re.sub(r"^\s*[-*+]\s+", "\u2022 ", definition, flags=re.MULTILINE)
 
         term = result["term"].lower()
         lines = definition.split("\n")
