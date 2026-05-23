@@ -8,7 +8,6 @@ from os.path import dirname, join
 from typing import Any, Callable, Dict, List, Optional
 
 from aqt.qt import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QEvent,
@@ -16,7 +15,6 @@ from aqt.qt import (
     QFrame,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QIcon,
     QKeySequence,
     QLabel,
@@ -26,19 +24,17 @@ from aqt.qt import (
     QShortcut,
     QSpinBox,
     QTabWidget,
-    QTableWidget,
-    QTableWidgetItem,
     QUrl,
     QVBoxLayout,
     QWidget,
     Qt,
 )
 from anki.utils import is_mac, is_win, is_lin
-from .dict_groups import DictGroupEditor
-from .templates import TemplateEditor
 from .llm_settings_tab import LLMSettingsTab
 from .forvo_settings_tab import ForvoSettingsTab
 from .frequency_settings_tab import FrequencySettingsTab
+from .dict_groups_tab import DictionaryGroupsTab
+from .export_templates_tab import ExportTemplatesTab
 from ...utils.common import miInfo, miAsk
 from ..dialogs.dictionary_manager import DictionaryManagerWidget
 from ...utils.config import get_addon_config, save_addon_config
@@ -63,10 +59,16 @@ class SettingsGui(QTabWidget):
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.setWindowIcon(QIcon(join(self.addonPath, "assets", "icons", "anki.svg")))
 
-        self.addDictGroup = QPushButton("Add Dictionary Group")
-        self.addExportTemplate = QPushButton("Add Export Template")
-        self.dictGroups = self.getGroupTemplateTable()
-        self.exportTemplates = self.getGroupTemplateTable()
+        self.dictGroupsTab = DictionaryGroupsTab(
+            mw, self, self.getConfig, self.getDictionaryNames
+        )
+        self.exportTemplatesTab = ExportTemplatesTab(
+            mw, self, self.getConfig, self.getDictionaryNames
+        )
+        self.addDictGroup = self.dictGroupsTab.add_button
+        self.addExportTemplate = self.exportTemplatesTab.add_button
+        self.dictGroups = self.dictGroupsTab.table
+        self.exportTemplates = self.exportTemplatesTab.table
         self.tooltipCB = QCheckBox()
         self.tooltipCB.setFixedHeight(30)
         self.maxImgWidth = QSpinBox()
@@ -131,12 +133,8 @@ class SettingsGui(QTabWidget):
         event.accept()
 
     def initTooltips(self) -> None:
-        self.addDictGroup.setToolTip(
-            "Add a new dictionary group.\nDictionary groups allow you to specify which dictionaries to search\nwithin. You can also set a specific font for that group."
-        )
-        self.addExportTemplate.setToolTip(
-            "Add a new export template.\nExport templates allow you to specify a note type, and fields where\ntarget sentences, target words, definitions, and images will be sent to\n when using the Card Exporter to create cards."
-        )
+        self.dictGroupsTab.init_tooltips()
+        self.exportTemplatesTab.init_tooltips()
         self.tooltipCB.setToolTip(
             "Enable/disable tooltips within the dictionary and its sub-windows."
         )
@@ -218,139 +216,11 @@ class SettingsGui(QTabWidget):
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(nc)
 
-    def getGroupTemplateTable(self) -> QTableWidget:
-        macLin = False
-        if is_mac or is_lin:
-            macLin = True
-        groupTemplates = QTableWidget()
-        groupTemplates.setColumnCount(3)
-        tableHeader = groupTemplates.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        groupTemplates.setRowCount(0)
-        groupTemplates.setSortingEnabled(False)
-        groupTemplates.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        groupTemplates.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        if macLin:
-            groupTemplates.setColumnWidth(1, 50)
-            groupTemplates.setColumnWidth(2, 40)
-        else:
-            groupTemplates.setColumnWidth(1, 40)
-            groupTemplates.setColumnWidth(2, 40)
-        tableHeader.hide()
-        return groupTemplates
-
     def loadGroupTable(self) -> None:
-        self.dictGroups.setRowCount(0)
-        dictGroups = self.getConfig()["DictionaryGroups"]
-        for groupName in dictGroups:
-            rc = self.dictGroups.rowCount()
-            self.dictGroups.setRowCount(rc + 1)
-            self.dictGroups.setItem(rc, 0, QTableWidgetItem(groupName))
-            editButton = QPushButton("Edit")
-            if is_win:
-                editButton.setFixedWidth(40)
-            else:
-                editButton.setFixedWidth(50)
-                editButton.setFixedHeight(30)
-            editButton.clicked.connect(self.editGroupRow(rc))
-            self.dictGroups.setCellWidget(rc, 1, editButton)
-            deleteButton = QPushButton("X")
-            if is_win:
-                deleteButton.setFixedWidth(40)
-            else:
-                deleteButton.setFixedWidth(40)
-                deleteButton.setFixedHeight(30)
-            deleteButton.clicked.connect(self.removeGroupRow(rc))
-            self.dictGroups.setCellWidget(rc, 2, deleteButton)
-
-    def removeGroupRow(self, x: int) -> Callable[[], None]:
-        return lambda: self.removeGroup(x)
-
-    def editGroupRow(self, x: int) -> Callable[[], None]:
-        return lambda: self.editGroup(x)
-
-    def editGroup(self, row: int) -> None:
-        groupName = self.dictGroups.item(row, 0).text()
-        dictGroups = self.getConfig()["DictionaryGroups"]
-        if groupName in dictGroups:
-            group = dictGroups[groupName]
-            dictEditor = DictGroupEditor(
-                self.mw, self, self.getDictionaryNames(), group, groupName
-            )
-            dictEditor.exec()
-
-            # dictEditor.exec()
-
-    def removeGroup(self, row: int) -> None:
-        if miAsk(
-            "Are you sure you would like to remove this dictionary group? This action will happen immediately and is not un-doable.",
-            self,
-        ):
-            newConfig = self.getConfig()
-            dictGroups = newConfig["DictionaryGroups"]
-            groupName = self.dictGroups.item(row, 0).text()
-            del dictGroups[groupName]
-            save_addon_config(newConfig)
-            self.dictGroups.removeRow(row)
-            self.loadGroupTable()
+        self.dictGroupsTab.loadGroupTable()
 
     def loadTemplateTable(self) -> None:
-        self.exportTemplates.setRowCount(0)
-        exportTemplates = self.getConfig()["ExportTemplates"]
-        for template in exportTemplates:
-            rc = self.exportTemplates.rowCount()
-            self.exportTemplates.setRowCount(rc + 1)
-            self.exportTemplates.setItem(rc, 0, QTableWidgetItem(template))
-            editButton = QPushButton("Edit")
-            if is_win:
-                editButton.setFixedWidth(40)
-            else:
-                editButton.setFixedWidth(50)
-                editButton.setFixedHeight(30)
-            editButton.clicked.connect(self.editTempRow(rc))
-            self.exportTemplates.setCellWidget(rc, 1, editButton)
-            deleteButton = QPushButton("X")
-            if is_win:
-                deleteButton.setFixedWidth(40)
-            else:
-                deleteButton.setFixedWidth(40)
-                deleteButton.setFixedHeight(30)
-            deleteButton.clicked.connect(self.removeTempRow(rc))
-            self.exportTemplates.setCellWidget(rc, 2, deleteButton)
-
-    def removeTemplate(self, row: int) -> None:
-        if miAsk(
-            "Are you sure you would like to remove this template? This action will happen immediately and is not un-doable.",
-            self,
-        ):
-            newConfig = self.getConfig()
-            exportTemplates = newConfig["ExportTemplates"]
-            templateName = self.exportTemplates.item(row, 0).text()
-            del exportTemplates[templateName]
-            save_addon_config(newConfig)
-            self.exportTemplates.removeRow(row)
-            self.loadTemplateTable()
-
-    def removeTempRow(self, x: int) -> Callable[[], None]:
-        return lambda: self.removeTemplate(x)
-
-    def editTempRow(self, x: int) -> Callable[[], None]:
-        return lambda: self.editTemplate(x)
-
-    def editTemplate(self, row: int) -> None:
-        templateName = self.exportTemplates.item(row, 0).text()
-        exportTemplates = self.getConfig()["ExportTemplates"]
-        if templateName in exportTemplates:
-            template = exportTemplates[templateName]
-            templateEditor = TemplateEditor(
-                self.mw, self, self.getDictionaryNames(), template, templateName
-            )
-            templateEditor.loadTemplateEditor(template, templateName)
-            templateEditor.exec()
+        self.exportTemplatesTab.loadTemplateTable()
 
     def getDictionaryNames(self) -> List[str]:
         dictList = self.mw.miDictDB.getAllDictsWithLang()
@@ -373,8 +243,8 @@ class SettingsGui(QTabWidget):
         return dictionaryList
 
     def initHandlers(self) -> None:
-        self.addDictGroup.clicked.connect(self.addGroup)
-        self.addExportTemplate.clicked.connect(self.addTemplate)
+        self.addDictGroup.clicked.connect(self.dictGroupsTab.addGroup)
+        self.addExportTemplate.clicked.connect(self.exportTemplatesTab.addTemplate)
         self.restoreButton.clicked.connect(self.restoreDefaults)
         self.cancelButton.clicked.connect(self.close)
         self.applyButton.clicked.connect(self.saveConfig)
@@ -389,15 +259,6 @@ class SettingsGui(QTabWidget):
             # self.userGuideTab.deleteLater()
             self.close()
             self.reboot()
-
-    def addGroup(self) -> None:
-        dictEditor = DictGroupEditor(self.mw, self, self.getDictionaryNames())
-        dictEditor.clearGroupEditor(True)
-        dictEditor.exec()
-
-    def addTemplate(self) -> None:
-        templateEditor = TemplateEditor(self.mw, self, self.getDictionaryNames())
-        templateEditor.exec()
 
     def miQLabel(self, text: str, width: int) -> QLabel:
         label = QLabel(text)

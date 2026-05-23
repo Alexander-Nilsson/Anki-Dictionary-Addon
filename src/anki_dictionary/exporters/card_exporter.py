@@ -42,6 +42,11 @@ import re
 
 from ..utils.logger import get_logger
 
+from .html_cleaner import HtmlCleaner
+from .field_mapper import FieldMapper
+from .media_handler import MediaHandler
+from .batch_processor import BatchProcessor
+
 logger = get_logger(__name__.split(".")[-1])
 
 
@@ -148,7 +153,6 @@ class CardExporter:
         self.window.setAutoFillBackground(True)
         self.dictInt = dictInt
         self.mw = self.dictInt.mw
-        self.bulkTextImporting = False
         self.config = self.getConfig()
         self.definitionSettings = self.config["autoDefinitionSettings"]
         self.dictWeb = dictWeb
@@ -183,7 +187,11 @@ class CardExporter:
         self.audioPath = False
         self.audioPlayer = sound
         self.audioPlay = QPushButton("Play")
-        self.audioPlay.clicked.connect(self.playAudio)
+        self.html_cleaner = HtmlCleaner()
+        self.field_mapper = FieldMapper(self)
+        self.media_handler = MediaHandler(self)
+        self.batch_processor = BatchProcessor(self)
+        self.audioPlay.clicked.connect(self.media_handler.playAudio)
         self.audioPlay.hide()
         self.setupLayout()
         self.initHandlers()
@@ -208,7 +216,6 @@ class CardExporter:
         self.scrollArea.show()
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
         self.maybeSetToAlwaysOnTop()
-        self.bulkMediaExportProgressWindow = False
 
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
@@ -216,10 +223,6 @@ class CardExporter:
                 self.scrollArea.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
             )
             self.scrollArea.show()
-
-    def attemptAutoAdd(self, bulkExport):
-        if self.autoAdd.isChecked() or bulkExport:
-            self.addCard()
 
     def initTooltips(self):
         if self.config["tooltips"]:
@@ -250,7 +253,6 @@ class CardExporter:
             focused.searchSelected(in_browser)
 
     def setColors(self):
-        # self.scrollArea.setPalette(self.dictInt.ogPalette)
         if is_mac:
             self.templateCB.setStyleSheet(self.dictInt.getMacComboStyle())
             self.deckCB.setStyleSheet(self.dictInt.getMacComboStyle())
@@ -289,7 +291,6 @@ Please review your template and notetype combination."""),
                 level="wrn",
             )
             return False
-        # self.mw.col.save()
         self.mw.reset()
         return True
 
@@ -297,23 +298,18 @@ Please review your template and notetype combination."""),
         decksRaw = self.mw.col.decks
         decks = {}
 
-        # Try the newer Anki API first
         try:
-            # all_names_and_ids() returns a list of NamedInt objects with .name and .id attributes
             decks_list = decksRaw.all_names_and_ids()
             for deck_info in decks_list:
-                # Check if deck is not dynamic (filtered)
                 deck = decksRaw.get(deck_info.id)
                 if deck and not deck.get("dyn", False):
                     decks[deck_info.name] = deck_info.id
         except (AttributeError, TypeError):
-            # Fallback for older Anki versions that still have .items()
             try:
                 for did, deck in decksRaw.items():
                     if not deck["dyn"]:
                         decks[deck["name"]] = did
             except AttributeError:
-                # Final fallback using all() method
                 all_decks = decksRaw.all()
                 for deck in all_decks:
                     if not deck.get("dyn", False):
@@ -368,7 +364,6 @@ Please review your template and notetype combination."""),
         config["unknownsToSearch"] = self.searchUnknowns.value()
         self.config = config
         self.mw.refresh_anki_dict_config(config)
-        # Use our safe config utility
         from anki_dictionary.utils.config import save_addon_config
 
         save_addon_config(config)
@@ -400,8 +395,8 @@ Please review your template and notetype combination."""),
             if model:
                 note = Note(self.mw.col, model)
                 modelFields = self.mw.col.models.field_names(note.model())
-                fieldsValues, imgField, audioField, tagsField = self.getFieldsValues(
-                    template
+                fieldsValues, imgField, audioField, tagsField = (
+                    self.field_mapper.getFieldsValues(template)
                 )
                 word = self.wordLE.text()
                 if not fieldsValues:
@@ -426,9 +421,9 @@ Please review your template and notetype combination."""),
                     if not self.addNote(note, did):
                         return
                 if imgField and imgField in modelFields:
-                    self.moveImageToMediaFolder()
+                    self.media_handler.moveImageToMediaFolder()
                 if audioField and audioField in modelFields:
-                    self.moveAudioToMediaFolder()
+                    self.media_handler.moveAudioToMediaFolder()
                 self.clearCurrent()
                 return
             else:
@@ -445,7 +440,7 @@ Please review your template and notetype combination."""),
     def automaticallyAddDefinitions(self, note, word, template):
         if not self.definitionSettings:
             return note
-        dictToTable = self.getDictionaryNameToTableNameDictionary()
+        dictToTable = self.field_mapper.getDictionaryNameToTableNameDictionary()
         unspecifiedDefinitionField = template["unspecified"]
         specificFields = template["specific"]
         dictionaries = []
@@ -468,106 +463,6 @@ Please review your template and notetype combination."""),
                 )
 
         return self.mw.addDefinitionsToCardExporterNote(note, word, dictionaries)
-
-    def moveImageToMediaFolder(self):
-        if self.imgPath and self.imgName:
-            if exists(self.imgPath):
-                path = join(self.mw.col.media.dir(), self.imgName)
-                if not exists(path):
-                    copyfile(self.imgPath, path)
-
-    def fieldValid(self, field):
-        return field != "Don't Export"
-
-    def getDictionaryEntries(self, dictionary):
-        finList = []
-        idxs = []
-        for idx, defList in enumerate(self.definitionList):
-            if defList[0] == dictionary:
-                finList.append(defList[2])
-                idxs.append(idx)
-        idxs.reverse()
-        for idx in idxs:
-            self.definitionList.pop(idx)
-        return finList
-
-    def emptyValueIfEmptyHtml(self, value):
-        pattern = r"(?:<[^<]+?>)"
-        if re.sub(pattern, "", value) == "":
-            return ""
-        return value
-
-    def getFieldsValues(self, t):
-        imgField = False
-        audioField = False
-        tagsField = ""
-        fields = {}
-        sentenceText = self.cleanHTML(self.sentenceLE.toHtml())
-        sentenceText = self.emptyValueIfEmptyHtml(sentenceText)
-        if sentenceText != "":
-            sentenceField = t["sentence"]
-            if sentenceField != "Don't Export":
-                if self.fieldValid(sentenceField):
-                    fields[sentenceField] = [sentenceText]
-        secondaryText = self.cleanHTML(self.secondaryLE.toHtml())
-        secondaryText = self.emptyValueIfEmptyHtml(secondaryText)
-        if secondaryText != "" and "secondary" in t:
-            secondaryField = t["secondary"]
-            if secondaryField != "Don't Export":
-                if self.fieldValid(secondaryField):
-                    fields[secondaryField] = [secondaryText]
-        notesText = self.cleanHTML(self.notesLE.toHtml())
-        notesText = self.emptyValueIfEmptyHtml(notesText)
-        if notesText != "" and "notes" in t:
-            notesField = t["notes"]
-            if notesField != "Don't Export":
-                if self.fieldValid(notesField):
-                    fields[notesField] = [notesText]
-        wordText = self.wordLE.text()
-        if wordText != "":
-            wordField = t["word"]
-            if wordField != "Don't Export":
-                if self.fieldValid(wordField):
-                    if wordField not in fields:
-                        fields[wordField] = [wordText]
-                    else:
-                        fields[wordField].append(wordText)
-        tagsText = self.tagsLE.text()
-        if tagsText != "":
-            tagsField = tagsText
-        imgText = self.imageMap.text()
-        if imgText != "No Image Selected":
-            imgField = t["image"]
-            if imgField != "Don't Export":
-                imgTag = '<img ankiDict="' + self.imgName + '">'
-                if self.fieldValid(imgField):
-                    if imgField not in fields:
-                        fields[imgField] = [imgTag]
-                    else:
-                        fields[imgField].append(imgTag)
-        audioText = self.imageMap.text()
-        if audioText != "No Audio Selected" and "audio" in t and self.audioTag != False:
-            audioField = t["audio"]
-            if audioField != "Don't Export":
-                if self.fieldValid(audioField):
-                    if audioField not in fields:
-                        fields[audioField] = [self.audioTag]
-                    else:
-                        fields[audioField].append(self.audioTag)
-        specific = t["specific"]
-        for field in specific:
-            for dictionary in specific[field]:
-                if field not in fields:
-                    fields[field] = self.getDictionaryEntries(dictionary)
-                else:
-                    fields[field] += self.getDictionaryEntries(dictionary)
-        unspecified = t["unspecified"]
-        for idx, defList in enumerate(self.definitionList):
-            if unspecified not in fields:
-                fields[unspecified] = [defList[2]]
-            else:
-                fields[unspecified].append(defList[2])
-        return fields, imgField, audioField, tagsField
 
     def clearCurrent(self):
         self.definitions.setRowCount(0)
@@ -707,139 +602,12 @@ Please review your template and notetype combination."""),
             cb.setCurrentText(current)
         return cb
 
-    def addImgs(self, word, imgs, thumbs):
-        self.focusWindow()
-        defEntry = ["Images", False, imgs, imgs]
-        if defEntry in self.definitionList:
-            miInfo("A card cannot contain duplicate definitions.", level="not")
-            return
-        self.definitionList.append(defEntry)
-        rc = self.definitions.rowCount()
-        self.definitions.setRowCount(rc + 1)
-        self.definitions.setItem(rc, 0, QTableWidgetItem("Images"))
-        self.definitions.setCellWidget(rc, 1, thumbs)
-        deleteButton = QPushButton("X")
-        deleteButton.setFixedWidth(40)
-        deleteButton.clicked.connect(lambda: self.removeImgs(imgs))
-        self.definitions.setCellWidget(rc, 2, deleteButton)
-        self.definitions.resizeRowsToContents()
-        if self.wordLE.text() == "":
-            self.wordLE.setText(word)
-
-    def exportWord(self, word):
-        self.wordLE.setText(word)
-
-    def removeImgs(self, imgs):
-        try:
-            row = self.definitions.selectionModel().currentIndex().row()
-            self.definitions.removeRow(row)
-            self.removeImgFromDefinitionList(imgs)
-        except Exception:
-            return
-
-    def removeImgFromDefinitionList(self, imgs):
-        for idx, entry in enumerate(self.definitionList):
-            if entry[0] == "Images" and entry[3] == imgs:
-                self.definitionList.pop(idx)
-                break
-
-    def addDefinition(self, dictName, word, definition):
-        self.focusWindow()
-        if len(definition) > 40:
-            shortDef = (
-                re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)[:40] + "..."
-            )
-        else:
-            shortDef = re.sub(r"<br\s*/?>", " ", definition, flags=re.IGNORECASE)
-        defEntry = [dictName, shortDef, definition, False]
-        if defEntry in self.definitionList:
-            miInfo("A card can not contain duplicate definitions.", level="not")
-            return
-        self.definitionList.append(defEntry)
-        rc = self.definitions.rowCount()
-        self.definitions.setRowCount(rc + 1)
-        self.definitions.setItem(rc, 0, QTableWidgetItem(dictName))
-        self.definitions.setItem(rc, 1, QTableWidgetItem(shortDef))
-        deleteButton = QPushButton("X")
-        deleteButton.setFixedWidth(40)
-        deleteButton.clicked.connect(self.removeDefinition)
-        self.definitions.setCellWidget(rc, 2, deleteButton)
-        self.definitions.resizeRowsToContents()
-        if self.wordLE.text() == "":
-            self.wordLE.setText(word)
-
-    def exportImage(self, path, name):
-        self.imgName = name
-        self.imgPath = path
-        if self.imageMap:
-            self.imageMap.setText("")
-            screenshot = QPixmap(path)
-            screenshot = screenshot.scaled(
-                200,
-                200,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self.imageMap.setPixmap(screenshot)
-
-    def exportAudio(self, path, tag, name):
-        self.audioTag = tag
-        self.audioName = name
-        self.audioPath = path
-        self.audioMap.setText(tag)
-        self.audioPlay.show()
-
-    def moveAudioToMediaFolder(self):
-        if self.audioPath and self.audioName:
-            if exists(self.audioPath):
-                path = join(self.mw.col.media.dir(), self.audioName)
-                if not exists(path):
-                    copyfile(self.audioPath, path)
-
-    def playAudio(self):
-        if self.audioPath:
-            self.audioPlayer.play(self.audioPath)
-
-    def exportSentence(self, sentence):
-        self.focusWindow()
-        self.sentenceLE.setHtml(sentence)
-
-    def exportSecondary(self, secondary):
-        self.secondaryLE.setHtml(secondary)
-
-    def removeFromDefinitionList(self, dictName, shortDef):
-        for idx, entry in enumerate(self.definitionList):
-            if entry[0] == dictName and entry[1] == shortDef:
-                self.definitionList.pop(idx)
-                break
-
-    def removeDefinition(self):
-        try:
-            row = self.definitions.selectionModel().currentIndex().row()
-            dictName = self.definitions.item(row, 0).text()
-            shortDef = self.definitions.item(row, 1).text()
-            self.definitions.removeRow(row)
-            self.removeFromDefinitionList(dictName, shortDef)
-        except Exception:
-            return
-
     def focusWindow(self):
         self.scrollArea.show()
         if self.scrollArea.windowState() == Qt.WindowState.WindowMinimized:
             self.scrollArea.setWindowState(Qt.WindowState.WindowNoState)
         self.scrollArea.setFocus()
         self.scrollArea.activateWindow()
-
-    def getDictionaryNameToTableNameDictionary(self):
-        import collections
-
-        dictToTable = collections.OrderedDict()
-        dictToTable["None"] = "None"
-        dictToTable["Images"] = "Images"
-        for dictTableName in sorted(self.mw.miDictDB.getAllDicts()):
-            dictName = self.mw.miDictDB.cleanDictName(dictTableName)
-            dictToTable[dictName] = dictTableName
-        return dictToTable
 
     def definitionSettingsWidget(self):
         settingsWidget = QWidget(self.scrollArea, Qt.WindowType.Window)
@@ -848,7 +616,7 @@ Please review your template and notetype combination."""),
         dict2 = QComboBox()
         dict3 = QComboBox()
 
-        dictToTable = self.getDictionaryNameToTableNameDictionary()
+        dictToTable = self.field_mapper.getDictionaryNameToTableNameDictionary()
         dictNames = dictToTable.keys()
         dict1.addItems(dictNames)
         dict2.addItems(dictNames)
@@ -945,348 +713,43 @@ Please review your template and notetype combination."""),
         settingsWidget.close()
         settingsWidget.deleteLater()
 
-    def cleanHTML(self, text):
-        # Switch bold style to <b>
-        text = re.sub(
-            r"(<span style=\"[^\"]*?)font-weight:600;(.*?\">.*?</span>)",
-            r"<b>\1\2</b>",
-            text,
-            flags=re.S,
-        )
-        text = re.sub(
-            r"(<span style=\"[^\"]*?)font-style:italic;(.*?\">.*?</span>)",
-            r"<i>\1\2</i>",
-            text,
-            flags=re.S,
-        )
-        text = re.sub(
-            r"(<span style=\"[^\"]*?)text-decoration: underline;(.*?\">.*?</span>)",
-            r"<u>\1\2</u>",
-            text,
-            flags=re.S,
-        )
+    # --- Forwarding methods for public API ---
 
-        # Switch paragraphs to <br>
-        text = re.sub(r"</p>", r"<br />", text, re.S)
+    def addImgs(self, word, imgs, thumbs):
+        self.media_handler.addImgs(word, imgs, thumbs)
 
-        # Trim unneeded bits
-        text = re.sub(r".+</head>", r"", text, flags=re.S)
-        text = re.sub(
-            r"(<html[^>]*?>|</html>|<body[^>]*?>|</body>|<p[^>]*?>|<span[^>]*?>|</span>)",
-            r"",
-            text,
-            flags=re.S,
-        )
-        text = text.strip()
+    def addDefinition(self, dictName, word, definition):
+        self.media_handler.addDefinition(dictName, word, definition)
 
-        # Remove any trailing <br /> (there can be two)
-        text = re.sub(r"<br />$", r"", text)
-        text = re.sub(r"<br />$", r"", text)
+    def exportImage(self, path, name):
+        self.media_handler.exportImage(path, name)
 
-        # For debugging
-        # text = html.escape(text)
-        return text
+    def exportAudio(self, path, tag, name):
+        self.media_handler.exportAudio(path, tag, name)
 
-    def addTextCard(self, card):
-        templateName = self.templateCB.currentText()
-        sentence = card["primary"]
-        word = ""
-        unknowns = card["unknowns"]
-        if len(unknowns) > 0:
-            word = unknowns[0]
+    def exportSentence(self, sentence):
+        self.media_handler.exportSentence(sentence)
 
-        if templateName in self.templates:
-            template = self.templates[templateName]
-            noteType = template["noteType"]
-            model = self.mw.col.models.byName(noteType)
-            if model:
-                note = Note(self.mw.col, model)
-                modelFields = self.mw.col.models.field_names(note.model())
-                fieldsValues, tagsField = self.getFieldsValuesForTextCard(
-                    template, word, sentence
-                )
-                if fieldsValues:
-                    for field in fieldsValues:
-                        if field in modelFields:
-                            note[field] = template["separator"].join(
-                                fieldsValues[field]
-                            )
-                    note.set_tags_from_str(tagsField)
-                    did = False
-                    deck = self.deckCB.currentText()
-                    if deck in self.decks:
-                        did = self.decks[deck]
-                    if did:
-                        if word and self.addDefinitionsCheckbox.isChecked():
-                            note = self.automaticallyAddDefinitions(
-                                note, word, template
-                            )
-                        if self.exportJS:
-                            note = self.dictInt.jHandler.attemptGenerate(note)
-                        note.model()["did"] = int(did)
-                        self.mw.col.addNote(note)
-                        # self.mw.col.save()
-                else:
-                    logger.error("Invalid field values")
+    def exportSecondary(self, secondary):
+        self.media_handler.exportSecondary(secondary)
 
-    def getFieldsValuesForTextCard(self, t, wordText, sentenceText):
-        tagsField = ""
-        fields = {}
-        if sentenceText != "":
-            sentenceField = t["sentence"]
-            if sentenceField != "Don't Export":
-                if self.fieldValid(sentenceField):
-                    fields[sentenceField] = [sentenceText]
-        if wordText != "":
-            wordField = t["word"]
-            if wordField != "Don't Export":
-                if self.fieldValid(wordField):
-                    if wordField not in fields:
-                        fields[wordField] = [wordText]
-                    else:
-                        fields[wordField].append(wordText)
-        tagsText = self.tagsLE.text()
-        if tagsText != "":
-            tagsField = tagsText
-        return fields, tagsField
+    def exportWord(self, word):
+        self.media_handler.exportWord(word)
+
+    def playAudio(self):
+        self.media_handler.playAudio()
 
     def bulkTextExport(self, cards):
-        self.bulkTextImporting = True
-        total = len(cards)
-        importingMessage = "Importing {} of " + str(total) + " cards."
-        progressWidget, bar, textDisplay = self.getProgressBar(
-            "Anki Dictionary - Importing Text Cards", importingMessage.format(0)
-        )
-        bar.setMaximum(total)
-        for idx, card in enumerate(cards):
-            if not self.bulkTextImporting:
-                miInfo(
-                    "Importing cards from the extension has been cancelled.\n\n{} of {} were added.".format(
-                        idx, total
-                    )
-                )
-                return
-            self.addTextCard(card)
-            bar.setValue(idx + 1)
-            textDisplay.setText(importingMessage.format(idx + 1))
-            self.mw.app.processEvents()
-        self.bulkTextImporting = False
-        self.closeProgressBar(progressWidget)
-
-    def addMediaCard(self, card):
-        templateName = self.templateCB.currentText()
-        word = ""
-        unknowns = card["unknownWords"]
-        if len(unknowns) > 0:
-            word = unknowns[0]
-        if templateName in self.templates:
-            template = self.templates[templateName]
-            noteType = template["noteType"]
-            model = self.mw.col.models.byName(noteType)
-            if model:
-                note = Note(self.mw.col, model)
-                modelFields = self.mw.col.models.field_names(note.model())
-                fieldsValues, tagsField = self.getFieldsValuesForMediaCard(
-                    template, word, card
-                )
-                if fieldsValues:
-                    for field in fieldsValues:
-                        logger.debug(f"Fields values: {fieldsValues}")
-                        logger.debug(f"Processing field: {field}")
-                        if field in modelFields:
-                            note[field] = template["separator"].join(
-                                fieldsValues[field]
-                            )
-                    note.set_tags_from_str(tagsField)
-                    did = False
-                    deck = self.deckCB.currentText()
-                    if deck in self.decks:
-                        did = self.decks[deck]
-                    if did:
-                        if word and self.addDefinitionsCheckbox.isChecked():
-                            note = self.automaticallyAddDefinitions(
-                                note, word, template
-                            )
-                        if self.exportJS:
-                            note = self.dictInt.jHandler.attemptGenerate(note)
-                        note.model()["did"] = int(did)
-                        self.mw.col.addNote(note)
-                        # self.mw.col.save()
-                else:
-                    logger.error("Invalid field values")
-
-    def getFieldsValuesForMediaCard(self, t, wordText, card):
-        sentenceText = card["primary"]
-        secondaryText = card["secondary"]
-        imageFile = card["image"]
-        audioFile = card["audio"]
-        audio = False
-        image = False
-        if audioFile:
-            audio = "[sound:" + audioFile + "]"
-        if imageFile:
-            image = imageFile
-        imgField = False
-        audioField = False
-        tagsField = ""
-        fields = {}
-        if sentenceText != "":
-            sentenceField = t["sentence"]
-            if sentenceField != "Don't Export":
-                if self.fieldValid(sentenceField):
-                    fields[sentenceField] = [sentenceText]
-        if secondaryText != "" and "secondary" in t:
-            secondaryField = t["secondary"]
-            if secondaryField != "Don't Export":
-                if self.fieldValid(secondaryField):
-                    fields[secondaryField] = [secondaryText]
-        if wordText != "":
-            wordField = t["word"]
-            if wordField != "Don't Export":
-                if self.fieldValid(wordField):
-                    if wordField not in fields:
-                        fields[wordField] = [wordText]
-                    else:
-                        fields[wordField].append(wordText)
-        tagsText = self.tagsLE.text()
-        if tagsText != "":
-            tagsField = tagsText
-        if image:
-            imgField = t["image"]
-            imgTag = '<img ankiDict="' + image + '">'
-            if self.fieldValid(imgField):
-                if imgField not in fields:
-                    fields[imgField] = [imgTag]
-                else:
-                    fields[imgField].append(imgTag)
-        if audio:
-            audioField = t["audio"]
-            if self.fieldValid(audioField):
-                if audioField not in fields:
-                    fields[audioField] = [audio]
-                else:
-                    fields[audioField].append(audio)
-        return fields, tagsField
+        self.batch_processor.bulkTextExport(cards)
 
     def bulkMediaExport(self, card):
-        if self.mw.DictBulkMediaExportWasCancelled:
-            return
-        if not self.bulkMediaExportProgressWindow:
-            total = card["total"]
-            importingMessage = "Importing {} of " + str(total) + " cards."
-            (
-                self.bulkMediaExportProgressWindow,
-                self.bulkMediaExportProgressWindow.bar,
-                self.bulkMediaExportProgressWindow.textDisplay,
-            ) = self.getProgressBar(
-                "Anki Dictionary - Importing Media Cards", importingMessage.format(0)
-            )
-            self.bulkMediaExportProgressWindow.bar.setMaximum(total)
-            self.bulkMediaExportProgressWindow.currentValue = 0
-            self.bulkMediaExportProgressWindow.total = total
-        else:
-            importingMessage = (
-                "Importing {} of "
-                + str(self.bulkMediaExportProgressWindow.total)
-                + " cards."
-            )
-        self.addMediaCard(card)
-        try:
-            if (
-                self.mw.DictBulkMediaExportWasCancelled
-                or not self.bulkMediaExportProgressWindow
-            ):
-                if self.bulkMediaExportProgressWindow:
-                    self.closeProgressBar(self.bulkMediaExportProgressWindow)
-                return
-            self.bulkMediaExportProgressWindow.currentValue += 1
-            self.bulkMediaExportProgressWindow.bar.setValue(
-                self.bulkMediaExportProgressWindow.currentValue
-            )
-            self.bulkMediaExportProgressWindow.textDisplay.setText(
-                importingMessage.format(self.bulkMediaExportProgressWindow.currentValue)
-            )
-            self.mw.app.processEvents()
-            if (
-                self.bulkMediaExportProgressWindow.currentValue
-                == self.bulkMediaExportProgressWindow.total
-            ):
-                total = self.bulkMediaExportProgressWindow.total
-                if total == 1:
-                    miInfo("{} card has been imported.".format(total))
-                else:
-                    miInfo("{} cards have been imported.".format(total))
-                self.closeProgressBar(self.bulkMediaExportProgressWindow)
-                self.bulkMediaExportProgressWindow = False
-        except Exception:
-            pass
+        self.batch_processor.bulkMediaExport(card)
 
     def bulkMediaExportCancelledByBrowserRefresh(self):
-        if self.bulkMediaExportProgressWindow:
-            currentValue = self.bulkMediaExportProgressWindow.currentValue
-            miInfo(
-                "Importing cards from the extension has been cancelled from within the browser.\n\n {} cards were imported.".format(
-                    currentValue
-                )
-            )
-            self.closeProgressBar(self.bulkMediaExportProgressWindow)
-            self.bulkMediaExportProgressWindow = False
-            self.mw.DictBulkMediaExportWasCancelled = False
+        self.batch_processor.bulkMediaExportCancelledByBrowserRefresh()
 
-    def getProgressBar(self, title, initialText):
-        progressWidget = QWidget()
-        progressWidget.closedBecauseFinishedImporting = False
+    def attemptAutoAdd(self, bulkExport):
+        self.batch_processor.attemptAutoAdd(bulkExport)
 
-        def closedProgressBar(event):
-            if self.bulkTextImporting:
-                self.bulkTextImporting = False
-            event.accept()
-            progressWidget.deleteLater()
-            if self.bulkMediaExportProgressWindow:
-                currentValue = self.bulkMediaExportProgressWindow.currentValue
-                self.bulkMediaExportProgressWindow = False
-                if not progressWidget.closedBecauseFinishedImporting:
-                    self.mw.DictBulkMediaExportWasCancelled = True
-                    miInfo(
-                        "Importing cancelled.\n\n{} cards were imported.".format(
-                            currentValue
-                        )
-                    )
-
-        progressWidget.exporter = self
-        textDisplay = QLabel()
-        progressWidget.setWindowIcon(
-            QIcon(join(self.dictInt.addonPath, "assets", "icons", "anki.svg"))
-        )
-        progressWidget.setWindowTitle(title)
-        textDisplay.setText(initialText)
-
-        bar = QProgressBar(progressWidget)
-        layout = QVBoxLayout()
-        layout.addWidget(textDisplay)
-        layout.addWidget(bar)
-        progressWidget.setLayout(layout)
-        bar.move(10, 10)
-        per = QLabel(bar)
-        per.setAlignment(Qt.AlignmentFlag.alignCenter)
-        progressWidget.setFixedSize(500, 100)
-        progressWidget.setWindowModality(Qt.WindowModality.ApplicationModal)
-        if self.alwaysOnTop:
-            progressWidget.setWindowFlags(
-                progressWidget.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
-            )
-        screenGeometry = QApplication.desktop().screenGeometry()
-        x = (screenGeometry.width() - progressWidget.width()) / 2
-        y = (screenGeometry.height() - progressWidget.height()) / 2
-        progressWidget.move(x, y)
-        progressWidget.show()
-        progressWidget.setFocus()
-        progressWidget.closeEvent = closedProgressBar
-        self.mw.app.processEvents()
-        return progressWidget, bar, textDisplay
-
-    def closeProgressBar(self, progressBar):
-        if progressBar:
-            progressBar.closedBecauseFinishedImporting = True
-            progressBar.close()
-            progressBar.deleteLater()
+    def addMediaCard(self, card):
+        self.batch_processor.addMediaCard(card)
