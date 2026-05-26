@@ -194,19 +194,42 @@ function getDefExport(ev, dictName) {
 function getImageExport(ev, dictName) {
     var termTitle = ev.target.closest('.termPronunciation');
     if (!termTitle) return;
-    
+
     var defBlock = termTitle.nextElementSibling;
-    var termsEl = termTitle.querySelector('.terms');
-    var word = termsEl ? cleanTermDef(termsEl.innerHTML) : "";
-    
-    var selImgs = defBlock.getElementsByClassName('selectedImage');
+
+    var terms = termTitle.getElementsByClassName('mainword');
+    if (terms.length === 0) {
+        terms = termTitle.getElementsByClassName('terms');
+    }
+
+    var word = '';
+    if (terms.length >= 2) {
+        var term1 = terms[0].textContent;
+        var term2 = terms[1].textContent;
+        if (term1 != '' && term2 != '') {
+            word = term1 + ', ' + term2;
+        } else if (term1 != '') {
+            word = term1;
+        } else if (term2 != '') {
+            word = term2;
+        }
+    } else if (terms.length >= 1) {
+        word = terms[0].textContent;
+    }
+
+    var selImgs = defBlock.querySelectorAll('.selectedImage, .imgBox.selected .imageHighlight');
     var urls = [];
 
     if (selImgs.length > 0) {
         for (var i = 0; i < selImgs.length; i++) {
-            urls.push(selImgs[i].dataset.url);
+            var url = selImgs[i].dataset.url;
+            if (url && urls.indexOf(url) === -1) {
+                urls.push(url);
+            }
         }
-        pycmd('imgExport:' + word + '\u25f3\u25f4' + JSON.stringify(urls));
+        if (urls.length > 0) {
+            pycmd('imgExport:' + word + '\u25f3\u25f4' + JSON.stringify(urls));
+        }
     }
 }
 

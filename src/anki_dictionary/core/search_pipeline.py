@@ -667,26 +667,34 @@ class SearchPipeline:
         select = self.getFieldChecks(dictName)
         idName = "gcon" + str(time.time()).replace(".", "")
         imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
+        preparedTerm = self.getPreparedTermHeader(
+            dictName, bracketFront, bracketBack, term, term, "", ""
+        )
         html = (
             '<div data-index="'
             + str(dictCount)
             + '" class="dictionaryTitleBlock"><div class="dictionaryTitle">Images</div><div class="dictionarySettings">'
             + overwrite
             + select
-            + '<div class="defTools" style="margin-left: auto; display: flex; gap: var(--spacing-sm); align-items: center;">'
-            + "<div onclick=\"ankiExport(event, '"
+            + '<div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">\u25b2</div><div onclick="navigateDict(event, true)" class="nextDict">\u25bc</div></div></div></div>'
+            + '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + preparedTerm
+            + '</span><div class="defTools"><div onclick="ankiExport(event, \''
             + dictName
-            + '\')" class="ankiExportButton" title="Export"><img '
+            + '\')" class="ankiExportButton"><img '
             + imgTooltip
             + ' src="'
             + self.getBase64Icon("anki.svg")
             + '"></div><div onclick="clipText(event)" '
             + clipTooltip
-            + ' class="clipper" title="Copy">\u2702</div><div '
+            + ' class="clipper">\u2702</div><div '
             + sendTooltip
             + " onclick=\"sendToField(event, '"
             + dictName
-            + '\')" class="sendToField" title="Send to Field">\u279e</div><div class="dictNav"><div onclick="navigateDict(event, false)" class="prevDict">\u25b2</div><div onclick="navigateDict(event, true)" class="nextDict">\u25bc</div></div></div></div></div><div class="definitionBlock"><div class="imageBlock" id="'
+            + '\')" class="sendToField">\u279e</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">\u25b2</div><div onclick="navigateDef(event, true)" class="nextDef">\u25bc</div></div></div></div>'
+            + '<div class="definitionBlock"><div class="imageBlock" id="'
             + idName
             + '">'
             + self.getImages(term, idName)
