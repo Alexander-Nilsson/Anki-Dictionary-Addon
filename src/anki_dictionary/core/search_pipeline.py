@@ -279,6 +279,9 @@ class SearchPipeline:
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
 
+        text = text.strip()
+        text = text.replace("\n", "<br>")
+
         text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
 
         text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
