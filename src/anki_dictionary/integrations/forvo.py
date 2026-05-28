@@ -4,16 +4,13 @@ Forvo Integration for Anki Dictionary.
 Scrapes pronunciations from Forvo.com.
 """
 
-import os
 import re
-import json
 import base64
-import requests
-import hashlib
-import urllib3
-from typing import Optional, Dict, Any, List, Union
+import subprocess
+import sys
+import time
+from typing import Dict, Any, Tuple
 from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
 import urllib.parse
 
 try:
@@ -21,10 +18,27 @@ try:
 except ImportError:
     from PyQt6.QtCore import QObject, pyqtSignal, QRunnable
 
-from ..utils.common import prefer_ipv4
 from ..utils.logger import get_logger
 
 logger = get_logger("Forvo")
+
+SEARCH_URL = "https://forvo.com/word/"
+
+CURL_HEADERS = [
+    "-H",
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "-H",
+    "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "-H",
+    "Accept-Language: en-US,en;q=0.5",
+    "-H",
+    "Referer: https://forvo.com/",
+]
+
+if sys.platform == "win32":
+    CURL_BIN = "curl.exe"
+else:
+    CURL_BIN = "curl"
 
 
 class ForvoWorkerSignals(QObject):
@@ -33,6 +47,55 @@ class ForvoWorkerSignals(QObject):
     result_ready = pyqtSignal(dict)
     error_occurred = pyqtSignal(dict)
     finished = pyqtSignal()
+
+
+def _fetch_url(url: str, timeout: int = 15) -> Tuple[int, str]:
+    """Fetch a Forvo page using curl, which bypasses Cloudflare TLS fingerprinting."""
+    last_error = None
+    for attempt in range(3):
+        try:
+            result = subprocess.run(
+                [
+                    CURL_BIN,
+                    "-s",
+                    "-L",
+                    "--connect-timeout",
+                    str(timeout),
+                    "--max-time",
+                    str(timeout),
+                    *CURL_HEADERS,
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout + 5,
+            )
+            status = result.returncode
+            html = result.stdout
+
+            if status == 0 and html:
+                # Check if we got a Cloudflare challenge page instead of real content
+                if "Just a moment" in html:
+                    if attempt < 2:
+                        time.sleep(1)
+                        continue
+                    return 403, ""
+                return 200, html
+
+            if attempt < 2:
+                time.sleep(1)
+                continue
+
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            last_error = e
+            if attempt < 2:
+                time.sleep(1)
+                continue
+            raise
+
+    if last_error:
+        raise last_error
+    return 403, ""
 
 
 class ForvoWorker(QRunnable):
@@ -47,42 +110,6 @@ class ForvoWorker(QRunnable):
         self.config = config
         self.idName = idName
         self.signals = ForvoWorkerSignals()
-        self.session = self._make_session()
-        self.search_url = "https://forvo.com/word/"
-
-    def _make_session(self):
-        from requests.adapters import HTTPAdapter
-        from urllib3.util.retry import Retry
-
-        session = requests.Session()
-
-        # Setup retry strategy
-        retry_strategy = Retry(
-            total=3,
-            status_forcelist=[429, 500, 502, 503, 504],
-            backoff_factor=1,
-            raise_on_status=False,
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
-
-        session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://forvo.com/",
-                "DNT": "1",
-                "Upgrade-Insecure-Requests": "1",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "same-origin",
-                "Sec-Fetch-User": "?1",
-                "Cache-Control": "max-age=0",
-            }
-        )
-        return session
 
     def run(self):
         """Execute the scrape."""
@@ -90,14 +117,13 @@ class ForvoWorker(QRunnable):
             f"Starting Forvo search for term: '{self.term}' (lang: {self.language_code})"
         )
         try:
-            url = self.search_url + urllib.parse.quote(self.term)
+            url = SEARCH_URL + urllib.parse.quote(self.term)
             logger.debug(f"Forvo URL: {url}")
 
-            with prefer_ipv4():
-                response = self.session.get(url, timeout=15)
-            logger.debug(f"Forvo response status: {response.status_code}")
+            status, html = _fetch_url(url)
+            logger.debug(f"Forvo response status: {status}")
 
-            if response.status_code == 404:
+            if status == 404:
                 logger.debug("Forvo term not found (404)")
                 self.signals.result_ready.emit(
                     {
@@ -109,12 +135,11 @@ class ForvoWorker(QRunnable):
                 )
                 return
 
-            response.raise_for_status()
-            html = response.text
+            if status != 200:
+                raise RuntimeError(f"HTTP {status}: Failed to fetch Forvo page")
+
             soup = BeautifulSoup(html, "html.parser")
 
-            # Find the language container
-            # Forvo uses IDs like "language-container-ja" or "language-container-en"
             container_id = f"language-container-{self.language_code}"
             container = soup.find(id=container_id)
             logger.debug(
@@ -122,7 +147,6 @@ class ForvoWorker(QRunnable):
             )
 
             if not container:
-                # Try with underscores (some languages use them)
                 container = soup.find(
                     id=re.compile(f"language-container-{self.language_code}.*")
                 )
@@ -141,14 +165,9 @@ class ForvoWorker(QRunnable):
                             continue
 
                         onclick = play_button.get("onclick", "")
-                        # Forvo audio links are base64 encoded in the Play() function call
-                        # Pattern 1: Play(id, 'base64_mp3', 'base64_ogg', ...)
-                        # Pattern 2: Play(id, 'base64_ogg', ...)
-
                         audio_url = ""
                         is_ogg = False
 
-                        # Try MP3 first
                         mp3_match = re.search(
                             r"Play\(\d+,'[^']*','[^']*',\w+,'([^']+)'", onclick
                         )
@@ -157,7 +176,6 @@ class ForvoWorker(QRunnable):
                                 base64.b64decode(mp3_match.group(1)), "utf-8"
                             )
                         else:
-                            # Fallback to OGG
                             ogg_match = re.search(
                                 r"Play\(\d+,'[^']*','([^']+)'", onclick
                             )
@@ -170,7 +188,6 @@ class ForvoWorker(QRunnable):
                         if not audio_url:
                             continue
 
-                        # Extract metadata
                         username = ""
                         of_link = item.find(class_="ofLink")
                         if of_link:
@@ -198,10 +215,7 @@ class ForvoWorker(QRunnable):
                             }
                         )
 
-            # Sort by votes descending
             results.sort(key=lambda x: x["votes"], reverse=True)
-
-            # Limit to 15 results
             results = results[:15]
 
             logger.debug(f"Emitting {len(results)} Forvo results")
