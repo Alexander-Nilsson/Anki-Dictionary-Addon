@@ -1030,24 +1030,10 @@ class SearchPipeline:
         if not items:
             group = self.midict.dictInt.getSelectedDictGroup()
             if len(group.get("dictionaries", [])) > 1:
-                self.midict.eval(
-                    f"var el = document.getElementById('{idName}'); "
-                    f"if(el) el.remove(); "
-                    f"var titles = document.querySelectorAll('.listTitle'); "
-                    f"for (var i = 0; i < titles.length; i++) {{ "
-                    f"  if (titles[i].textContent === 'Forvo') {{ "
-                    f"    var list = titles[i].nextElementSibling; "
-                    f"    if (list && list.classList.contains('foundEntriesList')) list.remove(); "
-                    f"    titles[i].remove(); "
-                    f"    break; "
-                    f"  }} "
-                    f"}}"
-                )
+                self._remove_forvo_element(idName)
                 return
             else:
-                self.onForvoError(
-                    {"error": "No pronunciations found on Forvo.", "idName": idName}
-                )
+                self._remove_forvo_element(idName)
                 return
 
         selected_group = self.midict.dictInt.getSelectedDictGroup()
@@ -1112,15 +1098,26 @@ class SearchPipeline:
             f"}}"
         )
 
+    def _remove_forvo_element(self, idName: str) -> None:
+        self.midict.eval(
+            f"var el = document.getElementById('{idName}'); "
+            f"if(el) el.remove(); "
+            f"var titles = document.querySelectorAll('.listTitle'); "
+            f"for (var i = 0; i < titles.length; i++) {{ "
+            f"  if (titles[i].textContent === 'Forvo') {{ "
+            f"    var list = titles[i].nextElementSibling; "
+            f"    if (list && list.classList.contains('foundEntriesList')) list.remove(); "
+            f"    titles[i].remove(); "
+            f"    break; "
+            f"  }} "
+            f"}}"
+        )
+
     def onForvoError(self, result):
         error_msg = result.get("error", "Unknown Forvo error")
+        logger.warning(f"Forvo unavailable: {error_msg}")
         idName = result.get("idName") or "forvo-loader"
-        escaped_msg = json.dumps(
-            f'<div class="definitionBlock" style="color: red;">{error_msg}</div>'
-        )
-        self.midict.eval(
-            f"var loader = document.getElementById('{idName}'); if(loader) {{ loader.innerHTML = {escaped_msg}; }}"
-        )
+        self._remove_forvo_element(idName)
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]
