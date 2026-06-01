@@ -164,6 +164,7 @@ class DictionarySelectPage(MiWizardPage):
 
         self.install_hsk = QCheckBox("Install HSK Data")
         self.install_hsk.setChecked(True)
+        self.install_hsk.setVisible(False)
         options_lyt.addWidget(self.install_hsk)
 
         options_lyt.addStretch()
@@ -188,6 +189,39 @@ class DictionarySelectPage(MiWizardPage):
             set_child_states(item)
         finally:
             self._updating_checks = False
+        self._update_hsk_visibility()
+
+    def _is_chinese_language(self, language: dict) -> bool:
+        name = language.get("name_en", "").lower()
+        return any(x in name for x in ["chinese", "mandarin", "zh"])
+
+    def _update_hsk_visibility(self) -> None:
+        root = self.dict_tree.invisibleRootItem()
+        has_chinese = False
+        for li in range(root.childCount()):
+            lang_item = root.child(li)
+            language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)
+            if not language or not self._is_chinese_language(language):
+                continue
+
+            def _has_checked_child(item) -> bool:
+                for di in range(item.childCount()):
+                    child = item.child(di)
+                    if child.childCount() > 0 and _has_checked_child(child):
+                        return True
+                    try:
+                        if child.checkState(0) == Qt.CheckState.Checked:
+                            return True
+                    except AttributeError:
+                        if child.checkState(0) == Qt.Checked:
+                            return True
+                return False
+
+            if _has_checked_child(lang_item):
+                has_chinese = True
+                break
+
+        self.install_hsk.setVisible(has_chinese)
 
     def on_show(self, is_next, is_back):
         if is_next:
@@ -317,6 +351,7 @@ class DictionarySelectPage(MiWizardPage):
                 load_dict_list(dictionaries, lang_item)
         finally:
             self._updating_checks = False
+        self._update_hsk_visibility()
 
 
 class DictionaryConfirmPage(MiWizardPage):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List
 
 from aqt.qt import (
@@ -43,6 +44,34 @@ class FrequencySettingsTab(QWidget):
         self.hskMode.addItem("Both (HSK 2.0 & 3.0)", "both")
 
         self._build_ui()
+        self._update_hsk_visibility()
+
+    def _has_chinese_language(self) -> bool:
+        try:
+            langs = self.mw.miDictDB.getCurrentDbLangs()
+            for lang in langs:
+                if any(x in lang.lower() for x in ["zh", "chinese", "cn"]):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _has_hsk_data(self) -> bool:
+        from ...utils.paths import get_hsk_dir
+
+        hsk_dir = get_hsk_dir()
+        if not os.path.exists(hsk_dir):
+            return False
+        for f in os.listdir(hsk_dir):
+            if f.endswith(".json") and "hsk" in f.lower():
+                return True
+        return False
+
+    def _update_hsk_visibility(self) -> None:
+        visible = self._has_chinese_language() and self._has_hsk_data()
+        self.showHSK.setVisible(visible)
+        if hasattr(self, "_hsk_group") and self._hsk_group is not None:
+            self._hsk_group.setVisible(visible)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -81,7 +110,7 @@ class FrequencySettingsTab(QWidget):
         starGroup.setLayout(starLayout)
         layout.addWidget(starGroup)
 
-        hskGroup = QGroupBox("Chinese HSK Configuration")
+        self._hsk_group = QGroupBox("Chinese HSK Configuration")
         hskLayout = QFormLayout()
         hskLayout.addRow("HSK Version Preference:", self.hskMode)
         hskHint = QLabel(
@@ -89,8 +118,8 @@ class FrequencySettingsTab(QWidget):
         )
         hskHint.setStyleSheet("font-size: 10px; color: gray;")
         hskLayout.addRow("", hskHint)
-        hskGroup.setLayout(hskLayout)
-        layout.addWidget(hskGroup)
+        self._hsk_group.setLayout(hskLayout)
+        layout.addWidget(self._hsk_group)
 
         layout.addStretch()
 
