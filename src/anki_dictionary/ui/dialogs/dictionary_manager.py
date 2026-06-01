@@ -54,9 +54,9 @@ class DictionaryManagerWidget(QWidget):
         self.dict_tree.currentItemChanged.connect(self.on_current_item_change)
         left_lyt.addWidget(self.dict_tree)
 
-        add_lang_btn = QPushButton("Add a Language")
-        add_lang_btn.clicked.connect(self.add_lang)
-        left_lyt.addWidget(add_lang_btn)
+        install_btn = QPushButton("Install from Web")
+        install_btn.clicked.connect(self.web_installer)
+        left_lyt.addWidget(install_btn)
 
         right_side = QWidget()
         splitter.addWidget(right_side)
