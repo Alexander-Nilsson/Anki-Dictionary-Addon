@@ -850,28 +850,26 @@ class DictInterface(QWidget):
         self.userGroups = self.getUserGroups()
 
         # Update dictionary groups combo box
-        try:
-            self.dictGroups.currentIndexChanged.disconnect()
-        except (TypeError, RuntimeError):
-            pass
-        newDictGroupsCombo = self.setupDictGroups()
-        if hasattr(self, "toolbar"):
-            self.toolbar.replaceWidget(self.dictGroups, newDictGroupsCombo)
-        self.dictGroups.close()
-        self.dictGroups.deleteLater()
-        self.dictGroups = newDictGroupsCombo
+        if hasattr(self, "dictGroups"):
+            self.dictGroups.blockSignals(True)
+            newDictGroupsCombo = self.setupDictGroups()
+            if hasattr(self, "toolbar"):
+                self.toolbar.replaceWidget(self.dictGroups, newDictGroupsCombo)
+            self.dictGroups.deleteLater()
+            self.dictGroups = newDictGroupsCombo
+        else:
+            self.dictGroups = self.setupDictGroups()
 
         # Update search type combo box (to reflect any language-specific search options if they were added)
-        try:
-            self.sType.currentIndexChanged.disconnect()
-        except (TypeError, RuntimeError):
-            pass
-        newSType = self.setupSearchType()
-        if hasattr(self, "toolbar"):
-            self.toolbar.replaceWidget(self.sType, newSType)
-        self.sType.close()
-        self.sType.deleteLater()
-        self.sType = newSType
+        if hasattr(self, "sType"):
+            self.sType.blockSignals(True)
+            newSType = self.setupSearchType()
+            if hasattr(self, "toolbar"):
+                self.toolbar.replaceWidget(self.sType, newSType)
+            self.sType.deleteLater()
+            self.sType = newSType
+        else:
+            self.sType = self.setupSearchType()
 
         # Fixed sizes for header elements
         header_height = 36

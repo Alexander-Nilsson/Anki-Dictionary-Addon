@@ -34,7 +34,9 @@ class DictionaryGroupsTab:
         self.table = self.getGroupTemplateTable()
 
     def getGroupTemplateTable(self) -> QTableWidget:
-        macLin = bool(is_mac or is_lin)
+        macLin = (is_mac() if callable(is_mac) else bool(is_mac)) or (
+            is_lin() if callable(is_lin) else bool(is_lin)
+        )
         groupTemplates = QTableWidget()
         groupTemplates.setColumnCount(3)
         tableHeader = groupTemplates.horizontalHeader()
@@ -54,6 +56,7 @@ class DictionaryGroupsTab:
             groupTemplates.setColumnWidth(1, 40)
             groupTemplates.setColumnWidth(2, 40)
         tableHeader.hide()
+        groupTemplates.verticalHeader().hide()
         return groupTemplates
 
     def loadGroupTable(self) -> None:
@@ -64,6 +67,7 @@ class DictionaryGroupsTab:
             self.table.setRowCount(rc + 1)
             self.table.setItem(rc, 0, QTableWidgetItem(groupName))
             editButton = QPushButton("Edit")
+            editButton.setMinimumWidth(0)
             if is_win:
                 editButton.setFixedWidth(40)
             else:
@@ -72,6 +76,7 @@ class DictionaryGroupsTab:
             editButton.clicked.connect(self.editGroupRow(rc))
             self.table.setCellWidget(rc, 1, editButton)
             deleteButton = QPushButton("X")
+            deleteButton.setMinimumWidth(0)
             if is_win:
                 deleteButton.setFixedWidth(40)
             else:

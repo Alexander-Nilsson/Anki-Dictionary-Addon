@@ -227,6 +227,7 @@ class TemplateEditor(QDialog):
             self.dictFieldsTable.setItem(rc, 0, QTableWidgetItem(dictName))
             self.dictFieldsTable.setItem(rc, 1, QTableWidgetItem(fieldName))
             deleteButton = QPushButton("X")
+            deleteButton.setMinimumWidth(0)
             deleteButton.setFixedWidth(40)
             deleteButton.clicked.connect(self.removeDictField)
             self.dictFieldsTable.setCellWidget(rc, 2, deleteButton)

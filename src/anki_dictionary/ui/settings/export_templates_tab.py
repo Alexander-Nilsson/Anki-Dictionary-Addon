@@ -34,7 +34,9 @@ class ExportTemplatesTab:
         self.table = self._create_table()
 
     def _create_table(self) -> QTableWidget:
-        macLin = bool(is_mac or is_lin)
+        macLin = (is_mac() if callable(is_mac) else bool(is_mac)) or (
+            is_lin() if callable(is_lin) else bool(is_lin)
+        )
         table = QTableWidget()
         table.setColumnCount(3)
         tableHeader = table.horizontalHeader()
@@ -52,6 +54,7 @@ class ExportTemplatesTab:
             table.setColumnWidth(1, 40)
             table.setColumnWidth(2, 40)
         tableHeader.hide()
+        table.verticalHeader().hide()
         return table
 
     def loadTemplateTable(self) -> None:
@@ -62,6 +65,7 @@ class ExportTemplatesTab:
             self.table.setRowCount(rc + 1)
             self.table.setItem(rc, 0, QTableWidgetItem(template))
             editButton = QPushButton("Edit")
+            editButton.setMinimumWidth(0)
             if is_win:
                 editButton.setFixedWidth(40)
             else:
@@ -70,6 +74,7 @@ class ExportTemplatesTab:
             editButton.clicked.connect(self.editTempRow(rc))
             self.table.setCellWidget(rc, 1, editButton)
             deleteButton = QPushButton("X")
+            deleteButton.setMinimumWidth(0)
             if is_win:
                 deleteButton.setFixedWidth(40)
             else:
