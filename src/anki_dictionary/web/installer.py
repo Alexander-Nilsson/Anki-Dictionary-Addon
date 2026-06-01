@@ -264,7 +264,9 @@ class DictionarySelectPage(MiWizardPage):
         self.wizard.dictionary_install_index = dictionaries_to_install
         self.wizard.dictionary_install_frequency = self.install_freq.isChecked()
         self.wizard.dictionary_install_conjugation = self.install_conj.isChecked()
-        self.wizard.dictionary_install_hsk = self.install_hsk.isChecked()
+        self.wizard.dictionary_install_hsk = (
+            self.install_hsk.isChecked() and self.install_hsk.isVisible()
+        )
 
         return True
 

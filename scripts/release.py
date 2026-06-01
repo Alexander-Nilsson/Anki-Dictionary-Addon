@@ -159,10 +159,10 @@ def push_changes(tag_name):
 
 def check_github_actions():
     """Check if GitHub Actions workflow exists"""
-    workflow_file = Path(".github/workflows/auto-release.yml")
+    workflow_file = Path(".github/workflows/ci.yml")
     if not workflow_file.exists():
         print(
-            "⚠️  GitHub Actions workflow not found at .github/workflows/auto-release.yml"
+            "⚠️  GitHub Actions workflow not found at .github/workflows/ci.yml"
         )
         print("   The release process may not work automatically.")
         return False
