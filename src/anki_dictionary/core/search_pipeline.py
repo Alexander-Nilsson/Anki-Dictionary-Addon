@@ -1117,7 +1117,26 @@ class SearchPipeline:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning(f"Forvo unavailable: {error_msg}")
         idName = result.get("idName") or "forvo-loader"
-        self._remove_forvo_element(idName)
+
+        escaped_msg = json.dumps(
+            f'<div class="definitionBlock forvo-error" style="color: var(--danger, #ff5555); border: 1px solid var(--danger, #ff5555); padding: 12px; border-radius: 8px; background-color: rgba(255, 85, 85, 0.05); margin: var(--spacing-sm);">'
+            f'<div style="font-weight: bold; margin-bottom: 6px;">Forvo Unavailable</div>'
+            f'<div style="font-size: 0.85em; opacity: 0.9; word-break: break-all;">{error_msg}</div>'
+            f"</div>"
+        )
+        self.midict.eval(
+            f"var loader = document.getElementById('{idName}'); "
+            f"if(loader) {{ "
+            f"  var oldContent = loader.querySelector('.definitionBlock'); "
+            f"  if(oldContent) oldContent.remove(); "
+            f"  var titleBlock = loader.querySelector('.dictionaryTitleBlock'); "
+            f"  if(titleBlock) {{ "
+            f"    titleBlock.insertAdjacentHTML('afterend', {escaped_msg}); "
+            f"  }} else {{ "
+            f"    loader.insertAdjacentHTML('beforeend', {escaped_msg}); "
+            f"  }} "
+            f"}}"
+        )
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:
         return [x.replace("\\", "\\\\") for x in urls]
