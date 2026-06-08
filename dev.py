@@ -52,6 +52,7 @@ def run_tests():
         "no:qt",
         "-p",
         "no:xvfb",
+        "--ignore=tests/integration/test_smoke_pytest_anki.py",
     ]
     if is_ci:
         int_cmd.extend(["--tb=short", "-v"])
@@ -62,6 +63,24 @@ def run_tests():
             return False
     except Exception as e:
         print(f"⚠️  Integration tests could not run: {e}")
+
+    # pytest-anki2 smoketest (needs pytest-qt, forked process)
+    print("\n🧪 Running pytest-anki2 smoketest...")
+    smoke_cmd = [
+        "uv",
+        "run",
+        "pytest",
+        "tests/integration/test_smoke_pytest_anki.py",
+    ]
+    if is_ci:
+        smoke_cmd.extend(["--tb=short", "-v"])
+
+    try:
+        result = subprocess.run(smoke_cmd, check=False)
+        if result.returncode not in (0, 5):  # 5 = all tests skipped
+            return False
+    except Exception as e:
+        print(f"⚠️  pytest-anki2 smoketest could not run: {e}")
 
     return True
 

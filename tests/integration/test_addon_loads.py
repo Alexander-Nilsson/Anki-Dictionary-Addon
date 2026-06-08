@@ -14,17 +14,17 @@ import pytest
 class TestCollectionBasics:
     """Verify that we can create and manipulate a real Anki collection."""
 
-    def test_collection_opens_and_closes(self, anki_session):
-        assert anki_session.collection is not None
-        assert anki_session.collection.path.endswith("collection.anki2")
+    def test_collection_opens_and_closes(self, headless_anki_collection):
+        assert headless_anki_collection.collection is not None
+        assert headless_anki_collection.collection.path.endswith("collection.anki2")
 
-    def test_deck_operations(self, anki_session):
-        col = anki_session.collection
+    def test_deck_operations(self, headless_anki_collection):
+        col = headless_anki_collection.collection
         decks = col.decks.all_names_and_ids()
         assert any(d.name == "Default" for d in decks)
 
-    def test_note_creation(self, anki_session):
-        col = anki_session.collection
+    def test_note_creation(self, headless_anki_collection):
+        col = headless_anki_collection.collection
         notetype = col.models.by_name("Basic")
         assert notetype is not None, "Default Basic notetype should exist"
 
@@ -43,12 +43,12 @@ class TestCollectionBasics:
 class TestAddonDatabase:
     """Test DictDB against a real SQLite database (without mocking)."""
 
-    def test_db_creation(self, anki_session):
+    def test_db_creation(self, headless_anki_collection):
         import aqt
         from unittest.mock import MagicMock
 
         aqt.mw = MagicMock()
-        aqt.mw.pm.addonFolder.return_value = anki_session.base
+        aqt.mw.pm.addonFolder.return_value = headless_anki_collection.base
 
         from anki_dictionary.core.database import DictDB
 

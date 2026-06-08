@@ -27,6 +27,7 @@ dev = [
  "pytest-qt>=4.4.0",
  "pytest-xdist>=3.6.1",
  "pytest-xvfb>=3.1.0",
+ "pytest-anki2>=2.0.2",
 ]
 
 [tool.pytest.ini_options]
@@ -38,6 +39,7 @@ markers = [
 ]
 filterwarnings = []
 addopts = "-ra -q"
+qt_api = "pyqt6"
 
 [tool.black]
 target-version = ["py313"]

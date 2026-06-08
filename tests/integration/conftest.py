@@ -72,7 +72,7 @@ def qapp():
 
 
 @pytest.fixture(scope="function")
-def anki_session():
+def headless_anki_collection():
     """Create a headless real Anki collection for integration testing.
 
     Uses the installed ``anki`` package directly (no Qt GUI needed).

@@ -77,6 +77,11 @@ jobs:
               print(f'Extracted {name} to {site_pkgs}')
           "
 
+          # ── pytest-anki2: install without deps because anki/aqt are
+          #    already extracted above and we don't want pip to try (and
+          #    fail) to install manylinux_2_36 wheels ──
+          .venv/bin/pip install pytest-anki2 --no-deps
+
       - name: Lint
         run: |
           .venv/bin/flake8 . --config=.flake8
@@ -84,12 +89,20 @@ jobs:
 
       - name: Test
         run: |
+          # ── Fast unit tests (no Qt, no network) ──
           .venv/bin/pytest tests/ -p no:qt -p no:xvfb \
             -m "not integration and not network" \
             --ignore=tests/test_all_dictionaries.py \
             --ignore=tests/test_dictionary_index.py \
             --tb=short -v
-          .venv/bin/pytest tests/integration/ -p no:qt -p no:xvfb --tb=short -v
+
+          # ── Existing integration tests (custom qapp, no pytest-qt) ──
+          .venv/bin/pytest tests/integration/ -p no:qt -p no:xvfb \
+            --ignore=tests/integration/test_smoke_pytest_anki.py \
+            --tb=short -v
+
+          # ── pytest-anki2 smoketest (needs pytest-qt, forked process) ──
+          .venv/bin/pytest tests/integration/test_smoke_pytest_anki.py --tb=short -v
 
       - name: Build
         run: .venv/bin/python build.py all
