@@ -21,7 +21,7 @@ dev = [
  "aqt>=25.9.4",
  "black>=26.3.1",
  "flake8>=7.3.0",
- "pyright>=1.1.403",
+
  "pytest>=8.4.1",
  "pytest-cov>=6.1.1",
  "pytest-qt>=4.4.0",
@@ -44,10 +44,13 @@ qt_api = "pyqt6"
 [tool.black]
 target-version = ["py313"]
 
-[tool.pyright]
-include = [ "src",]
-exclude = [ "**/venv", "**/__pycache__",]
-pythonVersion = "3.13"
-typeCheckingMode = "strict"
-venvPath = "."
-venv = ".venv"
+[tool.ty]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["PyQt6.*", "anki.*", "aqt.*"]
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.src]
+include = ["src"]

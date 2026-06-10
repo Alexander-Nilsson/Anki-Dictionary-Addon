@@ -5,7 +5,7 @@
 The **Anki Dictionary Addon** is a PyQt6-based dictionary interface for Anki 25.07+ that allows users to look up definitions, frequency data, and pronunciations across multiple languages, with real-time export to Anki cards.
 
 **Key Technologies:**
-- Python 3.13+ (strict type checking with Pyright)
+- Python 3.13+ (strict type checking with ty)
 - PyQt6 for UI (leverages Anki's bundled Qt)
 - AnkiWebView (QtWebEngine) for rendering HTML/CSS/JS
 - SQLite for dictionary data storage
@@ -151,7 +151,7 @@ user_files/           # User data: DBs, themes, media (created during build)
 - **Linter**: `flake8` with max complexity 10
   - Ignores: E501 (line length), W503 (binary operator placement)
   - Focuses on: E9, F63, F7, F82 (syntax/import errors)
-- **Type checking**: `Pyright` in strict mode for `src/` directory
+- **Type checking**: `ty` in strict mode for `src/` directory
 - Python 3.13+ features allowed; `requires-python = ">=3.13"`
 
 ### Common Patterns
@@ -293,7 +293,7 @@ python -m pytest tests/test_module.py::TestClass::test_method -v
 3. **Theme Updates**: Active theme must be reloaded; changes to `active.json` don't auto-refresh
 4. **Asset Caching**: Browser caches JS/CSS; clear on changes or use cache-busting query params
 5. **Platform Differences**: Test macOS-specific imports (`pyobjc`) on actual macOS; they're optional
-6. **Type Checking**: Pyright strict mode is enforced; all type hints must pass
+6. **Type Checking**: ty strict mode is enforced; all type hints must pass
 
 ---
 
@@ -324,4 +324,4 @@ Enables web/UI testing capabilities via the Model Context Protocol. Useful for:
 - Request browser automation scripts for testing UI workflows
 - Get feedback on HTML/CSS/JS asset quality
 
-**Note**: Playwright MCP is optional. If you don't use it, existing linting (`flake8`) and type checking (`pyright`) cover Python code quality. Web component testing can also be done manually via the browser console in Anki.
+**Note**: Playwright MCP is optional. If you don't use it, existing linting (`flake8`) and type checking (`ty`) cover Python code quality. Web component testing can also be done manually via the browser console in Anki.

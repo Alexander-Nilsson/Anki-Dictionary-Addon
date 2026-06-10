@@ -57,7 +57,7 @@ jobs:
           .venv/bin/pip install \
             decorator distro markdown orjson protobuf PySocks \
             flask jsonschema pip-system-certs send2trash waitress \
-            "black>=26.3.1" "flake8>=7.3.0" "pyright>=1.1.403" \
+            "black>=26.3.1" "flake8>=7.3.0" \
             "pytest>=8.4.1" "pytest-cov>=6.1.1" "pytest-qt>=4.4.0" \
             "pytest-xdist>=3.6.1" "pytest-xvfb>=3.1.0"
 
@@ -86,6 +86,9 @@ jobs:
         run: |
           .venv/bin/flake8 . --config=.flake8
           .venv/bin/black --check --diff . --exclude "vendor|build|.venv|__pycache__|_check_tags.py"
+
+      - name: Type Check
+        run: uvx ty check .
 
       - name: Test
         run: |

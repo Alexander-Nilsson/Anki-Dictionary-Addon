@@ -137,6 +137,31 @@ def lint_code():
     return success
 
 
+def type_check():
+    """Run type checking with ty"""
+    print("🔎 Running type checker...")
+    try:
+        result = subprocess.run(
+            ["uvx", "ty", "check", "."],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            print("  ✅ No type errors found")
+            return True
+        else:
+            error_count = result.stdout.count("error[")
+            print(f"  ⚠️  {error_count} type errors found")
+            if error_count > 0:
+                for line in result.stdout.splitlines()[-5:]:
+                    print(f"     {line}")
+            return False
+    except FileNotFoundError:
+        print("  ⚠️  ty not found. Install with: uv tool install ty")
+        return False
+
+
 def format_code():
     """Format code with black"""
     print("🎨 Formatting code...")
@@ -229,7 +254,7 @@ def install_dev_deps():
                 "pytest-cov",
                 "flake8",
                 "black",
-                "mypy",
+
                 "toml",
             ],
             check=False,
@@ -306,6 +331,7 @@ def main():
         print("Commands:")
         print("  test       - Run test suite")
         print("  lint       - Run code linting")
+        print("  typecheck  - Run type checking")
         print("  format     - Format code with black")
         print("  build      - Build addon and standalone packages")
         print("  clean      - Clean build artifacts")
@@ -327,6 +353,8 @@ def main():
         success = run_tests()
     elif command == "lint":
         success = lint_code()
+    elif command == "typecheck":
+        success = type_check()
     elif command == "format":
         success = format_code()
     elif command == "build":
@@ -352,15 +380,16 @@ def main():
                 install_dev_deps()
 
         print("\n2. Running linting...")
-        # In GitHub Actions, we handle linting separately in the YAML if needed,
-        # but here we'll still run it if requested via 'ci' command.
         lint_success = lint_code()
 
-        print("\n3. Running tests...")
+        print("\n3. Running type checking...")
+        type_success = type_check()
+
+        print("\n4. Running tests...")
         # Ensure we don't clean build before tests if they depend on it
         test_success = run_tests()
 
-        success = lint_success and test_success
+        success = lint_success and type_success and test_success
 
         print("\n" + "=" * 30)
         if success:

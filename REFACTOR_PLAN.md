@@ -22,7 +22,7 @@ Still deferred (deeply coupled, need wider refactor):
 | `CardExporter` (`exporters/card_exporter.py`) | 755 | Separate batch vs single-card paths |
 
 ### Stage 3: Add Type Hints
-**Goal**: Full Pyright strict compliance (actionable items only).
+**Goal**: Full ty strict compliance (actionable items only).
 
 | Issue | Count |
 |---|---|

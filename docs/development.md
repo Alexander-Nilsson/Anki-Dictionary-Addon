@@ -46,7 +46,7 @@ The `act-24.04` image is required because `anki` ships `manylinux_2_36` wheels a
 
 - **Naming:** `snake_case` for vars/funcs, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants
 - **Formatting:** black (line length 88), flake8 (complexity ≤ 10)
-- **Types:** Pyright strict mode — all new code must have type hints
+- **Types:** ty strict mode — all new code must have type hints
 - **Imports:** Absolute within package (`from anki_dictionary.core.database import DictDB`)
 - **Logging:** Use `get_logger("module_name")` from `utils/logger.py`
 - **Config:** Access via `miInfo()` / `miAsk()` from `utils/common.py`
