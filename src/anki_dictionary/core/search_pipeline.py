@@ -10,8 +10,6 @@ from os.path import join, exists, dirname
 from typing import List, Dict, Optional, Tuple, Any, Union
 from urllib.request import Request, urlopen
 
-from aqt.qt import QImage, QSize, Qt
-from aqt.utils import openLink, tooltip
 
 from ..utils.logger import get_logger
 from ..web.icons import get_base64_icon
@@ -35,6 +33,8 @@ class SearchPipeline:
         self.midict.eval("loadImageHtml(%s, %s);" % (escaped_html, escaped_idName))
 
     def downloadImage(self, url):
+        from aqt.qt import QImage, QSize, Qt
+
         try:
             filename = str(time.time()).replace(".", "") + ".avif"
             if url.startswith("data:"):
@@ -722,6 +722,8 @@ class SearchPipeline:
         return "Loading..."
 
     def showNoImagesMessage(self):
+        from aqt.utils import tooltip
+
         tooltip("No images found")
 
     def triggerLLMSearch(self, term, star_count="", hsk_level="", idName=""):
