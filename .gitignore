@@ -78,3 +78,4 @@ meta.json
 # Logs
 *.log
 logs/
+AGENTS.md
