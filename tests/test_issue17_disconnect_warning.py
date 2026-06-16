@@ -117,8 +117,12 @@ sys.modules["anki_dictionary.ui.dialogs.dictionary_manager"] = _mock_dict_mgr
 
 atexit.register(lambda: None)
 
-from anki_dictionary.ui.settings.dict_groups_tab import DictionaryGroupsTab
-from anki_dictionary.ui.settings.export_templates_tab import ExportTemplatesTab
+from anki_dictionary.ui.settings.dict_groups_tab import (
+    DictionaryGroupsTab,
+)  # noqa: E402
+from anki_dictionary.ui.settings.export_templates_tab import (
+    ExportTemplatesTab,
+)  # noqa: E402
 
 
 def _make_mock_button() -> MagicMock:

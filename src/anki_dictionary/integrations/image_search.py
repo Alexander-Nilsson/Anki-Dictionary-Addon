@@ -74,7 +74,7 @@ def _make_session():
     """
     if _ON_MAC:
         try:
-            from curl_cffi import requests as curl_requests
+            from curl_cffi import requests as curl_requests  # ty:ignore[unresolved-import]
         except ImportError:
             # Inject vendor paths manually using our known addon_path
             import sys
@@ -90,7 +90,7 @@ def _make_session():
                 sys.path.insert(0, mac_vendor)
 
             try:
-                from curl_cffi import requests as curl_requests
+                from curl_cffi import requests as curl_requests  # ty:ignore[unresolved-import]
             except ImportError as e:
                 # Log the exact error to diagnose C-extension mismatches (e.g., Python 3.9 vs 3.12)
                 log_debug(f"[ImageSearch] curl_cffi import failed: {e}")
@@ -134,7 +134,7 @@ class DuckDuckGo(QRunnable):
 
     def _fetch_vqd(self, term: str):
         try:
-            response = self.session.post(
+            response = self.session.post(  # ty:ignore[unresolved-attribute]
                 "https://duckduckgo.com",
                 data={"q": term},
                 headers={
@@ -184,7 +184,7 @@ class DuckDuckGo(QRunnable):
             }
 
             with prefer_ipv4():
-                response = self.session.get(
+                response = self.session.get(  # ty:ignore[unresolved-attribute]
                     "https://duckduckgo.com/i.js",
                     params=params,
                     headers=headers,

@@ -28,7 +28,6 @@ logger = get_logger(__name__.split(".")[-1])
 
 
 class DictionaryManagerWidget(QWidget):
-
     def __init__(self, mw, parent=None):
         super(DictionaryManagerWidget, self).__init__(parent)
         self.mw = mw

@@ -22,7 +22,7 @@ def download_index(server_url=DEFAULT_SERVER):
     try:
         # Use a 15s timeout to avoid long UI hangs
         with prefer_ipv4():
-            resp = client.session.get(index_url, timeout=15, stream=True)
+            resp = client.session.get(index_url, timeout=15, stream=True)  # ty:ignore[unresolved-attribute]
     except Exception:
         return None
 

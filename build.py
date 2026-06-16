@@ -7,12 +7,13 @@ It handles dependency installation and file bundling.
 """
 
 import os
-import sys  
+import sys
 import shutil
 import zipfile
 import json
 import subprocess
 from pathlib import Path
+
 
 def get_project_config():
     """Get project configuration from pyproject.toml"""
@@ -20,22 +21,26 @@ def get_project_config():
         # Try tomllib first (Python 3.11+)
         try:
             import tomllib
-            with open('pyproject.toml', 'rb') as f:
+
+            with open("pyproject.toml", "rb") as f:
                 config = tomllib.load(f)
         except ImportError:
             # Fallback to toml library
             import toml
-            with open('pyproject.toml', 'r') as f:
+
+            with open("pyproject.toml", "r") as f:
                 config = toml.load(f)
-        
+
         return config
     except Exception as e:
         print(f"Warning: Could not read config from pyproject.toml: {e}")
-        return {'project': {'version': '0.1.0', 'name': 'Anki Dictionary'}}
+        return {"project": {"version": "0.1.0", "name": "Anki Dictionary"}}
+
 
 def get_version():
     """Get version from pyproject.toml"""
-    return get_project_config()['project'].get('version', '0.1.0')
+    return get_project_config()["project"].get("version", "0.1.0")
+
 
 def run_pip_command(args, env=None):
     """Run a pip command using 'uv pip', mapping flags correctly."""
@@ -48,7 +53,7 @@ def run_pip_command(args, env=None):
             if skip_next:
                 skip_next = False
                 continue
-            
+
             if arg == "-t":
                 mapped_args.append("--target")
             elif arg == "-r":
@@ -60,15 +65,18 @@ def run_pip_command(args, env=None):
                 pass
             else:
                 mapped_args.append(arg)
-        
+
         cmd = ["uv", "pip"] + mapped_args
         return subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
     except FileNotFoundError:
-        print("❌ 'uv' not found. Please install uv: https://docs.astral.sh/uv/getting-started/installation/")
+        print(
+            "❌ 'uv' not found. Please install uv: https://docs.astral.sh/uv/getting-started/installation/"
+        )
         raise
     except subprocess.CalledProcessError as e:
         # Re-raise to be handled by caller
         raise e
+
 
 def install_macos_curl_cffi(vendor_dir):
     """Download and extract curl_cffi for macOS (ARM64 and x86_64)"""
@@ -92,9 +100,12 @@ def install_macos_curl_cffi(vendor_dir):
             if p["name"] == "mac_arm64":
                 # For ARM64, we often need to specify several compatible macOS versions
                 platform_args = [
-                    "--platform", "macosx_11_0_arm64",
-                    "--platform", "macosx_12_0_arm64",
-                    "--platform", "macosx_13_0_arm64",
+                    "--platform",
+                    "macosx_11_0_arm64",
+                    "--platform",
+                    "macosx_12_0_arm64",
+                    "--platform",
+                    "macosx_13_0_arm64",
                 ]
             else:
                 platform_args = ["--platform", p["platform"]]
@@ -169,7 +180,6 @@ def install_dependencies(addon_dir):
             # Cleanup requirements file
             req_file.unlink()
 
-
         except Exception as e:
             print(f"   ❌ Error installing dependencies: {e}")
             raise
@@ -179,85 +189,90 @@ def install_dependencies(addon_dir):
     # Always install macOS-specific curl_cffi
     install_macos_curl_cffi(vendor_dir)
 
+
 def create_user_files_structure(addon_dir):
     """Create the user_files directory structure"""
     print("📂 Creating user_files structure...")
-    
-    user_files = addon_dir / 'user_files'
+
+    user_files = addon_dir / "user_files"
     user_files.mkdir(exist_ok=True)
-    
+
     # Create subdirectories
     dirs = [
-        'db',
-        'db/frequency',
-        'db/hsk',
-        'db/conjugation',
-        'dictionaries',
-        'fonts',
-        'media',
-        'themes'
+        "db",
+        "db/frequency",
+        "db/hsk",
+        "db/conjugation",
+        "dictionaries",
+        "fonts",
+        "media",
+        "themes",
     ]
-    
+
     for d in dirs:
         (user_files / d).mkdir(exist_ok=True)
-        
+
     print("   ✓ Created directory structure")
+
 
 def generate_manifest():
     """Generate manifest.json from pyproject.toml data"""
-    project_config = get_project_config()['project']
-    
+    project_config = get_project_config()["project"]
+
     # Extract macOS-specific requirements for manifest
-    dependencies = project_config.get('dependencies', [])
+    dependencies = project_config.get("dependencies", [])
     macos_requirements = []
-    
+
     for dep in dependencies:
-        if 'pyobjc' in dep and 'darwin' in dep:
+        if "pyobjc" in dep and "darwin" in dep:
             # Extract package name before semicolon
-            package_name = dep.split(';')[0].strip()
-            # macos_requirements.append(package_name) 
+            package_name = dep.split(";")[0].strip()
+            # macos_requirements.append(package_name)
             # Actually, manifest 'requirements' are usually not used by Anki for pip install?
             # Anki checks this list to warn users?
             pass
-            
+
     manifest_data = {
-        "package": project_config.get('name', 'Anki Dictionary').replace('-', ' ').title(),
-        "name": project_config.get('name', 'Anki Dictionary').replace('-', ' ').title(),
-        # "requirements": macos_requirements 
+        "package": project_config.get("name", "Anki Dictionary")
+        .replace("-", " ")
+        .title(),
+        "name": project_config.get("name", "Anki Dictionary").replace("-", " ").title(),
+        # "requirements": macos_requirements
     }
-    
-    manifest_path = Path('build') / 'anki_dictionary_addon' / 'manifest.json'
-    with open(manifest_path, 'w') as f:
+
+    manifest_path = Path("build") / "anki_dictionary_addon" / "manifest.json"
+    with open(manifest_path, "w") as f:
         json.dump(manifest_data, f, indent=4)
-    
+
     print(f"   ✓ Generated manifest.json")
     return manifest_path
+
 
 def build_addon():
     """Build the addon for Anki installation"""
     print("🔨 Building Anki Dictionary Addon...")
-    
+
     version = get_version()
     print(f"   Version: {version}")
-    
+
     # Create build directory
-    build_dir = Path('build')
+    build_dir = Path("build")
     if build_dir.exists():
         shutil.rmtree(build_dir)
     build_dir.mkdir()
-    
-    addon_dir = build_dir / 'anki_dictionary_addon'
+
+    addon_dir = build_dir / "anki_dictionary_addon"
     addon_dir.mkdir()
-    
+
     # Copy essential files for Anki addon
     # Note: user_files and vendor are handled separately
     essential_files = [
-        '__init__.py',
-        'config.json',
-        'src/',
-        'assets/',
+        "__init__.py",
+        "config.json",
+        "src/",
+        "assets/",
     ]
-    
+
     for item in essential_files:
         src = Path(item)
         if src.exists():
@@ -269,14 +284,14 @@ def build_addon():
                 print(f"   ✓ Copied file: {item}")
         else:
             print(f"   ⚠️  Skipped missing: {item}")
-    
+
     # Clean config.json in build directory
-    config_path = addon_dir / 'config.json'
+    config_path = addon_dir / "config.json"
     if config_path.exists():
         print("   🧹 Cleaning configuration in build...")
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
-        
+
         # Reset to defaults
         config["DictionaryGroups"] = {}
         config["ExportTemplates"] = {}
@@ -285,37 +300,40 @@ def build_addon():
         config["dictSizePos"] = [0, 0, 800, 600]
         config["currentTemplate"] = False
         config["currentDeck"] = False
-        
+
         # Reset LLM settings
         config["llm_enabled"] = False
         config["llm_api_key"] = ""
         config["llm_base_url"] = "https://api.openai.com/v1/chat/completions"
         config["llm_model"] = "gpt-3.5-turbo"
-        config["llm_prompt"] = "Provide a concise dictionary definition for the word: {term}"
+        config["llm_prompt"] = (
+            "Provide a concise dictionary definition for the word: {term}"
+        )
         config["llm_timeout"] = 15
-            
-        with open(config_path, 'w', encoding='utf-8') as f:
+
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=4)
         print("   ✓ Configuration reset to defaults")
-    
+
     # Create user_files structure
     create_user_files_structure(addon_dir)
-    
+
     # Generate manifest.json
     generate_manifest()
-    
+
     # Install dependencies
     install_dependencies(addon_dir)
-    
+
     # Create empty database using separate script
-    db_path = addon_dir / 'user_files' / 'db' / 'dictionaries.sqlite'
+    db_path = addon_dir / "user_files" / "db" / "dictionaries.sqlite"
     print("   Creating empty database...")
     try:
-        subprocess.run([
-            sys.executable, 
-            'scripts/create_empty_db.py', 
-            str(db_path)
-        ], check=True, capture_output=True, text=True)
+        subprocess.run(
+            [sys.executable, "scripts/create_empty_db.py", str(db_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         print("   ✓ Database creation completed")
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating database: {e}")
@@ -323,69 +341,73 @@ def build_addon():
         # print(f"   Error: {e.stderr}")
         # Continue even if DB creation fails (user might create it at runtime)
         pass
-    
+
     # Create default themes.json using separate script
-    themes_path = addon_dir / 'user_files' / 'themes' / 'themes.json'
+    themes_path = addon_dir / "user_files" / "themes" / "themes.json"
     print("   Creating default themes.json...")
     try:
-        subprocess.run([
-            sys.executable, 
-            'scripts/create_default_themes.py', 
-            str(themes_path)
-        ], check=True, capture_output=True, text=True)
+        subprocess.run(
+            [sys.executable, "scripts/create_default_themes.py", str(themes_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         print("   ✓ Themes.json creation completed")
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating themes.json: {e}")
         pass
-    
+
     print(f"✅ Addon built in: {addon_dir}")
     return addon_dir
+
 
 def create_ankiaddon_package():
     """Create .ankiaddon package file"""
     print("📦 Creating .ankiaddon package...")
-    
-    build_dir = Path('build')
-    addon_dir = build_dir / 'anki_dictionary_addon'
-    
+
+    build_dir = Path("build")
+    addon_dir = build_dir / "anki_dictionary_addon"
+
     if not addon_dir.exists():
         print("❌ Build directory not found. Run build first.")
         return None
-    
+
     version = get_version()
     package_name = f"anki_dictionary_addon_v{version}.ankiaddon"
     package_path = build_dir / package_name
-    
-    with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+    with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, dirs, files in os.walk(addon_dir):
             # Write directories (including empty ones)
             for d in dirs:
                 dir_path = Path(root) / d
                 arc_path = dir_path.relative_to(addon_dir)
-                zf.write(dir_path, str(arc_path) + '/')
+                zf.write(dir_path, str(arc_path) + "/")
             # Write files
             for file in files:
                 file_path = Path(root) / file
                 arc_path = file_path.relative_to(addon_dir)
                 zf.write(file_path, arc_path)
-    
+
     print(f"✅ Package created: {package_path}")
     return package_path
+
 
 def clean():
     """Clean build artifacts"""
     print("🧹 Cleaning build artifacts...")
-    
-    build_dir = Path('build')
+
+    build_dir = Path("build")
     if build_dir.exists():
         shutil.rmtree(build_dir)
         print("   ✓ Removed build directory")
-    
+
     # Clean Python cache
-    for cache_dir in Path('.').rglob('__pycache__'):
+    for cache_dir in Path(".").rglob("__pycache__"):
         shutil.rmtree(cache_dir)
-    
+
     print("✅ Clean completed")
+
 
 def main():
     """Main build script"""
@@ -397,17 +419,17 @@ def main():
         print("  all      - Build addon and package")
         print("  clean    - Clean build artifacts")
         return
-    
+
     command = sys.argv[1]
-    
-    if command == 'clean':
+
+    if command == "clean":
         clean()
-    elif command == 'build':
+    elif command == "build":
         build_addon()
-    elif command == 'package':
+    elif command == "package":
         build_addon()
         create_ankiaddon_package()
-    elif command == 'all':
+    elif command == "all":
         clean()
         build_addon()
         create_ankiaddon_package()
@@ -415,5 +437,6 @@ def main():
     else:
         print(f"❌ Unknown command: {command}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

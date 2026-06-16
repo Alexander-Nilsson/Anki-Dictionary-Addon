@@ -142,10 +142,10 @@ class MiWizard(QDialog):
         lyt.addLayout(btn_lyt)
         style = self.style()
         margins = (
-            style.pixelMetric(QStyle.PixelMetric.PM_LayoutLeftMargin),
-            style.pixelMetric(QStyle.PixelMetric.PM_LayoutTopMargin),
-            style.pixelMetric(QStyle.PixelMetric.PM_LayoutRightMargin),
-            style.pixelMetric(QStyle.PixelMetric.PM_LayoutBottomMargin),
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutLeftMargin),  # ty:ignore[unresolved-attribute]
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutTopMargin),  # ty:ignore[unresolved-attribute]
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutRightMargin),  # ty:ignore[unresolved-attribute]
+            style.pixelMetric(QStyle.PixelMetric.PM_LayoutBottomMargin),  # ty:ignore[unresolved-attribute]
         )
         btn_lyt.setContentsMargins(*margins)
 
@@ -280,7 +280,7 @@ class MiWizard(QDialog):
             self._btn_cancel.setEnabled(self._current_page.cancel_enabled)
             self._btn_cancel.setVisible(self._current_page.cancel_visible)
 
-    def closeEvent(self, e):
+    def closeEvent(self, e):  # ty:ignore[invalid-method-override]
         """Handle close event."""
         self.cancel()
         e.ignore()

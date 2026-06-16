@@ -19,8 +19,7 @@ dependencies = [
 dev = [
  "anki>=25.9.4",
  "aqt>=25.9.4",
- "black>=26.3.1",
- "flake8>=7.3.0",
+ "ruff>=0.11.0",
 
  "pytest>=8.4.1",
  "pytest-cov>=6.1.1",
@@ -41,8 +40,23 @@ filterwarnings = []
 addopts = "-ra -q"
 qt_api = "pyqt6"
 
-[tool.black]
-target-version = ["py313"]
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+exclude = ["_check_tags.py"]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
+ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E402"]
 
 [tool.ty]
 

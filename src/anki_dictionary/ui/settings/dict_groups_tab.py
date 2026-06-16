@@ -40,9 +40,9 @@ class DictionaryGroupsTab:
         groupTemplates = QTableWidget()
         groupTemplates.setColumnCount(3)
         tableHeader = groupTemplates.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
         groupTemplates.setRowCount(0)
         groupTemplates.setSortingEnabled(False)
         groupTemplates.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -55,11 +55,16 @@ class DictionaryGroupsTab:
         else:
             groupTemplates.setColumnWidth(1, 40)
             groupTemplates.setColumnWidth(2, 40)
-        tableHeader.hide()
-        groupTemplates.verticalHeader().hide()
+        tableHeader.hide()  # ty:ignore[unresolved-attribute]
+        groupTemplates.verticalHeader().hide()  # ty:ignore[unresolved-attribute]
         return groupTemplates
 
     def loadGroupTable(self) -> None:
+        for r in range(self.table.rowCount()):
+            for c in range(self.table.columnCount()):
+                widget = self.table.cellWidget(r, c)
+                if widget:
+                    widget.clicked.disconnect()  # ty:ignore[unresolved-attribute]
         self.table.setRowCount(0)
         dictGroups = self.getConfig()["DictionaryGroups"]
         for groupName in dictGroups:
@@ -82,6 +87,7 @@ class DictionaryGroupsTab:
             else:
                 deleteButton.setFixedWidth(40)
                 deleteButton.setFixedHeight(30)
+            deleteButton.setToolTip("Remove this group")
             deleteButton.clicked.connect(self.removeGroupRow(rc))
             self.table.setCellWidget(rc, 2, deleteButton)
 
@@ -92,7 +98,7 @@ class DictionaryGroupsTab:
         return lambda: self.editGroup(x)
 
     def editGroup(self, row: int) -> None:
-        groupName = self.table.item(row, 0).text()
+        groupName = self.table.item(row, 0).text()  # ty:ignore[unresolved-attribute]
         dictGroups = self.getConfig()["DictionaryGroups"]
         if groupName in dictGroups:
             group = dictGroups[groupName]
@@ -103,12 +109,13 @@ class DictionaryGroupsTab:
 
     def removeGroup(self, row: int) -> None:
         if miAsk(
-            "Are you sure you would like to remove this dictionary group? This action will happen immediately and is not un-doable.",
+            "Are you sure you would like to remove this dictionary group?"
+            " This action will happen immediately and is not un-doable.",
             self.parent,
         ):
             newConfig = self.getConfig()
             dictGroups = newConfig["DictionaryGroups"]
-            groupName = self.table.item(row, 0).text()
+            groupName = self.table.item(row, 0).text()  # ty:ignore[unresolved-attribute]
             del dictGroups[groupName]
             save_addon_config(newConfig)
             self.table.removeRow(row)
@@ -121,5 +128,7 @@ class DictionaryGroupsTab:
 
     def init_tooltips(self) -> None:
         self.add_button.setToolTip(
-            "Add a new dictionary group.\nDictionary groups allow you to specify which dictionaries to search\nwithin. You can also set a specific font for that group."
+            "Add a new dictionary group.\nDictionary groups allow you to"
+            " specify which dictionaries to search\nwithin. You can also set"
+            " a specific font for that group."
         )

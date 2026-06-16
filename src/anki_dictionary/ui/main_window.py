@@ -79,7 +79,7 @@ def removeTempFiles():
 
 def ankiDict(text):
     """Show info message with addon branding."""
-    showInfo(text, False, "", "info", "Anki Dictionary Add-on")
+    showInfo(text, False, "", "info", "Anki Dictionary Add-on")  # ty:ignore[invalid-argument-type]
 
 
 def showA(ar):
@@ -120,16 +120,16 @@ def captureKey(keyList):
     """Capture key press for global hotkeys."""
     key = keyList[0]
     char = str(key)
-    if char not in mw.currentlyPressed:
-        mw.currentlyPressed.append(char)
+    if char not in mw.currentlyPressed:  # ty:ignore[unresolved-attribute]
+        mw.currentlyPressed.append(char)  # ty:ignore[unresolved-attribute]
 
 
 def releaseKey(keyList):
     """Release key for global hotkeys."""
     key = keyList[0]
     char = str(key)
-    if char in mw.currentlyPressed:
-        mw.currentlyPressed.remove(char)
+    if char in mw.currentlyPressed:  # ty:ignore[unresolved-attribute]
+        mw.currentlyPressed.remove(char)  # ty:ignore[unresolved-attribute]
 
 
 def getWelcomeScreen():
@@ -158,14 +158,14 @@ def getMacWelcomeScreen():
 
 def showAfterGlobalSearch():
     """Show dictionary after global search."""
-    if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.activateWindow()
+    if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.activateWindow()  # ty:ignore[unresolved-attribute]
         if not is_win:
-            mw.ankiDictionary.setWindowState(
-                mw.ankiDictionary.windowState() & ~Qt.WindowState.WindowMinimized
+            mw.ankiDictionary.setWindowState(  # ty:ignore[unresolved-attribute]
+                mw.ankiDictionary.windowState() & ~Qt.WindowState.WindowMinimized  # ty:ignore[unresolved-attribute]
                 | Qt.WindowState.WindowActive
             )
-            mw.ankiDictionary.raise_()
+            mw.ankiDictionary.raise_()  # ty:ignore[unresolved-attribute]
         else:
             mw.ankiDictionary.setWindowFlags(
                 mw.ankiDictionary.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
@@ -192,40 +192,44 @@ def dictionaryInit(terms=False):
     else:
         welcomeScreen = getWelcomeScreen()
 
-    if not mw.ankiDictionary:
-        mw.ankiDictionary = DictInterface(
-            mw.miDictDB, mw, addon_path, welcomeScreen, terms=terms
+    if not mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary = DictInterface(  # ty:ignore[unresolved-attribute]
+            mw.miDictDB,  # ty:ignore[unresolved-attribute]
+            mw,
+            addon_path,
+            welcomeScreen,
+            terms=terms,
         )
-        mw.openMiDict.setText("Close Dictionary " + shortcut)
+        mw.openMiDict.setText("Close Dictionary " + shortcut)  # ty:ignore[unresolved-attribute]
         showAfterGlobalSearch()
-    elif not mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.show()
-        mw.openMiDict.setText("Close Dictionary " + shortcut)
+    elif not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.show()  # ty:ignore[unresolved-attribute]
+        mw.openMiDict.setText("Close Dictionary " + shortcut)  # ty:ignore[unresolved-attribute]
         showAfterGlobalSearch()
     else:
-        mw.ankiDictionary.hide()
+        mw.ankiDictionary.hide()  # ty:ignore[unresolved-attribute]
 
 
 def openDictionarySettings():
     """Open dictionary settings window."""
-    if not mw.dictSettings:
-        mw.dictSettings = SettingsGui(mw, addon_path, openDictionarySettings)
-    mw.dictSettings.show()
-    if mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:
-        mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
-    mw.dictSettings.setFocus()
-    mw.dictSettings.activateWindow()
+    if not mw.dictSettings:  # ty:ignore[unresolved-attribute]
+        mw.dictSettings = SettingsGui(mw, addon_path, openDictionarySettings)  # ty:ignore[unresolved-attribute]
+    mw.dictSettings.show()  # ty:ignore[unresolved-attribute]
+    if mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:  # ty:ignore[unresolved-attribute]
+        mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)  # ty:ignore[unresolved-attribute]
+    mw.dictSettings.setFocus()  # ty:ignore[unresolved-attribute]
+    mw.dictSettings.activateWindow()  # ty:ignore[unresolved-attribute]
 
 
 def searchTermList(terms):
     """Search for a list of terms."""
-    limit = mw.AnkiDictConfig.get("unknownsToSearch", 3)
+    limit = mw.AnkiDictConfig.get("unknownsToSearch", 3)  # ty:ignore[unresolved-attribute]
     terms = terms[:limit]
-    if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():
+    if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
         dictionaryInit(terms)
     else:
         for term in terms:
-            mw.ankiDictionary.initSearch(term)
+            mw.ankiDictionary.initSearch(term)  # ty:ignore[unresolved-attribute]
         showAfterGlobalSearch()
 
 
@@ -238,21 +242,21 @@ def extensionFileNotFound():
 
 def initGlobalHotkeys():
     """Initialize global hotkey thread."""
-    mw.hkThread = ClipThread(mw, addon_path)
-    mw.hkThread.sentence.connect(exportSentence)
-    mw.hkThread.search.connect(trySearch)
-    mw.hkThread.colSearch.connect(performColSearch)
-    mw.hkThread.image.connect(exportImage)
-    mw.hkThread.bulkTextExport.connect(extensionBulkTextExport)
-    mw.hkThread.add.connect(attemptAddCard)
-    mw.hkThread.test.connect(captureKey)
-    mw.hkThread.release.connect(releaseKey)
-    mw.hkThread.pageRefreshDuringBulkMediaImport.connect(cancelBulkMediaExport)
-    mw.hkThread.bulkMediaExport.connect(extensionBulkMediaExport)
-    mw.hkThread.extensionCardExport.connect(extensionCardExport)
-    mw.hkThread.searchFromExtension.connect(searchTermList)
-    mw.hkThread.extensionFileNotFound.connect(extensionFileNotFound)
-    mw.hkThread.run()
+    mw.hkThread = ClipThread(mw, addon_path)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.sentence.connect(exportSentence)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.search.connect(trySearch)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.colSearch.connect(performColSearch)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.image.connect(exportImage)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.bulkTextExport.connect(extensionBulkTextExport)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.add.connect(attemptAddCard)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.test.connect(captureKey)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.release.connect(releaseKey)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.pageRefreshDuringBulkMediaImport.connect(cancelBulkMediaExport)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.bulkMediaExport.connect(extensionBulkMediaExport)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.extensionCardExport.connect(extensionCardExport)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.searchFromExtension.connect(searchTermList)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.extensionFileNotFound.connect(extensionFileNotFound)  # ty:ignore[unresolved-attribute]
+    mw.hkThread.run()  # ty:ignore[unresolved-attribute]
 
 
 def selectedText(page):
@@ -270,16 +274,16 @@ def searchTerm(webview):
     if text:
         text = re.sub(r"\[[^\]]+?\]", "", text)
         text = text.strip()
-        if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():
+        if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
             dictionaryInit([text])
-        mw.ankiDictionary.ensureVisible()
-        mw.ankiDictionary.initSearch(text)
+        mw.ankiDictionary.ensureVisible()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.initSearch(text)  # ty:ignore[unresolved-attribute]
         if webview.title == "main webview":
             if mw.state == "review":
-                mw.ankiDictionary.dict.setReviewer(mw.reviewer)
+                mw.ankiDictionary.dict.setReviewer(mw.reviewer)  # ty:ignore[unresolved-attribute]
         elif webview.title == "editor":
             target = getTarget(type(webview.parentEditor.parentWindow).__name__)
-            mw.ankiDictionary.dict.setCurrentEditor(webview.parentEditor, target)
+            mw.ankiDictionary.dict.setCurrentEditor(webview.parentEditor, target)  # ty:ignore[unresolved-attribute]
         showAfterGlobalSearch()
 
 
@@ -290,68 +294,68 @@ def searchCol(webview):
 
 
 # Make functions available globally
-mw.dictionaryInit = dictionaryInit
-mw.searchTerm = searchTerm
-mw.searchCol = searchCol
+mw.dictionaryInit = dictionaryInit  # ty:ignore[unresolved-attribute]
+mw.searchTerm = searchTerm  # ty:ignore[unresolved-attribute]
+mw.searchCol = searchCol  # ty:ignore[unresolved-attribute]
 
 
 # Implementation of global exporter functions
 def exportSentence(sentence):
     """Export sentence to the card exporter."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()
-        mw.ankiDictionary.dict.addWindow.exportSentence(sentence)
+    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.addWindow.exportSentence(sentence)  # ty:ignore[unresolved-attribute]
 
 
 def trySearch(text):
     """Try to search text in the dictionary."""
-    if mw.ankiDictionary:
-        mw.ankiDictionary.initSearch(text)
+    if mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.initSearch(text)  # ty:ignore[unresolved-attribute]
 
 
 def exportImage(path, name):
     """Export image to the card exporter."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()
-        mw.ankiDictionary.dict.addWindow.exportImage(path, name)
+    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.addWindow.exportImage(path, name)  # ty:ignore[unresolved-attribute]
 
 
 def extensionBulkTextExport(cards):
     """Handle bulk text export from extension."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()
-        mw.ankiDictionary.dict.addWindow.bulkTextExport(cards)
+    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.addWindow.bulkTextExport(cards)  # ty:ignore[unresolved-attribute]
 
 
 def attemptAddCard():
     """Attempt to add a card from exporter."""
     if (
-        mw.ankiDictionary
-        and mw.ankiDictionary.dict
-        and mw.ankiDictionary.dict.addWindow
+        mw.ankiDictionary  # ty:ignore[unresolved-attribute]
+        and mw.ankiDictionary.dict  # ty:ignore[unresolved-attribute]
+        and mw.ankiDictionary.dict.addWindow  # ty:ignore[unresolved-attribute]
     ):
-        mw.ankiDictionary.dict.addWindow.addCard()
+        mw.ankiDictionary.dict.addWindow.addCard()  # ty:ignore[unresolved-attribute]
 
 
 def cancelBulkMediaExport():
     """Cancel ongoing bulk media export."""
     if (
-        mw.ankiDictionary
-        and mw.ankiDictionary.dict
-        and mw.ankiDictionary.dict.addWindow
+        mw.ankiDictionary  # ty:ignore[unresolved-attribute]
+        and mw.ankiDictionary.dict  # ty:ignore[unresolved-attribute]
+        and mw.ankiDictionary.dict.addWindow  # ty:ignore[unresolved-attribute]
     ):
-        mw.ankiDictionary.dict.addWindow.bulkMediaExportCancelledByBrowserRefresh()
+        mw.ankiDictionary.dict.addWindow.bulkMediaExportCancelledByBrowserRefresh()  # ty:ignore[unresolved-attribute]
 
 
 def extensionBulkMediaExport(card):
     """Handle bulk media export from extension."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()
-        mw.ankiDictionary.dict.addWindow.bulkMediaExport(card)
+    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.addWindow.bulkMediaExport(card)  # ty:ignore[unresolved-attribute]
 
 
 def extensionCardExport(card):
     """Handle single card export from extension."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()
-        mw.ankiDictionary.dict.addWindow.addMediaCard(card)
+    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.addWindow.addMediaCard(card)  # ty:ignore[unresolved-attribute]

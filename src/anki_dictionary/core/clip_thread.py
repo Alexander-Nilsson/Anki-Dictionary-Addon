@@ -85,14 +85,14 @@ class ClipThread(QObject):
         keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode)
         if (
             (
-                "Key.cmd" in self.mw.currentlyPressed
-                or "Key.cmd_r" in self.mw.currentlyPressed
+                "Key.cmd" in self.mw.currentlyPressed  # ty:ignore[unresolved-attribute]
+                or "Key.cmd_r" in self.mw.currentlyPressed  # ty:ignore[unresolved-attribute]
             )
-            and "'c'" in self.mw.currentlyPressed
+            and "'c'" in self.mw.currentlyPressed  # ty:ignore[unresolved-attribute]
             and keycode == 1
         ):
             self.handleSystemSearch()
-            self.mw.currentlyPressed = []
+            self.mw.currentlyPressed = []  # ty:ignore[unresolved-attribute]
             return None
         return event
 
@@ -128,7 +128,7 @@ class ClipThread(QObject):
         self.add.emit("add")
 
     def checkDict(self) -> bool:
-        if not self.mw.ankiDictionary or not self.mw.ankiDictionary.isVisible():
+        if not self.mw.ankiDictionary or not self.mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
             return False
         return True
 
@@ -136,10 +136,10 @@ class ClipThread(QObject):
         self.searchFromExtension.emit(terms)
 
     def handleSystemSearch(self) -> None:
-        self.search.emit(self.mw.app.clipboard().text())
+        self.search.emit(self.mw.app.clipboard().text())  # ty:ignore[unresolved-attribute]
 
     def handleColSearch(self) -> None:
-        self.colSearch.emit(self.mw.app.clipboard().text())
+        self.colSearch.emit(self.mw.app.clipboard().text())  # ty:ignore[unresolved-attribute]
 
     def getConfig(self) -> Dict[str, Any]:
         return get_addon_config()
@@ -170,12 +170,12 @@ class ClipThread(QObject):
             self.extensionCardExport.emit(card)
 
     def saveScaledImage(self, imageTempPath: str, imageFileName: str) -> None:
-        maxW = self.mw.AnkiDictConfig["maxWidth"]
-        maxH = self.mw.AnkiDictConfig["maxHeight"]
+        maxW = self.mw.AnkiDictConfig["maxWidth"]  # ty:ignore[unresolved-attribute]
+        maxH = self.mw.AnkiDictConfig["maxHeight"]  # ty:ignore[unresolved-attribute]
         if not imageFileName.lower().endswith(".avif"):
             imageFileName = re.sub(r"\.[^.]+$", ".avif", imageFileName)
 
-        path = join(self.mw.col.media.dir(), imageFileName)
+        path = join(self.mw.col.media.dir(), imageFileName)  # ty:ignore[unresolved-attribute]
         image = QImage(imageTempPath)
         image = image.scaled(
             QSize(maxW, maxH),
@@ -197,7 +197,7 @@ class ClipThread(QObject):
 
     def moveExtensionFileToMediaFolder(self, source: str, filename: str) -> bool | None:
         if exists(source):
-            path = join(self.mw.col.media.dir(), filename)
+            path = join(self.mw.col.media.dir(), filename)  # ty:ignore[unresolved-attribute]
             if not exists(path):
                 copyfile(source, path)
                 return True
@@ -208,15 +208,15 @@ class ClipThread(QObject):
 
     def handleImageExport(self) -> None:
         if self.checkDict():
-            mime = self.mw.app.clipboard().mimeData()
-            clip = self.mw.app.clipboard().text()
+            mime = self.mw.app.clipboard().mimeData()  # ty:ignore[unresolved-attribute]
+            clip = self.mw.app.clipboard().text()  # ty:ignore[unresolved-attribute]
 
             if not clip.endswith(".mp3") and mime.hasImage():
                 image = mime.imageData()
                 filename = str(time.time()) + ".avif"
                 fullpath = join(self.temp_dir, filename)
-                maxW = max(self.maxW, image.width())
-                maxH = max(self.maxH, image.height())
+                maxW = max(self.maxW, image.width())  # ty:ignore[unresolved-attribute]
+                maxH = max(self.maxH, image.height())  # ty:ignore[unresolved-attribute]
                 image = image.scaled(
                     QSize(maxW, maxH),
                     Qt.AspectRatioMode.KeepAspectRatio,
@@ -259,4 +259,4 @@ class ClipThread(QObject):
 
     def handleSentenceExport(self) -> None:
         if self.checkDict():
-            self.sentence.emit(self.mw.app.clipboard().text())
+            self.sentence.emit(self.mw.app.clipboard().text())  # ty:ignore[unresolved-attribute]

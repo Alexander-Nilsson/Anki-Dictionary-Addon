@@ -170,7 +170,6 @@ class LLMWorker(QRunnable):
             content = clean_llm_content(raw_content, self.config)
 
             if not content:
-
                 raise ValueError("API returned an empty response.")
 
             # Format as a dictionary entry
@@ -232,7 +231,6 @@ def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None
         content = clean_llm_content(extract_llm_content(data, base_url), config)
 
         if content:
-
             logger.debug("Test successful!")
             callback(True, "Successfully connected to LLM!")
         else:

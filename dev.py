@@ -90,49 +90,32 @@ def lint_code():
     print("🔍 Running code linting...")
 
     success = True
-    is_ci = os.environ.get("GITHUB_ACTIONS") == "true"
 
-    # Run flake8
     try:
-        print("  Running flake8...")
-        result = subprocess.run(
-            ["uv", "run", "flake8", ".", "--config=.flake8"], check=False
-        )
+        print("  Running ruff check...")
+        result = subprocess.run(["uv", "run", "ruff", "check", "."], check=False)
         if result.returncode != 0:
             success = False
     except FileNotFoundError:
-        print("  ⚠️  flake8 not found, skipping...")
-        # In CI, we expect tools to be there, but if uv sync didn't install them
-        # (e.g. because of --no-dev), we might want to fail.
-        # However, for now we follow the user instruction to be lenient.
+        print("  ⚠️  ruff not found, skipping...")
 
-    # Check black formatting
     try:
-        print("  Checking code formatting with black...")
+        print("  Checking code formatting with ruff format...")
         result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "black",
-                "--check",
-                "--diff",
-                ".",
-                "--exclude",
-                "vendor|build|.venv|__pycache__",
-            ],
+            ["uv", "run", "ruff", "format", "--check", "."],
             check=False,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
-            print("  ⚠️  Code formatting issues found")
+            print("  ⚠️  Formatting issues found")
             if result.stdout:
                 print(result.stdout)
             success = False
         else:
             print("  ✅ Code formatting looks good")
     except FileNotFoundError:
-        print("  ⚠️  black not found, skipping...")
+        print("  ⚠️  ruff not found, skipping...")
 
     return success
 
@@ -163,11 +146,11 @@ def type_check():
 
 
 def format_code():
-    """Format code with black"""
+    """Format code with ruff"""
     print("🎨 Formatting code...")
     try:
         result = subprocess.run(
-            ["uv", "run", "black", ".", "--exclude", "vendor|build|.venv|__pycache__"],
+            ["uv", "run", "ruff", "format", "."],
             check=False,
         )
         if result.returncode == 0:
@@ -177,7 +160,7 @@ def format_code():
             print("❌ Code formatting failed")
             return False
     except FileNotFoundError:
-        print("❌ black not found. Install with: pip install black")
+        print("❌ ruff not found. Install with: pip install ruff")
         return False
 
 
@@ -252,10 +235,7 @@ def install_dev_deps():
                 "install",
                 "pytest",
                 "pytest-cov",
-                "flake8",
-                "black",
-
-                "toml",
+                "ruff",
             ],
             check=False,
         )

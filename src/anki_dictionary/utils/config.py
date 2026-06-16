@@ -139,7 +139,7 @@ def refresh_anki_dict_config(
         try:
             # We don't want to pass the config object as terms to resetConfiguration
             # just trigger a reload of settings and groups.
-            mw.ankiDictionary.resetConfiguration()
+            mw.ankiDictionary.resetConfiguration()  # ty:ignore[call-non-callable]
         except Exception as e:
             logger.error(f"Error refreshing dictionary configuration: {e}")
 

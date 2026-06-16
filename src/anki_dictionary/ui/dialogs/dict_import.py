@@ -17,7 +17,7 @@ log = get_logger("dict_import")
 def importDict(
     lang_name: str, file: str, dict_name: str, parent: QWidget | None = None
 ) -> None:
-    db = aqt.mw.miDictDB
+    db = aqt.mw.miDictDB  # ty:ignore[unresolved-attribute]
 
     if parent is None:
         parent = aqt.mw.app.activeWindow() or aqt.mw
@@ -74,9 +74,7 @@ def importDict(
 
     if not success:
         raise ValueError(
-            f"Creating dictionary failed.\n"
-            f"Original name: {dict_name}\n"
-            f"Error: {message}"
+            f"Creating dictionary failed.\nOriginal name: {dict_name}\nError: {message}"
         )
 
     dict_files = []
@@ -111,7 +109,7 @@ def loadDict(
     frequencyDict: Any,
     miDict: bool = False,
 ) -> None:
-    tableName = "l" + str(aqt.mw.miDictDB.getLangId(lang)) + "name" + dictName
+    tableName = "l" + str(aqt.mw.miDictDB.getLangId(lang)) + "name" + dictName  # ty:ignore[unresolved-attribute]
     jsonDict = []
     for filename in filenames:
         with zfile.open(filename, "r") as jsonDictFile:
@@ -146,8 +144,8 @@ def loadDict(
             handleMiDictEntry(jsonDict, count, entry, frequencyDict is not None)
         else:
             handleYomiDictEntry(jsonDict, count, entry, frequencyDict is not None)
-    aqt.mw.miDictDB.importToDict(tableName, jsonDict)
-    aqt.mw.miDictDB.commitChanges()
+    aqt.mw.miDictDB.importToDict(tableName, jsonDict)  # ty:ignore[unresolved-attribute]
+    aqt.mw.miDictDB.commitChanges()  # ty:ignore[unresolved-attribute]
 
 
 def getAdjustedTerm(term: str) -> str:
@@ -481,10 +479,10 @@ def getFrequencyList(lang: str) -> Any:
                 term = f[0].strip()
                 reading = f[1].strip()
                 if term in frequencyDict:
-                    frequencyDict[term][reading] = idx
+                    frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
                 else:
                     frequencyDict[term] = {}
-                    frequencyDict[term][reading] = idx
+                    frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
             else:
                 term = f.strip()
                 if term not in frequencyDict:

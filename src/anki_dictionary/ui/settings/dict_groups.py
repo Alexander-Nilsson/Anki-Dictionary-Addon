@@ -60,7 +60,7 @@ class DictGroupEditor(QDialog):
         self.removeAll = QPushButton("Remove All")
         self.cancelButton = QPushButton("Cancel")
         self.saveButton = QPushButton("Save")
-        self.layout = QVBoxLayout()
+        self.layout = QVBoxLayout()  # ty:ignore[invalid-assignment]
         self.setupLayout()
         self.fontToMove = False
         self.dictList = dictionaries
@@ -169,8 +169,8 @@ class DictGroupEditor(QDialog):
             self.fontFileName.setEnabled(False)
 
     def grabFontFromFile(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
+        options = QFileDialog.Options()  # ty:ignore[unresolved-attribute]
+        options |= QFileDialog.DontUseNativeDialog  # ty:ignore[unresolved-attribute]
         fileName, _ = QFileDialog.getOpenFileName(
             self,
             "Select a Custom Font",
@@ -214,7 +214,7 @@ class DictGroupEditor(QDialog):
                 return
             customFont = True
             if not exists(
-                join(self.settings.addonPath, "user_files", "fonts", fontName)
+                join(self.settings.addonPath, "user_files", "fonts", fontName)  # ty:ignore[unresolved-attribute]
             ):
                 if not self.moveFontToFolder(self.fontToMove):
                     miInfo(
@@ -235,8 +235,8 @@ class DictGroupEditor(QDialog):
         save_addon_config(newConfig)
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(newConfig)
-        self.settings.loadTemplateTable()
-        self.settings.loadGroupTable()
+        self.settings.loadTemplateTable()  # ty:ignore[unresolved-attribute]
+        self.settings.loadGroupTable()  # ty:ignore[unresolved-attribute]
         self.hide()
 
     def getSelectedDictionaries(self, onlyNames=False):
@@ -269,7 +269,7 @@ class DictGroupEditor(QDialog):
         try:
             basename = ntpath.basename(filename)
             if exists(filename):
-                path = join(self.settings.addonPath, "user_files", "fonts", basename)
+                path = join(self.settings.addonPath, "user_files", "fonts", basename)  # ty:ignore[unresolved-attribute]
                 if exists(path):
                     if not miAsk(
                         "A font with the same name currently exists in your custom fonts folder. Would you like to overwrite it?",
@@ -311,9 +311,9 @@ class DictGroupEditor(QDialog):
         dictionaries = QTableWidget()
         dictionaries.setColumnCount(3)
         tableHeader = dictionaries.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
         dictionaries.setRowCount(0)
         dictionaries.setSortingEnabled(False)
         dictionaries.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -325,7 +325,7 @@ class DictGroupEditor(QDialog):
             dictionaries.setColumnWidth(2, 40)
         else:
             dictionaries.setColumnWidth(2, 20)
-        tableHeader.hide()
+        tableHeader.hide()  # ty:ignore[unresolved-attribute]
         return dictionaries
 
     def setupLayout(self):
@@ -333,7 +333,7 @@ class DictGroupEditor(QDialog):
         nameLayout.addWidget(QLabel("Name: "))
         nameLayout.addWidget(self.groupName)
 
-        self.layout.addLayout(nameLayout)
+        self.layout.addLayout(nameLayout)  # ty:ignore[unresolved-attribute]
 
         fontLayoutH1 = QHBoxLayout()
         fontL1 = QLabel("Font: ")
@@ -343,7 +343,7 @@ class DictGroupEditor(QDialog):
         fontLayoutH1.addWidget(self.fontFromDropdown)
         fontLayoutH1.addWidget(self.fontDropDown)
         fontLayoutH1.addStretch()
-        self.layout.addLayout(fontLayoutH1)
+        self.layout.addLayout(fontLayoutH1)  # ty:ignore[unresolved-attribute]
 
         fontLayoutH2 = QHBoxLayout()
         fontL2 = QLabel("Font From File:")
@@ -355,21 +355,21 @@ class DictGroupEditor(QDialog):
         fontLayoutH2.addWidget(self.fontFileName)
         fontLayoutH2.addWidget(self.browseFontFile)
         fontLayoutH2.addStretch()
-        self.layout.addLayout(fontLayoutH2)
+        self.layout.addLayout(fontLayoutH2)  # ty:ignore[unresolved-attribute]
 
-        self.layout.addWidget(QLabel("Dictionaries"))
-        self.layout.addWidget(self.dictionaries)
+        self.layout.addWidget(QLabel("Dictionaries"))  # ty:ignore[unresolved-attribute]
+        self.layout.addWidget(self.dictionaries)  # ty:ignore[unresolved-attribute]
 
         selRemButtons = QHBoxLayout()
         selRemButtons.addWidget(self.selectAll)
         selRemButtons.addWidget(self.removeAll)
         selRemButtons.addStretch()
-        self.layout.addLayout(selRemButtons)
+        self.layout.addLayout(selRemButtons)  # ty:ignore[unresolved-attribute]
 
         cancelSaveButtons = QHBoxLayout()
         cancelSaveButtons.addStretch()
         cancelSaveButtons.addWidget(self.cancelButton)
         cancelSaveButtons.addWidget(self.saveButton)
 
-        self.layout.addLayout(cancelSaveButtons)
-        self.setLayout(self.layout)
+        self.layout.addLayout(cancelSaveButtons)  # ty:ignore[unresolved-attribute]
+        self.setLayout(self.layout)  # ty:ignore[invalid-argument-type]

@@ -25,17 +25,16 @@ from anki.utils import strip_html, is_win, is_mac, is_lin
 
 
 class HistoryModel(QAbstractTableModel):
-
     def __init__(self, history, parent=None):
         super(HistoryModel, self).__init__(parent)
         self.history = history
         self.dictInt = parent
         self.justTerms = [item[0] for item in history]
 
-    def rowCount(self, index=QModelIndex()):
+    def rowCount(self, index=QModelIndex()):  # ty:ignore[invalid-method-override]
         return len(self.history)
 
-    def columnCount(self, index=QModelIndex()):
+    def columnCount(self, index=QModelIndex()):  # ty:ignore[invalid-method-override]
         return 2
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
@@ -63,7 +62,7 @@ class HistoryModel(QAbstractTableModel):
 
     def insertRows(
         self, position=False, rows=1, index=QModelIndex(), term=False, date=False
-    ):
+    ):  # ty:ignore[invalid-method-override]
         if not position:
             position = self.rowCount()
         self.beginInsertRows(QModelIndex(), position, position)
@@ -76,14 +75,14 @@ class HistoryModel(QAbstractTableModel):
                 self.history.insert(0, [term, date])
                 self.justTerms.insert(0, term)
         self.endInsertRows()
-        self.dictInt.saveHistory()
+        self.dictInt.saveHistory()  # ty:ignore[unresolved-attribute]
         return True
 
-    def removeRows(self, position, rows=1, index=QModelIndex()):
+    def removeRows(self, position, rows=1, index=QModelIndex()):  # ty:ignore[invalid-method-override]
         self.beginRemoveRows(QModelIndex(), position, position + rows - 1)
         del self.history[position : position + rows]
         self.endRemoveRows()
-        self.dictInt.saveHistory()
+        self.dictInt.saveHistory()  # ty:ignore[unresolved-attribute]
         return True
 
 
@@ -119,17 +118,18 @@ class HistoryBrowser(QWidget):
 
     def setupTable(self):
         tableHeader = self.tableView.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
         self.tableView.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
         )
-        self.tableView.horizontalHeader().hide()
+        self.tableView.horizontalHeader().hide()  # ty:ignore[unresolved-attribute]
 
     def searchAgain(self):
         date = str(datetime.date.today())
         term = self.model.index(
-            self.tableView.selectionModel().currentIndex().row(), 0
+            self.tableView.selectionModel().currentIndex().row(),  # ty:ignore[unresolved-attribute]
+            0,
         ).data()
         self.model.insertRows(term=term, date=date)
         self.dictInt.initSearch(term)

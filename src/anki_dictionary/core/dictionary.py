@@ -77,7 +77,7 @@ from ..ui.themes import *
 class MIDict(AnkiWebView):
     def __init__(self, dictInt, db, path, terms=False):
         AnkiWebView.__init__(self)
-        self.page().profile().setHttpUserAgent(
+        self.page().profile().setHttpUserAgent(  # ty:ignore[unresolved-attribute]
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
         )
         self.terms = terms
@@ -120,7 +120,7 @@ class MIDict(AnkiWebView):
 
     def maybeSearchTerms(self, terms: str) -> None:
         if self.terms:
-            for t in self.terms:
+            for t in self.terms:  # ty:ignore[not-iterable]
                 self.dictInt.initSearch(t)
             self.terms = False
 
@@ -220,7 +220,7 @@ class HoverButton(QPushButton):
     def enterEvent(self, event):
         self.mouseHover.emit(True)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event):  # ty:ignore[invalid-method-override]
         self.mouseHover.emit(False)
         self.mouseOut.emit(True)
 
@@ -260,7 +260,7 @@ class DictInterface(QWidget):
         self.welcome = welcome
         self.setAutoFillBackground(True)
         self.mw = mw
-        self.parent = parent
+        self.parent = parent  # ty:ignore[invalid-assignment]
         self.iconpath = join(path, "assets", "icons")
 
         self.active_theme_file = join(
@@ -560,99 +560,99 @@ class DictInterface(QWidget):
                         font-size: 14px;
                     }}
                     QPushButton {{
-                        color: {active_theme_dict['header_text']};
-                        border: 1.5px solid {active_theme_dict['border']};
+                        color: {active_theme_dict["header_text"]};
+                        border: 1.5px solid {active_theme_dict["border"]};
                         border-radius: 6px;
                         padding: 8px;
                         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                            stop: 0 {active_theme_dict['current_tab_gradient_top']},
-                            stop: 1 {active_theme_dict['current_tab_gradient_bottom']});
+                            stop: 0 {active_theme_dict["current_tab_gradient_top"]},
+                            stop: 1 {active_theme_dict["current_tab_gradient_bottom"]});
                     }}
                     QPushButton:hover {{
-                        border: 2px solid {active_theme_dict['search_term']};
-                        background: {active_theme_dict['tab_hover']};
+                        border: 2px solid {active_theme_dict["search_term"]};
+                        background: {active_theme_dict["tab_hover"]};
                     }}
                     QLineEdit, QComboBox {{
-                        background-color: {active_theme_dict['header_background']};
-                        color: {active_theme_dict['header_text']};
-                        border: 1.5px solid {active_theme_dict['border']};
+                        background-color: {active_theme_dict["header_background"]};
+                        color: {active_theme_dict["header_text"]};
+                        border: 1.5px solid {active_theme_dict["border"]};
                         border-radius: 6px;
                         padding: 6px 10px;
                     }}
                     QLineEdit:focus {{
-                        border: 2px solid {active_theme_dict['search_term']};
+                        border: 2px solid {active_theme_dict["search_term"]};
                     }}
                     QLabel {{
-                        color: {active_theme_dict['header_text']};
+                        color: {active_theme_dict["header_text"]};
                         font-weight: bold;
                     }}
                     QComboBox QAbstractItemView {{
-                        background-color: {active_theme_dict['header_background']};
-                        color: {active_theme_dict['header_text']};
-                        border: 1px solid {active_theme_dict['border']};
-                        selection-background-color: {active_theme_dict['search_term']};
+                        background-color: {active_theme_dict["header_background"]};
+                        color: {active_theme_dict["header_text"]};
+                        border: 1px solid {active_theme_dict["border"]};
+                        selection-background-color: {active_theme_dict["search_term"]};
                     }}
                 """
         self.setStyleSheet(qss)
         custom_theme_css = f"""
             <style id="customThemeCss">
                 :root {{
-                    --background: {active_theme_dict['header_background']};
-                    --selector: {active_theme_dict['selector']};
-                    --background-secondary: {active_theme_dict['selector']};
-                    --text: {active_theme_dict['header_text']};
-                    --header_text: {active_theme_dict['header_text']};
-                    --text-secondary: {active_theme_dict['search_term']};
-                    --search_term: {active_theme_dict['search_term']};
-                    --border: {active_theme_dict['border']};
-                    --button-bg: {active_theme_dict['anki_button_background']};
-                    --button-text: {active_theme_dict['anki_button_text']};
-                    --button-bg-hover: {active_theme_dict['tab_hover']};
-                    --tab_hover: {active_theme_dict['tab_hover']};
-                    --definition_background: {active_theme_dict['definition_background']};
-                    --definition_text: {active_theme_dict['definition_text']};
+                    --background: {active_theme_dict["header_background"]};
+                    --selector: {active_theme_dict["selector"]};
+                    --background-secondary: {active_theme_dict["selector"]};
+                    --text: {active_theme_dict["header_text"]};
+                    --header_text: {active_theme_dict["header_text"]};
+                    --text-secondary: {active_theme_dict["search_term"]};
+                    --search_term: {active_theme_dict["search_term"]};
+                    --border: {active_theme_dict["border"]};
+                    --button-bg: {active_theme_dict["anki_button_background"]};
+                    --button-text: {active_theme_dict["anki_button_text"]};
+                    --button-bg-hover: {active_theme_dict["tab_hover"]};
+                    --tab_hover: {active_theme_dict["tab_hover"]};
+                    --definition_background: {active_theme_dict["definition_background"]};
+                    --definition_text: {active_theme_dict["definition_text"]};
                 }}
                 body {{
-                    background-color: {active_theme_dict['header_background']};
-                    color: {active_theme_dict['header_text']};
+                    background-color: {active_theme_dict["header_background"]};
+                    color: {active_theme_dict["header_text"]};
                 }}
                 .header {{
-                    background-color: {active_theme_dict['header_background']};
-                    color: {active_theme_dict['header_text']};
-                    border-bottom: 2px solid {active_theme_dict['border']};
+                    background-color: {active_theme_dict["header_background"]};
+                    color: {active_theme_dict["header_text"]};
+                    border-bottom: 2px solid {active_theme_dict["border"]};
                 }}
                 .targetTerm {{
-                    color: {active_theme_dict['search_term']} !important;
+                    color: {active_theme_dict["search_term"]} !important;
                 }}
                 .exampleSentence {{
-                    background-color: {self.hex_to_rgba(active_theme_dict['example_highlight'], 0.2)};
+                    background-color: {self.hex_to_rgba(active_theme_dict["example_highlight"], 0.2)};
                     border-radius: 3px;
                     padding: 1px 4px;
                     margin: 0 2px;
                 }}
                 .definitionBlock {{
-                    background-color: {active_theme_dict['definition_background']};
-                    color: {active_theme_dict['definition_text']};
-                    border: 1px solid {active_theme_dict['border']};
+                    background-color: {active_theme_dict["definition_background"]};
+                    color: {active_theme_dict["definition_text"]};
+                    border: 1px solid {active_theme_dict["border"]};
                     border-radius: 8px;
                     padding: 15px;
                     margin: 10px;
                     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                 }}
                 .altterm {{
-                    color: {active_theme_dict['pitch_accent_color']};
+                    color: {active_theme_dict["pitch_accent_color"]};
                 }}
                 .ankiExportButton {{
-                    border: 1.5px solid {active_theme_dict['border']};
+                    border: 1.5px solid {active_theme_dict["border"]};
                     border-radius: 6px;
                     padding: 6px;
                     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                        stop: 0 {active_theme_dict['current_tab_gradient_top']},
-                        stop: 1 {active_theme_dict['current_tab_gradient_bottom']});
+                        stop: 0 {active_theme_dict["current_tab_gradient_top"]},
+                        stop: 1 {active_theme_dict["current_tab_gradient_bottom"]});
                     transition: all 0.2s;
                 }}
                 .ankiExportButton:hover {{
-                    border-color: {active_theme_dict['search_term']};
+                    border-color: {active_theme_dict["search_term"]};
                     transform: translateY(-1px);
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }}
@@ -661,23 +661,23 @@ class DictInterface(QWidget):
                     width: 28px !important;
                 }}
                 .tablinks {{
-                    border: 1px solid {active_theme_dict['border']};
+                    border: 1px solid {active_theme_dict["border"]};
                     border-radius: 6px 6px 0 0;
                     margin-right: 2px;
                 }}
                 .tablinks.active {{
                     background-image: linear-gradient(
-                        {active_theme_dict['current_tab_gradient_top']},
-                        {active_theme_dict['current_tab_gradient_bottom']}
+                        {active_theme_dict["current_tab_gradient_top"]},
+                        {active_theme_dict["current_tab_gradient_bottom"]}
                     );
-                    border-bottom: 2px solid {active_theme_dict['search_term']};
+                    border-bottom: 2px solid {active_theme_dict["search_term"]};
                 }}
                 .tablinks:hover {{
-                    background-color: {active_theme_dict['tab_hover']};
+                    background-color: {active_theme_dict["tab_hover"]};
                 }}
                 .overwriteSelect, .fieldSelect {{
-                    background-color: {active_theme_dict['selector']};
-                    border: 1px solid {active_theme_dict['border']};
+                    background-color: {active_theme_dict["selector"]};
+                    border: 1px solid {active_theme_dict["border"]};
                     border-radius: 6px;
                     padding: 5px 10px;
                     font-size: inherit;
@@ -693,8 +693,8 @@ class DictInterface(QWidget):
                     top: 100%;
                     left: 0;
                     right: 0;
-                    background-color: {active_theme_dict['header_background']};
-                    border: 1px solid {active_theme_dict['border']};
+                    background-color: {active_theme_dict["header_background"]};
+                    border: 1px solid {active_theme_dict["border"]};
                     border-radius: 0 0 6px 6px;
                     display: none;
                     z-index: 1000;
@@ -710,16 +710,16 @@ class DictInterface(QWidget):
                     width: 100%;
                     padding: 8px 10px;
                     border: none;
-                    border-bottom: 1px solid {active_theme_dict['border']};
-                    background-color: {active_theme_dict['selector']};
-                    color: {active_theme_dict['header_text']};
+                    border-bottom: 1px solid {active_theme_dict["border"]};
+                    background-color: {active_theme_dict["selector"]};
+                    color: {active_theme_dict["header_text"]};
                     box-sizing: border-box;
                     font-size: inherit;
                     outline: none;
                     flex-shrink: 0;
                 }}
                 .fieldSearchInput::placeholder {{
-                    color: {active_theme_dict['header_text']};
+                    color: {active_theme_dict["header_text"]};
                     opacity: 0.6;
                 }}
                 .fieldOptionsContainer {{
@@ -734,12 +734,12 @@ class DictInterface(QWidget):
                     align-items: center;
                     padding: 8px 10px;
                     cursor: pointer;
-                    color: {active_theme_dict['header_text']};
+                    color: {active_theme_dict["header_text"]};
                     white-space: nowrap;
                     user-select: none;
                 }}
                 .fieldCheckboxLabel:hover {{
-                    background-color: {active_theme_dict['tab_hover']};
+                    background-color: {active_theme_dict["tab_hover"]};
                 }}
                 .fieldCheckboxLabel input[type="checkbox"] {{
                     margin-right: 8px;
@@ -822,10 +822,10 @@ class DictInterface(QWidget):
         self.setFocus()
         self.activateWindow()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event):  # ty:ignore[invalid-method-override]
         self.hide()
 
-    def hideEvent(self, event):
+    def hideEvent(self, event):  # ty:ignore[invalid-method-override]
         self.saveSizeAndPos()
         shortcut = "(Ctrl+W)"
         if is_mac:
@@ -902,10 +902,10 @@ class DictInterface(QWidget):
         html, url = self.getHTMLURL(willSearch)
         newDict.loadHTMLURL(html, url)
         newDict.setSType(self.sType)
-        if self.dict.addWindow and self.dict.addWindow.scrollArea.isVisible():
-            self.dict.addWindow.saveSizeAndPos()
-            self.dict.addWindow.scrollArea.close()
-            self.dict.addWindow.scrollArea.deleteLater()
+        if self.dict.addWindow and self.dict.addWindow.scrollArea.isVisible():  # ty:ignore[unresolved-attribute]
+            self.dict.addWindow.saveSizeAndPos()  # ty:ignore[unresolved-attribute]
+            self.dict.addWindow.scrollArea.close()  # ty:ignore[unresolved-attribute]
+            self.dict.addWindow.scrollArea.deleteLater()  # ty:ignore[unresolved-attribute]
         self.currentTarget.setText("")
         self.dict.currentEditor = False
         self.dict.reviewer = False
@@ -1034,7 +1034,7 @@ class DictInterface(QWidget):
         # so we can simplify or remove the responsive toggle if it causes issues.
         pass
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  # ty:ignore[invalid-method-override]
         # Simplified resize event
         event.accept()
 
@@ -1062,10 +1062,10 @@ class DictInterface(QWidget):
     def setupTabMode(self):
         TabMode = SVGPushButton(36, 36)
         if self.config["onetab"]:
-            TabMode.singleTab = True
+            TabMode.singleTab = True  # ty:ignore[unresolved-attribute]
             icon = "onetab"
         else:
-            TabMode.singleTab = False
+            TabMode.singleTab = False  # ty:ignore[unresolved-attribute]
             icon = "tabs"
         self.setSvg(TabMode, icon)
         TabMode.clicked.connect(self.toggleTabMode)
@@ -1205,7 +1205,7 @@ class DictInterface(QWidget):
 
     def alignCenter(self, dictGroups):
         for i in range(0, dictGroups.count()):
-            dictGroups.model().item(i).setTextAlignment(Qt.AlignmentFlag.alignCenter)
+            dictGroups.model().item(i).setTextAlignment(Qt.AlignmentFlag.alignCenter)  # ty:ignore[unresolved-attribute]
 
     def setupDictGroups(self, dictGroups=False):
         if not dictGroups:
@@ -1216,8 +1216,8 @@ class DictInterface(QWidget):
         ug = sorted(list(self.userGroups.keys()))
         dictGroups.addItems(ug)
         dictGroups.addItem("──────")
-        dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
-        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(
+        dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)  # ty:ignore[unresolved-attribute]
+        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(  # ty:ignore[unresolved-attribute]
             Qt.AlignmentFlag.AlignCenter
         )
         defaults = ["All", "Images"]
@@ -1227,8 +1227,8 @@ class DictInterface(QWidget):
             defaults.append("Forvo")
         dictGroups.addItems(defaults)
         dictGroups.addItem("──────")
-        dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)
-        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(
+        dictGroups.model().item(dictGroups.count() - 1).setEnabled(False)  # ty:ignore[unresolved-attribute]
+        dictGroups.model().item(dictGroups.count() - 1).setTextAlignment(  # ty:ignore[unresolved-attribute]
             Qt.AlignmentFlag.AlignCenter
         )
         dg = sorted(list(self.defaultGroups.keys()))
@@ -1346,7 +1346,7 @@ class DictInterface(QWidget):
 
     def saveHistory(self):
         path = join(self.mw.col.media.dir(), "_searchHistory.json")
-        with codecs.open(path, "w", "utf-8") as outfile:
+        with codecs.open(path, "w", "utf-8") as outfile:  # ty:ignore[deprecated]
             json.dump(self.historyModel.history, outfile, ensure_ascii=False)
         return
 
@@ -1359,7 +1359,7 @@ class DictInterface(QWidget):
             else:
                 # Create empty search history file if it doesn't exist
                 empty_history = []
-                with codecs.open(path, "w", "utf-8") as outfile:
+                with codecs.open(path, "w", "utf-8") as outfile:  # ty:ignore[deprecated]
                     json.dump(empty_history, outfile, ensure_ascii=False)
                 return empty_history
         except Exception as e:
@@ -1520,7 +1520,7 @@ class DictSVG(QSvgWidget):
     def __init__(self, parent=None):
         QSvgWidget.__init__(self, parent)
 
-    def mousePressEvent(self, ev):
+    def mousePressEvent(self, ev):  # ty:ignore[invalid-method-override]
         self.clicked.emit()
 
 
@@ -1528,7 +1528,7 @@ class SVGPushButton(QPushButton):
     def __init__(self, width, height):
         super().__init__()
         self.setFixedSize(width, height)
-        self.layout = QHBoxLayout(self)
+        self.layout = QHBoxLayout(self)  # ty:ignore[invalid-assignment]
         self.layout.setContentsMargins(6, 6, 6, 6)
         self.layout.setSpacing(0)
         self.svgWidget = None
@@ -1536,7 +1536,7 @@ class SVGPushButton(QPushButton):
 
     def setSvg(self, svgPath, color="#ffffff"):
         if self.svgWidget:
-            self.layout.removeWidget(self.svgWidget)
+            self.layout.removeWidget(self.svgWidget)  # ty:ignore[unresolved-attribute]
             self.svgWidget.deleteLater()
 
         # Read SVG file and replace color placeholders with the theme color
@@ -1556,6 +1556,6 @@ class SVGPushButton(QPushButton):
             self.svgWidget = QSvgWidget()
             self.svgWidget.load(svg_data.encode("utf-8"))
             self.svgWidget.setFixedSize(self.width() - 12, self.height() - 12)
-            self.layout.addWidget(self.svgWidget, 0, Qt.AlignmentFlag.AlignCenter)
+            self.layout.addWidget(self.svgWidget, 0, Qt.AlignmentFlag.AlignCenter)  # ty:ignore[unresolved-attribute]
         except Exception as e:
             logger.error(f"Error loading SVG {svgPath}: {e}")

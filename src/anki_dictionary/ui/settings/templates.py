@@ -56,7 +56,7 @@ class TemplateEditor(QDialog):
         self.dictionaryNames = dictionaries
         self.cancelButton = QPushButton("Cancel")
         self.saveButton = QPushButton("Save")
-        self.layout = QVBoxLayout()
+        self.layout = QVBoxLayout()  # ty:ignore[invalid-assignment]
         self.notesFields = self.getNotesFields()
         self.setupLayout()
         self.loadTemplateEditor(toEdit, tName, True)
@@ -116,7 +116,7 @@ class TemplateEditor(QDialog):
         else:
             self.new = False
             self.initialNoteFieldsLoad(False)
-            self.templateName.setText(tName)
+            self.templateName.setText(tName)  # ty:ignore[invalid-argument-type]
             self.loadTemplateForEdit(toEdit)
             self.loadTableForEdit(toEdit["specific"])
 
@@ -179,7 +179,7 @@ class TemplateEditor(QDialog):
         save_addon_config(newConfig)
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(newConfig)
-        self.settings.loadTemplateTable()
+        self.settings.loadTemplateTable()  # ty:ignore[unresolved-attribute]
 
         self.hide()
 
@@ -193,15 +193,15 @@ class TemplateEditor(QDialog):
         dictFields = QTableWidget()
         dictFields.setColumnCount(3)
         tableHeader = dictFields.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
         dictFields.setRowCount(0)
         dictFields.setSortingEnabled(False)
         dictFields.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         dictFields.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         dictFields.setColumnWidth(2, 40)
-        tableHeader.hide()
+        tableHeader.hide()  # ty:ignore[unresolved-attribute]
         return dictFields
 
     def initHandlers(self):
@@ -264,7 +264,6 @@ class TemplateEditor(QDialog):
         noteTypes.sort()
         self.noteType.addItems(noteTypes)
         if loadFields:
-
             fields = self.notesFields[noteTypes[0]]
             fields.sort()
             self.loadFieldsValues(fields)
@@ -297,66 +296,66 @@ class TemplateEditor(QDialog):
         tempNameLay = QHBoxLayout()
         tempNameLay.addWidget(QLabel("Name: "))
         tempNameLay.addWidget(self.templateName)
-        self.layout.addLayout(tempNameLay)
+        self.layout.addLayout(tempNameLay)  # ty:ignore[unresolved-attribute]
 
         noteTypeLay = QHBoxLayout()
         noteTypeLay.addWidget(QLabel("Notetype: "))
         noteTypeLay.addWidget(self.noteType)
-        self.layout.addLayout(noteTypeLay)
+        self.layout.addLayout(noteTypeLay)  # ty:ignore[unresolved-attribute]
 
         sentenceLay = QHBoxLayout()
         sentenceLay.addWidget(QLabel("Sentence Field:"))
         sentenceLay.addWidget(self.sentenceField)
-        self.layout.addLayout(sentenceLay)
+        self.layout.addLayout(sentenceLay)  # ty:ignore[unresolved-attribute]
 
         secondaryLay = QHBoxLayout()
         secondaryLay.addWidget(QLabel("Secondary Field:"))
         secondaryLay.addWidget(self.secondaryField)
-        self.layout.addLayout(secondaryLay)
+        self.layout.addLayout(secondaryLay)  # ty:ignore[unresolved-attribute]
 
         wordLay = QHBoxLayout()
         wordLay.addWidget(QLabel("Word Field:"))
         wordLay.addWidget(self.wordField)
-        self.layout.addLayout(wordLay)
+        self.layout.addLayout(wordLay)  # ty:ignore[unresolved-attribute]
 
         notesLay = QHBoxLayout()
         notesLay.addWidget(QLabel("User Notes:"))
         notesLay.addWidget(self.notesField)
-        self.layout.addLayout(notesLay)
+        self.layout.addLayout(notesLay)  # ty:ignore[unresolved-attribute]
 
         imageLay = QHBoxLayout()
         imageLay.addWidget(QLabel("Image Field:"))
         imageLay.addWidget(self.imageField)
-        self.layout.addLayout(imageLay)
+        self.layout.addLayout(imageLay)  # ty:ignore[unresolved-attribute]
 
         audioLay = QHBoxLayout()
         audioLay.addWidget(QLabel("Audio Field:"))
         audioLay.addWidget(self.audioField)
-        self.layout.addLayout(audioLay)
+        self.layout.addLayout(audioLay)  # ty:ignore[unresolved-attribute]
 
         otherDictsLay = QHBoxLayout()
         otherDictsLay.addWidget(QLabel("Unspecified Dictionaries Field:"))
         otherDictsLay.addWidget(self.otherDictsField)
-        self.layout.addLayout(otherDictsLay)
+        self.layout.addLayout(otherDictsLay)  # ty:ignore[unresolved-attribute]
 
         dictFieldLay = QHBoxLayout()
         dictFieldLay.addWidget(self.dictionaries)
         dictFieldLay.addWidget(self.fields)
         dictFieldLay.addWidget(self.addDictField)
-        self.layout.addLayout(dictFieldLay)
+        self.layout.addLayout(dictFieldLay)  # ty:ignore[unresolved-attribute]
 
-        self.layout.addWidget(self.dictFieldsTable)
+        self.layout.addWidget(self.dictFieldsTable)  # ty:ignore[unresolved-attribute]
 
         separatorLay = QHBoxLayout()
         separatorLay.addWidget(QLabel("Entry Separator: "))
         separatorLay.addWidget(self.entrySeparator)
         separatorLay.addStretch()
-        self.layout.addLayout(separatorLay)
+        self.layout.addLayout(separatorLay)  # ty:ignore[unresolved-attribute]
 
         cancelSaveButtons = QHBoxLayout()
         cancelSaveButtons.addStretch()
         cancelSaveButtons.addWidget(self.cancelButton)
         cancelSaveButtons.addWidget(self.saveButton)
-        self.layout.addLayout(cancelSaveButtons)
+        self.layout.addLayout(cancelSaveButtons)  # ty:ignore[unresolved-attribute]
 
-        self.setLayout(self.layout)
+        self.setLayout(self.layout)  # ty:ignore[invalid-argument-type]

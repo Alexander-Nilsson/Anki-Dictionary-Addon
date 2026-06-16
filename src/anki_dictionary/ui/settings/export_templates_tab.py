@@ -40,9 +40,9 @@ class ExportTemplatesTab:
         table = QTableWidget()
         table.setColumnCount(3)
         tableHeader = table.horizontalHeader()
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
+        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
         table.setRowCount(0)
         table.setSortingEnabled(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -53,11 +53,16 @@ class ExportTemplatesTab:
         else:
             table.setColumnWidth(1, 40)
             table.setColumnWidth(2, 40)
-        tableHeader.hide()
-        table.verticalHeader().hide()
+        tableHeader.hide()  # ty:ignore[unresolved-attribute]
+        table.verticalHeader().hide()  # ty:ignore[unresolved-attribute]
         return table
 
     def loadTemplateTable(self) -> None:
+        for r in range(self.table.rowCount()):
+            for c in range(self.table.columnCount()):
+                widget = self.table.cellWidget(r, c)
+                if widget:
+                    widget.clicked.disconnect()  # ty:ignore[unresolved-attribute]
         self.table.setRowCount(0)
         exportTemplates = self.getConfig()["ExportTemplates"]
         for template in exportTemplates:
@@ -80,6 +85,7 @@ class ExportTemplatesTab:
             else:
                 deleteButton.setFixedWidth(40)
                 deleteButton.setFixedHeight(30)
+            deleteButton.setToolTip("Remove this template")
             deleteButton.clicked.connect(self.removeTempRow(rc))
             self.table.setCellWidget(rc, 2, deleteButton)
 
@@ -90,7 +96,7 @@ class ExportTemplatesTab:
         return lambda: self.editTemplate(x)
 
     def editTemplate(self, row: int) -> None:
-        templateName = self.table.item(row, 0).text()
+        templateName = self.table.item(row, 0).text()  # ty:ignore[unresolved-attribute]
         exportTemplates = self.getConfig()["ExportTemplates"]
         if templateName in exportTemplates:
             template = exportTemplates[templateName]
@@ -102,12 +108,13 @@ class ExportTemplatesTab:
 
     def removeTemplate(self, row: int) -> None:
         if miAsk(
-            "Are you sure you would like to remove this template? This action will happen immediately and is not un-doable.",
+            "Are you sure you would like to remove this template?"
+            " This action will happen immediately and is not un-doable.",
             self.parent,
         ):
             newConfig = self.getConfig()
             exportTemplates = newConfig["ExportTemplates"]
-            templateName = self.table.item(row, 0).text()
+            templateName = self.table.item(row, 0).text()  # ty:ignore[unresolved-attribute]
             del exportTemplates[templateName]
             save_addon_config(newConfig)
             self.table.removeRow(row)
@@ -119,5 +126,8 @@ class ExportTemplatesTab:
 
     def init_tooltips(self) -> None:
         self.add_button.setToolTip(
-            "Add a new export template.\nExport templates allow you to specify a note type, and fields where\ntarget sentences, target words, definitions, and images will be sent to\nwhen using the Card Exporter to create cards."
+            "Add a new export template.\nExport templates allow you to"
+            " specify a note type, and fields where\ntarget sentences, target"
+            " words, definitions, and images will be sent to\nwhen using the"
+            " Card Exporter to create cards."
         )

@@ -117,8 +117,12 @@ sys.modules["anki_dictionary.ui.dialogs.dictionary_manager"] = _mock_dict_mgr
 
 atexit.register(lambda: None)
 
-from anki_dictionary.ui.settings.dict_groups_tab import DictionaryGroupsTab
-from anki_dictionary.ui.settings.export_templates_tab import ExportTemplatesTab
+from anki_dictionary.ui.settings.dict_groups_tab import (
+    DictionaryGroupsTab,
+)  # noqa: E402
+from anki_dictionary.ui.settings.export_templates_tab import (
+    ExportTemplatesTab,
+)  # noqa: E402
 
 DGT = "anki_dictionary.ui.settings.dict_groups_tab"
 ETT = "anki_dictionary.ui.settings.export_templates_tab"
@@ -217,7 +221,7 @@ class TestButtonsCreatedAndSized(unittest.TestCase):
             patch(f"{DGT}.is_lin", False),
             patch(f"{DGT}.is_mac", False),
         ):
-            self._check_button_sizing(tab, tab.loadGroupTable, DGT, expect_height=True)
+            self._check_button_sizing(tab, tab.loadGroupTable, DGT, expect_height=False)
 
     def test_dict_groups_non_windows_button_sizing(self):
         tab = DictionaryGroupsTab(
@@ -240,7 +244,7 @@ class TestButtonsCreatedAndSized(unittest.TestCase):
             patch(f"{ETT}.is_mac", False),
         ):
             self._check_button_sizing(
-                tab, tab.loadTemplateTable, ETT, expect_height=True
+                tab, tab.loadTemplateTable, ETT, expect_height=False
             )
 
     # ── Delete button tooltip ──────────────────────────────────────────

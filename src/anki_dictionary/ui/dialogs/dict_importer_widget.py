@@ -98,7 +98,7 @@ class DictImporter:
                 self.parent.info(str(e))
                 continue
 
-            dict_item = QTreeWidgetItem([final_name.replace("_", " ")])
+            dict_item = QTreeWidgetItem([final_name.replace("_", " ")])  # ty:ignore[unresolved-attribute]
             dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, lang_name)
             dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, final_name)
 
@@ -241,7 +241,7 @@ class DictImporter:
             self.parent.info(str(e))
             return
 
-        dict_item = QTreeWidgetItem([final_name.replace("_", " ")])
+        dict_item = QTreeWidgetItem([final_name.replace("_", " ")])  # ty:ignore[unresolved-attribute]
         dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, lang_name)
         dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, final_name)
 

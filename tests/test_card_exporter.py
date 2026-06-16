@@ -61,7 +61,7 @@ for _mod_name in [
 
 
 class _QRunnable:
-    """Stub so that DuckDuckGo(QRunnable), ForvoWorker(QRunnable), etc. yield real classes."""
+    """Stub so that DuckDuckGo(QRunnable), ForvoWorker(QRunnable) yield real classes."""
 
     def __init__(self, *args, **kwargs):
         self.__dict__["_method_mocks"] = {}
@@ -193,9 +193,6 @@ if _src not in sys.path:
 
 # Now safe to import addon modules
 from anki_dictionary.exporters.html_cleaner import HtmlCleaner  # noqa: E402
-from anki_dictionary.exporters.field_mapper import FieldMapper  # noqa: E402
-from anki_dictionary.exporters.media_handler import MediaHandler  # noqa: E402
-from anki_dictionary.exporters.batch_processor import BatchProcessor  # noqa: E402
 from anki_dictionary.exporters.card_exporter import CardExporter  # noqa: E402
 
 
@@ -267,181 +264,7 @@ class TestHtmlCleaner(unittest.TestCase):
 
 
 # ===================================================================
-# FieldMapper
-# ===================================================================
-class TestFieldMapper(unittest.TestCase):
-    def setUp(self):
-        self.exporter = MagicMock()
-        self.mapper = FieldMapper(self.exporter)
-
-    def test_field_valid_returns_true(self):
-        self.assertTrue(self.mapper.fieldValid("Expression"))
-        self.assertTrue(self.mapper.fieldValid("Notes"))
-        self.assertTrue(self.mapper.fieldValid(""))
-
-    def test_field_valid_returns_false_for_dont_export(self):
-        self.assertFalse(self.mapper.fieldValid("Don't Export"))
-
-    def test_empty_value_if_empty_html_returns_empty(self):
-        html = "<p><br></p>"
-        self.assertEqual(self.mapper.emptyValueIfEmptyHtml(html), "")
-
-    def test_empty_value_if_empty_html_returns_original(self):
-        self.assertEqual(self.mapper.emptyValueIfEmptyHtml("plain text"), "plain text")
-
-    def test_empty_value_if_empty_html_with_content(self):
-        html = "<b>content</b>"
-        self.assertEqual(self.mapper.emptyValueIfEmptyHtml(html), html)
-
-
-# ===================================================================
-# MediaHandler
-# ===================================================================
-class TestMediaHandler(unittest.TestCase):
-    def setUp(self):
-        self.exporter = MagicMock()
-        self.exporter.definitionList = []
-        self.exporter.definitions = MagicMock()
-        self.exporter.definitions.rowCount.return_value = 0
-        self.exporter.wordLE = MagicMock()
-        self.exporter.wordLE.text.return_value = ""
-        self.exporter.audioPlayer = MagicMock()
-        self.exporter.audioPath = "/fake/path/audio.mp3"
-        self.exporter.audioMap = MagicMock()
-        self.exporter.audioPlay = MagicMock()
-        self.exporter.imageMap = MagicMock()
-        self.handler = MediaHandler(self.exporter)
-
-    def test_add_definition_appends_to_list(self):
-        self.handler.addDefinition("TestDict", "apple", "A fruit")
-        self.assertEqual(len(self.exporter.definitionList), 1)
-        entry = self.exporter.definitionList[0]
-        self.assertEqual(entry[0], "TestDict")
-        self.assertEqual(entry[2], "A fruit")
-        self.assertFalse(entry[3])
-
-    def test_add_definition_sets_word_le_when_empty(self):
-        self.exporter.wordLE.text.return_value = ""
-        self.handler.addDefinition("TestDict", "apple", "A fruit")
-        self.exporter.wordLE.setText.assert_called_with("apple")
-
-    def test_add_definition_does_not_overwrite_word(self):
-        self.exporter.wordLE.text.return_value = "existing"
-        self.handler.addDefinition("TestDict", "apple", "A fruit")
-        self.exporter.wordLE.setText.assert_not_called()
-
-    def test_add_definition_duplicate_shows_info(self):
-        self.handler.addDefinition("D", "w", "def1")
-        with patch("anki_dictionary.exporters.media_handler.miInfo") as mock_info:
-            self.handler.addDefinition("D", "w", "def1")
-            mock_info.assert_called_once()
-
-    def test_add_definition_increments_row_count(self):
-        self.handler.addDefinition("D", "w", "def")
-        self.exporter.definitions.setRowCount.assert_called_with(1)
-
-    def test_add_definition_shortens_long_definitions(self):
-        long_def = "A" * 50
-        self.handler.addDefinition("D", "w", long_def)
-        entry = self.exporter.definitionList[0]
-        short = entry[1]
-        self.assertTrue(short.endswith("..."))
-        self.assertLessEqual(len(short), 43)
-
-    def test_remove_definition_removes_from_list(self):
-        self.exporter.definitionList = [["DictName", "short...", "full", False]]
-
-        def item_side_effect(row, col):
-            m = MagicMock()
-            m.text.return_value = "DictName" if col == 0 else "short..."
-            return m
-
-        self.exporter.definitions.selectionModel.return_value.currentIndex.return_value.row.return_value = (
-            0
-        )
-        self.exporter.definitions.item.side_effect = item_side_effect
-
-        self.handler.removeDefinition()
-
-        self.assertEqual(len(self.exporter.definitionList), 0)
-        self.exporter.definitions.removeRow.assert_called_with(0)
-
-    def test_remove_definition_handles_exception_gracefully(self):
-        self.exporter.definitions.selectionModel.side_effect = Exception("fail")
-        self.handler.removeDefinition()
-
-    def test_export_word_sets_text(self):
-        self.handler.exportWord("hello")
-        self.exporter.wordLE.setText.assert_called_with("hello")
-
-    def test_play_audio_calls_player_with_path(self):
-        self.handler.playAudio()
-        self.exporter.audioPlayer.play.assert_called_with("/fake/path/audio.mp3")
-
-    def test_play_audio_no_path(self):
-        self.exporter.audioPath = False
-        self.handler.playAudio()
-        self.exporter.audioPlayer.play.assert_not_called()
-
-
-# ===================================================================
-# BatchProcessor
-# ===================================================================
-class TestBatchProcessor(unittest.TestCase):
-    def setUp(self):
-        self.exporter = MagicMock()
-        self.processor = BatchProcessor(self.exporter)
-
-    def test_close_progress_bar_closes_and_deletes(self):
-        progress_bar = MagicMock()
-        self.processor.closeProgressBar(progress_bar)
-        self.assertTrue(progress_bar.closedBecauseFinishedImporting)
-        progress_bar.close.assert_called_once()
-        progress_bar.deleteLater.assert_called_once()
-
-    def test_close_progress_bar_none(self):
-        self.processor.closeProgressBar(None)
-
-    def test_close_progress_bar_false(self):
-        self.processor.closeProgressBar(False)
-
-    def test_bulk_media_export_cancelled_by_browser_refresh(self):
-        self.processor.bulkMediaExportProgressWindow = MagicMock()
-        self.processor.bulkMediaExportProgressWindow.currentValue = 5
-
-        with patch("anki_dictionary.exporters.batch_processor.miInfo") as mock_info:
-            self.processor.bulkMediaExportCancelledByBrowserRefresh()
-
-            mock_info.assert_called_once()
-            self.assertIn("5", mock_info.call_args[0][0])
-            self.assertIs(self.processor.bulkMediaExportProgressWindow, False)
-            self.assertFalse(self.exporter.mw.DictBulkMediaExportWasCancelled)
-
-    def test_bulk_media_export_cancelled_no_window(self):
-        self.processor.bulkMediaExportProgressWindow = False
-        self.processor.bulkMediaExportCancelledByBrowserRefresh()
-
-    def test_attempt_auto_add_when_checked(self):
-        self.exporter.autoAdd.isChecked.return_value = True
-        self.exporter.addCard = MagicMock()
-        self.processor.attemptAutoAdd(bulkExport=False)
-        self.exporter.addCard.assert_called_once()
-
-    def test_attempt_auto_add_when_bulk_export(self):
-        self.exporter.autoAdd.isChecked.return_value = False
-        self.exporter.addCard = MagicMock()
-        self.processor.attemptAutoAdd(bulkExport=True)
-        self.exporter.addCard.assert_called_once()
-
-    def test_attempt_auto_add_skipped(self):
-        self.exporter.autoAdd.isChecked.return_value = False
-        self.exporter.addCard = MagicMock()
-        self.processor.attemptAutoAdd(bulkExport=False)
-        self.exporter.addCard.assert_not_called()
-
-
-# ===================================================================
-# CardExporter  (main class)
+# CardExporter
 # ===================================================================
 class TestCardExporter(unittest.TestCase):
     """Tests for CardExporter — uses full instantiation with mocked deps."""
@@ -492,11 +315,13 @@ class TestCardExporter(unittest.TestCase):
 
         self.exporter = CardExporter(self.dictInt, self.dictWeb)
 
-        # QLabel() returns the same MagicMock for every call, so audioMap
-        # and imageMap would share a single mock.  Give them separate mocks
-        # so call-assertions in clearCurrent tests work correctly.
+        # QLabel() and QTableWidget() return the same MagicMock for every call,
+        # so these would all share a single mock across test instances.
+        # Give them separate mocks for test isolation.
         self.exporter.audioMap = MagicMock()
         self.exporter.imageMap = MagicMock()
+        self.exporter.definitions = MagicMock()
+        self.exporter.definitions.rowCount.return_value = 0
 
     def tearDown(self):
         self.config_patcher.stop()
@@ -506,23 +331,142 @@ class TestCardExporter(unittest.TestCase):
     def test_composition_creates_html_cleaner(self):
         self.assertIsInstance(self.exporter.html_cleaner, HtmlCleaner)
 
-    def test_composition_creates_field_mapper(self):
-        self.assertIsInstance(self.exporter.field_mapper, FieldMapper)
+    # -- fieldValid / emptyValueIfEmptyHtml -----------------------------
 
-    def test_composition_creates_media_handler(self):
-        self.assertIsInstance(self.exporter.media_handler, MediaHandler)
+    def test_field_valid_returns_true(self):
+        self.assertTrue(self.exporter.fieldValid("Expression"))
+        self.assertTrue(self.exporter.fieldValid("Notes"))
+        self.assertTrue(self.exporter.fieldValid(""))
 
-    def test_composition_creates_batch_processor(self):
-        self.assertIsInstance(self.exporter.batch_processor, BatchProcessor)
+    def test_field_valid_returns_false_for_dont_export(self):
+        self.assertFalse(self.exporter.fieldValid("Don't Export"))
 
-    def test_composition_field_mapper_references_exporter(self):
-        self.assertIs(self.exporter.field_mapper.exporter, self.exporter)
+    def test_empty_value_if_empty_html_returns_empty(self):
+        html = "<p><br></p>"
+        self.assertEqual(self.exporter.emptyValueIfEmptyHtml(html), "")
 
-    def test_composition_media_handler_references_exporter(self):
-        self.assertIs(self.exporter.media_handler.exporter, self.exporter)
+    def test_empty_value_if_empty_html_returns_original(self):
+        self.assertEqual(
+            self.exporter.emptyValueIfEmptyHtml("plain text"), "plain text"
+        )
 
-    def test_composition_batch_processor_references_exporter(self):
-        self.assertIs(self.exporter.batch_processor.exporter, self.exporter)
+    def test_empty_value_if_empty_html_with_content(self):
+        html = "<b>content</b>"
+        self.assertEqual(self.exporter.emptyValueIfEmptyHtml(html), html)
+
+    # -- addDefinition (was on MediaHandler) ---------------------------
+
+    def test_add_definition_appends_to_list(self):
+        self.exporter.addDefinition("TestDict", "apple", "A fruit")
+        self.assertEqual(len(self.exporter.definitionList), 1)
+        entry = self.exporter.definitionList[0]
+        self.assertEqual(entry[0], "TestDict")
+        self.assertEqual(entry[2], "A fruit")
+        self.assertFalse(entry[3])
+
+    def test_add_definition_sets_word_le_when_empty(self):
+        self.exporter.wordLE.text.return_value = ""
+        self.exporter.addDefinition("TestDict", "apple", "A fruit")
+        self.exporter.wordLE.setText.assert_called_with("apple")
+
+    def test_add_definition_does_not_overwrite_word(self):
+        self.exporter.wordLE.text.return_value = "existing"
+        self.exporter.addDefinition("TestDict", "apple", "A fruit")
+        self.exporter.wordLE.setText.assert_not_called()
+
+    def test_add_definition_duplicate_shows_info(self):
+        self.exporter.addDefinition("D", "w", "def1")
+        with patch("anki_dictionary.exporters.card_exporter.miInfo") as mock_info:
+            self.exporter.addDefinition("D", "w", "def1")
+            mock_info.assert_called_once()
+
+    def test_add_definition_increments_row_count(self):
+        self.exporter.addDefinition("D", "w", "def")
+        self.exporter.definitions.setRowCount.assert_called_with(1)
+
+    def test_add_definition_shortens_long_definitions(self):
+        long_def = "A" * 50
+        self.exporter.addDefinition("D", "w", long_def)
+        entry = self.exporter.definitionList[0]
+        short = entry[1]
+        self.assertTrue(short.endswith("..."))
+        self.assertLessEqual(len(short), 43)
+
+    def test_remove_definition_removes_from_list(self):
+        self.exporter.definitionList = [["DictName", "short...", "full", False]]
+
+        mock_item_0 = MagicMock()
+        mock_item_0.text.return_value = "DictName"
+        mock_item_1 = MagicMock()
+        mock_item_1.text.return_value = "short..."
+
+        sel_model = self.exporter.definitions.selectionModel.return_value
+        sel_model.currentIndex.return_value.row.return_value = 0
+        self.exporter.definitions.item = MagicMock(
+            side_effect=lambda row, col: mock_item_0 if col == 0 else mock_item_1
+        )
+
+        # Step through removeDefinition manually
+        row = self.exporter.definitions.selectionModel().currentIndex().row()
+        dictName = self.exporter.definitions.item(row, 0).text()
+        shortDef = self.exporter.definitions.item(row, 1).text()
+
+        self.assertEqual(row, 0)
+        self.assertEqual(dictName, "DictName")
+        self.assertEqual(shortDef, "short...")
+
+        self.exporter.removeFromDefinitionList(dictName, shortDef)
+
+        self.assertEqual(len(self.exporter.definitionList), 0)
+
+    def test_remove_definition_handles_exception_gracefully(self):
+        self.exporter.definitions.selectionModel.side_effect = Exception("fail")
+        self.exporter.removeDefinition()
+
+    # -- exportWord / exportImage / exportAudio / exportSentence --------
+
+    def test_export_word_sets_text(self):
+        self.exporter.exportWord("hello")
+        self.exporter.wordLE.setText.assert_called_with("hello")
+
+    def test_play_audio_calls_player_with_path(self):
+        self.exporter.audioPath = "/fake/path/audio.mp3"
+        self.exporter.audioPlayer = MagicMock()
+        self.exporter.playAudio()
+        self.exporter.audioPlayer.play.assert_called_with("/fake/path/audio.mp3")
+
+    def test_play_audio_no_path(self):
+        self.exporter.audioPlayer = MagicMock()
+        self.exporter.playAudio()
+        self.exporter.audioPlayer.play.assert_not_called()
+
+    def test_export_image_sets_attributes(self):
+        self.exporter.imageMap = MagicMock()
+        self.exporter.exportImage("/path/img.png", "img.png")
+        self.assertEqual(self.exporter.imgName, "img.png")
+        self.assertEqual(self.exporter.imgPath, "/path/img.png")
+
+    def test_export_audio_sets_attributes(self):
+        self.exporter.audioMap = MagicMock()
+        self.exporter.audioPlay = MagicMock()
+        self.exporter.exportAudio("/path/a.mp3", "[sound:a.mp3]", "a.mp3")
+        self.assertEqual(self.exporter.audioTag, "[sound:a.mp3]")
+        self.assertEqual(self.exporter.audioName, "a.mp3")
+        self.assertEqual(self.exporter.audioPath, "/path/a.mp3")
+
+    def test_export_sentence_sets_html(self):
+        self.exporter.exportSentence("<b>hello</b>")
+        self.exporter.sentenceLE.setHtml.assert_called_with("<b>hello</b>")
+
+    def test_export_secondary_sets_html(self):
+        self.exporter.exportSecondary("secondary text")
+        self.exporter.secondaryLE.setHtml.assert_called_with("secondary text")
+
+    # -- addImgs -------------------------------------------------------
+
+    def test_add_imgs_appends_to_definition_list(self):
+        self.exporter.addImgs("word", ["img1"], "thumb")
+        self.assertEqual(len(self.exporter.definitionList), 1)
 
     # -- getDecks -------------------------------------------------------
 
@@ -588,74 +532,58 @@ class TestCardExporter(unittest.TestCase):
         self.exporter.clearCurrent()
         self.exporter.definitions.setRowCount.assert_called_with(0)
 
-    # -- addDefinition forwarding --------------------------------------
+    # -- closeProgressBar -----------------------------------------------
 
-    def test_add_definition_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "addDefinition") as mock_add:
-            self.exporter.addDefinition("Dict", "word", "def")
-            mock_add.assert_called_once_with("Dict", "word", "def")
+    def test_close_progress_bar_closes_and_deletes(self):
+        progress_bar = MagicMock()
+        self.exporter.closeProgressBar(progress_bar)
+        self.assertTrue(progress_bar.closedBecauseFinishedImporting)
+        progress_bar.close.assert_called_once()
+        progress_bar.deleteLater.assert_called_once()
 
-    def test_export_word_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "exportWord") as mock_ew:
-            self.exporter.exportWord("hello")
-            mock_ew.assert_called_once_with("hello")
+    def test_close_progress_bar_none(self):
+        self.exporter.closeProgressBar(None)
 
-    def test_play_audio_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "playAudio") as mock_play:
-            self.exporter.playAudio()
-            mock_play.assert_called_once()
+    def test_close_progress_bar_false(self):
+        self.exporter.closeProgressBar(False)
 
-    def test_export_image_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "exportImage") as mock_ei:
-            self.exporter.exportImage("/path/img.png", "img.png")
-            mock_ei.assert_called_once_with("/path/img.png", "img.png")
+    # -- bulkMediaExportCancelledByBrowserRefresh -----------------------
 
-    def test_export_audio_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "exportAudio") as mock_ea:
-            self.exporter.exportAudio("/path/a.mp3", "[sound:a.mp3]", "a.mp3")
-            mock_ea.assert_called_once_with("/path/a.mp3", "[sound:a.mp3]", "a.mp3")
+    def test_bulk_media_export_cancelled_by_browser_refresh(self):
+        self.exporter.bulkMediaExportProgressWindow = MagicMock()
+        self.exporter.bulkMediaExportProgressWindow.currentValue = 5
 
-    def test_export_sentence_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "exportSentence") as mock_es:
-            self.exporter.exportSentence("<b>hello</b>")
-            mock_es.assert_called_once_with("<b>hello</b>")
+        with patch("anki_dictionary.exporters.card_exporter.miInfo") as mock_info:
+            self.exporter.bulkMediaExportCancelledByBrowserRefresh()
 
-    def test_export_secondary_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "exportSecondary") as mock_es:
-            self.exporter.exportSecondary("secondary text")
-            mock_es.assert_called_once_with("secondary text")
+            mock_info.assert_called_once()
+            self.assertIn("5", mock_info.call_args[0][0])
+            self.assertIs(self.exporter.bulkMediaExportProgressWindow, False)
+            self.assertFalse(self.exporter.mw.DictBulkMediaExportWasCancelled)
 
-    # -- bulk forwarding ------------------------------------------------
+    def test_bulk_media_export_cancelled_no_window(self):
+        self.exporter.bulkMediaExportProgressWindow = False
+        self.exporter.bulkMediaExportCancelledByBrowserRefresh()
 
-    def test_bulk_text_export_forwards_to_batch_processor(self):
-        with patch.object(self.exporter.batch_processor, "bulkTextExport") as mock_bte:
-            cards = ["card1", "card2"]
-            self.exporter.bulkTextExport(cards)
-            mock_bte.assert_called_once_with(cards)
+    # -- attemptAutoAdd -------------------------------------------------
 
-    def test_bulk_media_export_forwards_to_batch_processor(self):
-        with patch.object(self.exporter.batch_processor, "bulkMediaExport") as mock_bme:
-            card = {"total": 1}
-            self.exporter.bulkMediaExport(card)
-            mock_bme.assert_called_once_with(card)
+    def test_attempt_auto_add_when_checked(self):
+        self.exporter.autoAdd.isChecked.return_value = True
+        self.exporter.addCard = MagicMock()
+        self.exporter.attemptAutoAdd(bulkExport=False)
+        self.exporter.addCard.assert_called_once()
 
-    def test_attempt_auto_add_forwards_to_batch_processor(self):
-        with patch.object(self.exporter.batch_processor, "attemptAutoAdd") as mock_aaa:
-            self.exporter.attemptAutoAdd(bulkExport=True)
-            mock_aaa.assert_called_once_with(True)
+    def test_attempt_auto_add_when_bulk_export(self):
+        self.exporter.autoAdd.isChecked.return_value = False
+        self.exporter.addCard = MagicMock()
+        self.exporter.attemptAutoAdd(bulkExport=True)
+        self.exporter.addCard.assert_called_once()
 
-    def test_add_media_card_forwards_to_batch_processor(self):
-        with patch.object(self.exporter.batch_processor, "addMediaCard") as mock_amc:
-            card = {"unknownWords": []}
-            self.exporter.addMediaCard(card)
-            mock_amc.assert_called_once_with(card)
-
-    # -- addImgs forwarding --------------------------------------------
-
-    def test_add_imgs_forwards_to_media_handler(self):
-        with patch.object(self.exporter.media_handler, "addImgs") as mock_ai:
-            self.exporter.addImgs("word", ["img1"], "thumb")
-            mock_ai.assert_called_once_with("word", ["img1"], "thumb")
+    def test_attempt_auto_add_skipped(self):
+        self.exporter.autoAdd.isChecked.return_value = False
+        self.exporter.addCard = MagicMock()
+        self.exporter.attemptAutoAdd(bulkExport=False)
+        self.exporter.addCard.assert_not_called()
 
 
 if __name__ == "__main__":

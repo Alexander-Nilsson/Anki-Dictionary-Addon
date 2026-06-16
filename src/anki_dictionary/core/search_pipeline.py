@@ -992,7 +992,7 @@ class SearchPipeline:
             f"Possible causes:<ul>"
             f"<li>Local LLM (like Ollama) is not running</li>"
             f"<li>Wrong API key or Base URL</li>"
-            f'<li>Network timeout (current timeout: {self.midict.config.get("llm_timeout", 15)}s)</li>'
+            f"<li>Network timeout (current timeout: {self.midict.config.get('llm_timeout', 15)}s)</li>"
             f"</ul></div></div>"
         )
         self.midict.eval(

@@ -35,14 +35,12 @@ addon_path = os.path.dirname(
 
 
 class NoAutoSelectLineEdit(QLineEdit):
-
-    def focusInEvent(self, e):
+    def focusInEvent(self, e):  # ty:ignore[invalid-method-override]
         super(NoAutoSelectLineEdit, self).focusInEvent(e)
         self.deselect()
 
 
 class DictionaryWebInstallWizard(MiWizard):
-
     INITIAL_SIZE = (600, 400)
 
     def __init__(self, force_lang=None):
@@ -71,7 +69,6 @@ class DictionaryWebInstallWizard(MiWizard):
 
 
 class ServerAskPage(MiWizardPage):
-
     def __init__(self, wizard):
         super(ServerAskPage, self).__init__(wizard)
         self.wizard = wizard
@@ -130,14 +127,13 @@ class ServerAskPage(MiWizardPage):
             )
             return False
 
-        self.wizard.dictionary_index = index_data
-        self.wizard.Dictionary_server_root = server_url
+        self.wizard.dictionary_index = index_data  # ty:ignore[invalid-assignment]
+        self.wizard.Dictionary_server_root = server_url  # ty:ignore[invalid-assignment]
 
         return True
 
 
 class DictionarySelectPage(MiWizardPage):
-
     def __init__(self, wizard):
         super(DictionarySelectPage, self).__init__(wizard)
         self.wizard = wizard
@@ -198,9 +194,9 @@ class DictionarySelectPage(MiWizardPage):
     def _update_hsk_visibility(self) -> None:
         root = self.dict_tree.invisibleRootItem()
         has_chinese = False
-        for li in range(root.childCount()):
-            lang_item = root.child(li)
-            language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)
+        for li in range(root.childCount()):  # ty:ignore[unresolved-attribute]
+            lang_item = root.child(li)  # ty:ignore[unresolved-attribute]
+            language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)  # ty:ignore[unresolved-attribute]
             if not language or not self._is_chinese_language(language):
                 continue
 
@@ -213,7 +209,7 @@ class DictionarySelectPage(MiWizardPage):
                         if child.checkState(0) == Qt.CheckState.Checked:
                             return True
                     except AttributeError:
-                        if child.checkState(0) == Qt.Checked:
+                        if child.checkState(0) == Qt.Checked:  # ty:ignore[unresolved-attribute]
                             return True
                 return False
 
@@ -233,9 +229,9 @@ class DictionarySelectPage(MiWizardPage):
 
         dict_root = self.dict_tree.invisibleRootItem()
 
-        for li in range(dict_root.childCount()):
-            lang_item = dict_root.child(li)
-            language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)
+        for li in range(dict_root.childCount()):  # ty:ignore[unresolved-attribute]
+            lang_item = dict_root.child(li)  # ty:ignore[unresolved-attribute]
+            language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)  # ty:ignore[unresolved-attribute]
             dictionaries = []
 
             def scan_tree(item):
@@ -249,7 +245,7 @@ class DictionarySelectPage(MiWizardPage):
                                 dictionaries.append(dictionary)
                         except AttributeError:
                             # Fallback for older versions
-                            if dict_item.checkState(0) == Qt.Checked:
+                            if dict_item.checkState(0) == Qt.Checked:  # ty:ignore[unresolved-attribute]
                                 dictionaries.append(dictionary)
                     else:
                         scan_tree(dict_item)
@@ -261,10 +257,10 @@ class DictionarySelectPage(MiWizardPage):
                 lang_w_enabled_dicts["dictionaries"] = dictionaries
                 dictionaries_to_install.append(lang_w_enabled_dicts)
 
-        self.wizard.dictionary_install_index = dictionaries_to_install
-        self.wizard.dictionary_install_frequency = self.install_freq.isChecked()
-        self.wizard.dictionary_install_conjugation = self.install_conj.isChecked()
-        self.wizard.dictionary_install_hsk = (
+        self.wizard.dictionary_install_index = dictionaries_to_install  # ty:ignore[invalid-assignment]
+        self.wizard.dictionary_install_frequency = self.install_freq.isChecked()  # ty:ignore[invalid-assignment]
+        self.wizard.dictionary_install_conjugation = self.install_conj.isChecked()  # ty:ignore[invalid-assignment]
+        self.wizard.dictionary_install_hsk = (  # ty:ignore[invalid-assignment]
             self.install_hsk.isChecked() and self.install_hsk.isVisible()
         )
 
@@ -298,7 +294,7 @@ class DictionarySelectPage(MiWizardPage):
                 try:
                     lang_item.setCheckState(0, Qt.CheckState.Unchecked)
                 except AttributeError:
-                    lang_item.setCheckState(0, Qt.Unchecked)
+                    lang_item.setCheckState(0, Qt.Unchecked)  # ty:ignore[unresolved-attribute]
 
                 self.dict_tree.addTopLevelItem(lang_item)
 
@@ -319,7 +315,7 @@ class DictionarySelectPage(MiWizardPage):
                             dict_item.setCheckState(0, Qt.CheckState.Unchecked)
                         except AttributeError:
                             # Fallback for older versions
-                            dict_item.setCheckState(0, Qt.Unchecked)
+                            dict_item.setCheckState(0, Qt.Unchecked)  # ty:ignore[unresolved-attribute]
                         dict_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
                         dict_item.setData(0, Qt.ItemDataRole.UserRole + 1, dictionary)
 
@@ -342,7 +338,7 @@ class DictionarySelectPage(MiWizardPage):
                     try:
                         to_lang_item.setCheckState(0, Qt.CheckState.Unchecked)
                     except AttributeError:
-                        to_lang_item.setCheckState(0, Qt.Unchecked)
+                        to_lang_item.setCheckState(0, Qt.Unchecked)  # ty:ignore[unresolved-attribute]
 
                     lang_item.addChild(to_lang_item)
 
@@ -357,7 +353,6 @@ class DictionarySelectPage(MiWizardPage):
 
 
 class DictionaryConfirmPage(MiWizardPage):
-
     def __init__(self, wizard, can_select_none=False):
         super(DictionaryConfirmPage, self).__init__(wizard)
         self.wizard = wizard
@@ -375,7 +370,7 @@ class DictionaryConfirmPage(MiWizardPage):
         self.box.setReadOnly(True)
         lyt.addWidget(self.box)
 
-    def on_show(self, is_next, is_prev):
+    def on_show(self, is_next, is_prev):  # ty:ignore[invalid-method-override]
         install_index = getattr(self.wizard, "dictionary_install_index", [])
         install_freq = getattr(self.wizard, "dictionary_install_frequency", False)
         install_conj = getattr(self.wizard, "dictionary_install_conjugation", False)
@@ -459,9 +454,7 @@ class DictionaryConfirmPage(MiWizardPage):
 
 
 class DictionaryInstallPage(MiWizardPage):
-
     class InstallThread(QThread):
-
         progress_update = pyqtSignal(int)
         log_update = pyqtSignal(str)
 
@@ -546,7 +539,7 @@ class DictionaryInstallPage(MiWizardPage):
 
                 # Create Language
                 try:
-                    aqt.mw.miDictDB.addLanguages([lname])
+                    aqt.mw.miDictDB.addLanguages([lname])  # ty:ignore[unresolved-attribute]
                 except Exception as e:
                     # Lanugage already exists
                     pass
@@ -679,7 +672,7 @@ class DictionaryInstallPage(MiWizardPage):
                     dname = d.get("name")
 
                     # Check if already exists
-                    if aqt.mw.miDictDB.dictExists(dname, lname):
+                    if aqt.mw.miDictDB.dictExists(dname, lname):  # ty:ignore[unresolved-attribute]
                         self.log_update.emit("Skipping %s (already installed)." % dname)
                         update_dict_progress(1.0)
                         num_installed += 1
@@ -711,7 +704,10 @@ class DictionaryInstallPage(MiWizardPage):
                             # In Anki context, this might need to be handled via signals if it causes crashes.
                             # But let's try passing the parent first.
                             importDict(
-                                lname, io.BytesIO(ddata), dname, parent=self.wizard
+                                lname,
+                                io.BytesIO(ddata),  # ty:ignore[invalid-argument-type]
+                                dname,
+                                parent=self.wizard,
                             )
                         except ValueError as e:
                             self.log_update.emit(" ERROR: %s" % str(e))
@@ -788,11 +784,11 @@ class DictionaryInstallPage(MiWizardPage):
 
     def add_log(self, txt):
         self.log_box.moveCursor(QTextCursor.MoveOperation.End)
-        if not self.log_box.document().isEmpty():
+        if not self.log_box.document().isEmpty():  # ty:ignore[unresolved-attribute]
             self.log_box.insertPlainText("\n")
         self.log_box.insertPlainText(txt)
-        self.log_box.verticalScrollBar().setValue(
-            self.log_box.verticalScrollBar().maximum()
+        self.log_box.verticalScrollBar().setValue(  # ty:ignore[unresolved-attribute]
+            self.log_box.verticalScrollBar().maximum()  # ty:ignore[unresolved-attribute]
         )
 
     def update_progress(self, val):

@@ -35,15 +35,15 @@ def miInfo(
     if parent is False:
         parent = aqt.mw.app.activeWindow() or aqt.mw
     icon = QIcon(os.path.join(get_icons_dir(), "anki.svg"))
-    mb = QMessageBox(parent)
+    mb = QMessageBox(parent)  # ty:ignore[invalid-argument-type]
     if not day:
         mb.setStyleSheet(" QMessageBox {background-color: #272828;}")
     mb.setText(text)
     mb.setWindowIcon(icon)
     mb.setWindowTitle(title)
     b = mb.addButton(QMessageBox.StandardButton.Ok)
-    b.setFixedSize(100, 30)
-    b.setDefault(True)
+    b.setFixedSize(100, 30)  # ty:ignore[unresolved-attribute]
+    b.setDefault(True)  # ty:ignore[unresolved-attribute]
 
     return mb.exec()
 
@@ -60,15 +60,15 @@ def miAsk(
     icon = QIcon(os.path.join(get_icons_dir(), "anki.svg"))
     b = msg.addButton(QMessageBox.StandardButton.Yes)
 
-    b.setFixedSize(100, 30)
-    b.setDefault(True)
+    b.setFixedSize(100, 30)  # ty:ignore[unresolved-attribute]
+    b.setDefault(True)  # ty:ignore[unresolved-attribute]
     c = msg.addButton(QMessageBox.StandardButton.No)
-    c.setFixedSize(100, 30)
+    c.setFixedSize(100, 30)  # ty:ignore[unresolved-attribute]
     if customText:
-        b.setText(customText[0])
-        c.setText(customText[1])
-        b.setFixedSize(120, 40)
-        c.setFixedSize(120, 40)
+        b.setText(customText[0])  # ty:ignore[not-subscriptable, unresolved-attribute]
+        c.setText(customText[1])  # ty:ignore[not-subscriptable, unresolved-attribute]
+        b.setFixedSize(120, 40)  # ty:ignore[unresolved-attribute]
+        c.setFixedSize(120, 40)  # ty:ignore[unresolved-attribute]
 
     if not day:
         msg.setStyleSheet(" QMessageBox {background-color: #272828;}")

@@ -72,7 +72,7 @@ def test_all():
             name = d["name"]
             url = d["url"]
 
-            print(f"[{i+1}/{len(dictionaries)}] Testing {name} ({lang})...")
+            print(f"[{i + 1}/{len(dictionaries)}] Testing {name} ({lang})...")
 
             try:
                 if lang not in db.getCurrentDbLangs():

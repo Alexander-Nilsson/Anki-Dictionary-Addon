@@ -20,7 +20,6 @@ from . import config as webConfig
 
 
 class FreqConjWebWindow(QDialog):
-
     class Mode(Enum):
         Freq = (0,)
         Conj = (1,)
@@ -92,7 +91,7 @@ class FreqConjWebWindow(QDialog):
     def download(self):
         idx = self.lst.currentIndex()
         if not idx.isValid():
-            QMessageBox.show(self, self.windowTitle(), "Please select a language.")
+            QMessageBox.show(self, self.windowTitle(), "Please select a language.")  # ty:ignore[too-many-positional-arguments]
             return
         url = idx.data(Qt.ItemDataRole.UserRole)
 
@@ -100,7 +99,7 @@ class FreqConjWebWindow(QDialog):
 
         try:
             with prefer_ipv4():
-                resp = client.session.get(url, timeout=15, stream=True)
+                resp = client.session.get(url, timeout=15, stream=True)  # ty:ignore[unresolved-attribute]
         except Exception:
             resp = None
 
@@ -119,7 +118,7 @@ class FreqConjWebWindow(QDialog):
 
             try:
                 with prefer_ipv4():
-                    resp = client.session.get(new_url, timeout=15, stream=True)
+                    resp = client.session.get(new_url, timeout=15, stream=True)  # ty:ignore[unresolved-attribute]
             except Exception:
                 resp = None
 
@@ -153,7 +152,7 @@ class FreqConjWebWindow(QDialog):
 
         # Clear database cache to reflect changes
         if hasattr(aqt.mw, "miDictDB"):
-            aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)
+            aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)  # ty:ignore[unresolved-attribute]
 
         if self.mode == self.Mode.Freq:
             msg = (
@@ -180,6 +179,6 @@ class FreqConjWebWindow(QDialog):
                 "The dictionary server is not reachable at the moment.\n\n"
                 "Please try again later.",
             )
-            return QDialog.Rejected
+            return QDialog.Rejected  # ty:ignore[unresolved-attribute]
         window = cls(dst_lang, index_data, mode)
         return window.exec()

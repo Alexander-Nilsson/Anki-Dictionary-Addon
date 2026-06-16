@@ -91,7 +91,7 @@ class SettingsGui(QTabWidget):
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
-        self.layout = QVBoxLayout()
+        self.layout = QVBoxLayout()  # ty:ignore[invalid-assignment]
         self.settingsTab = QWidget()
         self.llmTab = LLMSettingsTab(mw, path, self)
         self.forvoTab = ForvoSettingsTab(mw, path, self)
@@ -124,11 +124,11 @@ class SettingsGui(QTabWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         return scroll
 
-    def hideEvent(self, event: QEvent) -> None:
+    def hideEvent(self, event: QEvent) -> None:  # ty:ignore[invalid-method-override]
         self.mw.dictSettings = None
         event.accept()
 
-    def closeEvent(self, event: QEvent) -> None:
+    def closeEvent(self, event: QEvent) -> None:  # ty:ignore[invalid-method-override]
         self.mw.dictSettings = None
         event.accept()
 
@@ -288,7 +288,7 @@ class SettingsGui(QTabWidget):
 
         groupLayout.addLayout(dictsLayout)
         groupLayout.addLayout(exportsLayout)
-        self.layout.addLayout(groupLayout)
+        self.layout.addLayout(groupLayout)  # ty:ignore[unresolved-attribute]
 
         # 2. Options in categorized groups
         optionsLayout = QVBoxLayout()
@@ -340,8 +340,8 @@ class SettingsGui(QTabWidget):
         mediaGroup.setLayout(mediaForm)
         optionsLayout.addWidget(mediaGroup)
 
-        self.layout.addLayout(optionsLayout)
-        self.layout.addStretch()
+        self.layout.addLayout(optionsLayout)  # ty:ignore[unresolved-attribute]
+        self.layout.addStretch()  # ty:ignore[unresolved-attribute]
 
         # 3. Bottom Buttons
         buttonsLayout = QHBoxLayout()
@@ -350,8 +350,8 @@ class SettingsGui(QTabWidget):
         buttonsLayout.addWidget(self.cancelButton)
         buttonsLayout.addWidget(self.applyButton)
 
-        self.layout.addLayout(buttonsLayout)
-        self.settingsTab.setLayout(self.layout)
+        self.layout.addLayout(buttonsLayout)  # ty:ignore[unresolved-attribute]
+        self.settingsTab.setLayout(self.layout)  # ty:ignore[invalid-argument-type]
 
     def cleanDictName(self, name: str) -> str:
         return re.sub(r"l\d+name", "", name)

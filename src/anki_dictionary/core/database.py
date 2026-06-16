@@ -185,7 +185,7 @@ class DictDB:
                     term = f[0].strip()
                     reading = f[1].strip()
                     if term in frequency_dict:
-                        frequency_dict[term][reading] = idx
+                        frequency_dict[term][reading] = idx  # ty:ignore[invalid-assignment]
                     else:
                         frequency_dict[term] = {reading: idx}
                 else:
@@ -1021,7 +1021,7 @@ class DictDB:
         return toQuery
 
     def getDefForMassExp(self, term, dN, limit, rN):
-        duplicateHeader, termHeader = self.getDuplicateSetting(rN)
+        duplicateHeader, termHeader = self.getDuplicateSetting(rN)  # ty:ignore[not-iterable]
         results = []
         columns = ["term", "altterm", "pronunciation"]
         for col in columns:

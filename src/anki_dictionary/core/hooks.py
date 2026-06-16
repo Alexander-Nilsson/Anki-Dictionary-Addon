@@ -17,9 +17,9 @@ try:
     from anki.utils import is_win, is_mac, is_lin
 except ImportError:
     # Fallback for testing
-    addHook = lambda *args: None
-    wrap = lambda *args: lambda *a, **k: None
-    is_win = is_mac = is_lin = False
+    addHook = lambda *args: None  # ty:ignore[invalid-assignment]
+    wrap = lambda *args: lambda *a, **k: None  # ty:ignore[invalid-assignment]
+    is_win = is_mac = is_lin = False  # ty:ignore[invalid-assignment]
 
 try:
     from aqt import mw
@@ -40,12 +40,12 @@ except ImportError:
         from PyQt6.QtWidgets import *
     except ImportError:
         pass
-    mw = None
-    showInfo = lambda *args: None
-    AddCards = EditCurrent = Browser = TagEdit = Reviewer = Previewer = object
+    mw = None  # ty:ignore[invalid-assignment]
+    showInfo = lambda *args: None  # ty:ignore[invalid-assignment]
+    AddCards = EditCurrent = Browser = TagEdit = Reviewer = Previewer = object  # ty:ignore[invalid-assignment]
     import sys
 
-    aqt = sys.modules.get("aqt") or object()
+    aqt = sys.modules.get("aqt") or object()  # ty:ignore[invalid-assignment]
 
 from ..utils.common import miInfo, getTarget, gt
 from ..utils.paths import get_addon_root
@@ -58,7 +58,7 @@ _hooks_setup = False
 def closeDictionary():
     """Close dictionary when profile is unloaded."""
     if hasattr(mw, "ankiDictionary") and mw.ankiDictionary:
-        mw.ankiDictionary.hide()
+        mw.ankiDictionary.hide()  # ty:ignore[unresolved-attribute]
 
 
 def dictOnStart():
@@ -117,23 +117,23 @@ def searchTerm(webview):
     if text:
         text = re.sub(r"\[[^\]]+?\]", "", text)
         text = text.strip()
-        if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():
+        if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
             dictionaryInit([text])
-        mw.ankiDictionary.ensureVisible()
-        mw.ankiDictionary.initSearch(text)
+        mw.ankiDictionary.ensureVisible()  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.initSearch(text)  # ty:ignore[unresolved-attribute]
 
         if webview.title == "main webview":
             if mw.state == "review":
-                mw.ankiDictionary.dict.setReviewer(mw.reviewer)
+                mw.ankiDictionary.dict.setReviewer(mw.reviewer)  # ty:ignore[unresolved-attribute]
         elif webview.title == "editor":
             target = getTarget(type(webview.parentEditor.parentWindow).__name__)
-            mw.ankiDictionary.dict.setCurrentEditor(webview.parentEditor, target)
+            mw.ankiDictionary.dict.setCurrentEditor(webview.parentEditor, target)  # ty:ignore[unresolved-attribute]
         showAfterGlobalSearch()
 
 
 def announceParent(self, event=False):
     """Announce parent window to dictionary."""
-    if mw.ankiDictionary and mw.ankiDictionary.isVisible():
+    if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
         # Safely traverse up to find the main window/editor container
         parent = self
         for _ in range(3):
@@ -152,7 +152,7 @@ def announceParent(self, event=False):
             pName = "Browser"
             if not parent:
                 return
-        mw.ankiDictionary.dict.setCurrentEditor(parent.editor, getTarget(pName))
+        mw.ankiDictionary.dict.setCurrentEditor(parent.editor, getTarget(pName))  # ty:ignore[unresolved-attribute]
 
 
 def addEditActivated(self, event=False):
@@ -162,14 +162,14 @@ def addEditActivated(self, event=False):
 
 def setBrowserEditor(self):
     """Set browser editor in dictionary."""
-    if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.dict.setCurrentEditor(self.editor, "Browser")
+    if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.setCurrentEditor(self.editor, "Browser")  # ty:ignore[unresolved-attribute]
 
 
 def checkCurrentEditor(self):
     """Check current editor when closing."""
-    if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.dict.checkEditorClose(self)
+    if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.checkEditorClose(self)  # ty:ignore[unresolved-attribute]
 
 
 def addBodyClick(self):
@@ -196,9 +196,9 @@ def addEditorFunctionality(self):
 
 def miLinks(self, cmd):
     """Handle reviewer links."""
-    if mw.ankiDictionary and mw.ankiDictionary.isVisible():
-        mw.ankiDictionary.dict.setReviewer(self)
-    return _original_link_handler(self, cmd)
+    if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.dict.setReviewer(self)  # ty:ignore[unresolved-attribute]
+    return _original_link_handler(self, cmd)  # ty:ignore[call-non-callable]
 
 
 def setup_hooks():
@@ -222,36 +222,36 @@ def setup_hooks():
     addHook("browser.setupMenus", setupMenu)
 
     # Wrap browser methods
-    Browser.on_current_row_changed = wrap(
+    Browser.on_current_row_changed = wrap(  # ty:ignore[invalid-assignment]
         Browser.on_current_row_changed, setBrowserEditor
     )
-    Browser._closeWindow = wrap(Browser._closeWindow, checkCurrentEditor)
+    Browser._closeWindow = wrap(Browser._closeWindow, checkCurrentEditor)  # ty:ignore[invalid-assignment]
 
     # Wrap add cards methods
-    AddCards._close = wrap(AddCards._close, checkCurrentEditor)
-    AddCards.addCards = wrap(AddCards.addCards, addEditActivated)
-    AddCards.onHistory = wrap(AddCards.onHistory, addEditActivated)
-    AddCards.mousePressEvent = addEditActivated
+    AddCards._close = wrap(AddCards._close, checkCurrentEditor)  # ty:ignore[invalid-assignment]
+    AddCards.addCards = wrap(AddCards.addCards, addEditActivated)  # ty:ignore[invalid-assignment]
+    AddCards.onHistory = wrap(AddCards.onHistory, addEditActivated)  # ty:ignore[invalid-assignment]
+    AddCards.mousePressEvent = addEditActivated  # ty:ignore[invalid-assignment]
 
     # Wrap edit current methods
-    EditCurrent._saveAndClose = wrap(EditCurrent._saveAndClose, checkCurrentEditor)
-    EditCurrent.mousePressEvent = addEditActivated
+    EditCurrent._saveAndClose = wrap(EditCurrent._saveAndClose, checkCurrentEditor)  # ty:ignore[invalid-assignment]
+    EditCurrent.mousePressEvent = addEditActivated  # ty:ignore[invalid-assignment]
 
     # Wrap editor setup
-    aqt.editor.Editor.setupWeb = wrap(
+    aqt.editor.Editor.setupWeb = wrap(  # ty:ignore[invalid-assignment]
         aqt.editor.Editor.setupWeb, addEditorFunctionality
     )
 
     # Wrap tag edit
-    TagEdit.focusInEvent = wrap(TagEdit.focusInEvent, announceParent)
+    TagEdit.focusInEvent = wrap(TagEdit.focusInEvent, announceParent)  # ty:ignore[invalid-assignment]
 
     # Wrap preview
-    Previewer.open = wrap(Previewer.open, addHotkeysToPreview)
+    Previewer.open = wrap(Previewer.open, addHotkeysToPreview)  # ty:ignore[invalid-assignment, unresolved-attribute]
 
     # Wrap reviewer - store original BEFORE wrapping
     _original_link_handler = Reviewer._linkHandler
-    Reviewer._linkHandler = miLinks
-    Reviewer.show = wrap(Reviewer.show, addBodyClick)
+    Reviewer._linkHandler = miLinks  # ty:ignore[invalid-assignment]
+    Reviewer.show = wrap(Reviewer.show, addBodyClick)  # ty:ignore[invalid-assignment]
 
 
 from ..utils.logger import get_logger
@@ -285,13 +285,13 @@ def setup_gui_menu():
         focused_widget = mw.app.focusWidget()
 
         # Check if dictionary window is focused and visible
-        if mw.ankiDictionary and mw.ankiDictionary.isVisible():
+        if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
             if focused_widget and (
-                focused_widget == mw.ankiDictionary.dict
-                or mw.ankiDictionary.isAncestorOf(focused_widget)
+                focused_widget == mw.ankiDictionary.dict  # ty:ignore[unresolved-attribute]
+                or mw.ankiDictionary.isAncestorOf(focused_widget)  # ty:ignore[unresolved-attribute]
             ):
                 # Search within the dictionary
-                searchTerm(mw.ankiDictionary.dict)
+                searchTerm(mw.ankiDictionary.dict)  # ty:ignore[unresolved-attribute]
                 return
 
         # Check if an Editor is focused
@@ -300,7 +300,7 @@ def setup_gui_menu():
             parent = focused_widget
             while parent:
                 if hasattr(parent, "editor") and parent.editor:
-                    searchTerm(parent.editor.web)
+                    searchTerm(parent.editor.web)  # ty:ignore[unresolved-attribute]
                     return
                 if hasattr(parent, "web") and parent.web:
                     # Generic web view (Reviewer, Browser card list if it's a webview, etc)
@@ -324,7 +324,7 @@ def setup_gui_menu():
             parent = focused_widget
             while parent:
                 if hasattr(parent, "editor") and parent.editor:
-                    searchCol(parent.editor.web)
+                    searchCol(parent.editor.web)  # ty:ignore[unresolved-attribute]
                     return
                 if hasattr(parent, "web") and parent.web:
                     searchCol(parent.web)
@@ -339,19 +339,19 @@ def setup_gui_menu():
     # Use a more stable location for the menu to avoid issues with standard shortcuts
     if not hasattr(mw, "DictMainMenu"):
         logger.debug("Creating new DictMainMenu")
-        mw.DictMainMenu = QMenu("Anki Dictionary", mw)
+        mw.DictMainMenu = QMenu("Anki Dictionary", mw)  # ty:ignore[invalid-assignment]
         # Insert before Help menu
-        mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.DictMainMenu)
+        mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), mw.DictMainMenu)  # ty:ignore[unresolved-attribute]
     else:
         logger.debug("Updating existing DictMainMenu")
-        mw.DictMainMenu.clear()
+        mw.DictMainMenu.clear()  # ty:ignore[unresolved-attribute]
 
     # Dictionary Settings Action
     setting_action = QAction("Settings...", mw)
     setting_action.triggered.connect(trigger_open_settings)
-    mw.DictMainMenu.addAction(setting_action)
+    mw.DictMainMenu.addAction(setting_action)  # ty:ignore[unresolved-attribute]
 
-    mw.DictMainMenu.addSeparator()
+    mw.DictMainMenu.addSeparator()  # ty:ignore[unresolved-attribute]
 
     # Open Dictionary Action with Shortcut
     open_action = QAction("Open Dictionary", mw)
@@ -359,26 +359,26 @@ def setup_gui_menu():
     # Ensure the shortcut works throughout the application
     open_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
     open_action.triggered.connect(lambda: trigger_dictionary_init())
-    mw.DictMainMenu.addAction(open_action)
+    mw.DictMainMenu.addAction(open_action)  # ty:ignore[unresolved-attribute]
 
     # Store actions on mw to prevent garbage collection
     # Also set legacy openMiDict attribute for toggle functionality in main_window.py
-    mw.openMiDict = open_action
-    mw.dict_actions = {"settings": setting_action, "open": open_action}
+    mw.openMiDict = open_action  # ty:ignore[unresolved-attribute]
+    mw.dict_actions = {"settings": setting_action, "open": open_action}  # ty:ignore[unresolved-attribute]
 
     # Search Actions
     search_term_action = QAction("Search Selected Term", mw)
     search_term_action.setShortcut(QKeySequence("Ctrl+S"))
     search_term_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
     search_term_action.triggered.connect(trigger_search_term)
-    mw.DictMainMenu.addAction(search_term_action)
-    mw.dict_actions["search_term"] = search_term_action
+    mw.DictMainMenu.addAction(search_term_action)  # ty:ignore[unresolved-attribute]
+    mw.dict_actions["search_term"] = search_term_action  # ty:ignore[unresolved-attribute]
 
     search_col_action = QAction("Search in Collection", mw)
     search_col_action.setShortcut(QKeySequence("Ctrl+Shift+B"))
     search_col_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
     search_col_action.triggered.connect(trigger_search_col)
-    mw.DictMainMenu.addAction(search_col_action)
-    mw.dict_actions["search_col"] = search_col_action
+    mw.DictMainMenu.addAction(search_col_action)  # ty:ignore[unresolved-attribute]
+    mw.dict_actions["search_col"] = search_col_action  # ty:ignore[unresolved-attribute]
 
     logger.debug("Menu setup completed with shortcuts: Ctrl+W, Ctrl+S, Ctrl+Shift+B")

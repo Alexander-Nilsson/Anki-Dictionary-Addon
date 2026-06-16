@@ -191,7 +191,7 @@ class ForvoWorker(QRunnable):
 
                         mp3_match = re.search(
                             r"Play\(\d+,'[^']*','[^']*',\w+,'([^']+)'", onclick
-                        )
+                        )  # ty:ignore[no-matching-overload]
                         if mp3_match:
                             audio_url = "https://audio00.forvo.com/audios/mp3/" + str(
                                 base64.b64decode(mp3_match.group(1)), "utf-8"
@@ -199,7 +199,7 @@ class ForvoWorker(QRunnable):
                         else:
                             ogg_match = re.search(
                                 r"Play\(\d+,'[^']*','([^']+)'", onclick
-                            )
+                            )  # ty:ignore[no-matching-overload]
                             if ogg_match:
                                 audio_url = "https://audio00.forvo.com/ogg/" + str(
                                     base64.b64decode(ogg_match.group(1)), "utf-8"
