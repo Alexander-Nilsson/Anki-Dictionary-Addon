@@ -1,6 +1,6 @@
 [project]
 name = "anki-dictionary-addon"
-version = "0.1.30"
+version = "0.1.31"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
