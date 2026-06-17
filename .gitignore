@@ -79,3 +79,7 @@ meta.json
 *.log
 logs/
 AGENTS.md
+
+# Documentation
+CONTEXT.md
+docs/oldfiles/
