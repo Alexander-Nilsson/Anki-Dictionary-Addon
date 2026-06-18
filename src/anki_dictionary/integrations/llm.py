@@ -166,13 +166,28 @@ class LLMWorker(QRunnable):
             model = self.config.get("llm_model", "gpt-3.5-turbo")
 
             # --- Build prompt(s) ---
-            prompts = self.config.get("llm_prompts", [])
-            if not prompts:
+            raw_prompts = self.config.get("llm_prompts", [])
+            if not raw_prompts:
                 single = self.config.get(
                     "llm_prompt",
                     "Provide a concise dictionary definition for the word: {term}",
                 )
-                prompts = [single]
+                raw_prompts = [single]
+
+            # Normalise to list of strings, filtering inactive entries
+            prompts = []
+            for entry in raw_prompts:
+                if isinstance(entry, dict):
+                    if entry.get("active", True):
+                        prompts.append(str(entry.get("text", "")))
+                else:
+                    prompts.append(str(entry))
+
+            # Strip empty prompts
+            prompts = [p.strip() for p in prompts if p.strip()]
+
+            if not prompts:
+                raise ValueError("No active prompt templates configured.")
 
             # Replace {term} in every prompt
             prompts = [p.replace("{term}", self.term) for p in prompts]

@@ -21,10 +21,19 @@ from ...utils.common import miInfo
 
 
 class _PromptRow(QWidget):
-    """A single prompt row: QTextEdit + Remove button."""
+    """A single prompt row: checkbox + QTextEdit + Remove button."""
 
-    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+    def __init__(
+        self, text: str = "", active: bool = True, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
+        self._active_checkbox = QCheckBox()
+        self._active_checkbox.setChecked(active)
+        self._active_checkbox.setToolTip(
+            "Uncheck to disable this prompt without deleting it"
+        )
+        self._active_checkbox.stateChanged.connect(self._on_toggle)
+
         self.text_edit = QTextEdit()
         self.text_edit.setAcceptRichText(False)
         self.text_edit.setFixedHeight(80)
@@ -36,8 +45,23 @@ class _PromptRow(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 2, 0, 2)
+        layout.addWidget(self._active_checkbox, 0)
         layout.addWidget(self.text_edit, 1)
         layout.addWidget(self.remove_btn, 0)
+
+        self._apply_stylesheet()
+
+    def is_active(self) -> bool:
+        return self._active_checkbox.isChecked()
+
+    def _on_toggle(self) -> None:
+        self._apply_stylesheet()
+
+    def _apply_stylesheet(self) -> None:
+        opacity = "1.0" if self.is_active() else "0.45"
+        self.text_edit.setStyleSheet(
+            f"QTextEdit {{ background-color: rgba(128, 128, 128, 0.05); opacity: {opacity}; }}"
+        )
 
 
 DEFAULT_SINGLE_PROMPT = "Provide a concise dictionary definition for the word: {term}"
@@ -85,10 +109,10 @@ class LLMSettingsTab(QWidget):
 
     # --- Prompt rows management ---
 
-    def _add_prompt_row(self, text: str = "") -> _PromptRow:
+    def _add_prompt_row(self, text: str = "", active: bool = True) -> _PromptRow:
         if not isinstance(text, str):
             text = str(text) if text else ""
-        row = _PromptRow(text)
+        row = _PromptRow(text, active)
         row.remove_btn.clicked.connect(lambda: self._remove_prompt_row(row))
         self._prompt_rows.append(row)
         self._prompts_container.addWidget(row)
@@ -173,7 +197,8 @@ class LLMSettingsTab(QWidget):
         self.llmThink.setChecked(config.get("llm_think", False))
         self.llmStream.setChecked(config.get("llm_stream", False))
 
-        # Load prompts: prefer llm_prompts (list), fall back to llm_prompt (string)
+        # Load prompts: prefer llm_prompts (list of strings or dicts),
+        # fall back to llm_prompt (string)
         prompts = config.get("llm_prompts")
         if not prompts:
             single = config.get("llm_prompt", DEFAULT_SINGLE_PROMPT)
@@ -183,8 +208,14 @@ class LLMSettingsTab(QWidget):
         if not prompts:
             self._add_prompt_row()
         else:
-            for text in prompts:
-                self._add_prompt_row(text)
+            for entry in prompts:
+                if isinstance(entry, dict):
+                    text = entry.get("text", "")
+                    active = entry.get("active", True)
+                else:
+                    text = str(entry) if entry else ""
+                    active = True  # migrate old plain-string format
+                self._add_prompt_row(text, active)
 
     def save_config(self, config: Dict[str, Any]) -> None:
         config["llm_enabled"] = self.llmEnabled.isChecked()
@@ -196,11 +227,18 @@ class LLMSettingsTab(QWidget):
         config["llm_think"] = self.llmThink.isChecked()
         config["llm_stream"] = self.llmStream.isChecked()
 
-        # Save all prompts as array
-        prompts = [row.text_edit.toPlainText() for row in self._prompt_rows]
+        # Save all prompts as array of dicts with active state
+        prompts = [
+            {"text": row.text_edit.toPlainText(), "active": row.is_active()}
+            for row in self._prompt_rows
+        ]
         config["llm_prompts"] = prompts
-        # Keep llm_prompt synced for backwards compatibility
-        config["llm_prompt"] = prompts[0] if prompts else DEFAULT_SINGLE_PROMPT
+        # Keep llm_prompt synced for backwards compatibility (first active prompt)
+        first_active = next(
+            (p["text"] for p in prompts if p["active"] and p["text"]),
+            None,
+        )
+        config["llm_prompt"] = first_active or DEFAULT_SINGLE_PROMPT
 
     # --- Tooltips ---
 

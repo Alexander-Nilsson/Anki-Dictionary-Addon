@@ -110,6 +110,90 @@ class TestLLMWorker(unittest.TestCase):
         self.assertIn(LLM_DELIMITER, content)
 
     @patch("anki_dictionary.integrations.llm.requests.post")
+    def test_llm_worker_inactive_prompts_filtered(self, mock_post):
+        """Inactive prompts (active:false) are excluded from the request."""
+        config = self.config.copy()
+        config["llm_prompts"] = [
+            {"text": "Define {term} in simple terms", "active": True},
+            {"text": "Define {term} for experts", "active": False},
+            {"text": "Give examples of {term}", "active": True},
+        ]
+        del config["llm_prompt"]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "A fruit.\n---\nIt grows on trees."}}]
+        }
+        mock_post.return_value = mock_response
+
+        worker = LLMWorker(self.term, config)
+        results = []
+        worker.signals.result_ready.connect(lambda x: results.append(x))
+        worker.run()
+
+        self.assertEqual(len(results), 1)
+
+        args, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        content = payload["messages"][0]["content"]
+
+        # Should include Request 1 (simple terms) and Request 2 (examples)
+        self.assertIn("Request 1: Define apple in simple terms", content)
+        self.assertIn("Request 2: Give examples of apple", content)
+        # Should NOT include the inactive expert prompt
+        self.assertNotIn("for experts", content)
+        # Should still have the delimiter instruction since 2 active prompts
+        self.assertIn("Respond to each request below", content)
+        self.assertIn(LLM_DELIMITER, content)
+
+    @patch("anki_dictionary.integrations.llm.requests.post")
+    def test_llm_worker_all_inactive_raises_error(self, mock_post):
+        """All prompts inactive raises ValueError."""
+        config = self.config.copy()
+        config["llm_prompts"] = [
+            {"text": "Define {term}", "active": False},
+        ]
+        del config["llm_prompt"]
+
+        mock_response = MagicMock()
+        mock_post.return_value = mock_response
+
+        worker = LLMWorker(self.term, config)
+        errors = []
+        worker.signals.error_occurred.connect(lambda x: errors.append(x))
+        worker.run()
+
+        self.assertEqual(len(errors), 1)
+        self.assertIn("No active prompt", errors[0]["error"])
+
+    @patch("anki_dictionary.integrations.llm.requests.post")
+    def test_llm_worker_dict_without_active_key(self, mock_post):
+        """Dict without 'active' key is treated as active (backwards compat)."""
+        config = self.config.copy()
+        config["llm_prompts"] = [
+            {"text": "Define {term} in French"},
+        ]
+        del config["llm_prompt"]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "Pomme"}}]
+        }
+        mock_post.return_value = mock_response
+
+        worker = LLMWorker(self.term, config)
+        results = []
+        worker.signals.result_ready.connect(lambda x: results.append(x))
+        worker.run()
+
+        self.assertEqual(len(results), 1)
+        args, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        self.assertIn("Define apple in French", payload["messages"][0]["content"])
+
+    @patch("anki_dictionary.integrations.llm.requests.post")
     def test_llm_config_check(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
