@@ -43,7 +43,7 @@ from ...utils.constants import COUNTRY_LIST
 verNumber = "0.1"
 
 
-class SettingsGui(QTabWidget):
+class SettingsGui(QWidget):
     def __init__(self, mw: Any, path: str, reboot: Callable[[], None]) -> None:
         super(SettingsGui, self).__init__()
         self.mw = mw
@@ -91,7 +91,7 @@ class SettingsGui(QTabWidget):
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
         self.applyButton = QPushButton("Apply")
-        self.layout = QVBoxLayout()  # ty:ignore[invalid-assignment]
+        self._tab_widget = QTabWidget()
         self.settingsTab = QWidget()
         self.llmTab = LLMSettingsTab(mw, path, self)
         self.forvoTab = ForvoSettingsTab(mw, path, self)
@@ -99,11 +99,25 @@ class SettingsGui(QTabWidget):
 
         self.setupLayout()
 
-        self.addTab(self.wrapInScrollArea(self.settingsTab), "Settings")
-        self.addTab(self.wrapInScrollArea(self.llmTab), "LLM")
-        self.addTab(self.wrapInScrollArea(self.forvoTab), "Forvo")
-        self.addTab(self.wrapInScrollArea(self.frequencyTab), "Frequency Lists")
-        self.addTab(
+        # ── Outer layout: tab widget (above) + button bar (below, on every tab) ──
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._tab_widget)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addWidget(self.restoreButton)
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.cancelButton)
+        buttons_layout.addWidget(self.applyButton)
+        outer.addLayout(buttons_layout)
+
+        self._tab_widget.addTab(self.wrapInScrollArea(self.settingsTab), "Settings")
+        self._tab_widget.addTab(self.wrapInScrollArea(self.llmTab), "LLM")
+        self._tab_widget.addTab(self.wrapInScrollArea(self.forvoTab), "Forvo")
+        self._tab_widget.addTab(
+            self.wrapInScrollArea(self.frequencyTab), "Frequency Lists"
+        )
+        self._tab_widget.addTab(
             self.wrapInScrollArea(DictionaryManagerWidget(self.mw)), "Dictionaries"
         )
 
@@ -274,6 +288,8 @@ class SettingsGui(QTabWidget):
         return line
 
     def setupLayout(self) -> None:
+        layout = QVBoxLayout(self.settingsTab)
+
         groupLayout = QVBoxLayout()
         dictsLayout = QVBoxLayout()
         exportsLayout = QVBoxLayout()
@@ -288,7 +304,7 @@ class SettingsGui(QTabWidget):
 
         groupLayout.addLayout(dictsLayout)
         groupLayout.addLayout(exportsLayout)
-        self.layout.addLayout(groupLayout)  # ty:ignore[unresolved-attribute]
+        layout.addLayout(groupLayout)
 
         # 2. Options in categorized groups
         optionsLayout = QVBoxLayout()
@@ -340,18 +356,10 @@ class SettingsGui(QTabWidget):
         mediaGroup.setLayout(mediaForm)
         optionsLayout.addWidget(mediaGroup)
 
-        self.layout.addLayout(optionsLayout)  # ty:ignore[unresolved-attribute]
-        self.layout.addStretch()  # ty:ignore[unresolved-attribute]
+        layout.addLayout(optionsLayout)
+        layout.addStretch()
 
-        # 3. Bottom Buttons
-        buttonsLayout = QHBoxLayout()
-        buttonsLayout.addWidget(self.restoreButton)
-        buttonsLayout.addStretch()
-        buttonsLayout.addWidget(self.cancelButton)
-        buttonsLayout.addWidget(self.applyButton)
-
-        self.layout.addLayout(buttonsLayout)  # ty:ignore[unresolved-attribute]
-        self.settingsTab.setLayout(self.layout)  # ty:ignore[invalid-argument-type]
+        # Buttons are now in the outer window layout (visible on every tab)
 
     def cleanDictName(self, name: str) -> str:
         return re.sub(r"l\d+name", "", name)
