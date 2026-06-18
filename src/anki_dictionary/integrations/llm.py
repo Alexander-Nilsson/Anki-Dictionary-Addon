@@ -13,6 +13,13 @@ from ..utils.logger import get_logger
 
 logger = get_logger("LLM")
 
+# Delimiter used to join multiple prompts and split the LLM response.
+# Must match what the delimiter instruction tells the LLM to use.
+LLM_DELIMITER = "\n---\n"
+LLM_DELIMITER_INSTRUCTION = (
+    'Respond to each request below. Separate your responses with "---" on its own line.'
+)
+
 try:
     from aqt.qt import QObject, pyqtSignal, QRunnable
 except ImportError:
@@ -103,6 +110,17 @@ def extract_llm_content(data: Dict[str, Any], base_url: str) -> str:
     )
 
 
+def split_llm_definitions(content: str) -> list[str]:
+    """
+    Split a multi-definition LLM response into individual definition strings.
+
+    Splits on the delimiter constant. Strips whitespace from each chunk
+    and discards empty segments.
+    """
+    chunks = [c.strip() for c in content.split(LLM_DELIMITER)]
+    return [c for c in chunks if c]
+
+
 def clean_llm_content(content: str, config: Dict[str, Any]) -> str:
     """
     Remove thinking tags and perform basic cleanup based on configuration.
@@ -146,12 +164,30 @@ class LLMWorker(QRunnable):
                 "llm_base_url", "https://api.openai.com/v1/chat/completions"
             ).strip()
             model = self.config.get("llm_model", "gpt-3.5-turbo")
-            prompt_template = self.config.get(
-                "llm_prompt",
-                "Provide a concise dictionary definition for the word: {term}",
-            )
 
-            prompt = prompt_template.replace("{term}", self.term)
+            # --- Build prompt(s) ---
+            prompts = self.config.get("llm_prompts", [])
+            if not prompts:
+                single = self.config.get(
+                    "llm_prompt",
+                    "Provide a concise dictionary definition for the word: {term}",
+                )
+                prompts = [single]
+
+            # Replace {term} in every prompt
+            prompts = [p.replace("{term}", self.term) for p in prompts]
+
+            if len(prompts) == 1:
+                prompt = prompts[0]
+            else:
+                # Multiple prompts → join with delimiter and inject instruction
+                prompt = (
+                    LLM_DELIMITER_INSTRUCTION
+                    + "\n\n"
+                    + LLM_DELIMITER.join(
+                        f"Request {i + 1}: {p}" for i, p in enumerate(prompts)
+                    )
+                )
 
             headers = {"Content-Type": "application/json"}
             if api_key:

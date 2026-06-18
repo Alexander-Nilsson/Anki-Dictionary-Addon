@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from aqt.qt import (
     QCheckBox,
@@ -20,6 +20,29 @@ from aqt.utils import showInfo
 from ...utils.common import miInfo
 
 
+class _PromptRow(QWidget):
+    """A single prompt row: QTextEdit + Remove button."""
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.text_edit = QTextEdit()
+        self.text_edit.setAcceptRichText(False)
+        self.text_edit.setFixedHeight(80)
+        self.text_edit.setPlainText(text)
+
+        self.remove_btn = QPushButton("\u2715")
+        self.remove_btn.setFixedSize(30, 30)
+        self.remove_btn.setToolTip("Remove this prompt")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 2, 0, 2)
+        layout.addWidget(self.text_edit, 1)
+        layout.addWidget(self.remove_btn, 0)
+
+
+DEFAULT_SINGLE_PROMPT = "Provide a concise dictionary definition for the word: {term}"
+
+
 class LLMSettingsTab(QWidget):
     def __init__(self, mw: Any, addon_path: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -31,9 +54,6 @@ class LLMSettingsTab(QWidget):
         self.llmApiKey.setEchoMode(QLineEdit.EchoMode.Password)
         self.llmBaseUrl = QLineEdit()
         self.llmModel = QLineEdit()
-        self.llmPrompt = QTextEdit()
-        self.llmPrompt.setAcceptRichText(False)
-        self.llmPrompt.setFixedHeight(100)
         self.llmTemperature = QDoubleSpinBox()
         self.llmTemperature.setRange(0.0, 2.0)
         self.llmTemperature.setSingleStep(0.1)
@@ -48,7 +68,44 @@ class LLMSettingsTab(QWidget):
         self.llmStatusLabel.setWordWrap(True)
         self.llmStatusLabel.setStyleSheet("font-weight: bold;")
 
+        # Dynamic prompt rows
+        self._prompt_rows: List[_PromptRow] = []
+        self._prompts_container = QVBoxLayout()
+        self._prompts_label = QLabel("Prompt Templates:")
+        self._prompts_hint = QLabel(
+            "Each prompt becomes a separate request. Responses are joined as independent definitions."
+            " Use {term} as a placeholder for the word being searched."
+        )
+        self._prompts_hint.setStyleSheet("font-size: 10px; color: gray;")
+        self._prompts_hint.setWordWrap(True)
+        self._add_prompt_btn = QPushButton("+ Add Prompt")
+        self._add_prompt_btn.clicked.connect(self._add_prompt_row)
+
         self._build_ui()
+
+    # --- Prompt rows management ---
+
+    def _add_prompt_row(self, text: str = "") -> _PromptRow:
+        row = _PromptRow(text)
+        row.remove_btn.clicked.connect(lambda: self._remove_prompt_row(row))
+        self._prompt_rows.append(row)
+        self._prompts_container.addWidget(row)
+        return row
+
+    def _remove_prompt_row(self, row: _PromptRow) -> None:
+        if len(self._prompt_rows) <= 1:
+            return  # Keep at least one prompt
+        self._prompt_rows.remove(row)
+        self._prompts_container.removeWidget(row)
+        row.deleteLater()
+
+    def _clear_prompt_rows(self) -> None:
+        for row in list(self._prompt_rows):
+            self._prompts_container.removeWidget(row)
+            row.deleteLater()
+        self._prompt_rows.clear()
+
+    # --- UI building ---
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -78,15 +135,20 @@ class LLMSettingsTab(QWidget):
         formLayout.addRow("Keep Alive:", self.llmKeepAlive)
         formLayout.addRow("Enable Thinking", self.llmThink)
         formLayout.addRow("Enable Streaming:", self.llmStream)
-        formLayout.addRow("Prompt Template:", self.llmPrompt)
-
-        promptHint = QLabel("Use {term} as a placeholder for the word being searched.")
-        promptHint.setStyleSheet("font-size: 10px; color: gray;")
-        formLayout.addRow("", promptHint)
 
         formGroup.setLayout(formLayout)
         layout.addWidget(formGroup)
 
+        # --- Prompt templates section ---
+        layout.addWidget(self._prompts_label)
+        layout.addWidget(self._prompts_hint)
+
+        # Start with one empty prompt row (populated in load_config)
+        self._add_prompt_row()
+        layout.addLayout(self._prompts_container)
+        layout.addWidget(self._add_prompt_btn)
+
+        # --- Test button ---
         buttonLayout = QHBoxLayout()
         buttonLayout.addWidget(self.testLLMButton)
         buttonLayout.addWidget(self.llmStatusLabel)
@@ -95,6 +157,8 @@ class LLMSettingsTab(QWidget):
 
         layout.addStretch()
 
+    # --- Load / Save ---
+
     def load_config(self, config: Dict[str, Any]) -> None:
         self.llmEnabled.setChecked(config.get("llm_enabled", False))
         self.llmApiKey.setText(config.get("llm_api_key", ""))
@@ -102,27 +166,41 @@ class LLMSettingsTab(QWidget):
             config.get("llm_base_url", "https://api.openai.com/v1/chat/completions")
         )
         self.llmModel.setText(config.get("llm_model", "gpt-3.5-turbo"))
-        self.llmPrompt.setPlainText(
-            config.get(
-                "llm_prompt",
-                "Provide a concise dictionary definition for the word: {term}",
-            )
-        )
         self.llmTemperature.setValue(config.get("llm_temperature", 0.3))
         self.llmKeepAlive.setText(config.get("llm_keep_alive", "30m"))
         self.llmThink.setChecked(config.get("llm_think", False))
         self.llmStream.setChecked(config.get("llm_stream", False))
+
+        # Load prompts: prefer llm_prompts (list), fall back to llm_prompt (string)
+        prompts = config.get("llm_prompts")
+        if not prompts:
+            single = config.get("llm_prompt", DEFAULT_SINGLE_PROMPT)
+            prompts = [single]
+
+        self._clear_prompt_rows()
+        if not prompts:
+            self._add_prompt_row()
+        else:
+            for text in prompts:
+                self._add_prompt_row(text)
 
     def save_config(self, config: Dict[str, Any]) -> None:
         config["llm_enabled"] = self.llmEnabled.isChecked()
         config["llm_api_key"] = self.llmApiKey.text()
         config["llm_base_url"] = self.llmBaseUrl.text()
         config["llm_model"] = self.llmModel.text()
-        config["llm_prompt"] = self.llmPrompt.toPlainText()
         config["llm_temperature"] = self.llmTemperature.value()
         config["llm_keep_alive"] = self.llmKeepAlive.text()
         config["llm_think"] = self.llmThink.isChecked()
         config["llm_stream"] = self.llmStream.isChecked()
+
+        # Save all prompts as array
+        prompts = [row.text_edit.toPlainText() for row in self._prompt_rows]
+        config["llm_prompts"] = prompts
+        # Keep llm_prompt synced for backwards compatibility
+        config["llm_prompt"] = prompts[0] if prompts else DEFAULT_SINGLE_PROMPT
+
+    # --- Tooltips ---
 
     def init_tooltips(self) -> None:
         self.llmTemperature.setToolTip(
@@ -137,6 +215,8 @@ class LLMSettingsTab(QWidget):
         self.llmStream.setToolTip(
             "Enable streaming response. Note: The addon currently waits for the full response before displaying, but this can affect API behavior."
         )
+
+    # --- Test ---
 
     def test_llm(self) -> None:
         self.testLLMButton.setEnabled(False)

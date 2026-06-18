@@ -15,6 +15,7 @@ from ..utils.logger import get_logger
 from ..web.icons import get_base64_icon
 from ..integrations import image_search as duckduckgoimages
 from ..integrations import llm as llm_integration
+from ..integrations.llm import split_llm_definitions
 from ..integrations import forvo as forvo_integration
 
 logger = get_logger(__name__.split(".")[-1])
@@ -734,17 +735,64 @@ class SearchPipeline:
         worker.signals.error_occurred.connect(self.showLLMError)
         self.midict.threadpool.start(worker)
 
-    def loadLLMResults(self, result):
-        dictName = result.get("dictName", "LLM")
-        idName = result.get("idName") or "llm-loader"
-        selected_group = self.midict.dictInt.getSelectedDictGroup()
-        font = self.getFontFamily(selected_group)
+    def _process_llm_definition(self, definition: str, term: str) -> str:
+        """Apply formatting and cleanup to a single LLM definition string."""
+        definition = re.sub(r"(\*\*|__|\u2605\u2605)(.*?)\1", r"<b>\2</b>", definition)
+        definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
+        definition = definition.replace("\u2605", "<b>\u2605</b>")
+        definition = re.sub(r"^\s*[-*+]\s+", "\u2022 ", definition, flags=re.MULTILINE)
 
-        imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
+        term_lower = term.lower()
+        lines = definition.split("\n")
+        if len(lines) > 1:
+            first_line = (
+                lines[0]
+                .strip()
+                .lower()
+                .replace("<b>", "")
+                .replace("</b>", "")
+                .replace("**", "")
+                .replace("#", "")
+                .strip()
+            )
+            if first_line == term_lower:
+                definition = "\n".join(lines[1:]).strip()
+            lines = definition.split("\n")
+            if len(lines) > 1:
+                last_line = (
+                    lines[-1]
+                    .strip()
+                    .lower()
+                    .replace("<b>", "")
+                    .replace("</b>", "")
+                    .replace("**", "")
+                    .replace("#", "")
+                    .strip()
+                )
+                if last_line == term_lower:
+                    definition = "\n".join(lines[:-1]).strip()
 
-        frontBracket = self.midict.config["frontBracket"]
-        backBracket = self.midict.config["backBracket"]
+        term_escaped = re.escape(term)
+        repeat_pattern = (
+            r"^\s*[\(\uff08\[[\uff3b][^\uff09\)]*?"
+            + term_escaped
+            + r"[^\uff09\)]*?[\)\uff09\]\uff3b]\s*"
+        )
+        definition = re.sub(repeat_pattern, "", definition).strip()
+        return definition
 
+    def _render_llm_entry(
+        self,
+        result: Dict[str, Any],
+        font: str,
+        imgTooltip: str,
+        clipTooltip: str,
+        sendTooltip: str,
+        dictName: str,
+        frontBracket: str,
+        backBracket: str,
+    ) -> str:
+        """Render a single LLM entry (term header + definition block) as HTML."""
         html = (
             '<div class="termPronunciation"><span '
             + font
@@ -782,63 +830,59 @@ class SearchPipeline:
             + dictName
             + '\')" class="sendToField">\u279e</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">\u25b2</div><div onclick="navigateDef(event, true)" class="nextDef">\u25bc</div></div></div></div>'
         )
+        return html
 
-        definition = result["definition"]
-
-        definition = re.sub(r"(\*\*|__|\u2605\u2605)(.*?)\1", r"<b>\2</b>", definition)
-        definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
-        definition = definition.replace("\u2605", "<b>\u2605</b>")
-        definition = re.sub(r"^\s*[-*+]\s+", "\u2022 ", definition, flags=re.MULTILINE)
-
-        term = result["term"].lower()
-        lines = definition.split("\n")
-        if len(lines) > 1:
-            first_line = (
-                lines[0]
-                .strip()
-                .lower()
-                .replace("<b>", "")
-                .replace("</b>", "")
-                .replace("**", "")
-                .replace("#", "")
-                .strip()
-            )
-            if first_line == term:
-                definition = "\n".join(lines[1:]).strip()
-            lines = definition.split("\n")
-            if len(lines) > 1:
-                last_line = (
-                    lines[-1]
-                    .strip()
-                    .lower()
-                    .replace("<b>", "")
-                    .replace("</b>", "")
-                    .replace("**", "")
-                    .replace("#", "")
-                    .strip()
-                )
-                if last_line == term:
-                    definition = "\n".join(lines[:-1]).strip()
-
-        term_escaped = re.escape(result["term"])
-        repeat_pattern = (
-            r"^\s*[\(\uff08\[[\uff3b][^\uff09\)]*?"
-            + term_escaped
-            + r"[^\uff09\)]*?[\)\uff09\]\uff3b]\s*"
-        )
-        definition = re.sub(repeat_pattern, "", definition).strip()
-
-        html += (
+    def _render_llm_definition_block(
+        self, definition: str, font: str, term: str
+    ) -> str:
+        """Render a processed definition block as HTML."""
+        return (
             "<div"
             + font
             + ' class="definitionBlock">'
             + self.highlightTarget(
                 self.processDefinitionHTML(definition),
-                result["term"],
+                term,
             )
             + "</div>"
         )
-        escaped_html = json.dumps(html)
+
+    def loadLLMResults(self, result):
+        dictName = result.get("dictName", "LLM")
+        idName = result.get("idName") or "llm-loader"
+        selected_group = self.midict.dictInt.getSelectedDictGroup()
+        font = self.getFontFamily(selected_group)
+
+        imgTooltip, clipTooltip, sendTooltip = self.getTooltips()
+
+        frontBracket = self.midict.config["frontBracket"]
+        backBracket = self.midict.config["backBracket"]
+
+        # Split the raw response into individual definitions
+        definitions = split_llm_definitions(result["definition"])
+        if not definitions:
+            definitions = [result["definition"]]
+
+        html_entries = ""
+        for def_text in definitions:
+            processed = self._process_llm_definition(def_text, result["term"])
+            html_entries += self._render_llm_entry(
+                result,
+                font,
+                imgTooltip,
+                clipTooltip,
+                sendTooltip,
+                dictName,
+                frontBracket,
+                backBracket,
+            )
+            html_entries += self._render_llm_definition_block(
+                processed,
+                font,
+                result["term"],
+            )
+
+        escaped_html = json.dumps(html_entries)
         self.midict.eval(
             f"console.log('LLM: Starting injection for ID: {idName}'); "
             f"var loader = document.getElementById('{idName}'); "
@@ -869,7 +913,14 @@ class SearchPipeline:
             f"}}"
         )
 
-    def formatSingleEntry(self, result, dictName, font, frontBracket, backBracket):
+    def formatSingleEntry(
+        self,
+        result: Dict[str, Any],
+        dictName: str,
+        font: str,
+        frontBracket: str,
+        backBracket: str,
+    ) -> str:
         dictCount = 999
         overwrite = self.getOverwriteChecks(dictCount, dictName)
         select = self.getFieldChecks(dictName)
@@ -925,61 +976,9 @@ class SearchPipeline:
             + '\')" class="sendToField">\u279e</div><div class="defNav"><div onclick="navigateDef(event, false)" class="prevDef">\u25b2</div><div onclick="navigateDef(event, true)" class="nextDef">\u25bc</div></div></div></div>'
         )
 
-        definition = result["definition"]
+        definition = self._process_llm_definition(result["definition"], result["term"])
 
-        definition = re.sub(r"(\*\*|__|\u2605\u2605)(.*?)\1", r"<b>\2</b>", definition)
-        definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
-        definition = definition.replace("\u2605", "<b>\u2605</b>")
-        definition = re.sub(r"^\s*[-*+]\s+", "\u2022 ", definition, flags=re.MULTILINE)
-
-        term = result["term"].lower()
-        lines = definition.split("\n")
-        if len(lines) > 1:
-            first_line = (
-                lines[0]
-                .strip()
-                .lower()
-                .replace("<b>", "")
-                .replace("</b>", "")
-                .replace("**", "")
-                .replace("#", "")
-                .strip()
-            )
-            if first_line == term:
-                definition = "\n".join(lines[1:]).strip()
-            lines = definition.split("\n")
-            if len(lines) > 1:
-                last_line = (
-                    lines[-1]
-                    .strip()
-                    .lower()
-                    .replace("<b>", "")
-                    .replace("</b>", "")
-                    .replace("**", "")
-                    .replace("#", "")
-                    .strip()
-                )
-                if last_line == term:
-                    definition = "\n".join(lines[:-1]).strip()
-
-        term_escaped = re.escape(result["term"])
-        repeat_pattern = (
-            r"^\s*[\(\uff08\[[\uff3b][^\uff09\)]*?"
-            + term_escaped
-            + r"[^\uff09\)]*?[\)\uff09\]\uff3b]\s*"
-        )
-        definition = re.sub(repeat_pattern, "", definition).strip()
-
-        html += (
-            "<div"
-            + font
-            + ' class="definitionBlock">'
-            + self.highlightTarget(
-                self.processDefinitionHTML(definition),
-                result["term"],
-            )
-            + "</div>"
-        )
+        html += self._render_llm_definition_block(definition, font, result["term"])
         return html
 
     def showLLMError(self, result):
