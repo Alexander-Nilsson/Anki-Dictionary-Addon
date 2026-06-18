@@ -99,6 +99,7 @@
   "llm_keep_alive": "30m",
   "llm_think": false,
   "llm_stream": false,
+  "imageAutoConvert": true,
   "forvo_enabled": true,
   "forvo_language": "ja",
   "hsk_mode": "hsk3"

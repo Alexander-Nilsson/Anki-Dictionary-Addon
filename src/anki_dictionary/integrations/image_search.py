@@ -36,6 +36,37 @@ os.makedirs(temp_dir, exist_ok=True)
 # Detect if the OS is macOS
 _ON_MAC = platform.system() == "Darwin"
 
+_EXT_TO_MIME = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "avif": "image/avif",
+    "bmp": "image/bmp",
+    "svg": "image/svg+xml",
+}
+
+_EXT_TO_SAVE = {
+    "jpg": "jpeg",
+    "jpeg": "jpeg",
+    "png": "png",
+    "gif": "gif",
+    "webp": "webp",
+    "avif": "avif",
+    "bmp": "bmp",
+}
+
+
+def _guess_extension(url: str) -> str:
+    """Extract image extension from URL, defaulting to 'jpg'."""
+    path = urllib.parse.urlparse(url).path
+    ext = os.path.splitext(path)[1].lower().lstrip(".")
+    if ext in _EXT_TO_MIME:
+        return ext
+    # Try to get from query params or just default
+    return "jpg"
+
 
 def log_debug(message):
     logger.debug(message)
@@ -122,6 +153,7 @@ class DuckDuckGo(QRunnable):
         self.language = "us-en"
         self.search_offset = 0
         self.session = None
+        self.auto_convert = True
 
     def setTermIdName(self, term, idName):
         self.term = term
@@ -207,19 +239,32 @@ class DuckDuckGo(QRunnable):
         if not content:
             return ""
 
-        image = QImage()
-        if not image.loadFromData(content):
-            return ""
+        img_hash = hashlib.md5(url.encode()).hexdigest()
 
-        image = image.scaled(
-            QSize(200, 200),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        filename = f"dict_img_{hashlib.md5(url.encode()).hexdigest()}.avif"
-        filepath = join(temp_dir, filename)
+        if self.auto_convert:
+            image = QImage()
+            if not image.loadFromData(content):
+                return ""
 
-        return filename if image.save(filepath, "AVIF") else ""
+            image = image.scaled(
+                QSize(200, 200),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            filename = f"dict_img_{img_hash}.avif"
+            filepath = join(temp_dir, filename)
+
+            return filename if image.save(filepath, "AVIF") else ""
+        else:
+            ext = _guess_extension(url)
+            filename = f"dict_img_{img_hash}.{ext}"
+            filepath = join(temp_dir, filename)
+            try:
+                with open(filepath, "wb") as f:
+                    f.write(content)
+                return filename
+            except Exception:
+                return ""
 
     def download_and_process_image_sync(
         self, url: str, dl_session: requests.Session
@@ -261,15 +306,19 @@ class DuckDuckGo(QRunnable):
                     results.append(filename)
             return results
 
+    @staticmethod
+    def _mime_for(filename: str) -> str:
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "avif"
+        return _EXT_TO_MIME.get(ext, "image/avif")
+
     def _image_to_html(self, filename: str) -> str:
         import base64
 
         image_path = join(temp_dir, filename)
+        mime = self._mime_for(filename)
         try:
             with open(image_path, "rb") as f:
-                data_url = (
-                    f"data:image/avif;base64,{base64.b64encode(f.read()).decode()}"
-                )
+                data_url = f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
             return (
                 f'<div class="imgBox">'
                 f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'

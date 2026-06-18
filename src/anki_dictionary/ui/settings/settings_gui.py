@@ -87,6 +87,7 @@ class SettingsGui(QWidget):
         self.backBracket = QLineEdit()
         self.highlightTarget = QCheckBox()
         self.genJSExport = QCheckBox()
+        self.imageAutoConvert = QCheckBox()
 
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
@@ -166,6 +167,10 @@ class SettingsGui(QWidget):
         self.dictDefs.setToolTip(
             "This is the maximum number of definitions which the dictionary will output for any given dictionary."
         )
+        self.imageAutoConvert.setToolTip(
+            "When enabled, images are resized and converted to AVIF format (may cause a small delay). "
+            "Disable to use original images without processing."
+        )
         self.genJSExport.setToolTip(
             "If this is enabled and you have Anki Japanese With Pitch Accent installed in Anki,\nthen when a card is exported, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your Anki Japanese With Pitch Accent Sentence Button (文) settings."
         )
@@ -200,6 +205,7 @@ class SettingsGui(QWidget):
         self.tooltipCB.setChecked(config.get("tooltips", True))
         self.dictOnTop.setChecked(config.get("dictAlwaysOnTop", False))
         self.genJSExport.setChecked(config.get("jReadingCards", False))
+        self.imageAutoConvert.setChecked(config.get("imageAutoConvert", True))
 
         self.llmTab.load_config(config)
         self.forvoTab.load_config(config)
@@ -219,6 +225,7 @@ class SettingsGui(QWidget):
         nc["tooltips"] = self.tooltipCB.isChecked()
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
         nc["jReadingCards"] = self.genJSExport.isChecked()
+        nc["imageAutoConvert"] = self.imageAutoConvert.isChecked()
 
         self.llmTab.save_config(nc)
         self.forvoTab.save_config(nc)
@@ -349,6 +356,9 @@ class SettingsGui(QWidget):
         mediaForm = QFormLayout()
         mediaForm.addRow("Max Image Width:", self.maxImgWidth)
         mediaForm.addRow("Max Image Height:", self.maxImgHeight)
+
+        self.imageAutoConvert.setText("Auto-convert images (resize + AVIF)")
+        mediaForm.addRow(self.imageAutoConvert)
 
         self.genJSExport.setText("Generate Japanese Readings (Export)")
         mediaForm.addRow(self.genJSExport)

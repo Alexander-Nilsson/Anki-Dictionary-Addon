@@ -28,21 +28,35 @@ class CardCreationHandler:
     def __init__(self, midict):
         self.midict = midict
 
+    @staticmethod
+    def _img_ext_from_url(url: str) -> str:
+        if url.startswith("data:"):
+            return "avif"
+        cleaned = re.sub(r"\?.*$", "", url)
+        _, ext = os.path.splitext(cleaned.strip().split("/")[-1])
+        ext = ext.lower().lstrip(".")
+        return (
+            ext
+            if ext in {"jpg", "jpeg", "png", "gif", "webp", "avif", "bmp"}
+            else "avif"
+        )
+
     def addImgsToExportWindow(self, word: str, urls: List[str]) -> None:
         self.initCardExporterIfNeeded()
         imgSeparator = ""
         imgs: List[str] = []
         rawPaths: List[str] = []
+        auto_convert = self.midict.config.get("imageAutoConvert", True)
         for imgurl in urls:
             try:
+                ext = self._img_ext_from_url(imgurl) if not auto_convert else "avif"
                 if imgurl.startswith("data:"):
-                    filename = str(time.time())[:-4].replace(".", "") + "base64.avif"
+                    filename = str(time.time())[:-4].replace(".", "") + "base64." + ext
                 else:
                     url = re.sub(r"\?.*$", "", imgurl)
+                    base_name = re.sub(r"\..*$", "", url.strip().split("/")[-1])
                     filename = (
-                        str(time.time())[:-4].replace(".", "")
-                        + re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                        + ".avif"
+                        str(time.time())[:-4].replace(".", "") + base_name + "." + ext
                     )
                 fullpath = join(self.midict.dictInt.mw.col.media.dir(), filename)
                 self.saveQImage(imgurl, fullpath)
@@ -72,18 +86,24 @@ class CardCreationHandler:
             )
             file = urlopen(req, timeout=30).read()
 
-        image = QImage()
-        image.loadFromData(file)
-        if not image.isNull():
-            image = image.scaled(
-                QSize(self.midict.maxW, self.midict.maxH),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            if filename.lower().endswith(".avif"):
-                image.save(filename, "AVIF")
-            else:
-                image.save(filename)
+        auto_convert = self.midict.config.get("imageAutoConvert", True)
+
+        if auto_convert:
+            image = QImage()
+            image.loadFromData(file)
+            if not image.isNull():
+                image = image.scaled(
+                    QSize(self.midict.maxW, self.midict.maxH),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                if filename.lower().endswith(".avif"):
+                    image.save(filename, "AVIF")
+                else:
+                    image.save(filename)
+        else:
+            with open(filename, "wb") as f:
+                f.write(file)
 
     def copyImagesToClipboard(self, urls_json: str) -> None:
         try:
@@ -245,6 +265,7 @@ class CardCreationHandler:
             urlsList: List[str] = []
             imgSeparator = ""
             urls_list = json.loads(urls)
+            auto_convert = self.midict.config.get("imageAutoConvert", True)
 
             for imgurl in urls_list:
                 try:
@@ -260,16 +281,23 @@ class CardCreationHandler:
                         urlsList.append(f'<img src="{filename}">')
 
                     else:
+                        ext = (
+                            self._img_ext_from_url(imgurl)
+                            if not auto_convert
+                            else "avif"
+                        )
                         if imgurl.startswith("data:"):
                             filename = (
-                                str(time.time())[:-4].replace(".", "") + "base64.avif"
+                                str(time.time())[:-4].replace(".", "") + "base64." + ext
                             )
                         else:
                             url = re.sub(r"\?.*$", "", imgurl)
+                            base_name = re.sub(r"\..*$", "", url.strip().split("/")[-1])
                             filename = (
                                 str(time.time())[:-4].replace(".", "")
-                                + re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                                + ".avif"
+                                + base_name
+                                + "."
+                                + ext
                             )
 
                         self.saveQImage(

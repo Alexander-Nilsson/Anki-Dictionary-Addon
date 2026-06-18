@@ -713,6 +713,7 @@ class SearchPipeline:
         imager = duckduckgoimages.DuckDuckGo()
         imager.setTermIdName(term, idName)
         imager.search_offset = self.midict.image_offsets[term]
+        imager.auto_convert = self.midict.config.get("imageAutoConvert", True)
         imager.setSearchRegion(
             self.midict.config.get("imageSearchRegion", "United States")
         )
@@ -1154,6 +1155,7 @@ class SearchPipeline:
         imager = duckduckgoimages.DuckDuckGo()
         imager.setTermIdName(search_term, "load_more")
         imager.search_offset = self.midict.image_offsets[search_term]
+        imager.auto_convert = self.midict.config.get("imageAutoConvert", True)
         imager.setSearchRegion(
             self.midict.config.get("imageSearchRegion", "United States")
         )

@@ -96,6 +96,7 @@ def get_addon_config() -> Dict[str, Any]:
         "dictAlwaysOnTop": False,
         "day": True,
         "theme": "light",
+        "imageAutoConvert": True,
         "forvo_enabled": True,
         "forvo_language": "ja",
         "forvo_limit": 3,
