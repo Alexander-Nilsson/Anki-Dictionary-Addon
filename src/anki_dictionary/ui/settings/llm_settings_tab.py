@@ -79,13 +79,15 @@ class LLMSettingsTab(QWidget):
         self._prompts_hint.setStyleSheet("font-size: 10px; color: gray;")
         self._prompts_hint.setWordWrap(True)
         self._add_prompt_btn = QPushButton("+ Add Prompt")
-        self._add_prompt_btn.clicked.connect(self._add_prompt_row)
+        self._add_prompt_btn.clicked.connect(lambda: self._add_prompt_row())
 
         self._build_ui()
 
     # --- Prompt rows management ---
 
     def _add_prompt_row(self, text: str = "") -> _PromptRow:
+        if not isinstance(text, str):
+            text = str(text) if text else ""
         row = _PromptRow(text)
         row.remove_btn.clicked.connect(lambda: self._remove_prompt_row(row))
         self._prompt_rows.append(row)
