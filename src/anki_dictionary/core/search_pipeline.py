@@ -167,7 +167,7 @@ class SearchPipeline:
 
         if self.midict.config.get("llm_enabled", False) and "LLM" in group_dicts:
             star_count = ""
-            hsk_level = ""
+            level_labels = ""
             for d_name, d_results in results.items():
                 if not isinstance(d_results, list):
                     continue
@@ -182,11 +182,11 @@ class SearchPipeline:
                         elif not star_count:
                             star_count = s
 
-                    hsk = entry.get("hskLevel", "")
-                    if hsk and len(hsk) > len(hsk_level):
-                        hsk_level = hsk
+                    ll = entry.get("levelLabels", "")
+                    if ll and len(ll) > len(level_labels):
+                        level_labels = ll
 
-            if not star_count and not hsk_level:
+            if not star_count and not level_labels:
                 for d in selectedGroup["dictionaries"]:
                     lang = d.get("lang")
                     if lang:
@@ -195,12 +195,12 @@ class SearchPipeline:
                         )
                         if freq_info.get("starCount"):
                             star_count = freq_info["starCount"]
-                        if freq_info.get("hskLevel"):
-                            hsk_level = freq_info["hskLevel"]
-                        if star_count or hsk_level:
+                        if freq_info.get("levelLabels"):
+                            level_labels = freq_info["levelLabels"]
+                        if star_count or level_labels:
                             break
 
-            self.triggerLLMSearch(cleaned, star_count, hsk_level, idName)
+            self.triggerLLMSearch(cleaned, star_count, level_labels, idName)
 
         forvoId = ""
         if self.midict.config.get("forvo_enabled", False) and "Forvo" in group_dicts:
@@ -623,8 +623,8 @@ class SearchPipeline:
                                 else ""
                             )
                             + (
-                                f' <span class="starcount hsk-level">{entry["hskLevel"]}</span>'
-                                if entry.get("hskLevel")
+                                f' <span class="starcount level-label">{entry["levelLabels"]}</span>'
+                                if entry.get("levelLabels")
                                 else ""
                             )
                             + '</span><div class="defTools"><div onclick="ankiExport(event, \''
@@ -728,9 +728,9 @@ class SearchPipeline:
 
         tooltip("No images found")
 
-    def triggerLLMSearch(self, term, star_count="", hsk_level="", idName=""):
+    def triggerLLMSearch(self, term, star_count="", level_labels="", idName=""):
         worker = llm_integration.LLMWorker(
-            term, self.midict.config, star_count, hsk_level, idName
+            term, self.midict.config, star_count, level_labels, idName
         )
         worker.signals.result_ready.connect(self.loadLLMResults)
         worker.signals.error_occurred.connect(self.showLLMError)
@@ -813,8 +813,8 @@ class SearchPipeline:
             + str(result.get("starCount", ""))
             + "</span>"
             + (
-                f' <span class="starcount hsk-level">{result["hskLevel"]}</span>'
-                if result.get("hskLevel")
+                f' <span class="starcount level-label">{result["levelLabels"]}</span>'
+                if result.get("levelLabels")
                 else ""
             )
             + '</span><div class="defTools"><div onclick="ankiExport(event, \''
@@ -958,8 +958,8 @@ class SearchPipeline:
             + str(result.get("starCount", ""))
             + "</span>"
             + (
-                f' <span class="starcount hsk-level">{result["hskLevel"]}</span>'
-                if result.get("hskLevel")
+                f' <span class="starcount level-label">{result["levelLabels"]}</span>'
+                if result.get("levelLabels")
                 else ""
             )
             + '</span><div class="defTools"><div onclick="ankiExport(event, \''

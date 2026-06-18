@@ -143,18 +143,17 @@ class LLMWorker(QRunnable):
         term: str,
         config: Dict[str, Any],
         star_count: str = "",
-        hsk_level: str = "",
+        level_labels: str = "",
         idName: str = "",
     ):
         super().__init__()
         self.term = term
         self.config = config
         self.star_count = star_count
-        self.hsk_level = hsk_level
+        self.level_labels = level_labels
         self.idName = idName  # Track the UI tab ID
-        self.signals = LLMWorkerSignals()
-        # Allow custom timeout via config, default to 15 seconds
         self.timeout = config.get("llm_timeout", 15)
+        self.signals = LLMWorkerSignals()
 
     def run(self):
         """Execute the API call."""
@@ -230,7 +229,7 @@ class LLMWorker(QRunnable):
                 "pronunciation": "",
                 "altterm": "",
                 "starCount": self.star_count,
-                "hskLevel": self.hsk_level,
+                "levelLabels": self.level_labels,
                 "dictName": "LLM",
                 "idName": self.idName,  # Send the ID back to the frontend
             }

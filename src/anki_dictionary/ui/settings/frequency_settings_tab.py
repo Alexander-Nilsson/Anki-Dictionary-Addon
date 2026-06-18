@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import os
 from typing import Any, Dict, List
 
 from aqt.qt import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -15,6 +13,8 @@ from aqt.qt import (
     QVBoxLayout,
     QWidget,
 )
+
+from ...core.word_list_registry import WordListProvider
 
 
 class FrequencySettingsTab(QWidget):
@@ -37,41 +37,25 @@ class FrequencySettingsTab(QWidget):
         self.freqThreshold5.setRange(1, 1000000)
         self.showStars = QCheckBox("Display Stars")
         self.showRank = QCheckBox("Display Frequency Rank")
-        self.showHSK = QCheckBox("Display Level Labels (HSK, JLPT, etc.)")
-        self.hskMode = QComboBox()
-        self.hskMode.addItem("HSK 3.0", "hsk3")
-        self.hskMode.addItem("HSK 2.0", "hsk2")
-        self.hskMode.addItem("Both (HSK 2.0 & 3.0)", "both")
+
+        self._list_checkboxes: Dict[str, QCheckBox] = {}
 
         self._build_ui()
-        self._update_hsk_visibility()
 
-    def _has_chinese_language(self) -> bool:
+    def _discover_providers(self) -> Dict[str, WordListProvider]:
+        providers: Dict[str, WordListProvider] = {}
         try:
             langs = self.mw.miDictDB.getCurrentDbLangs()
+            registry = self.mw.miDictDB._registry
+            if registry is None:
+                return providers
             for lang in langs:
-                if any(x in lang.lower() for x in ["zh", "chinese", "cn"]):
-                    return True
+                for p in registry.get_providers(lang):
+                    key = f"{lang}::{p.name}"
+                    providers[key] = p
         except Exception:
             pass
-        return False
-
-    def _has_hsk_data(self) -> bool:
-        from ...utils.paths import get_hsk_dir
-
-        hsk_dir = get_hsk_dir()
-        if not os.path.exists(hsk_dir):
-            return False
-        for f in os.listdir(hsk_dir):
-            if f.endswith(".json") and "hsk" in f.lower():
-                return True
-        return False
-
-    def _update_hsk_visibility(self) -> None:
-        visible = self._has_chinese_language() and self._has_hsk_data()
-        self.showHSK.setVisible(visible)
-        if hasattr(self, "_hsk_group") and self._hsk_group is not None:
-            self._hsk_group.setVisible(visible)
+        return providers
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -87,7 +71,15 @@ class FrequencySettingsTab(QWidget):
         visLayout = QVBoxLayout()
         visLayout.addWidget(self.showStars)
         visLayout.addWidget(self.showRank)
-        visLayout.addWidget(self.showHSK)
+
+        # Dynamic word list checkboxes
+        for key, provider in sorted(self._discover_providers().items()):
+            label = f"{provider.lang}: {provider.name}"
+            cb = QCheckBox(label)
+            cb.setChecked(True)
+            self._list_checkboxes[key] = cb
+            visLayout.addWidget(cb)
+
         visGroup.setLayout(visLayout)
         layout.addWidget(visGroup)
 
@@ -110,21 +102,10 @@ class FrequencySettingsTab(QWidget):
         starGroup.setLayout(starLayout)
         layout.addWidget(starGroup)
 
-        self._hsk_group = QGroupBox("Chinese HSK Configuration")
-        hskLayout = QFormLayout()
-        hskLayout.addRow("HSK Version Preference:", self.hskMode)
-        hskHint = QLabel(
-            "For Chinese, choose HSK 3.0 (9 levels), HSK 2.0 (6 levels), or show both simultaneously."
-        )
-        hskHint.setStyleSheet("font-size: 10px; color: gray;")
-        hskLayout.addRow("", hskHint)
-        self._hsk_group.setLayout(hskLayout)
-        layout.addWidget(self._hsk_group)
-
         layout.addStretch()
 
     def load_config(self, config: Dict[str, Any]) -> None:
-        self.freqStarChar.setText(config.get("star_char", "★"))
+        self.freqStarChar.setText(config.get("star_char", "\u2605"))
         thresholds: List[int] = config.get(
             "star_thresholds", [1501, 5001, 15001, 30001, 60001]
         )
@@ -136,12 +117,14 @@ class FrequencySettingsTab(QWidget):
 
         self.showStars.setChecked(config.get("show_stars", True))
         self.showRank.setChecked(config.get("show_rank", False))
-        self.showHSK.setChecked(config.get("show_hsk", True))
 
-        hsk_mode = config.get("hsk_mode", "hsk3")
-        index = self.hskMode.findData(hsk_mode)
-        if index != -1:
-            self.hskMode.setCurrentIndex(index)
+        word_list_visibility: Dict[str, Dict[str, bool]] = config.get(
+            "word_list_visibility", {}
+        )
+        for key, cb in self._list_checkboxes.items():
+            lang, name = key.split("::", 1)
+            visible = word_list_visibility.get(lang, {}).get(name, True)
+            cb.setChecked(visible)
 
     def save_config(self, config: Dict[str, Any]) -> None:
         config["star_char"] = self.freqStarChar.text()
@@ -154,5 +137,11 @@ class FrequencySettingsTab(QWidget):
         ]
         config["show_stars"] = self.showStars.isChecked()
         config["show_rank"] = self.showRank.isChecked()
-        config["show_hsk"] = self.showHSK.isChecked()
-        config["hsk_mode"] = self.hskMode.currentData()
+
+        word_list_visibility: Dict[str, Dict[str, bool]] = {}
+        for key, cb in self._list_checkboxes.items():
+            lang, name = key.split("::", 1)
+            if lang not in word_list_visibility:
+                word_list_visibility[lang] = {}
+            word_list_visibility[lang][name] = cb.isChecked()
+        config["word_list_visibility"] = word_list_visibility

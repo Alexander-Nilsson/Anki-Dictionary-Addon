@@ -31,9 +31,9 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
 
     if not logger.handlers:
-        # Console handler - Keep at INFO to avoid noisy popups in Anki
+        # Console handler - Keep at WARNING to avoid triggering Anki's error dialog
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.WARNING)
         console_handler.setFormatter(logging.Formatter(LOG_FORMAT))
         logger.addHandler(console_handler)
 

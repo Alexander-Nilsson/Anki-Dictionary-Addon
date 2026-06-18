@@ -106,8 +106,7 @@ def get_addon_config() -> Dict[str, Any]:
         "star_thresholds": [1501, 5001, 15001, 30001, 60001],
         "show_stars": True,
         "show_rank": False,
-        "show_hsk": True,
-        "hsk_mode": "hsk3",
+        "word_list_visibility": {},
     }
 
 

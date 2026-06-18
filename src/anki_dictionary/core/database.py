@@ -17,6 +17,7 @@ from ..utils.paths import (
 from ..utils.common import miInfo
 from ..utils.logger import get_logger
 from ..utils.config import get_addon_config
+from .word_list_registry import WordListRegistry
 
 # Initialize logger
 logger = get_logger("database")
@@ -30,9 +31,8 @@ class DictDB:
         self.conn: Optional[sqlite3.Connection] = None
         self.c: Optional[sqlite3.Cursor] = None
         self.oldConnection: Optional[sqlite3.Cursor] = None
-        self._freq_cache: Dict[str, Dict[str, Any]] = {}
-        self._hsk_cache: Dict[str, Dict[str, int]] = {}
-        self._extra_data_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._extra_data_cache: Dict[str, List[Any]] = {}
+        self._registry: Optional[WordListRegistry] = None
 
         # Get the root addon directory
         self.addon_root = get_addon_root()
@@ -66,6 +66,8 @@ class DictDB:
             miInfo(f"Database error: {e}\nAttempted path: {db_file}", level="err")
             raise
 
+        self._registry = WordListRegistry(get_db_dir())
+
     @staticmethod
     def _quote_identifier(name: str) -> str:
         """Safely quote a SQLite identifier (table/index name) to prevent injection."""
@@ -94,165 +96,18 @@ class DictDB:
         if self.conn:
             self.conn.close()
 
-    def _get_extra_data(self, lang: str) -> List[Dict[str, Any]]:
-        """Load all frequency and level data for a language."""
+    def _get_extra_data(self, lang: str) -> List[Any]:
+        """Load all frequency and level data for a language via WordListRegistry."""
         if lang in self._extra_data_cache:
             return self._extra_data_cache[lang]
 
-        providers = []
-        config = get_addon_config()
+        if self._registry is None:
+            self._extra_data_cache[lang] = []
+            return []
 
-        # 1. Try to load main frequency list from frequency/{lang}.json
-        main_freq = self._get_frequency_list(lang)
-        if main_freq:
-            providers.append({"type": "rank", "name": "Frequency", "data": main_freq})
-
-        # 2. Try to load HSK data (Special case for Chinese for now)
-        if any(x in lang.lower() for x in ["zh", "chinese", "cn"]):
-            hsk_mode = config.get("hsk_mode", "hsk3")
-            hsk_data = self._get_hsk_list(lang, hsk_mode)
-            if hsk_data:
-                for version, data in hsk_data.items():
-                    name = "HSK"
-                    if version == "2.0":
-                        name = "HSK²"
-                    elif version == "3.0":
-                        name = "HSK³"
-                    providers.append({"type": "level", "name": name, "data": data})
-
-        # 3. Future: Scan frequency directory for any {lang}_*.json files
-        # This allows for arbitrary extra data like JLPT, CEFR etc.
-        freq_dir = get_frequency_dir()
-        if os.path.exists(freq_dir):
-            for filename in os.listdir(freq_dir):
-                if filename.startswith(lang + "_") and filename.endswith(".json"):
-                    label = filename[len(lang) + 1 : -5]
-                    data = self._load_extra_file(os.path.join(freq_dir, filename))
-                    if data:
-                        providers.append(
-                            {
-                                "type": "level" if isinstance(data, dict) else "rank",
-                                "name": label,
-                                "data": data,
-                            }
-                        )
-
+        providers = self._registry.get_providers(lang)
         self._extra_data_cache[lang] = providers
         return providers
-
-    def _load_extra_file(self, path: str) -> Any:
-        """Load a JSON file and return its data."""
-        try:
-            with open(path, "r", encoding="utf-8-sig") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading extra data file {path}: {e}")
-            return None
-
-    def _get_frequency_list(self, lang: str) -> Optional[Dict[str, Any]]:
-        """Load frequency list for a language from central file."""
-        if lang in self._freq_cache:
-            return self._freq_cache[lang]
-
-        freq_path = os.path.join(get_frequency_dir(), f"{lang}.json")
-        if not os.path.exists(freq_path):
-            return None
-
-        try:
-            with open(freq_path, "r", encoding="utf-8-sig") as f:
-                frequency_list = json.load(f)
-
-            if not frequency_list:
-                return None
-
-            frequency_dict = {}
-            if isinstance(frequency_list[0], str):
-                yomi = False
-                frequency_dict["readingDictionaryType"] = False
-            elif (
-                isinstance(frequency_list[0], list)
-                and len(frequency_list[0]) == 2
-                and isinstance(frequency_list[0][0], str)
-                and isinstance(frequency_list[0][1], str)
-            ):
-                yomi = True
-                frequency_dict["readingDictionaryType"] = True
-            else:
-                return None
-
-            for idx, f in enumerate(frequency_list):
-                if yomi:
-                    term = f[0].strip()
-                    reading = f[1].strip()
-                    if term in frequency_dict:
-                        frequency_dict[term][reading] = idx  # ty:ignore[invalid-assignment]
-                    else:
-                        frequency_dict[term] = {reading: idx}
-                else:
-                    term = f.strip()
-                    if term not in frequency_dict:
-                        frequency_dict[term] = idx
-
-            self._freq_cache[lang] = frequency_dict
-            return frequency_dict
-        except Exception as e:
-            logger.error(f"Error loading frequency list for {lang}: {e}")
-            return None
-
-    def _get_hsk_list(self, lang: str, mode: str = "hsk3") -> Optional[Dict[str, Any]]:
-        """Load HSK level list(s) from central file."""
-        cache_key = f"{lang}_{mode}"
-        if cache_key in self._hsk_cache:
-            return self._hsk_cache[cache_key]
-
-        hsk_dir = get_hsk_dir()
-        result = {}
-
-        def load_file(filename):
-            path = os.path.join(hsk_dir, filename)
-            if os.path.exists(path):
-                try:
-                    with open(path, "r", encoding="utf-8-sig") as f:
-                        return json.load(f)
-                except Exception as e:
-                    logger.error(f"Error loading HSK file {filename}: {e}")
-            return None
-
-        if mode == "hsk2":
-            data = (
-                load_file(f"{lang}_hsk2.json")
-                or load_file("zh_hsk2.json")
-                or load_file(f"{lang}.json")
-                or load_file("zh.json")
-            )
-            if data:
-                result["2.0"] = data
-        elif mode == "hsk3":
-            data = (
-                load_file(f"{lang}_hsk3.json")
-                or load_file("zh_hsk3.json")
-                or load_file(f"{lang}.json")
-                or load_file("zh.json")
-            )
-            if data:
-                result["3.0"] = data
-        elif mode == "both":
-            d2 = load_file(f"{lang}_hsk2.json") or load_file("zh_hsk2.json")
-            d3 = load_file(f"{lang}_hsk3.json") or load_file("zh_hsk3.json")
-            if d2:
-                result["2.0"] = d2
-            if d3:
-                result["3.0"] = d3
-            if not d2 and not d3:
-                data = load_file(f"{lang}.json") or load_file("zh.json")
-                if data:
-                    result["both"] = data
-
-        if not result:
-            return None
-
-        self._hsk_cache[cache_key] = result
-        return result
 
     def getStarCount(self, freq: int) -> str:
         """Convert frequency rank to star rating."""
@@ -273,48 +128,46 @@ class DictDB:
         else:
             return ""
 
-    def _apply_frequency_info(self, entry, providers, config):
+    def _apply_frequency_info(
+        self,
+        entry: Dict[str, Any],
+        providers: List[Any],
+        config: Dict[str, Any],
+    ) -> None:
         """Apply frequency and level information to an entry from multiple providers."""
         show_stars = config.get("show_stars", True)
         show_rank = config.get("show_rank", False)
-        show_hsk = config.get("show_hsk", True)
+        word_list_visibility = config.get("word_list_visibility", {})
 
-        levels = []
-        frequency = 999999
+        levels: List[str] = []
+        frequency: int = 999999
         term = entry["term"]
         alt = entry["altterm"]
+        entry_reading = self.adjustReading(entry["pronunciation"] or term)
 
         for provider in providers:
-            p_type = provider.get("type")
-            p_name = provider.get("name")
-            p_data = provider.get("data")
+            name = provider.name
+            lang_vis = word_list_visibility.get(provider.lang, {})
+            if not lang_vis.get(name, True):
+                continue
 
-            if p_type == "level" and show_hsk:
-                # Level map: {"term": level}
-                lvl = p_data.get(term) or p_data.get(alt)
-                if lvl:
-                    levels.append(f"{p_name}:{lvl}")
+            result = provider.lookup(term, entry_reading)
 
-            elif p_type == "rank" and (show_stars or show_rank):
-                # Rank list: {"term": rank} or {"term": {"reading": rank}}
-                entry_reading = self.adjustReading(entry["pronunciation"] or term)
+            if not result.rank and not result.levels:
+                alt_result = provider.lookup(alt, entry_reading) if alt else None
+                if alt_result and (alt_result.rank is not None or alt_result.levels):
+                    result = alt_result
 
-                if p_data.get("readingDictionaryType"):
-                    if term in p_data and entry_reading in p_data[term]:
-                        p_rank = p_data[term][entry_reading]
-                        if p_rank < frequency:
-                            frequency = p_rank
-                elif term in p_data:
-                    p_rank = p_data[term]
-                    if p_rank < frequency:
-                        frequency = p_rank
+            if result.rank is not None and result.rank < frequency:
+                frequency = result.rank
+
+            for level in result.levels:
+                levels.append(f"{name}:{level}")
 
         # Apply collected levels
-        if levels:
-            entry["hskLevel"] = " / ".join(levels)
+        entry["levelLabels"] = " / ".join(levels) if levels else ""
 
         # Apply best found frequency rank
-        # Fallback to entry's own frequency if still not found
         if frequency == 999999 and entry.get("frequency"):
             try:
                 frequency = int(entry["frequency"])
@@ -327,8 +180,6 @@ class DictDB:
             if show_rank:
                 entry["frequency"] = frequency
         else:
-            # If we have no frequency number but we DO have a starCount string from the dict
-            # and stars are enabled, keep it. Otherwise clear it.
             if not show_stars:
                 entry["starCount"] = ""
             if not show_rank:
@@ -773,11 +624,11 @@ class DictDB:
     ) -> Dict[str, Any]:
         """Get frequency and level info for a specific term and language."""
         if not lang:
-            return {"term": term, "starCount": "", "hskLevel": ""}
+            return {"term": term, "starCount": "", "levelLabels": ""}
 
         providers = self._get_extra_data(lang)
         if not providers:
-            return {"term": term, "starCount": "", "hskLevel": ""}
+            return {"term": term, "starCount": "", "levelLabels": ""}
 
         # Create a dummy entry for _apply_frequency_info
         entry = {
@@ -785,7 +636,7 @@ class DictDB:
             "altterm": "",
             "pronunciation": "",
             "starCount": "",
-            "hskLevel": "",
+            "levelLabels": "",
         }
         self._apply_frequency_info(entry, providers, config)
         return entry
@@ -979,7 +830,7 @@ class DictDB:
             "examples": r[5],
             "audio": r[6],
             "starCount": r[7],
-            "hskLevel": "",
+            "levelLabels": "",
         }
 
         return output

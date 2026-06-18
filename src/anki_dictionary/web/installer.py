@@ -150,18 +150,15 @@ class DictionarySelectPage(MiWizardPage):
         options_lyt = QHBoxLayout()
         lyt.addLayout(options_lyt)
 
-        self.install_freq = QCheckBox("Install Frequency Data")
-        self.install_freq.setChecked(True)
-        options_lyt.addWidget(self.install_freq)
+        self.install_word_lists = QCheckBox(
+            "Install Word List Data (Frequency, HSK, JLPT...)"
+        )
+        self.install_word_lists.setChecked(True)
+        options_lyt.addWidget(self.install_word_lists)
 
         self.install_conj = QCheckBox("Install Conjugation Data")
         self.install_conj.setChecked(True)
         options_lyt.addWidget(self.install_conj)
-
-        self.install_hsk = QCheckBox("Install HSK Data")
-        self.install_hsk.setChecked(True)
-        self.install_hsk.setVisible(False)
-        options_lyt.addWidget(self.install_hsk)
 
         options_lyt.addStretch()
 
@@ -185,39 +182,6 @@ class DictionarySelectPage(MiWizardPage):
             set_child_states(item)
         finally:
             self._updating_checks = False
-        self._update_hsk_visibility()
-
-    def _is_chinese_language(self, language: dict) -> bool:
-        name = language.get("name_en", "").lower()
-        return any(x in name for x in ["chinese", "mandarin", "zh"])
-
-    def _update_hsk_visibility(self) -> None:
-        root = self.dict_tree.invisibleRootItem()
-        has_chinese = False
-        for li in range(root.childCount()):  # ty:ignore[unresolved-attribute]
-            lang_item = root.child(li)  # ty:ignore[unresolved-attribute]
-            language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)  # ty:ignore[unresolved-attribute]
-            if not language or not self._is_chinese_language(language):
-                continue
-
-            def _has_checked_child(item) -> bool:
-                for di in range(item.childCount()):
-                    child = item.child(di)
-                    if child.childCount() > 0 and _has_checked_child(child):
-                        return True
-                    try:
-                        if child.checkState(0) == Qt.CheckState.Checked:
-                            return True
-                    except AttributeError:
-                        if child.checkState(0) == Qt.Checked:  # ty:ignore[unresolved-attribute]
-                            return True
-                return False
-
-            if _has_checked_child(lang_item):
-                has_chinese = True
-                break
-
-        self.install_hsk.setVisible(has_chinese)
 
     def on_show(self, is_next, is_back):
         if is_next:
@@ -258,11 +222,8 @@ class DictionarySelectPage(MiWizardPage):
                 dictionaries_to_install.append(lang_w_enabled_dicts)
 
         self.wizard.dictionary_install_index = dictionaries_to_install  # ty:ignore[invalid-assignment]
-        self.wizard.dictionary_install_frequency = self.install_freq.isChecked()  # ty:ignore[invalid-assignment]
         self.wizard.dictionary_install_conjugation = self.install_conj.isChecked()  # ty:ignore[invalid-assignment]
-        self.wizard.dictionary_install_hsk = (  # ty:ignore[invalid-assignment]
-            self.install_hsk.isChecked() and self.install_hsk.isVisible()
-        )
+        self.wizard.dictionary_install_word_lists = self.install_word_lists.isChecked()  # ty:ignore[invalid-assignment]
 
         return True
 
@@ -349,7 +310,6 @@ class DictionarySelectPage(MiWizardPage):
                 load_dict_list(dictionaries, lang_item)
         finally:
             self._updating_checks = False
-        self._update_hsk_visibility()
 
 
 class DictionaryConfirmPage(MiWizardPage):
@@ -372,9 +332,10 @@ class DictionaryConfirmPage(MiWizardPage):
 
     def on_show(self, is_next, is_prev):  # ty:ignore[invalid-method-override]
         install_index = getattr(self.wizard, "dictionary_install_index", [])
-        install_freq = getattr(self.wizard, "dictionary_install_frequency", False)
         install_conj = getattr(self.wizard, "dictionary_install_conjugation", False)
-        install_hsk = getattr(self.wizard, "dictionary_install_hsk", False)
+        install_word_lists = getattr(
+            self.wizard, "dictionary_install_word_lists", False
+        )
 
         has_selection = len(install_index) > 0
         has_multiple_langs = len(install_index) > 1
@@ -408,36 +369,21 @@ class DictionaryConfirmPage(MiWizardPage):
                     txt += " into " + force_lang
                 txt += "</b><ul>"
 
-                if install_freq:
-                    has_freq = "frequency_url" in language
-                    if not has_freq and "frequency_lists" in language:
-                        has_freq = len(language["frequency_lists"]) > 0
+                if install_word_lists:
+                    has_word_lists = False
+                    word_list_sources = []
+                    if "frequency_lists" in language:
+                        word_list_sources.extend(language["frequency_lists"])
+                    if "word_lists" in language:
+                        word_list_sources.extend(language["word_lists"])
+                    has_word_lists = len(word_list_sources) > 0
 
-                    if has_freq:
-                        txt += "<li>Installing frequency data</li>"
-                    else:
-                        txt += "<li><b>No frequency data available</b></li>"
-                if install_conj:
-                    has_conj = "conjugation_url" in language
-                    if not has_conj and "conjugation_lists" in language:
-                        has_conj = len(language["conjugation_lists"]) > 0
-
-                    if has_conj:
-                        txt += "<li>Installing conjugation data</li>"
-                    else:
-                        txt += "<li><b>No conjugation data available</b></li>"
-                if install_hsk:
-                    has_hsk = "hsk_url" in language
-                    if not has_hsk and "word_lists" in language:
-                        has_hsk = any(
-                            "hsk" in wl.get("name", "").lower()
-                            for wl in language["word_lists"]
+                    if has_word_lists:
+                        txt += "<li>Installing word list data (%d lists)</li>" % len(
+                            word_list_sources
                         )
-
-                    if has_hsk:
-                        txt += "<li>Installing HSK data</li>"
                     else:
-                        txt += "<li><b>No HSK data available</b></li>"
+                        txt += "<li><b>No word list data available</b></li>"
 
                 for dictionary in language.get("dictionaries", []):
                     txt += "<li>"
@@ -463,18 +409,16 @@ class DictionaryInstallPage(MiWizardPage):
             wizard,
             server_root,
             install_index,
-            install_freq,
             install_conj,
-            install_hsk,
+            install_word_lists,
             force_lang=None,
         ):
             QThread.__init__(self)
             self.wizard = wizard
             self.server_root = server_root
             self.install_index = install_index
-            self.install_freq = install_freq
             self.install_conj = install_conj
-            self.install_hsk = install_hsk
+            self.install_word_lists = install_word_lists
             self.force_lang = force_lang
             self.cancel_requested = False
 
@@ -518,14 +462,11 @@ class DictionaryInstallPage(MiWizardPage):
 
             self.log_update.emit("Installing %d dictionaries..." % num_dicts)
 
-            freq_path = os.path.join(addon_path, "user_files", "db", "frequency")
-            os.makedirs(freq_path, exist_ok=True)
+            word_lists_path = os.path.join(addon_path, "user_files", "db", "word_lists")
+            os.makedirs(word_lists_path, exist_ok=True)
 
             conj_path = os.path.join(addon_path, "user_files", "db", "conjugation")
             os.makedirs(conj_path, exist_ok=True)
-
-            hsk_path = os.path.join(addon_path, "user_files", "db", "hsk")
-            os.makedirs(hsk_path, exist_ok=True)
 
             for l in self.install_index:
                 if self.cancel_requested:
@@ -540,37 +481,34 @@ class DictionaryInstallPage(MiWizardPage):
                 # Create Language
                 try:
                     aqt.mw.miDictDB.addLanguages([lname])  # ty:ignore[unresolved-attribute]
-                except Exception as e:
-                    # Lanugage already exists
+                except Exception:
                     pass
 
-                # Install frequency data
-                if self.install_freq:
-                    furls = []
-                    if l.get("frequency_url"):
-                        furls.append({"name": "Frequency", "url": l["frequency_url"]})
+                # Install word list data (frequency_lists + word_lists)
+                if self.install_word_lists:
+                    wl_sources = []
                     for fl in l.get("frequency_lists", []):
-                        furls.append(fl)
+                        wl_sources.append(fl)
+                    for wl in l.get("word_lists", []):
+                        wl_sources.append(wl)
 
-                    for f_info in furls:
-                        fname = f_info["name"]
-                        furl = self.construct_url(f_info["url"])
+                    for wl_info in wl_sources:
+                        wl_name = wl_info["name"]
+                        wl_url = self.construct_url(wl_info["url"])
                         self.log_update.emit(
-                            "Installing %s %s data..." % (lname, fname)
+                            "Installing %s %s word list..." % (lname, wl_name)
                         )
-                        dl_resp = self.fetch_data(client, furl)
+                        dl_resp = self.fetch_data(client, wl_url)
                         if dl_resp.status_code == 200:
-                            # Handle ZIP if necessary
                             chunks = []
                             for chunk in dl_resp.iter_content(chunk_size=16384):
                                 if chunk:
                                     chunks.append(chunk)
                             data = b"".join(chunks)
 
-                            if furl.lower().endswith(".zip"):
+                            if wl_url.lower().endswith(".zip"):
                                 try:
                                     z = zipfile.ZipFile(io.BytesIO(data))
-                                    # Find first json file
                                     json_files = [
                                         n for n in z.namelist() if n.endswith(".json")
                                     ]
@@ -581,11 +519,13 @@ class DictionaryInstallPage(MiWizardPage):
                                         " ERROR: Failed to unzip: %s" % str(e)
                                     )
 
-                            dst_path = os.path.join(freq_path, "%s.json" % lname)
+                            slug = wl_name.lower().replace(" ", "_")
+                            slug = "".join(c for c in slug if c.isalnum() or c == "_")
+                            filename = "%s_%s.json" % (lname, slug)
+                            dst_path = os.path.join(word_lists_path, filename)
                             with open(dst_path, "wb") as f:
                                 f.write(data)
-                            # Only install one frequency list for now to avoid overwriting
-                            break
+                            self.log_update.emit(" Installed as %s" % filename)
                         else:
                             self.log_update.emit(
                                 " ERROR: Download failed (%d)." % dl_resp.status_code
@@ -618,47 +558,7 @@ class DictionaryInstallPage(MiWizardPage):
                             dst_path = os.path.join(conj_path, "%s.json" % lname)
                             with open(dst_path, "wb") as f:
                                 f.write(data)
-                            # Only install one conjugation list
                             break
-                        else:
-                            self.log_update.emit(
-                                " ERROR: Download failed (%d)." % dl_resp.status_code
-                            )
-
-                # Install HSK data
-                if self.install_hsk:
-                    hurls = []
-                    if l.get("hsk_url"):
-                        hurls.append({"name": "HSK", "url": l["hsk_url"]})
-
-                    # Also check word_lists for items containing 'HSK'
-                    for wl in l.get("word_lists", []):
-                        if "hsk" in wl.get("name", "").lower():
-                            hurls.append(wl)
-
-                    for h in hurls:
-                        hname = h["name"]
-                        hurl = self.construct_url(h["url"])
-                        self.log_update.emit(
-                            "Installing %s %s data..." % (lname, hname)
-                        )
-
-                        dl_resp = self.fetch_data(client, hurl)
-                        if dl_resp.status_code == 200:
-                            # Map names to expected filenames for database.py
-                            suffix = ""
-                            if "2.0" in hname:
-                                suffix = "_hsk2"
-                            elif "3.0" in hname:
-                                suffix = "_hsk3"
-
-                            dst_path = os.path.join(
-                                hsk_path, "%s%s.json" % (lname, suffix)
-                            )
-                            with open(dst_path, "wb") as f:
-                                for chunk in dl_resp.iter_content(chunk_size=16384):
-                                    if chunk:
-                                        f.write(chunk)
                         else:
                             self.log_update.emit(
                                 " ERROR: Download failed (%d)." % dl_resp.status_code
@@ -671,7 +571,6 @@ class DictionaryInstallPage(MiWizardPage):
 
                     dname = d.get("name")
 
-                    # Check if already exists
                     if aqt.mw.miDictDB.dictExists(dname, lname):  # ty:ignore[unresolved-attribute]
                         self.log_update.emit("Skipping %s (already installed)." % dname)
                         update_dict_progress(1.0)
@@ -681,14 +580,12 @@ class DictionaryInstallPage(MiWizardPage):
                     durl = self.construct_url(d.get("url"))
 
                     self.log_update.emit("Installing %s..." % dname)
-
                     self.log_update.emit(" Downloading %s..." % durl)
                     dl_resp = self.fetch_data(client, durl)
 
                     if dl_resp.status_code == 200:
                         update_dict_progress(0.5)
                         self.log_update.emit(" Importing...")
-                        # Manually stream content to avoid hangs
                         chunks = []
                         for chunk in dl_resp.iter_content(chunk_size=16384):
                             if chunk:
@@ -697,12 +594,6 @@ class DictionaryInstallPage(MiWizardPage):
                         ddata = b"".join(chunks)
 
                         try:
-                            # Pass wizard as parent to allow message boxes if needed
-                            # Note: calling GUI from thread is usually bad, but QMessageBox.exec()
-                            # might work if it's handled properly by the bridge or if we use signals.
-                            # However, importDict uses QMessageBox.
-                            # In Anki context, this might need to be handled via signals if it causes crashes.
-                            # But let's try passing the parent first.
                             importDict(
                                 lname,
                                 io.BytesIO(ddata),  # ty:ignore[invalid-argument-type]
@@ -719,9 +610,7 @@ class DictionaryInstallPage(MiWizardPage):
                     update_dict_progress(1.0)
                     num_installed += 1
 
-                # Only once language can be installed when language is forced
                 if self.force_lang:
-                    # Should never happen
                     break
 
             self.progress_update.emit(100)
@@ -800,18 +689,18 @@ class DictionaryInstallPage(MiWizardPage):
 
         server_root = getattr(self.wizard, "Dictionary_server_root", "")
         install_index = getattr(self.wizard, "dictionary_install_index", [])
-        install_freq = getattr(self.wizard, "dictionary_install_frequency", False)
         install_conj = getattr(self.wizard, "dictionary_install_conjugation", False)
-        install_hsk = getattr(self.wizard, "dictionary_install_hsk", False)
+        install_word_lists = getattr(
+            self.wizard, "dictionary_install_word_lists", False
+        )
         force_lang = getattr(self.wizard, "dictionary_force_lang", None)
 
         self.install_thread = self.InstallThread(
             self.wizard,
             server_root,
             install_index,
-            install_freq,
             install_conj,
-            install_hsk,
+            install_word_lists,
             force_lang,
         )
         self.install_thread.finished.connect(self.on_thread_finish)

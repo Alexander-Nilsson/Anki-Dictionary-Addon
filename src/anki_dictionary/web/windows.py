@@ -15,7 +15,7 @@ from anki.httpclient import HttpClient
 import aqt
 from ..utils.common import prefer_ipv4
 
-from ..utils.paths import get_icons_dir, get_db_dir
+from ..utils.paths import get_icons_dir, get_db_dir, get_word_lists_dir
 from . import config as webConfig
 
 
@@ -30,7 +30,7 @@ class FreqConjWebWindow(QDialog):
         super(FreqConjWebWindow, self).__init__()
         self.dst_lang = dst_lang
         self.mode = mode
-        self.mode_str = "frequency" if self.mode == self.Mode.Freq else "conjugation"
+        self.mode_str = "word_lists" if self.mode == self.Mode.Freq else "conjugation"
 
         self.setWindowTitle("Anki Dictionary - Web Installer")
         self.setWindowIcon(QIcon(os.path.join(get_icons_dir(), "anki.svg")))
@@ -50,8 +50,6 @@ class FreqConjWebWindow(QDialog):
         for lang in index_data.get("languages", []):
             lists = []
             if self.mode == self.Mode.Freq:
-                if lang.get("frequency_url"):
-                    lists.append({"name": "Frequency", "url": lang["frequency_url"]})
                 for fl in lang.get("frequency_lists", []):
                     lists.append(fl)
             else:
@@ -136,12 +134,17 @@ class FreqConjWebWindow(QDialog):
 
         data = b"".join(chunks)
 
-        dir_path = os.path.join(get_db_dir(), self.mode_str)
+        if self.mode == self.Mode.Freq:
+            dir_path = get_word_lists_dir()
+        else:
+            dir_path = os.path.join(get_db_dir(), self.mode_str)
         os.makedirs(dir_path, exist_ok=True)
 
         list_name = idx.data(Qt.ItemDataRole.UserRole + 1)
         if self.mode == self.Mode.Freq and list_name != "Frequency":
-            filename = "%s_%s.json" % (self.dst_lang, list_name)
+            slug = list_name.lower().replace(" ", "_")
+            slug = "".join(c for c in slug if c.isalnum() or c == "_")
+            filename = "%s_%s.json" % (self.dst_lang, slug)
         else:
             filename = "%s.json" % self.dst_lang
 
@@ -152,6 +155,10 @@ class FreqConjWebWindow(QDialog):
 
         # Clear database cache to reflect changes
         if hasattr(aqt.mw, "miDictDB"):
+            if self.mode == self.Mode.Freq:
+                registry = aqt.mw.miDictDB._registry  # ty:ignore[unresolved-attribute]
+                if registry:
+                    registry.clear_cache(self.dst_lang)
             aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)  # ty:ignore[unresolved-attribute]
 
         if self.mode == self.Mode.Freq:
