@@ -6,7 +6,7 @@ import aqt
 from aqt.qt import QMessageBox, QTreeWidgetItem, Qt
 
 from ...utils.logger import get_logger
-from ...utils.paths import get_db_dir, get_frequency_dir, get_hsk_dir
+from ...utils.paths import get_db_dir, get_word_lists_dir
 
 logger = get_logger(__name__.split(".")[-1])
 
@@ -65,22 +65,16 @@ class LanguageManager:
         db.deleteLanguage(lang_name)
 
         try:
-            freq_dir = get_frequency_dir()
-            if os.path.exists(freq_dir):
-                for filename in os.listdir(freq_dir):
-                    if filename.startswith(lang_name):
-                        os.remove(os.path.join(freq_dir, filename))
+            wl_dir = get_word_lists_dir()
+            if os.path.exists(wl_dir):
+                for filename in os.listdir(wl_dir):
+                    if filename.lower().startswith(lang_name.lower().replace(" ", "_")):
+                        os.remove(os.path.join(wl_dir, filename))
         except OSError:
             pass
 
         try:
             path = os.path.join(get_db_dir(), "conjugation", "%s.json" % lang_name)
-            os.remove(path)
-        except OSError:
-            pass
-
-        try:
-            path = os.path.join(get_hsk_dir(), "%s.json" % lang_name)
             os.remove(path)
         except OSError:
             pass

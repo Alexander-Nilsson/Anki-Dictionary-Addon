@@ -51,10 +51,6 @@ def db_and_midict(tmp_path):
     with (
         patch("anki_dictionary.core.database.get_db_dir", return_value=str(tmp_path)),
         patch("anki_dictionary.core.database.get_addon_config", return_value=config),
-        patch(
-            "anki_dictionary.core.database.get_frequency_dir",
-            return_value=str(tmp_path),
-        ),
     ):
         db = DictDB()
         db.addLanguages(["Japanese"])

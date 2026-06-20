@@ -162,26 +162,7 @@ class FreqConjWebWindow(QDialog):
             aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)  # ty:ignore[unresolved-attribute]
 
         if self.mode == self.Mode.Freq:
-            from ...utils.config import get_addon_config
-
-            config = get_addon_config()
-            updated = 0
-            try:
-                aqt.mw.progress.start(
-                    label="Applying frequency data to existing entries..."
-                )
-                updated = aqt.mw.miDictDB.reapply_frequency_for_language(
-                    self.dst_lang, config
-                )  # ty:ignore[unresolved-attribute]
-            except Exception:
-                pass
-            finally:
-                aqt.mw.progress.finish()
-
-            msg = (
-                'Imported data as "%s" for "%s".\n\nFrequency data automatically applied to %d existing entries.'
-                % (filename, self.dst_lang, updated)
-            )
+            msg = 'Imported data as "%s" for "%s".' % (filename, self.dst_lang)
         else:
             msg = 'Imported conjugation data for "%s".' % self.dst_lang
         QMessageBox.information(self, self.windowTitle(), msg)
