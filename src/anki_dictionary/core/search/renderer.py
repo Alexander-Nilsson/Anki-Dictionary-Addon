@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import json
 import re
-from typing import Any, Dict, List
+import os
+from os.path import join, exists
+from typing import Any, Dict, List, Tuple
+
+from ...utils.logger import get_logger
+
+logger = get_logger(__name__.split(".")[-1])
 
 
 def clean_term(term: str) -> str:
@@ -39,19 +46,6 @@ def process_definition_html(text: Any) -> str:
     return text.strip()
 
 
-def get_star_tooltip(star_count: str) -> str:
-    if not star_count:
-        return ""
-    if star_count.startswith("\u2605"):
-        num = len(star_count)
-        return (
-            f'<span class="starTooltip" title="{num} star(s)">{"&#9733;" * num}</span>'
-        )
-    return (
-        f'<span class="starTooltip" title="Frequency rank">&#9733; #{star_count}</span>'
-    )
-
-
 def get_cleaned_urls(urls: List[str]) -> List[str]:
     return [
         u
@@ -60,3 +54,657 @@ def get_cleaned_urls(urls: List[str]) -> List[str]:
         and u.startswith("http")
         and u.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".bmp"))
     ]
+
+
+class ResultRenderer:
+    """Produces HTML for dictionary search results.
+
+    Pure-ish: takes data + config, returns HTML strings.
+    No Qt, no thread, no eval — testable with plain dicts.
+    """
+
+    def __init__(self, addon_root: str, iconpath: str) -> None:
+        self.addon_root = addon_root
+        self.iconpath = iconpath
+
+    # ── helpers ────────────────────────────────────
+
+    def get_tooltips(self, config: Dict[str, Any]) -> Tuple[str, str, str]:
+        if not config.get("tooltips", True):
+            return "", "", ""
+
+        img_tip = (
+            ' title="Add this definition, or any selected text to the card exporter'
+            ' (opens the card exporter if it is not yet opened)." '
+        )
+        clip_tip = (
+            ' title="Copy this definition, or any selected text to the clipboard." '
+        )
+        send_tip = (
+            ' title="Send this definition, or any selected text to this'
+            " dictionary's target fields."
+            ' It will send it to the current target window" '
+        )
+        return img_tip, clip_tip, send_tip
+
+    def get_star_tooltip_html(self, star_count: str) -> str:
+        if not star_count or not isinstance(star_count, str):
+            return ""
+
+        ranks = {
+            "\u2605\u2605\u2605\u2605\u2605": "Top 1,500",
+            "\u2605\u2605\u2605\u2605": "Top 5,000",
+            "\u2605\u2605\u2605": "Top 15,000",
+            "\u2605\u2605": "Top 30,000",
+            "\u2605": "Top 60,000",
+        }
+        lookup = star_count.split(" ")[-1] if " " in star_count else star_count
+        rank = ranks.get(lookup, "")
+        return f' title="Frequency: {rank}" ' if rank else ""
+
+    def get_base64_icon(self, icon_name: str, is_dark: bool) -> str:
+        if is_dark:
+            if icon_name == "anki.svg":
+                icon_name = "nightanki.svg"
+            elif "." in icon_name:
+                name, ext = icon_name.rsplit(".", 1)
+                if not name.endswith("night"):
+                    night = f"{name}night.{ext}"
+                    if exists(join(self.iconpath, night)):
+                        icon_name = night
+        try:
+            path = join(self.iconpath, icon_name)
+            with open(path, "rb") as f:
+                import base64
+
+                data = base64.b64encode(f.read()).decode()
+                return f"data:image/svg+xml;base64,{data}"
+        except Exception:
+            return ""
+
+    def highlight_target(self, text: str, term: str, config: Dict[str, Any]) -> str:
+        if not config.get("highlightTarget", False):
+            return text
+        if not isinstance(text, str):
+            return str(text) if text is not None else ""
+        try:
+            parts = re.split(r"(<[^>]*>)", text)
+            for i in range(0, len(parts), 2):
+                if parts[i]:
+                    if any(
+                        "\u4e00" <= c <= "\u9fff"
+                        or "\u3040" <= c <= "\u309f"
+                        or "\u30a0" <= c <= "\u30ff"
+                        for c in term
+                    ):
+                        pat = "(" + escape_punctuation(term) + ")"
+                    else:
+                        pat = r"\b(" + escape_punctuation(term) + r")\b"
+                    parts[i] = re.sub(
+                        pat, r'<span class="targetTerm">\1</span>', parts[i]
+                    )
+            return "".join(parts)
+        except Exception as e:
+            logger.error("Error during highlight_target: %s", e)
+            return text
+
+    def format_term_headers(self, ths: Dict[str, List[str]]) -> Dict[str, List[str]]:
+        if not ths:
+            return {}
+        formatted: Dict[str, List[str]] = {}
+        for dictname, headers in ths.items():
+            header_str = ""
+            sb_str = ""
+            for h in headers:
+                if h == "term":
+                    header_str += (
+                        '\u25f3f<span class="term mainword">\u25f3t</span>\u25f3b '
+                    )
+                    sb_str += '\u25f3f<span class="listTerm">\u25f3t</span>\u25f3b '
+                elif h == "altterm":
+                    header_str += (
+                        '\u25f3x<span class="altterm  mainword">\u25f3a</span>\u25f3y '
+                    )
+                    sb_str += '\u25f3x<span class="listAltTerm">\u25f3a</span>\u25f3y '
+                elif h == "pronunciation":
+                    header_str += '<span class="pronunciation">\u25f3p</span>'
+                    sb_str += '<span class="listPronunciation">\u25f3p</span>'
+            formatted[dictname] = [header_str, sb_str]
+        return formatted
+
+    # ── term headers ───────────────────────────────
+
+    def get_prepared_term_header(
+        self,
+        dict_name: str,
+        front_bracket: str,
+        back_bracket: str,
+        target: str,
+        term: str,
+        altterm: str,
+        pronunciation: str,
+        config: Dict[str, Any],
+        term_headers: Dict[str, List[str]] | None = None,
+        sb: bool = False,
+    ) -> str:
+        alt_fb = front_bracket
+        alt_bb = back_bracket
+        if pronunciation == term:
+            pronunciation = ""
+        if altterm == term:
+            altterm = ""
+        if altterm == "":
+            alt_fb = ""
+            alt_bb = ""
+
+        clean_name = re.sub(r"l\d+name", "", dict_name)
+        if (
+            not term_headers
+            or dict_name in ("Images", "LLM", "Forvo")
+            or clean_name in ("Images", "LLM", "Forvo")
+        ):
+            if sb:
+                header = (
+                    '\u25f3f<span class="listTerm">\u25f3t</span>\u25f3b '
+                    '\u25f3x<span class="listAltTerm">\u25f3a</span>\u25f3y '
+                    '<span class="listPronunciation">\u25f3p</span>'
+                )
+            else:
+                header = (
+                    '\u25f3f<span class="term mainword">\u25f3t</span>\u25f3b '
+                    '\u25f3x<span class="altterm  mainword">\u25f3a</span>\u25f3y '
+                    '<span class="pronunciation">\u25f3p</span>'
+                )
+        else:
+            lookup = dict_name if dict_name in term_headers else clean_name
+            if lookup in term_headers:
+                header = term_headers[lookup][1 if sb else 0]
+            else:
+                if sb:
+                    header = (
+                        '\u25f3f<span class="listTerm">\u25f3t</span>\u25f3b '
+                        '\u25f3x<span class="listAltTerm">\u25f3a</span>\u25f3y '
+                        '<span class="listPronunciation">\u25f3p</span>'
+                    )
+                else:
+                    header = (
+                        '\u25f3f<span class="term mainword">\u25f3t</span>\u25f3b '
+                        '\u25f3x<span class="altterm  mainword">\u25f3a</span>\u25f3y '
+                        '<span class="pronunciation">\u25f3p</span>'
+                    )
+
+        return (
+            header.replace("\u25f3t", self.highlight_target(term, target, config))
+            .replace("\u25f3a", self.highlight_target(altterm, target, config))
+            .replace("\u25f3p", self.highlight_target(pronunciation, target, config))
+            .replace("\u25f3f", front_bracket)
+            .replace("\u25f3b", back_bracket)
+            .replace("\u25f3x", alt_fb)
+            .replace("\u25f3y", alt_bb)
+        )
+
+    # ── sidebar ────────────────────────────────────
+
+    def get_sidebar(
+        self,
+        results: Dict[str, Any],
+        term: str,
+        font: str,
+        front_bracket: str,
+        back_bracket: str,
+        config: Dict[str, Any],
+        term_headers: Dict[str, List[str]] | None = None,
+    ) -> str:
+        html = "<div" + font + 'class="definitionSideBar"><div class="innerSideBar">'
+        dict_count = 0
+        entry_count = 0
+        for dict_name, dict_results in results.items():
+            display = re.sub(r"l\d+name", "", dict_name).replace("_", " ")
+            if dict_name in ("Images", "LLM", "Forvo"):
+                html += (
+                    '<div data-index="'
+                    + str(dict_count)
+                    + '" class="listTitle">'
+                    + display
+                    + '</div><ol class="foundEntriesList"><li data-index="'
+                    + str(entry_count)
+                    + '">'
+                    + self.get_prepared_term_header(
+                        dict_name,
+                        front_bracket,
+                        back_bracket,
+                        term,
+                        term,
+                        term,
+                        term,
+                        config,
+                        term_headers,
+                        True,
+                    )
+                    + "</li></ol>"
+                )
+                entry_count += 1
+                dict_count += 1
+                continue
+            html += (
+                '<div data-index="'
+                + str(dict_count)
+                + '" class="listTitle">'
+                + display
+                + '</div><ol class="foundEntriesList">'
+            )
+            dict_count += 1
+            for entry in dict_results:
+                html += (
+                    '<li data-index="'
+                    + str(entry_count)
+                    + '">'
+                    + self.get_prepared_term_header(
+                        dict_name,
+                        front_bracket,
+                        back_bracket,
+                        term,
+                        entry["term"],
+                        entry["altterm"],
+                        entry["pronunciation"],
+                        config,
+                        term_headers,
+                        True,
+                    )
+                    + "</li>"
+                )
+                entry_count += 1
+            html += "</ol>"
+        return (
+            html
+            + '<br></div><div class="resizeBar" '
+            + 'onmousedown="hresize(event)"></div></div>'
+        )
+
+    # ── definition cleaning ────────────────────────
+
+    def clean_definition(self, entry: Dict[str, Any]) -> Tuple[str, str]:
+        definition = entry["definition"].strip()
+        extracted_freq = ""
+
+        while True:
+            definition = re.sub(
+                r"^(<br>\s*)+|(<br>\s*)+$", "", definition, flags=re.IGNORECASE
+            ).strip()
+            freq_match = re.search(
+                r"^\u3010[^\u3011]+\u3011\s*\[([\dk+]+)\]\s*", definition
+            )
+            if freq_match:
+                if not extracted_freq:
+                    extracted_freq = freq_match.group(1)
+                definition = definition[freq_match.end() :].strip()
+                continue
+            head_match = re.search(r"^\u3010[^\u3011]+\u3011\s*", definition)
+            if head_match:
+                definition = definition[head_match.end() :].strip()
+                continue
+            break
+
+        term_escaped = re.escape(entry["term"])
+        repeat_pat = (
+            r"^\s*[\(\uff08\[[\uff3b][^\uff09\)]*?"
+            + term_escaped
+            + r"[^\uff09\)]*?[\)\uff09\]\uff3b]\s*"
+        )
+        definition = re.sub(repeat_pat, "", definition)
+        definition = re.sub(
+            r"^(<br>\s*)+|(<br>\s*)+$", "", definition, flags=re.IGNORECASE
+        ).strip()
+
+        if not extracted_freq and entry.get("frequency"):
+            extracted_freq = str(entry["frequency"])
+
+        return definition, extracted_freq
+
+    # ── entry rendering ────────────────────────────
+
+    def render_term_pronunciation_block(
+        self,
+        entry: Dict[str, Any],
+        dict_name: str,
+        clean_name: str,
+        font: str,
+        front_bracket: str,
+        back_bracket: str,
+        extracted_freq: str,
+        config: Dict[str, Any],
+        term_headers: Dict[str, List[str]] | None = None,
+        img_tooltip: str = "",
+        clip_tooltip: str = "",
+        send_tooltip: str = "",
+    ) -> str:
+        stars = entry.get("starCount", "")
+        levels = entry.get("levelLabels", "")
+        rank_display = (
+            f' <span class="starcount frequency-rank">[{extracted_freq}]</span>'
+            if extracted_freq
+            else ""
+        )
+        levels_display = (
+            f' <span class="starcount level-label">{levels}</span>' if levels else ""
+        )
+        return (
+            '<div data-index="'
+            + str(999)
+            + '" class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.get_prepared_term_header(
+                dict_name,
+                front_bracket,
+                back_bracket,
+                entry["term"],
+                entry["term"],
+                entry.get("altterm", ""),
+                entry.get("pronunciation", ""),
+                config,
+                term_headers,
+            )
+            + ' <span class="starcount"'
+            + self.get_star_tooltip_html(stars)
+            + ">"
+            + stars
+            + "</span>"
+            + rank_display
+            + levels_display
+            + '</span><div class="defTools">'
+            + "<div onclick=\"ankiExport(event, '"
+            + clean_name
+            + '\')" class="ankiExportButton"><img '
+            + img_tooltip
+            + ' src="'
+            + self.get_base64_icon("anki.svg", False)
+            + '"></div><div onclick="clipText(event)" '
+            + clip_tooltip
+            + ' class="clipper">\u2702</div><div '
+            + send_tooltip
+            + " onclick=\"sendToField(event, '"
+            + clean_name
+            + '\')" class="sendToField">\u279e</div>'
+            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'class="prevDef">\u25b2</div>'
+            + '<div onclick="navigateDef(event, true)" '
+            + 'class="nextDef">\u25bc</div></div></div></div>'
+        )
+
+    def render_definition_block(
+        self, definition: str, font: str, term: str, config: Dict[str, Any]
+    ) -> str:
+        return (
+            "<div"
+            + font
+            + ' class="definitionBlock">'
+            + self.highlight_target(process_definition_html(definition), term, config)
+            + "</div>"
+        )
+
+    # ── LLM rendering ──────────────────────────────
+
+    def process_llm_definition(self, definition: str, term: str) -> str:
+        definition = re.sub(r"(\*\*|__|\u2605\u2605)(.*?)\1", r"<b>\2</b>", definition)
+        definition = re.sub(r"(\*|_)(.*?)\1", r"<i>\2</i>", definition)
+        definition = definition.replace("\u2605", "<b>\u2605</b>")
+        definition = re.sub(r"^\s*[-*+]\s+", "\u2022 ", definition, flags=re.MULTILINE)
+
+        term_lower = term.lower()
+        lines = definition.split("\n")
+        if len(lines) > 1:
+            first = (
+                lines[0]
+                .strip()
+                .lower()
+                .replace("<b>", "")
+                .replace("</b>", "")
+                .replace("**", "")
+                .replace("#", "")
+                .strip()
+            )
+            if first == term_lower:
+                definition = "\n".join(lines[1:]).strip()
+            lines = definition.split("\n")
+            if len(lines) > 1:
+                last = (
+                    lines[-1]
+                    .strip()
+                    .lower()
+                    .replace("<b>", "")
+                    .replace("</b>", "")
+                    .replace("**", "")
+                    .replace("#", "")
+                    .strip()
+                )
+                if last == term_lower:
+                    definition = "\n".join(lines[:-1]).strip()
+
+        term_escaped = re.escape(term)
+        repeat = (
+            r"^\s*[\(\uff08\[[\uff3b][^\uff09\)]*?"
+            + term_escaped
+            + r"[^\uff09\)]*?[\)\uff09\]\uff3b]\s*"
+        )
+        definition = re.sub(repeat, "", definition).strip()
+        return definition
+
+    def render_llm_entry(
+        self,
+        result: Dict[str, Any],
+        dict_name: str,
+        font: str,
+        front_bracket: str,
+        back_bracket: str,
+        config: Dict[str, Any],
+        term_headers: Dict[str, List[str]] | None = None,
+    ) -> str:
+        img, clip, send = self.get_tooltips(config)
+        stars = str(result.get("starCount", ""))
+        levels = result.get("levelLabels", "")
+        levels_html = (
+            f' <span class="starcount level-label">{levels}</span>' if levels else ""
+        )
+        return (
+            '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.get_prepared_term_header(
+                dict_name,
+                front_bracket,
+                back_bracket,
+                result["term"],
+                result["term"],
+                result.get("altterm", ""),
+                result.get("pronunciation", ""),
+                config,
+                term_headers,
+            )
+            + ' <span class="starcount"'
+            + self.get_star_tooltip_html(stars)
+            + ">"
+            + stars
+            + "</span>"
+            + levels_html
+            + '</span><div class="defTools">'
+            + "<div onclick=\"ankiExport(event, '"
+            + dict_name
+            + '\')" class="ankiExportButton"><img '
+            + img
+            + ' src="'
+            + self.get_base64_icon("anki.svg", False)
+            + '"></div><div onclick="clipText(event)" '
+            + clip
+            + ' class="clipper">\u2702</div><div '
+            + send
+            + " onclick=\"sendToField(event, '"
+            + dict_name
+            + '\')" class="sendToField">\u279e</div>'
+            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'class="prevDef">\u25b2</div>'
+            + '<div onclick="navigateDef(event, true)" '
+            + 'class="nextDict">\u25bc</div></div></div></div>'
+        )
+
+    def render_llm_definition_block(
+        self, definition: str, font: str, term: str, config: Dict[str, Any]
+    ) -> str:
+        processed = self.process_llm_definition(definition, term)
+        return self.render_definition_block(processed, font, term, config)
+
+    def format_single_entry(
+        self,
+        result: Dict[str, Any],
+        dict_name: str,
+        font: str,
+        front_bracket: str,
+        back_bracket: str,
+        config: Dict[str, Any],
+        term_headers: Dict[str, List[str]] | None = None,
+    ) -> str:
+        img, clip, send = self.get_tooltips(config)
+        html = (
+            '<div class="dictionaryTitleBlock"><div '
+            + font
+            + ' class="dictionaryTitle">'
+            + dict_name
+            + '</div><div class="dictionarySettings">'
+            + '<div class="dictNav"><div onclick="navigateDict(event, false)" '
+            + 'class="prevDict">\u25b2</div>'
+            + '<div onclick="navigateDict(event, true)" '
+            + 'class="nextDict">\u25bc</div></div></div></div>'
+        )
+
+        stars = str(result.get("starCount", ""))
+        levels = result.get("levelLabels", "")
+        levels_html = (
+            f' <span class="starcount level-label">{levels}</span>' if levels else ""
+        )
+
+        html += (
+            '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + self.get_prepared_term_header(
+                dict_name,
+                front_bracket,
+                back_bracket,
+                result["term"],
+                result["term"],
+                result.get("altterm", ""),
+                result.get("pronunciation", ""),
+                config,
+                term_headers,
+            )
+            + ' <span class="starcount"'
+            + self.get_star_tooltip_html(stars)
+            + ">"
+            + stars
+            + "</span>"
+            + levels_html
+            + '</span><div class="defTools">'
+            + "<div onclick=\"ankiExport(event, '"
+            + dict_name
+            + '\')" class="ankiExportButton"><img '
+            + img
+            + ' src="'
+            + self.get_base64_icon("anki.svg", False)
+            + '"></div><div onclick="clipText(event)" '
+            + clip
+            + ' class="clipper">\u2702</div><div '
+            + send
+            + " onclick=\"sendToField(event, '"
+            + dict_name
+            + '\')" class="sendToField">\u279e</div>'
+            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'class="prevDef">\u25b2</div>'
+            + '<div onclick="navigateDef(event, true)" '
+            + 'class="nextDict">\u25bc</div></div></div></div>'
+        )
+
+        definition = result.get("definition", "")
+        processed = self.process_llm_definition(definition, result["term"])
+        html += self.render_definition_block(processed, font, result["term"], config)
+        return html
+
+    # ── image search rendering ─────────────────────
+
+    def render_image_search_html(
+        self,
+        term: str,
+        font: str,
+        front_bracket: str,
+        back_bracket: str,
+        config: Dict[str, Any],
+        term_headers: Dict[str, List[str]] | None = None,
+        id_name: str = "",
+    ) -> str:
+        img, clip, send = self.get_tooltips(config)
+        prepared = self.get_prepared_term_header(
+            "Images",
+            front_bracket,
+            back_bracket,
+            term,
+            term,
+            "",
+            "",
+            config,
+            term_headers,
+        )
+        return (
+            '<div data-index="'
+            + "0"
+            + '" class="dictionaryTitleBlock">'
+            + '<div class="dictionaryTitle">Images</div>'
+            + '<div class="dictionarySettings">'
+            + '<div class="dictNav">'
+            + '<div onclick="navigateDict(event, false)" '
+            + 'class="prevDict">\u25b2</div>'
+            + '<div onclick="navigateDict(event, true)" '
+            + 'class="nextDict">\u25bc</div>'
+            + "</div></div></div>"
+            + '<div class="termPronunciation"><span '
+            + font
+            + ' class="tpCont">'
+            + prepared
+            + '</span><div class="defTools">'
+            + "<div onclick=\"ankiExport(event, 'Images')\" "
+            + 'class="ankiExportButton"><img '
+            + img
+            + ' src="'
+            + self.get_base64_icon("anki.svg", False)
+            + '"></div><div onclick="clipText(event)" '
+            + clip
+            + ' class="clipper">\u2702</div><div '
+            + send
+            + " onclick=\"sendToField(event, 'Images'\") "
+            + 'class="sendToField">\u279e</div>'
+            + '<div class="defNav">'
+            + '<div onclick="navigateDef(event, false)" '
+            + 'class="prevDef">\u25b2</div>'
+            + '<div onclick="navigateDef(event, true)" '
+            + 'class="nextDict">\u25bc</div>'
+            + "</div></div></div>"
+            + '<div class="definitionBlock">'
+            + '<div class="imageBlock" id="'
+            + id_name
+            + '">Loading...</div></div>'
+        )
+
+    def inject_font_js(self, font: str) -> str:
+        name = re.sub(r"\..*$", "", font)
+        return json.dumps(font) + ", " + json.dumps(name)
+
+    def get_no_results_html(self, term: str, is_dark: bool) -> str:
+        icon = self.get_base64_icon("search.svg", is_dark)
+        return (
+            "<style>.noresults{font-family: Arial;}"
+            ".vertical-center{height: 400px; width: 60%; margin: 0 auto; "
+            "display: flex; justify-content: center; align-items: center;}</style>"
+            ' <div class="vertical-center noresults">'
+            ' <div align="center"> <img src="' + icon + '" width="50px" height="40px">'
+            ' <h3 align="center">No dictionary entries were found for "'
+            + term
+            + '".</h3> </div></div>'
+        )
