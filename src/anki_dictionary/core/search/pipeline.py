@@ -38,6 +38,8 @@ class SearchPipeline:
         self.coordinator = ExternalServiceCoordinator(
             eval_fn=midict.eval,
             threadpool=midict.threadpool,
+            on_llm_result=self.loadLLMResults,
+            on_llm_error=self.showLLMError,
         )
 
     # ── public entry point ─────────────────────────
