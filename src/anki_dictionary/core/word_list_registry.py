@@ -249,7 +249,7 @@ class WordListRegistry:
                 src = os.path.join(old_path, fname)
                 try:
                     with open(src, "r", encoding="utf-8-sig") as f:
-                        data = json.load(f)
+                        json.load(f)
                 except Exception as e:
                     logger.error(f"Error reading legacy {old_name}/{fname}: {e}")
                     continue
