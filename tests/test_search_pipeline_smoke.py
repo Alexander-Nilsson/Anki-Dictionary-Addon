@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from scripts.create_empty_db import create_empty_database
 from anki_dictionary.core.database import DictDB
-from anki_dictionary.core.search_pipeline import SearchPipeline
+from anki_dictionary.core.search.pipeline import SearchPipeline
 
 
 @pytest.fixture

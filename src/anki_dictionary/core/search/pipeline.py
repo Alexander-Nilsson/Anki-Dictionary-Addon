@@ -11,13 +11,13 @@ from typing import List, Dict, Optional, Tuple, Any, Union
 from urllib.request import Request, urlopen
 
 
-from . import html_renderer
-from ..utils.logger import get_logger
-from ..web.icons import get_base64_icon
-from ..integrations import image_search as duckduckgoimages
-from ..integrations import llm as llm_integration
-from ..integrations.llm import split_llm_definitions
-from ..integrations import forvo as forvo_integration
+from . import renderer as html_renderer
+from ...utils.logger import get_logger
+from ...web.icons import get_base64_icon
+from ...integrations import image_search as duckduckgoimages
+from ...integrations import llm as llm_integration
+from ...integrations.llm import split_llm_definitions
+from ...integrations import forvo as forvo_integration
 
 logger = get_logger(__name__.split(".")[-1])
 

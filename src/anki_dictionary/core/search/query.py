@@ -4,8 +4,8 @@ import re
 import sqlite3
 from typing import Any, Dict, List, Tuple
 
-from ..utils.config import get_addon_config
-from ..utils.logger import get_logger
+from ...utils.config import get_addon_config
+from ...utils.logger import get_logger
 
 logger = get_logger(__name__.split(".")[-1])
 

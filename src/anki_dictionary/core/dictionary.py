@@ -54,7 +54,7 @@ from ..exporters.card_exporter import CardExporter
 import time
 from . import database as dictdb
 from ..utils.logger import get_logger
-from .search_pipeline import SearchPipeline
+from .search.pipeline import SearchPipeline
 from .card_handler import CardCreationHandler
 
 logger = get_logger(__name__.split(".")[-1])

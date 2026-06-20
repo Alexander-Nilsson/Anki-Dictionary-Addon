@@ -17,7 +17,7 @@ from ..utils.paths import (
 from ..utils.common import miInfo
 from ..utils.logger import get_logger
 from ..utils.config import get_addon_config
-from .search_query_builder import SearchQueryBuilder
+from .search.query import SearchQueryBuilder
 from .word_list_registry import WordListRegistry
 
 # Initialize logger
