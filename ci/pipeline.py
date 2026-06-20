@@ -1,0 +1,174 @@
+import os
+import sys
+
+import dagger
+
+
+SYSTEM_DEPS = [
+    "xvfb",
+    "libegl1",
+    "libgl1",
+    "libxkbcommon0",
+    "libxkbcommon-x11-0",
+    "libxcb-cursor0",
+    "libxcb-xinerama0",
+    "libxcb-icccm4",
+    "libxcb-keysyms1",
+    "libnss3",
+    "libnspr4",
+    "libfontconfig1",
+    "libdbus-1-3",
+    "libxcomposite1",
+    "libxdamage1",
+    "libxrandr2",
+    "libxtst6",
+    "libxfixes3",
+    "libxrender1",
+    "libxi6",
+    "libxcursor1",
+    "libxxf86vm1",
+    "libxss1",
+    "libasound2t64",
+    "libpulse0",
+    "libpulse-mainloop-glib0",
+]
+
+BUILD_DEPS = [
+    "curl",
+    "git",
+    "gh",
+    "python3",
+    "python3-pip",
+    "python3-venv",
+    "build-essential",
+    "libssl-dev",
+    "zlib1g-dev",
+]
+
+EXCLUDE_PATTERNS = [
+    ".venv",
+    "__pycache__",
+    "*.pyc",
+    "build",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".coverage",
+    "htmlcov",
+]
+
+PYTEST_FLAGS = ["--tb=short", "-v"]
+
+
+async def pipeline() -> None:
+    cfg = dagger.Config(log_output=sys.stderr)
+    async with dagger.Connection(cfg) as client:
+        print("=== Anki Dictionary Addon CI ===")
+
+        print("Building base container...")
+        base = (
+            client.container()
+            .from_("ubuntu:24.04")
+            .with_exec(["apt-get", "update"])
+            .with_exec(
+                [
+                    "apt-get",
+                    "install",
+                    "-y",
+                    "--no-install-recommends",
+                    *SYSTEM_DEPS,
+                    *BUILD_DEPS,
+                ]
+            )
+            .with_exec(["pip3", "install", "uv", "--break-system-packages"])
+            .with_exec(["uv", "python", "install", "3.13"])
+            .with_exec(["uv", "python", "pin", "3.13"])
+        )
+
+        print("Mounting source...")
+        uv_cache = client.cache_volume("uv-cache")
+        ctr = (
+            base.with_mounted_cache("/root/.cache/uv", uv_cache)
+            .with_directory(
+                "/src", client.host().directory("."), exclude=EXCLUDE_PATTERNS
+            )
+            .with_workdir("/src")
+        )
+
+        print("Setting up Python venv...")
+        ctr = await (
+            ctr.with_exec(["uv", "venv", "--seed"])
+            .with_exec(["uv", "sync", "--frozen"])
+            .sync()
+        )
+
+        print("Running linter...")
+        await (
+            ctr.with_exec([".venv/bin/ruff", "check", "."])
+            .with_exec([".venv/bin/ruff", "format", "--check", "."])
+            .sync()
+        )
+        print("Lint passed")
+
+        print("Running type checker...")
+        await ctr.with_exec(["uv", "run", "ty", "check", "."]).sync()
+        print("Type check passed")
+
+        print("Running unit tests...")
+        await (
+            ctr.with_env_variable("PYTHONPATH", "/src")
+            .with_exec(
+                [
+                    ".venv/bin/pytest",
+                    "tests/",
+                    "-p",
+                    "no:qt",
+                    "-p",
+                    "no:xvfb",
+                    "-m",
+                    "not integration and not network",
+                    "--ignore=tests/test_all_dictionaries.py",
+                    "--ignore=tests/test_dictionary_index.py",
+                    *PYTEST_FLAGS,
+                ]
+            )
+            .sync()
+        )
+        print("Unit tests passed")
+
+        print("Running integration tests...")
+        await ctr.with_exec(
+            [
+                "xvfb-run",
+                "--auto-servernum",
+                ".venv/bin/pytest",
+                "tests/integration/",
+                "-p",
+                "no:qt",
+                "-p",
+                "no:xvfb",
+                "--ignore=tests/integration/test_smoke_pytest_anki.py",
+                *PYTEST_FLAGS,
+            ]
+        ).sync()
+        print("Integration tests passed")
+
+        print("Running smoke test...")
+        await ctr.with_exec(
+            [
+                "sh",
+                "-c",
+                "xvfb-run --auto-servernum "
+                ".venv/bin/pytest tests/integration/test_smoke_pytest_anki.py "
+                f"{' '.join(PYTEST_FLAGS)}; "
+                "rc=$?; "
+                "if [ $rc -eq 1 ] || [ $rc -eq 2 ]; then exit $rc; fi",
+            ]
+        ).sync()
+        print("Smoke test passed")
+
+        print("Building addon...")
+        await ctr.with_exec([".venv/bin/python", "build.py", "all"]).sync()
+        print("Build complete")
+
+        print("Pipeline complete!")

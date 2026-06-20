@@ -33,15 +33,16 @@ class ClipThread(QObject):
 
     def __init__(self, mw: Any, path: str) -> None:
         super().__init__(mw)
+        self.mw = mw
         try:
             if is_mac:
                 import ssl
 
-                ssl._create_default_https_context = ssl._create_unverified_context
+                ssl._create_default_https_context = ssl._create_unverified_context  # ty:ignore[invalid-assignment]
                 try:
                     from Quartz import (
-                        CGEventGetIntegerValueField,
-                        kCGKeyboardEventKeycode,
+                        CGEventGetIntegerValueField,  # ty:ignore[unresolved-import]
+                        kCGKeyboardEventKeycode,  # ty:ignore[unresolved-import]
                     )
 
                     self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
@@ -85,14 +86,14 @@ class ClipThread(QObject):
         keycode = self.CGEventGetIntegerValueField(event, self.kCGKeyboardEventKeycode)
         if (
             (
-                "Key.cmd" in self.mw.currentlyPressed  # ty:ignore[unresolved-attribute]
-                or "Key.cmd_r" in self.mw.currentlyPressed  # ty:ignore[unresolved-attribute]
+                "Key.cmd" in self.mw.currentlyPressed
+                or "Key.cmd_r" in self.mw.currentlyPressed
             )
-            and "'c'" in self.mw.currentlyPressed  # ty:ignore[unresolved-attribute]
+            and "'c'" in self.mw.currentlyPressed
             and keycode == 1
         ):
             self.handleSystemSearch()
-            self.mw.currentlyPressed = []  # ty:ignore[unresolved-attribute]
+            self.mw.currentlyPressed = []
             return None
         return event
 
@@ -128,7 +129,7 @@ class ClipThread(QObject):
         self.add.emit("add")
 
     def checkDict(self) -> bool:
-        if not self.mw.ankiDictionary or not self.mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        if not self.mw.ankiDictionary or not self.mw.ankiDictionary.isVisible():
             return False
         return True
 
@@ -136,10 +137,10 @@ class ClipThread(QObject):
         self.searchFromExtension.emit(terms)
 
     def handleSystemSearch(self) -> None:
-        self.search.emit(self.mw.app.clipboard().text())  # ty:ignore[unresolved-attribute]
+        self.search.emit(self.mw.app.clipboard().text())
 
     def handleColSearch(self) -> None:
-        self.colSearch.emit(self.mw.app.clipboard().text())  # ty:ignore[unresolved-attribute]
+        self.colSearch.emit(self.mw.app.clipboard().text())
 
     def getConfig(self) -> Dict[str, Any]:
         return get_addon_config()
@@ -152,7 +153,7 @@ class ClipThread(QObject):
         audioFileName = card["audio"]
         imageFileName = card["image"]
         bulk = card["bulk"]
-        media_dir = self.mw.col.media.dir()  # ty:ignore[unresolved-attribute]
+        media_dir = self.mw.col.media.dir()
         if audioFileName:
             audioTempPath = join(self.temp_dir, audioFileName)
             if not media_manager.wait_for_file(audioTempPath):
@@ -167,8 +168,8 @@ class ClipThread(QObject):
                 media_manager.scale_image(
                     imageTempPath,
                     join(media_dir, avif_name),
-                    self.mw.AnkiDictConfig["maxWidth"],  # ty:ignore[unresolved-attribute]
-                    self.mw.AnkiDictConfig["maxHeight"],  # ty:ignore[unresolved-attribute]
+                    self.mw.AnkiDictConfig["maxWidth"],
+                    self.mw.AnkiDictConfig["maxHeight"],
                 )
                 media_manager.remove_file(imageTempPath)
         if bulk:
@@ -181,8 +182,8 @@ class ClipThread(QObject):
 
     def handleImageExport(self) -> None:
         if self.checkDict():
-            mime = self.mw.app.clipboard().mimeData()  # ty:ignore[unresolved-attribute]
-            clip = self.mw.app.clipboard().text()  # ty:ignore[unresolved-attribute]
+            mime = self.mw.app.clipboard().mimeData()
+            clip = self.mw.app.clipboard().text()
 
             if not clip.endswith(".mp3") and mime.hasImage():
                 image = mime.imageData()
@@ -222,4 +223,4 @@ class ClipThread(QObject):
 
     def handleSentenceExport(self) -> None:
         if self.checkDict():
-            self.sentence.emit(self.mw.app.clipboard().text())  # ty:ignore[unresolved-attribute]
+            self.sentence.emit(self.mw.app.clipboard().text())
