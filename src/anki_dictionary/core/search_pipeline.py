@@ -11,6 +11,7 @@ from typing import List, Dict, Optional, Tuple, Any, Union
 from urllib.request import Request, urlopen
 
 
+from . import html_renderer
 from ..utils.logger import get_logger
 from ..web.icons import get_base64_icon
 from ..integrations import image_search as duckduckgoimages
@@ -120,20 +121,10 @@ class SearchPipeline:
         return conjugations
 
     def cleanTerm(self, term):
-        return (
-            term.replace("%", "")
-            .replace("_", "")
-            .replace("\u300c", "")
-            .replace("\u300d", "")
-        )
+        return html_renderer.clean_term(term)
 
     def getFontFamily(self, group):
-        if not group["font"]:
-            return " "
-        if group["customFont"]:
-            return ' style="font-family:' + re.sub(r"\..*$", "", group["font"]) + ';" '
-        else:
-            return ' style="font-family:' + group["font"] + ';" '
+        return html_renderer.get_font_family(group)
 
     def injectFont(self, font):
         name = re.sub(r"\..*$", "", font)
@@ -245,7 +236,7 @@ class SearchPipeline:
         return results
 
     def escapePunctuation(self, term):
-        return re.sub(r"([.*+(\[\]{}\\?)!])", "\\\1", term)
+        return html_renderer.escape_punctuation(term)
 
     def highlightTarget(self, text, term):
         if self.midict.config["highlightTarget"]:
@@ -277,24 +268,7 @@ class SearchPipeline:
         return text
 
     def processDefinitionHTML(self, text):
-        if not isinstance(text, str):
-            text = str(text) if text is not None else ""
-
-        text = text.strip()
-        text = text.replace("\n", "<br>")
-
-        text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
-
-        text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-
-        text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
-
-        text = re.sub(r"^(<br>\s*)+", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"(<br>\s*)+$", "", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"^\[\?\]\s*", "", text)
-
-        return text.strip()
+        return html_renderer.process_definition_html(text)
 
     def getSideBar(self, results, term, font, frontBracket, backBracket):
         html = "<div" + font + 'class="definitionSideBar"><div class="innerSideBar">'
