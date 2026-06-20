@@ -88,7 +88,9 @@ jobs:
           .venv/bin/ruff format --check .
 
       - name: Type Check
-        run: uv run ty check .
+        run: |
+          uv sync --frozen
+          uv run ty check .
 
       - name: Test
         run: |
