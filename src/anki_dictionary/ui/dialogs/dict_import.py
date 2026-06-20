@@ -8,7 +8,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 from aqt.qt import QMessageBox, QWidget
 
-from ...utils.paths import get_db_dir
+from ...utils.paths import get_db_dir, get_word_lists_dir
 from ...utils.logger import get_logger
 
 log = get_logger("dict_import")
@@ -457,36 +457,61 @@ def getStarCount(freq: int) -> str:
 
 
 def getFrequencyList(lang: str) -> Any:
-    filePath = os.path.join(get_db_dir(), "frequency", "%s.json" % lang)
-    frequencyDict = {}
-    if os.path.exists(filePath):
-        frequencyList = json.load(open(filePath, "r", encoding="utf-8-sig"))
-        if isinstance(frequencyList[0], str):
-            yomi = False
-            frequencyDict["readingDictionaryType"] = False
-        elif (
-            isinstance(frequencyList[0], list)
-            and len(frequencyList[0]) == 2
-            and isinstance(frequencyList[0][0], str)
-            and isinstance(frequencyList[0][1], str)
-        ):
-            yomi = True
-            frequencyDict["readingDictionaryType"] = True
-        else:
-            return False
-        for idx, f in enumerate(frequencyList):
-            if yomi:
-                term = f[0].strip()
-                reading = f[1].strip()
-                if term in frequencyDict:
-                    frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
-                else:
-                    frequencyDict[term] = {}
-                    frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
-            else:
-                term = f.strip()
-                if term not in frequencyDict:
-                    frequencyDict[term] = idx
-        return frequencyDict
+    # Check legacy frequency/ directory first
+    legacyPath = os.path.join(get_db_dir(), "frequency", "%s.json" % lang)
+    if os.path.exists(legacyPath):
+        return _load_frequency_file(legacyPath)
+
+    # Fall back to word_lists/ directory (new location)
+    wordListsDir = get_word_lists_dir()
+    if os.path.exists(wordListsDir):
+        prefix = lang.replace(" ", "_") + "_"
+        for filename in os.listdir(wordListsDir):
+            if not filename.endswith(".json"):
+                continue
+            if not filename.startswith(prefix) and filename != f"{lang}.json":
+                continue
+            filePath = os.path.join(wordListsDir, filename)
+            result = _load_frequency_file(filePath)
+            if result:
+                return result
+
+    return False
+
+
+def _load_frequency_file(filePath: str) -> Any:
+    frequencyDict: Dict[str, Any] = {}
+    try:
+        with open(filePath, "r", encoding="utf-8-sig") as f:
+            frequencyList = json.load(f)
+    except Exception:
+        return False
+    if not frequencyList:
+        return False
+    if isinstance(frequencyList[0], str):
+        yomi = False
+        frequencyDict["readingDictionaryType"] = False
+    elif (
+        isinstance(frequencyList[0], list)
+        and len(frequencyList[0]) == 2
+        and isinstance(frequencyList[0][0], str)
+        and isinstance(frequencyList[0][1], str)
+    ):
+        yomi = True
+        frequencyDict["readingDictionaryType"] = True
     else:
         return False
+    for idx, f in enumerate(frequencyList):
+        if yomi:
+            term = f[0].strip()
+            reading = f[1].strip()
+            if term in frequencyDict:
+                frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
+            else:
+                frequencyDict[term] = {}
+                frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
+        else:
+            term = f.strip()
+            if term not in frequencyDict:
+                frequencyDict[term] = idx
+    return frequencyDict

@@ -139,6 +139,7 @@ class DictDB:
         """Apply frequency and level information to an entry from multiple providers."""
         show_stars = config.get("show_stars", True)
         show_rank = config.get("show_rank", False)
+        show_level_labels = config.get("show_level_labels", True)
         word_list_visibility = config.get("word_list_visibility", {})
 
         levels: List[str] = []
@@ -167,7 +168,9 @@ class DictDB:
                 levels.append(f"{name}:{level}")
 
         # Apply collected levels
-        entry["levelLabels"] = " / ".join(levels) if levels else ""
+        entry["levelLabels"] = (
+            " / ".join(levels) if levels and show_level_labels else ""
+        )
 
         # Apply best found frequency rank
         if frequency == 999999 and entry.get("frequency"):
@@ -576,24 +579,72 @@ class DictDB:
         except Exception:
             return None
 
-    def getDefEx(self, sT: str) -> bool:
-        return self.search_query_builder.get_def_ex(sT)
-
-    def applySearchType(self, terms: List[str], sT: str) -> List[str]:
-        return self.search_query_builder.apply_search_type(terms, sT)
-
-    def deconjugate(
-        self, terms: List[str], conjugations: List[Dict[str, Any]]
-    ) -> List[str]:
-        return self.search_query_builder.deconjugate(terms, conjugations)
-
     def get_term_frequency_info(
         self, term: str, lang: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         return self.search_query_builder.get_term_frequency_info(term, lang, config)
 
-    def rreplace(self, s: str, old: str, new: str, occurrence: int) -> str:
-        return self.search_query_builder._rreplace(s, old, new, occurrence)
+    def reapply_frequency_for_language(self, lang: str, config: Dict[str, Any]) -> int:
+        """Re-compute and persist frequency/starCount for all existing
+        dictionary entries of a given language.
+
+        Returns the number of entries updated.
+        """
+        if not self._ensure_connection():
+            return 0
+
+        providers = self._get_extra_data(lang)
+        if not providers:
+            return 0
+
+        dicts = self.getDictsByLanguage(lang)
+        cursor = self._get_cursor()
+        total = 0
+
+        for dict_name in dicts:
+            lid = self.getLangIdFromDict(dict_name)
+            if lid is None:
+                continue
+            table = self.formatDictName(lid, dict_name)
+            safe_table = self._quote_identifier(table)
+
+            try:
+                cursor.execute(
+                    f"SELECT rowid, term, altterm, pronunciation, definition, "
+                    f"examples, audio, frequency, starCount "
+                    f"FROM {safe_table}"
+                )
+            except Exception as e:
+                logger.debug("Skipping %s: %s", table, e)
+                continue
+
+            for row in cursor.fetchall():
+                entry = {
+                    "term": row[1],
+                    "altterm": row[2] or "",
+                    "pronunciation": row[3] or "",
+                    "definition": row[4] or "",
+                    "frequency": row[7] or "",
+                    "starCount": row[8] or "",
+                    "levelLabels": "",
+                }
+                self._apply_frequency_info(entry, providers, config)
+
+                new_freq = entry.get("frequency", "")
+                new_stars = entry.get("starCount", "")
+                try:
+                    cursor.execute(
+                        f"UPDATE {safe_table} SET frequency = ?, starCount = ? "
+                        f"WHERE rowid = ?",
+                        (new_freq, new_stars, row[0]),
+                    )
+                    total += 1
+                except Exception as e:
+                    logger.debug("Error updating row %s: %s", row[0], e)
+
+            self.commitChanges()
+
+        return total
 
     def searchTerm(
         self, term, selectedGroup, conjugations, sT, deinflect, dictLimit, maxDefs
@@ -601,28 +652,6 @@ class DictDB:
         return self.search_query_builder.search(
             term, selectedGroup, conjugations, sT, deinflect, int(dictLimit), maxDefs
         )
-
-    def processDefinitionHTML(self, text):
-        return self.search_query_builder.process_definition_html(text)
-
-    def resultToDict(self, r):
-        return self.search_query_builder.result_to_dict(r)
-
-    def executeSearch(
-        self, dictName: str, toQuery: str, dictLimit: str, termTuple: Tuple[Any, ...]
-    ) -> List[Tuple[Any, ...]]:
-        return self.search_query_builder.execute_search(
-            dictName, toQuery, int(dictLimit), termTuple
-        )
-
-    def getQueryCriteria(self, col, terms, op="LIKE"):
-        return self.search_query_builder.get_query_criteria(col, terms, op)
-
-    def getDefForMassExp(self, term, dN, limit, rN):
-        return self.search_query_builder.get_def_for_mass_exp(term, dN, int(limit), rN)
-
-    def cleanLT(self, text):
-        return self.search_query_builder.clean_lt(text)
 
     def createDB(self, text: str) -> None:
         """Create a new dictionary table with indexes."""

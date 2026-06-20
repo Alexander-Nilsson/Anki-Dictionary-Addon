@@ -9,6 +9,7 @@ from aqt.qt import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -37,6 +38,8 @@ class FrequencySettingsTab(QWidget):
         self.freqThreshold5.setRange(1, 1000000)
         self.showStars = QCheckBox("Display Stars")
         self.showRank = QCheckBox("Display Frequency Rank")
+        self.showLevelLabels = QCheckBox("Display Level Labels")
+        self.showLevelLabels.setChecked(True)
 
         self._list_checkboxes: Dict[str, QCheckBox] = {}
 
@@ -57,6 +60,33 @@ class FrequencySettingsTab(QWidget):
             pass
         return providers
 
+    def _on_reapply(self) -> None:
+        """Reapply frequency data to all existing dictionary entries."""
+        from ...utils.config import get_addon_config, save_addon_config
+
+        config = get_addon_config()
+        langs = self.mw.miDictDB.getCurrentDbLangs()
+        total = 0
+        for lang in langs:
+            try:
+                self.mw.progress.start(label=f"Reapplying frequency data for {lang}...")
+                count = self.mw.miDictDB.reapply_frequency_for_language(lang, config)
+                total += count
+            except Exception as e:
+                from ...utils.logger import get_logger
+
+                get_logger("frequency_settings").error(
+                    "Error reapplying for %s: %s", lang, e
+                )
+            finally:
+                self.mw.progress.finish()
+
+        from aqt.utils import tooltip
+
+        tooltip(
+            f"Frequency data reapplied to {total} entries across {len(langs)} language(s)."
+        )
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
@@ -71,6 +101,7 @@ class FrequencySettingsTab(QWidget):
         visLayout = QVBoxLayout()
         visLayout.addWidget(self.showStars)
         visLayout.addWidget(self.showRank)
+        visLayout.addWidget(self.showLevelLabels)
 
         # Dynamic word list checkboxes
         for key, provider in sorted(self._discover_providers().items()):
@@ -102,6 +133,24 @@ class FrequencySettingsTab(QWidget):
         starGroup.setLayout(starLayout)
         layout.addWidget(starGroup)
 
+        actionGroup = QGroupBox("Actions")
+        actionLayout = QVBoxLayout()
+
+        self.reapplyBtn = QPushButton("Reapply Frequency Data to All Existing Entries")
+        self.reapplyBtn.clicked.connect(self._on_reapply)
+        actionLayout.addWidget(self.reapplyBtn)
+
+        reapplyHint = QLabel(
+            "Recompute frequency ranks and star counts for all existing "
+            "dictionary entries using currently downloaded word lists."
+        )
+        reapplyHint.setStyleSheet("font-size: 10px; color: gray;")
+        reapplyHint.setWordWrap(True)
+        actionLayout.addWidget(reapplyHint)
+
+        actionGroup.setLayout(actionLayout)
+        layout.addWidget(actionGroup)
+
         layout.addStretch()
 
     def load_config(self, config: Dict[str, Any]) -> None:
@@ -117,6 +166,7 @@ class FrequencySettingsTab(QWidget):
 
         self.showStars.setChecked(config.get("show_stars", True))
         self.showRank.setChecked(config.get("show_rank", False))
+        self.showLevelLabels.setChecked(config.get("show_level_labels", True))
 
         word_list_visibility: Dict[str, Dict[str, bool]] = config.get(
             "word_list_visibility", {}
@@ -137,6 +187,7 @@ class FrequencySettingsTab(QWidget):
         ]
         config["show_stars"] = self.showStars.isChecked()
         config["show_rank"] = self.showRank.isChecked()
+        config["show_level_labels"] = self.showLevelLabels.isChecked()
 
         word_list_visibility: Dict[str, Dict[str, bool]] = {}
         for key, cb in self._list_checkboxes.items():

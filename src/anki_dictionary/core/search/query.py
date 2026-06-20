@@ -86,6 +86,7 @@ class SearchQueryBuilder:
 
     @staticmethod
     def result_to_dict(r: Tuple[Any, ...]) -> Dict[str, Any]:
+        frequency: Any = r[8] if len(r) > 8 else ""
         return {
             "term": r[0],
             "altterm": r[1],
@@ -95,6 +96,7 @@ class SearchQueryBuilder:
             "examples": r[5],
             "audio": r[6],
             "starCount": r[7],
+            "frequency": frequency,
             "levelLabels": "",
         }
 
@@ -107,9 +109,7 @@ class SearchQueryBuilder:
     ) -> List[Tuple[Any, ...]]:
         cursor = self._db._get_cursor()
         safe_table = self._quote_identifier(dict_name)
-        cols = (
-            "term, altterm, pronunciation, pos, definition, examples, audio, starCount"
-        )
+        cols = "term, altterm, pronunciation, pos, definition, examples, audio, starCount, frequency"
         query = (
             f"SELECT {cols} FROM {safe_table} WHERE {to_query}"
             " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT ?"
@@ -148,14 +148,7 @@ class SearchQueryBuilder:
         providers: List[Any],
         config: Dict[str, Any],
     ) -> None:
-        for provider in providers:
-            lookup = provider.lookup(entry["term"], entry.get("altterm") or "")
-            if lookup.rank is not None:
-                count = self._db.getStarCount(lookup.rank)
-                if count:
-                    entry["starCount"] = count
-            if lookup.levels:
-                entry["levelLabels"] = ", ".join(lookup.levels)
+        self._db._apply_frequency_info(entry, providers, config)
 
     def search(
         self,
