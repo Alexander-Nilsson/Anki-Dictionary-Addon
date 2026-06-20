@@ -10,8 +10,6 @@ from aqt import mw
 from ..utils.paths import (
     get_addon_root,
     get_db_dir,
-    get_frequency_dir,
-    get_hsk_dir,
     get_addon_name,
 )
 from ..utils.common import miInfo
@@ -19,6 +17,7 @@ from ..utils.logger import get_logger
 from ..utils.config import get_addon_config
 from .search.query import SearchQueryBuilder
 from .word_list_registry import WordListRegistry
+from .frequency import FrequencyEngine
 
 # Initialize logger
 logger = get_logger("database")
@@ -34,6 +33,7 @@ class DictDB:
         self.oldConnection: Optional[sqlite3.Cursor] = None
         self._extra_data_cache: Dict[str, List[Any]] = {}
         self._registry: Optional[WordListRegistry] = None
+        self._frequency_engine: Optional[FrequencyEngine] = None
         self.search_query_builder = SearchQueryBuilder(self)
 
         # Get the root addon directory
@@ -69,6 +69,7 @@ class DictDB:
             raise
 
         self._registry = WordListRegistry(get_db_dir())
+        self._frequency_engine = FrequencyEngine(self._registry)
 
     @staticmethod
     def _quote_identifier(name: str) -> str:
@@ -112,23 +113,12 @@ class DictDB:
         return providers
 
     def getStarCount(self, freq: int) -> str:
-        """Convert frequency rank to star rating."""
         config = get_addon_config()
-        star_char = config.get("star_char", "★")
+        star_char = config.get("star_char", "\u2605")
         thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+        from .frequency import get_star_count
 
-        if freq < thresholds[0]:
-            return star_char * 5
-        elif freq < thresholds[1]:
-            return star_char * 4
-        elif freq < thresholds[2]:
-            return star_char * 3
-        elif freq < thresholds[3]:
-            return star_char * 2
-        elif freq < thresholds[4]:
-            return star_char * 1
-        else:
-            return ""
+        return get_star_count(freq, star_char, thresholds)
 
     def _apply_frequency_info(
         self,
@@ -136,87 +126,18 @@ class DictDB:
         providers: List[Any],
         config: Dict[str, Any],
     ) -> None:
-        """Apply frequency and level information to an entry from multiple providers."""
-        show_stars = config.get("show_stars", True)
-        show_rank = config.get("show_rank", False)
-        word_list_visibility = config.get("word_list_visibility", {})
-        word_list_display_names = config.get("word_list_display_names", {})
-
-        levels: List[str] = []
-        frequency: int = 999999
-        term = entry["term"]
-        alt = entry["altterm"]
-        entry_reading = self.adjustReading(entry["pronunciation"] or term)
-
-        for provider in providers:
-            name = provider.name
-            lang_vis = word_list_visibility.get(provider.lang, {})
-            if not lang_vis.get(name, True):
-                continue
-
-            display_name = word_list_display_names.get(provider.lang, {}).get(name, "")
-            label = display_name or name
-
-            result = provider.lookup(term, entry_reading)
-
-            if not result.rank and not result.levels:
-                alt_result = provider.lookup(alt, entry_reading) if alt else None
-                if alt_result and (alt_result.rank is not None or alt_result.levels):
-                    result = alt_result
-
-            if result.rank is not None and result.rank < frequency:
-                frequency = result.rank
-
-            for level in result.levels:
-                levels.append(f"{label}:{level}")
-
-        # Apply collected levels
-        entry["levelLabels"] = " / ".join(levels) if levels else ""
-
-        # Apply best found frequency rank
-        if frequency == 999999 and entry.get("frequency"):
-            try:
-                frequency = int(entry["frequency"])
-            except (ValueError, TypeError):
-                logger.debug("Could not parse frequency: %s", entry.get("frequency"))
-
-        if frequency != 999999:
-            if show_stars:
-                entry["starCount"] = self.getStarCount(frequency)
-            if show_rank:
-                entry["frequency"] = frequency
-        else:
-            if not show_stars:
-                entry["starCount"] = ""
-            if not show_rank:
-                entry["frequency"] = ""
+        if self._frequency_engine is not None:
+            self._frequency_engine.apply(entry, providers, config)
 
     def kana_converter(self, to_translate: str, hiraganer: bool = False) -> str:
-        """Convert between Hiragana and Katakana."""
-        hiragana = (
-            "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
-            "あいうえおかきくけこさしすせそたちつてと"
-            "なにぬねのはひふへほまみむめもやゆよらりるれろ"
-            "わをんぁぃぅぇぉゃゅょっゐゑ"
-        )
-        katakana = (
-            "ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ"
-            "アイウエオカキクケコサシスセソタチツテト"
-            "ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ"
-            "ワヲンァィゥェォャュョッヰヱ"
-        )
-        if hiraganer:
-            katakana_ords = [ord(char) for char in katakana]
-            translate_table = dict(zip(katakana_ords, hiragana))
-            return to_translate.translate(translate_table)
-        else:
-            hiragana_ords = [ord(char) for char in hiragana]
-            translate_table = dict(zip(hiragana_ords, katakana))
-            return to_translate.translate(translate_table)
+        from .frequency import kana_converter as _kc
+
+        return _kc(to_translate, hiraganer)
 
     def adjustReading(self, reading: str) -> str:
-        """Adjust reading for frequency lookup."""
-        return self.kana_converter(reading)
+        from .frequency import adjust_reading
+
+        return adjust_reading(reading)
 
     def getLangId(self, lang: str) -> Optional[int]:
         """Get language ID from language name."""
@@ -580,24 +501,10 @@ class DictDB:
         except Exception:
             return None
 
-    def getDefEx(self, sT: str) -> bool:
-        return self.search_query_builder.get_def_ex(sT)
-
-    def applySearchType(self, terms: List[str], sT: str) -> List[str]:
-        return self.search_query_builder.apply_search_type(terms, sT)
-
-    def deconjugate(
-        self, terms: List[str], conjugations: List[Dict[str, Any]]
-    ) -> List[str]:
-        return self.search_query_builder.deconjugate(terms, conjugations)
-
     def get_term_frequency_info(
         self, term: str, lang: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         return self.search_query_builder.get_term_frequency_info(term, lang, config)
-
-    def rreplace(self, s: str, old: str, new: str, occurrence: int) -> str:
-        return self.search_query_builder._rreplace(s, old, new, occurrence)
 
     def searchTerm(
         self, term, selectedGroup, conjugations, sT, deinflect, dictLimit, maxDefs
@@ -605,28 +512,6 @@ class DictDB:
         return self.search_query_builder.search(
             term, selectedGroup, conjugations, sT, deinflect, int(dictLimit), maxDefs
         )
-
-    def processDefinitionHTML(self, text):
-        return self.search_query_builder.process_definition_html(text)
-
-    def resultToDict(self, r):
-        return self.search_query_builder.result_to_dict(r)
-
-    def executeSearch(
-        self, dictName: str, toQuery: str, dictLimit: str, termTuple: Tuple[Any, ...]
-    ) -> List[Tuple[Any, ...]]:
-        return self.search_query_builder.execute_search(
-            dictName, toQuery, int(dictLimit), termTuple
-        )
-
-    def getQueryCriteria(self, col, terms, op="LIKE"):
-        return self.search_query_builder.get_query_criteria(col, terms, op)
-
-    def getDefForMassExp(self, term, dN, limit, rN):
-        return self.search_query_builder.get_def_for_mass_exp(term, dN, int(limit), rN)
-
-    def cleanLT(self, text):
-        return self.search_query_builder.clean_lt(text)
 
     def createDB(self, text: str) -> None:
         """Create a new dictionary table with indexes."""

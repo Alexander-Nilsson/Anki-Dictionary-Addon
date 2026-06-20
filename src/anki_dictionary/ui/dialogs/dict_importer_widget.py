@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import zipfile
 
 from aqt.qt import (
     QFileDialog,
-    QInputDialog,
     QMessageBox,
     QProgressDialog,
     QTreeWidgetItem,
@@ -128,38 +128,11 @@ class DictImporter:
         if not path:
             return
 
-        msg = QMessageBox(self.parent)
-        msg.setWindowTitle("Data Type")
-        msg.setText("What type of data are you importing?")
-        btn_main = msg.addButton(
-            "Main Frequency List", QMessageBox.ButtonRole.ActionRole
-        )
-        btn_extra = msg.addButton(
-            "Extra Level/HSK List", QMessageBox.ButtonRole.ActionRole
-        )
-        msg.addButton(QMessageBox.StandardButton.Cancel)
-        msg.exec()
+        filename = os.path.basename(path)
+        wl_dir = get_word_lists_dir()
+        os.makedirs(wl_dir, exist_ok=True)
 
-        clicked = msg.clickedButton()
-        lang_part = lang_name.replace(" ", "_")
-        if clicked == btn_main:
-            filename = "%s.json" % lang_part
-        elif clicked == btn_extra:
-            label, ok = QInputDialog.getText(
-                self.parent,
-                "Label",
-                "Enter a label for this data (e.g. HSK, JLPT, CEFR):",
-            )
-            if not ok or not label:
-                return
-            filename = "%s_%s.json" % (lang_part, label)
-        else:
-            return
-
-        freq_path = get_word_lists_dir()
-        os.makedirs(freq_path, exist_ok=True)
-
-        dst_path = os.path.join(freq_path, filename)
+        dst_path = os.path.join(wl_dir, filename)
 
         try:
             shutil.copy(path, dst_path)
@@ -167,13 +140,37 @@ class DictImporter:
             self.parent.info("Importing data failed.")
             return
 
-        self.parent.info(
-            'Imported data as "%s" for "%s".\n\nNote that some data is only applied to newly imported dictionaries.'
-            % (filename, lang_name)
-        )
+        # Extract ZIP word lists (Anki-dictionary format)
+        try:
+            with zipfile.ZipFile(dst_path) as zf:
+                data_files = [
+                    f
+                    for f in zf.namelist()
+                    if f.startswith("term_meta_bank_") or f.startswith("term_bank_")
+                ]
+                if data_files:
+                    with zf.open(data_files[0]) as df:
+                        real_data = json.load(df)
+                    with open(dst_path, "w", encoding="utf-8") as f:
+                        json.dump(real_data, f, ensure_ascii=False)
+        except (zipfile.BadZipFile, Exception):
+            pass
 
+        # Clear registry cache so new data is picked up
         if hasattr(self.mw, "miDictDB"):
+            registry = getattr(self.mw.miDictDB, "_registry", None)
+            if registry:
+                registry.clear_cache(lang_name)
             self.mw.miDictDB._extra_data_cache.pop(lang_name, None)
+
+        # Trigger display refresh
+        if hasattr(self.mw, "ankiDictionary") and self.mw.ankiDictionary:
+            try:
+                self.mw.ankiDictionary.refresh_application_theme()
+            except Exception:
+                pass
+
+        self.parent.info('Imported data as "%s" for "%s".' % (filename, lang_name))
 
     def web_freq_data(self):
         lang_item = self.parent.tree_manager.get_current_lang_item()

@@ -176,10 +176,7 @@ class FreqConjWebWindow(QDialog):
             aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)  # ty:ignore[unresolved-attribute]
 
         if self.mode == self.Mode.Freq:
-            msg = (
-                'Imported data as "%s" for "%s".\n\nNote that some data is only applied to newly imported dictionaries.'
-                % (filename, self.dst_lang)
-            )
+            msg = 'Imported data as "%s" for "%s".' % (filename, self.dst_lang)
         else:
             msg = 'Imported conjugation data for "%s".' % self.dst_lang
         QMessageBox.information(self, self.windowTitle(), msg)

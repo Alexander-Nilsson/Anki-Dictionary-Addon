@@ -45,16 +45,6 @@ def get_db_dir() -> str:
     return os.path.join(get_user_files_dir(), "db")
 
 
-def get_frequency_dir() -> str:
-    """Get the path to the frequency data directory (legacy, use get_word_lists_dir)."""
-    return os.path.join(get_db_dir(), "frequency")
-
-
-def get_hsk_dir() -> str:
-    """Get the path to the HSK data directory (legacy, use get_word_lists_dir)."""
-    return os.path.join(get_db_dir(), "hsk")
-
-
 def get_word_lists_dir() -> str:
     """Get the path to the unified word lists directory."""
     return os.path.join(get_db_dir(), "word_lists")

@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from anki_dictionary.core.database import DictDB
+from anki_dictionary.core.search.query import SearchQueryBuilder
 from anki_dictionary.core.word_list_registry import WordListProvider
 from scripts.create_empty_db import create_empty_database
 
@@ -112,17 +113,17 @@ class TestDictDB(unittest.TestCase):
 
     def test_process_definition_html(self):
         html = "Line 1\nLine 2<br/>Line 3 &lt;b&gt;bold&lt;/b&gt;"
-        processed = self.db.processDefinitionHTML(html)
+        processed = SearchQueryBuilder.process_definition_html(html)
         self.assertIn("Line 1<br>Line 2<br>Line 3 <b>bold</b>", processed)
 
         # Test leading/trailing whitespace and <br>
         html2 = "  \n<br>  Definition content  <br/>\n  "
-        processed2 = self.db.processDefinitionHTML(html2)
+        processed2 = SearchQueryBuilder.process_definition_html(html2)
         self.assertEqual(processed2, "Definition content")
 
         # Test multiple <br> tags
         html3 = "<br><br>Content<br>   <br>"
-        processed3 = self.db.processDefinitionHTML(html3)
+        processed3 = SearchQueryBuilder.process_definition_html(html3)
         self.assertEqual(processed3, "Content")
 
     def test_dictionary_data_lifecycle(self):
@@ -224,7 +225,7 @@ class TestDictDB(unittest.TestCase):
             "term": "我",
             "altterm": "",
             "pronunciation": "",
-            "frequency": 999999,
+            "frequency": "",
         }
         config = self.mock_get_config.return_value
 

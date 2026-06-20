@@ -15,12 +15,7 @@ from aqt.qt import (
 
 from ...utils.logger import get_logger
 from .dict_importer_widget import DictImporter
-from .dict_import import (
-    importDict,
-    organizeDictionaryByFrequency,
-    getStarCount,
-    getFrequencyList,
-)
+from .dict_import import importDict
 from .language_manager_widget import LanguageManager
 from .tree_manager_widget import TreeManager
 

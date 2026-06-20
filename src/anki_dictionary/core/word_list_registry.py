@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from ..utils.logger import get_logger
-from ..utils.paths import get_db_dir, get_frequency_dir, get_hsk_dir
+from ..utils.paths import get_db_dir
 
 logger = get_logger("word_list_registry")
 
@@ -52,6 +52,14 @@ class WordListProvider:
             for idx, term in enumerate(data):
                 if isinstance(term, str):
                     self._index[term] = idx
+        elif isinstance(data, list) and type_ == "level":
+            # List-of-lists format: [[term, ...level], ...]
+            self._index = {}
+            for item in data:
+                if isinstance(item, list) and len(item) >= 3:
+                    level_val = item[2]
+                    if isinstance(level_val, (int, float)):
+                        self._index[str(item[0])] = str(int(level_val))
 
     def lookup(self, term: str, reading: str = "") -> LookupResult:
         if self.type == "rank":
@@ -128,13 +136,19 @@ class WordListRegistry:
         os.makedirs(self._dir, exist_ok=True)
 
         providers: List[WordListProvider] = []
-        prefix = lang.replace(" ", "_") + "_"
+        prefix_underscore = lang.replace(" ", "_") + "_"
+        prefix_space = lang + " "
 
         if os.path.exists(self._dir):
             for filename in os.listdir(self._dir):
                 if not filename.endswith(".json"):
                     continue
-                if not filename.startswith(prefix) and filename != f"{lang}.json":
+                if not (
+                    filename.startswith(prefix_underscore)
+                    or filename.startswith(prefix_space)
+                    or filename.startswith(lang + "_")
+                    or filename == f"{lang}.json"
+                ):
                     continue
 
                 filepath = os.path.join(self._dir, filename)
@@ -176,52 +190,6 @@ class WordListRegistry:
             return
         self._migrated = True
 
-        freq_dir = get_frequency_dir()
-        hsk_dir = get_hsk_dir()
-        migrated_any = False
-
-        if os.path.exists(freq_dir):
-            for filename in os.listdir(freq_dir):
-                if not filename.endswith(".json"):
-                    continue
-                src = os.path.join(freq_dir, filename)
-                dst = os.path.join(self._dir, filename)
-                os.makedirs(self._dir, exist_ok=True)
-                try:
-                    shutil.copy2(src, dst)
-                    migrated_any = True
-                except Exception as e:
-                    logger.error(f"Error migrating {src}: {e}")
-
-        if os.path.exists(hsk_dir):
-            for filename in os.listdir(hsk_dir):
-                if not filename.endswith(".json"):
-                    continue
-                src = os.path.join(hsk_dir, filename)
-                name = filename.replace(".json", "")
-                lang_part = name.split("_")[0]
-                suffix = "_".join(name.split("_")[1:]) if "_" in name else ""
-                dst_name = (
-                    f"{lang_part}_{suffix}.json" if suffix else f"{lang_part}.json"
-                )
-                dst = os.path.join(self._dir, dst_name)
-                os.makedirs(self._dir, exist_ok=True)
-                try:
-                    shutil.copy2(src, dst)
-                    migrated_any = True
-                except Exception as e:
-                    logger.error(f"Error migrating HSK {src}: {e}")
-
-        if migrated_any:
-            try:
-                if os.path.exists(freq_dir):
-                    shutil.rmtree(freq_dir)
-                if os.path.exists(hsk_dir):
-                    shutil.rmtree(hsk_dir)
-                logger.info("Migrated frequency/ and hsk/ to word_lists/")
-            except Exception as e:
-                logger.error(f"Error cleaning up legacy dirs: {e}")
-
     def clear_cache(self, lang: Optional[str] = None) -> None:
         if lang:
             self._cache.pop(lang, None)
@@ -231,6 +199,13 @@ class WordListRegistry:
     @staticmethod
     def _detect_type(data: Any) -> str:
         if isinstance(data, list):
+            if (
+                data
+                and isinstance(data[0], list)
+                and len(data[0]) >= 3
+                and data[0][1] == "freq"
+            ):
+                return "level"
             return "rank"
         if isinstance(data, dict):
             if "index" in data or "list" in data:
@@ -248,10 +223,17 @@ class WordListRegistry:
     @staticmethod
     def _name_from_filename(filename: str, lang: str) -> str:
         name = filename.replace(".json", "")
-        prefix = lang.replace(" ", "_") + "_"
-        if name.startswith(prefix):
-            name = name[len(prefix) :]
-        elif name == lang.replace(" ", "_"):
+        stripped = False
+        for sep in [" ", "_"]:
+            prefix = lang.replace(" ", sep) + sep
+            if name.startswith(prefix):
+                name = name[len(prefix) :]
+                stripped = True
+                break
+        base = lang.replace(" ", "_")
+        if not stripped and name.lower() == base.lower():
+            name = "Frequency"
+        if name == "" or name.lower() == "frequency":
             name = "Frequency"
         return name.replace("_", " ").title()
 
