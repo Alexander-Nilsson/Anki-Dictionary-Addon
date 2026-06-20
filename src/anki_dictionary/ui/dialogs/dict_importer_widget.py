@@ -14,7 +14,7 @@ from aqt.qt import (
 )
 
 from ...utils.logger import get_logger
-from ...utils.paths import get_db_dir, get_frequency_dir
+from ...utils.paths import get_db_dir, get_word_lists_dir
 from ...web.installer import DictionaryWebInstallWizard
 from ...web.windows import FreqConjWebWindow
 from .dict_import import importDict
@@ -141,8 +141,9 @@ class DictImporter:
         msg.exec()
 
         clicked = msg.clickedButton()
+        lang_part = lang_name.replace(" ", "_")
         if clicked == btn_main:
-            filename = "%s.json" % lang_name
+            filename = "%s.json" % lang_part
         elif clicked == btn_extra:
             label, ok = QInputDialog.getText(
                 self.parent,
@@ -151,11 +152,11 @@ class DictImporter:
             )
             if not ok or not label:
                 return
-            filename = "%s_%s.json" % (lang_name, label)
+            filename = "%s_%s.json" % (lang_part, label)
         else:
             return
 
-        freq_path = get_frequency_dir()
+        freq_path = get_word_lists_dir()
         os.makedirs(freq_path, exist_ok=True)
 
         dst_path = os.path.join(freq_path, filename)

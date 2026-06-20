@@ -506,7 +506,7 @@ class DictionaryInstallPage(MiWizardPage):
                                     chunks.append(chunk)
                             data = b"".join(chunks)
 
-                            if wl_url.lower().endswith(".zip"):
+                            if data[:4] == b"PK\x03\x04":
                                 try:
                                     z = zipfile.ZipFile(io.BytesIO(data))
                                     json_files = [
@@ -521,7 +521,8 @@ class DictionaryInstallPage(MiWizardPage):
 
                             slug = wl_name.lower().replace(" ", "_")
                             slug = "".join(c for c in slug if c.isalnum() or c == "_")
-                            filename = "%s_%s.json" % (lname, slug)
+                            lang_part = lname.replace(" ", "_")
+                            filename = "%s_%s.json" % (lang_part, slug)
                             dst_path = os.path.join(word_lists_path, filename)
                             with open(dst_path, "wb") as f:
                                 f.write(data)

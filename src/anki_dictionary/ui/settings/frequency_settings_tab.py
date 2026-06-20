@@ -16,6 +16,8 @@ from aqt.qt import (
 
 from ...core.word_list_registry import WordListProvider
 
+_DEFAULT_DISPLAY_NAMES = {"hsk": "HSK³", "jlpt": "JLPT", "cefr": "CEFR"}
+
 
 class FrequencySettingsTab(QWidget):
     def __init__(self, mw: Any, addon_path: str, parent: QWidget | None = None) -> None:
@@ -37,10 +39,21 @@ class FrequencySettingsTab(QWidget):
         self.freqThreshold5.setRange(1, 1000000)
         self.showStars = QCheckBox("Display Stars")
         self.showRank = QCheckBox("Display Frequency Rank")
+        self.showLevelLabels = QCheckBox("Display Level Labels")
+        self.showLevelLabels.setChecked(True)
 
         self._list_checkboxes: Dict[str, QCheckBox] = {}
+        self._display_name_inputs: Dict[str, QLineEdit] = {}
 
         self._build_ui()
+
+    @staticmethod
+    def _get_default_display_name(name: str) -> str:
+        name_lower = name.lower()
+        for key, val in _DEFAULT_DISPLAY_NAMES.items():
+            if key in name_lower:
+                return val
+        return name
 
     def _discover_providers(self) -> Dict[str, WordListProvider]:
         providers: Dict[str, WordListProvider] = {}
@@ -57,6 +70,13 @@ class FrequencySettingsTab(QWidget):
             pass
         return providers
 
+    def _on_settings_changed(self) -> None:
+        if hasattr(self.mw, "ankiDictionary") and self.mw.ankiDictionary:
+            try:
+                self.mw.ankiDictionary.refresh_application_theme()
+            except Exception:
+                pass
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
@@ -67,18 +87,40 @@ class FrequencySettingsTab(QWidget):
         infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
         layout.addWidget(infoLabel)
 
-        visGroup = QGroupBox("Visibility Options")
+        visGroup = QGroupBox("Word List Visibility & Labels")
         visLayout = QVBoxLayout()
         visLayout.addWidget(self.showStars)
         visLayout.addWidget(self.showRank)
+        visLayout.addWidget(self.showLevelLabels)
 
-        # Dynamic word list checkboxes
+        visLayout.addWidget(QLabel(""))
+        header_lay = QHBoxLayout()
+        header_lay.addWidget(QLabel("Enabled"))
+        header_lay.addWidget(QLabel("List"))
+        header_lay.addStretch()
+        header_lay.addWidget(QLabel("Display Name"))
+        visLayout.addLayout(header_lay)
+
         for key, provider in sorted(self._discover_providers().items()):
-            label = f"{provider.lang}: {provider.name}"
-            cb = QCheckBox(label)
+            row = QHBoxLayout()
+            cb = QCheckBox()
             cb.setChecked(True)
             self._list_checkboxes[key] = cb
-            visLayout.addWidget(cb)
+            row.addWidget(cb)
+
+            row.addWidget(QLabel(f"{provider.lang}: {provider.name}"))
+            row.addStretch()
+
+            display_input = QLineEdit()
+            display_input.setPlaceholderText(
+                self._get_default_display_name(provider.name)
+            )
+            display_input.setMaxLength(30)
+            display_input.setFixedWidth(150)
+            self._display_name_inputs[key] = display_input
+            row.addWidget(display_input)
+
+            visLayout.addLayout(row)
 
         visGroup.setLayout(visLayout)
         layout.addWidget(visGroup)
@@ -117,14 +159,21 @@ class FrequencySettingsTab(QWidget):
 
         self.showStars.setChecked(config.get("show_stars", True))
         self.showRank.setChecked(config.get("show_rank", False))
+        self.showLevelLabels.setChecked(config.get("show_level_labels", True))
 
         word_list_visibility: Dict[str, Dict[str, bool]] = config.get(
             "word_list_visibility", {}
+        )
+        word_list_display_names: Dict[str, Dict[str, str]] = config.get(
+            "word_list_display_names", {}
         )
         for key, cb in self._list_checkboxes.items():
             lang, name = key.split("::", 1)
             visible = word_list_visibility.get(lang, {}).get(name, True)
             cb.setChecked(visible)
+            display_name = word_list_display_names.get(lang, {}).get(name, "")
+            if display_name:
+                self._display_name_inputs[key].setText(display_name)
 
     def save_config(self, config: Dict[str, Any]) -> None:
         config["star_char"] = self.freqStarChar.text()
@@ -137,6 +186,7 @@ class FrequencySettingsTab(QWidget):
         ]
         config["show_stars"] = self.showStars.isChecked()
         config["show_rank"] = self.showRank.isChecked()
+        config["show_level_labels"] = self.showLevelLabels.isChecked()
 
         word_list_visibility: Dict[str, Dict[str, bool]] = {}
         for key, cb in self._list_checkboxes.items():
@@ -145,3 +195,16 @@ class FrequencySettingsTab(QWidget):
                 word_list_visibility[lang] = {}
             word_list_visibility[lang][name] = cb.isChecked()
         config["word_list_visibility"] = word_list_visibility
+
+        word_list_display_names: Dict[str, Dict[str, str]] = {}
+        for key, inp in self._display_name_inputs.items():
+            lang, name = key.split("::", 1)
+            text = inp.text().strip()
+            default = self._get_default_display_name(name)
+            if text and text != default:
+                if lang not in word_list_display_names:
+                    word_list_display_names[lang] = {}
+                word_list_display_names[lang][name] = text
+        config["word_list_display_names"] = word_list_display_names
+
+        self._on_settings_changed()

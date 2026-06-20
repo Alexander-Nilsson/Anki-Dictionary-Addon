@@ -140,6 +140,7 @@ class DictDB:
         show_stars = config.get("show_stars", True)
         show_rank = config.get("show_rank", False)
         word_list_visibility = config.get("word_list_visibility", {})
+        word_list_display_names = config.get("word_list_display_names", {})
 
         levels: List[str] = []
         frequency: int = 999999
@@ -153,6 +154,9 @@ class DictDB:
             if not lang_vis.get(name, True):
                 continue
 
+            display_name = word_list_display_names.get(provider.lang, {}).get(name, "")
+            label = display_name or name
+
             result = provider.lookup(term, entry_reading)
 
             if not result.rank and not result.levels:
@@ -164,7 +168,7 @@ class DictDB:
                 frequency = result.rank
 
             for level in result.levels:
-                levels.append(f"{name}:{level}")
+                levels.append(f"{label}:{level}")
 
         # Apply collected levels
         entry["levelLabels"] = " / ".join(levels) if levels else ""
