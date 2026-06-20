@@ -31,8 +31,7 @@ from aqt.qt import (
 )
 from anki.utils import is_mac
 from aqt.utils import ensureWidgetInScreenBoundaries
-from os.path import join, exists
-from shutil import copyfile
+from os.path import join
 from ..utils.common import miInfo, miAsk
 from ..utils.config import get_addon_config
 from anki.notes import Note
@@ -40,6 +39,7 @@ from anki import sound
 import re
 import collections
 
+from ..utils import media_manager
 from ..utils.logger import get_logger
 
 from .html_cleaner import HtmlCleaner
@@ -897,21 +897,23 @@ Please review your template and notetype combination."""
         settingsWidget.close()
         settingsWidget.deleteLater()
 
-    # --- Media handler methods (collapsed from MediaHandler) ---
+    # --- Media handler methods ---
 
     def moveImageToMediaFolder(self):
         if self.imgPath and self.imgName:
-            if exists(self.imgPath):
-                path = join(self.mw.col.media.dir(), self.imgName)  # ty:ignore[no-matching-overload]
-                if not exists(path):
-                    copyfile(self.imgPath, path)  # ty:ignore[invalid-argument-type]
+            media_manager.copy_to_media(
+                self.imgPath,
+                self.imgName,
+                self.mw.col.media.dir(),  # ty:ignore[no-matching-overload]
+            )
 
     def moveAudioToMediaFolder(self):
         if self.audioPath and self.audioName:
-            if exists(self.audioPath):
-                path = join(self.mw.col.media.dir(), self.audioName)  # ty:ignore[no-matching-overload]
-                if not exists(path):
-                    copyfile(self.audioPath, path)  # ty:ignore[invalid-argument-type]
+            media_manager.copy_to_media(
+                self.audioPath,
+                self.audioName,
+                self.mw.col.media.dir(),  # ty:ignore[no-matching-overload]
+            )
 
     def playAudio(self):
         if self.audioPath:

@@ -2,14 +2,9 @@
 from __future__ import annotations
 
 import json
-import base64
-import re
-import time
 import os
-import shutil
 from os.path import join
 from typing import List, Tuple, Any, Union
-from urllib.request import Request, urlopen
 
 from aqt.qt import QImage, QMimeData, QPixmap, QSize, QUrl, Qt, QLabel, QWidget
 from aqt.qt import QHBoxLayout, QVBoxLayout
@@ -17,6 +12,7 @@ from aqt.utils import tooltip
 from aqt.operations.note import update_note
 
 from ..utils.logger import get_logger
+from ..utils import media_manager
 from ..exporters.card_exporter import CardExporter
 
 logger = get_logger(__name__.split(".")[-1])
@@ -28,82 +24,38 @@ class CardCreationHandler:
     def __init__(self, midict):
         self.midict = midict
 
-    @staticmethod
-    def _img_ext_from_url(url: str) -> str:
-        if url.startswith("data:"):
-            return "avif"
-        cleaned = re.sub(r"\?.*$", "", url)
-        _, ext = os.path.splitext(cleaned.strip().split("/")[-1])
-        ext = ext.lower().lstrip(".")
-        return (
-            ext
-            if ext in {"jpg", "jpeg", "png", "gif", "webp", "avif", "bmp"}
-            else "avif"
-        )
-
     def addImgsToExportWindow(self, word: str, urls: List[str]) -> None:
         self.initCardExporterIfNeeded()
-        imgSeparator = ""
+        img_separator = ""
         imgs: List[str] = []
-        rawPaths: List[str] = []
+        raw_paths: List[str] = []
         auto_convert = self.midict.config.get("imageAutoConvert", True)
+        media_dir = self.midict.dictInt.mw.col.media.dir()
         for imgurl in urls:
             try:
-                ext = self._img_ext_from_url(imgurl) if not auto_convert else "avif"
-                if imgurl.startswith("data:"):
-                    filename = str(time.time())[:-4].replace(".", "") + "base64." + ext
-                else:
-                    url = re.sub(r"\?.*$", "", imgurl)
-                    base_name = re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                    filename = (
-                        str(time.time())[:-4].replace(".", "") + base_name + "." + ext
-                    )
-                fullpath = join(self.midict.dictInt.mw.col.media.dir(), filename)
-                self.saveQImage(imgurl, fullpath)
-                rawPaths.append(fullpath)
-                imgs.append('<img src="' + filename + '">')
+                ext = (
+                    media_manager.image_ext_from_url(imgurl)
+                    if not auto_convert
+                    else "avif"
+                )
+                prefix = "base64" if imgurl.startswith("data:") else ""
+                filename = media_manager.unique_filename(prefix=prefix, ext=ext)
+                fullpath = join(media_dir, filename)
+                media_manager.download_image(
+                    imgurl,
+                    fullpath,
+                    max_w=self.midict.maxW,
+                    max_h=self.midict.maxH,
+                    auto_convert=auto_convert,
+                )
+                raw_paths.append(fullpath)
+                imgs.append(f'<img src="{filename}">')
             except Exception:
                 continue
-        if len(imgs) > 0:
+        if imgs:
             self.midict.addWindow.addImgs(
-                word, imgSeparator.join(imgs), self.getThumbs(rawPaths)
+                word, img_separator.join(imgs), self.getThumbs(raw_paths)
             )
-
-    def saveQImage(self, url: str, filename: str) -> None:
-        if url.startswith("data:"):
-            try:
-                header, encoded = url.split(",", 1)
-                file = base64.b64decode(encoded)
-            except Exception as e:
-                logger.error(f"Error decoding data URL: {e}")
-                return
-        else:
-            req = Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-                },
-            )
-            file = urlopen(req, timeout=30).read()
-
-        auto_convert = self.midict.config.get("imageAutoConvert", True)
-
-        if auto_convert:
-            image = QImage()
-            image.loadFromData(file)
-            if not image.isNull():
-                image = image.scaled(
-                    QSize(self.midict.maxW, self.midict.maxH),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                if filename.lower().endswith(".avif"):
-                    image.save(filename, "AVIF")
-                else:
-                    image.save(filename)
-        else:
-            with open(filename, "wb") as f:
-                f.write(file)
 
     def copyImagesToClipboard(self, urls_json: str) -> None:
         try:
@@ -111,58 +63,32 @@ class CardCreationHandler:
             if not urls:
                 return
 
-            from urllib.request import Request, urlopen
-
             mime_data = QMimeData()
-            urls_list = []
-
+            url_list: list[QUrl] = []
             first_image = None
 
             for idx, url in enumerate(urls):
                 try:
-                    if url.startswith("data:"):
-                        header, encoded = url.split(",", 1)
-                        file_data = base64.b64decode(encoded)
-                        ext = header.split("/")[1].split(";")[0]
-                    else:
-                        req = Request(
-                            url,
-                            headers={
-                                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-                            },
-                        )
-                        file_data = urlopen(req, timeout=10).read()
-                        ext = url.split(".")[-1].split("?")[0]
-                        if len(ext) > 4 or "/" in ext:
-                            ext = "avif"
-
-                    image = QImage()
-                    image.loadFromData(file_data)
-
-                    if not image.isNull():
-                        if first_image is None:
-                            first_image = image
-
-                        temp_path = join(
-                            self.midict.temp_dir, f"clipboard_img_{idx}.{ext}"
-                        )
-                        image.save(temp_path)
-                        urls_list.append(QUrl.fromLocalFile(temp_path))
+                    image = media_manager.load_image_from_url(url)
+                    if image is None:
+                        continue
+                    if first_image is None:
+                        first_image = image
+                    ext = media_manager.image_ext_from_url(url)
+                    temp_path = join(self.midict.temp_dir, f"clipboard_img_{idx}.{ext}")
+                    image.save(temp_path)
+                    url_list.append(QUrl.fromLocalFile(temp_path))
                 except Exception as e:
                     logger.error(f"Error processing image {idx} for clipboard: {e}")
 
-            if urls_list:
-                mime_data.setUrls(urls_list)
+            if url_list:
+                mime_data.setUrls(url_list)
                 if first_image:
                     mime_data.setImageData(first_image)
-
                 self.midict.dictInt.mw.app.clipboard().setMimeData(mime_data)
-                logger.debug(
-                    f"Successfully copied {len(urls_list)} images to clipboard."
-                )
+                logger.debug(f"Copied {len(url_list)} images to clipboard.")
             else:
                 logger.warning("No valid images found to copy to clipboard.")
-
         except Exception as e:
             logger.error(f"Error copying images to clipboard: {e}")
 
@@ -262,57 +188,39 @@ class CardCreationHandler:
         if (self.midict.reviewer and self.midict.reviewer.card) or (
             self.midict.currentEditor and self.midict.currentEditor.note
         ):
-            urlsList: List[str] = []
-            imgSeparator = ""
-            urls_list = json.loads(urls)
+            urls_list: List[str] = []
+            img_separator = ""
+            urls_data = json.loads(urls)
             auto_convert = self.midict.config.get("imageAutoConvert", True)
+            media_dir = self.midict.dictInt.mw.col.media.dir()
 
-            for imgurl in urls_list:
+            for imgurl in urls_data:
                 try:
                     if os.path.exists(imgurl):
                         filename = os.path.basename(imgurl)
-                        dest_path = join(
-                            self.midict.dictInt.mw.col.media.dir(), filename
-                        )
-
-                        if imgurl != dest_path:
-                            shutil.copy2(imgurl, dest_path)
-
-                        urlsList.append(f'<img src="{filename}">')
-
+                        media_manager.copy_to_media(imgurl, filename, media_dir)
+                        urls_list.append(f'<img src="{filename}">')
                     else:
                         ext = (
-                            self._img_ext_from_url(imgurl)
+                            media_manager.image_ext_from_url(imgurl)
                             if not auto_convert
                             else "avif"
                         )
-                        if imgurl.startswith("data:"):
-                            filename = (
-                                str(time.time())[:-4].replace(".", "") + "base64." + ext
-                            )
-                        else:
-                            url = re.sub(r"\?.*$", "", imgurl)
-                            base_name = re.sub(r"\..*$", "", url.strip().split("/")[-1])
-                            filename = (
-                                str(time.time())[:-4].replace(".", "")
-                                + base_name
-                                + "."
-                                + ext
-                            )
-
-                        self.saveQImage(
+                        prefix = "base64" if imgurl.startswith("data:") else ""
+                        filename = media_manager.unique_filename(prefix=prefix, ext=ext)
+                        media_manager.download_image(
                             imgurl,
-                            join(self.midict.dictInt.mw.col.media.dir(), filename),
+                            join(media_dir, filename),
+                            max_w=self.midict.maxW,
+                            max_h=self.midict.maxH,
+                            auto_convert=auto_convert,
                         )
-                        urlsList.append(f'<img src="{filename}">')
-
+                        urls_list.append(f'<img src="{filename}">')
                 except Exception as e:
-                    logger.error(f"Failed to process image: {imgurl}")
-                    logger.error(f"Error: {str(e)}")
+                    logger.error(f"Failed to process image: {imgurl}: {e}")
                     continue
-            if len(urlsList) > 0:
-                self.sendToField("Images", imgSeparator.join(urlsList))
-
+            if urls_list:
+                self.sendToField("Images", img_separator.join(urls_list))
         else:
             logger.warning("no reviewer or editor")
             tooltip(
@@ -322,21 +230,12 @@ class CardCreationHandler:
     def addAudioToExportWindow(self, word: str, url: str) -> None:
         self.initCardExporterIfNeeded()
         try:
-            filename = str(time.time()).replace(".", "") + ".mp3"
+            filename = media_manager.unique_filename(ext="mp3")
             fullpath = join(self.midict.temp_dir, filename)
-
-            req = Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-                },
-            )
-            with open(fullpath, "wb") as f:
-                f.write(urlopen(req, timeout=30).read())
-
-            tag = f"[sound:{filename}]"
-            self.exportAudio((fullpath, tag, filename))
-            self.midict.addWindow.exportWord(word)
+            if media_manager.download_file(url, fullpath):
+                tag = f"[sound:{filename}]"
+                self.exportAudio((fullpath, tag, filename))
+                self.midict.addWindow.exportWord(word)
         except Exception as e:
             logger.error(f"Error downloading Forvo audio: {e}")
             tooltip(f"Failed to download audio: {e}")
@@ -349,20 +248,11 @@ class CardCreationHandler:
             return
 
         try:
-            filename = str(time.time()).replace(".", "") + ".mp3"
+            filename = media_manager.unique_filename(ext="mp3")
             fullpath = join(self.midict.dictInt.mw.col.media.dir(), filename)
-
-            req = Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-                },
-            )
-            with open(fullpath, "wb") as f:
-                f.write(urlopen(req, timeout=30).read())
-
-            tag = f"[sound:{filename}]"
-            self.sendToField("Forvo", tag)
+            if media_manager.download_file(url, fullpath):
+                tag = f"[sound:{filename}]"
+                self.sendToField("Forvo", tag)
         except Exception as e:
             logger.error(f"Error sending Forvo audio to field: {e}")
             tooltip(f"Failed to send audio to field: {e}")
@@ -371,19 +261,10 @@ class CardCreationHandler:
         try:
             filename = "temp_forvo_play.mp3"
             fullpath = join(self.midict.temp_dir, filename)
+            if media_manager.download_file(url, fullpath):
+                from aqt.sound import play
 
-            req = Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-                },
-            )
-            with open(fullpath, "wb") as f:
-                f.write(urlopen(req, timeout=30).read())
-
-            from aqt.sound import play
-
-            play(fullpath)
+                play(fullpath)
         except Exception as e:
             logger.error(f"Error playing Forvo audio: {e}")
             tooltip(f"Failed to play audio: {e}")

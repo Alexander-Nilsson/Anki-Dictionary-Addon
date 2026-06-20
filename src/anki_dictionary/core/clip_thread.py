@@ -3,13 +3,13 @@ import re
 import sys
 import time
 from os.path import join, exists, dirname
-from shutil import copyfile
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
-from aqt.qt import QImage, QObject, QSize, Qt
+from aqt.qt import QObject, QSize, Qt
 from aqt.qt import pyqtSignal
 from anki.utils import is_mac, is_win, is_lin
 
+from ..utils import media_manager
 from ..utils.config import get_addon_config
 from ..utils.logger import get_logger
 
@@ -152,56 +152,29 @@ class ClipThread(QObject):
         audioFileName = card["audio"]
         imageFileName = card["image"]
         bulk = card["bulk"]
+        media_dir = self.mw.col.media.dir()  # ty:ignore[unresolved-attribute]
         if audioFileName:
             audioTempPath = join(self.temp_dir, audioFileName)
-            if not self.checkFileExists(audioTempPath):
+            if not media_manager.wait_for_file(audioTempPath):
                 self.extensionFileNotFound.emit()
                 return
-            self.moveExtensionFileToMediaFolder(audioTempPath, audioFileName)
-            self.removeFile(audioTempPath)
+            media_manager.copy_to_media(audioTempPath, audioFileName, media_dir)
+            media_manager.remove_file(audioTempPath)
         if imageFileName:
             imageTempPath = join(self.temp_dir, imageFileName)
-            if self.checkFileExists(imageTempPath):
-                self.saveScaledImage(imageTempPath, imageFileName)
-                self.removeFile(imageTempPath)
+            if media_manager.wait_for_file(imageTempPath):
+                avif_name = re.sub(r"\.[^.]+$", ".avif", imageFileName)
+                media_manager.scale_image(
+                    imageTempPath,
+                    join(media_dir, avif_name),
+                    self.mw.AnkiDictConfig["maxWidth"],  # ty:ignore[unresolved-attribute]
+                    self.mw.AnkiDictConfig["maxHeight"],  # ty:ignore[unresolved-attribute]
+                )
+                media_manager.remove_file(imageTempPath)
         if bulk:
             self.bulkMediaExport.emit(card)
         else:
             self.extensionCardExport.emit(card)
-
-    def saveScaledImage(self, imageTempPath: str, imageFileName: str) -> None:
-        maxW = self.mw.AnkiDictConfig["maxWidth"]  # ty:ignore[unresolved-attribute]
-        maxH = self.mw.AnkiDictConfig["maxHeight"]  # ty:ignore[unresolved-attribute]
-        if not imageFileName.lower().endswith(".avif"):
-            imageFileName = re.sub(r"\.[^.]+$", ".avif", imageFileName)
-
-        path = join(self.mw.col.media.dir(), imageFileName)  # ty:ignore[unresolved-attribute]
-        image = QImage(imageTempPath)
-        image = image.scaled(
-            QSize(maxW, maxH),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        image.save(path, "AVIF")
-
-    def removeFile(self, file: str) -> None:
-        os.remove(file)
-
-    def checkFileExists(self, source: str) -> bool:
-        now = time.time()
-        while True:
-            if exists(source):
-                return True
-            if time.time() - now > 15:
-                return False
-
-    def moveExtensionFileToMediaFolder(self, source: str, filename: str) -> bool | None:
-        if exists(source):
-            path = join(self.mw.col.media.dir(), filename)  # ty:ignore[unresolved-attribute]
-            if not exists(path):
-                copyfile(source, path)
-                return True
-        return None
 
     def handlePageRefreshDuringBulkMediaImport(self) -> None:
         self.pageRefreshDuringBulkMediaImport.emit()
@@ -213,7 +186,7 @@ class ClipThread(QObject):
 
             if not clip.endswith(".mp3") and mime.hasImage():
                 image = mime.imageData()
-                filename = str(time.time()) + ".avif"
+                filename = media_manager.unique_filename(ext="avif")
                 fullpath = join(self.temp_dir, filename)
                 maxW = max(self.maxW, image.width())  # ty:ignore[unresolved-attribute]
                 maxH = max(self.maxH, image.height())  # ty:ignore[unresolved-attribute]
@@ -239,23 +212,13 @@ class ClipThread(QObject):
                                 path = clip.replace("file://", "", 1)
                             else:
                                 path = clip.replace("file:///", "", 1)
-                            temp, mp3 = self.moveAudioToTempFolder(path)
+                            temp, mp3 = media_manager.copy_to_temp(
+                                path, self.temp_dir, ext="mp3"
+                            )
                             if mp3:
                                 self.image.emit([temp, "[sound:" + mp3 + "]", mp3])
                         except Exception:
                             return
-
-    def moveAudioToTempFolder(self, path: str) -> Tuple[Any, Any]:
-        try:
-            if exists(path):
-                filename = str(time.time()).replace(".", "") + ".mp3"
-                destpath = join(self.temp_dir, filename)
-                if not exists(destpath):
-                    copyfile(path, destpath)
-                    return destpath, filename
-            return False, False
-        except Exception:
-            return False, False
 
     def handleSentenceExport(self) -> None:
         if self.checkDict():
