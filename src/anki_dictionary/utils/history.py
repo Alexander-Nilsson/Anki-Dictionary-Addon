@@ -21,6 +21,7 @@ from aqt.qt import (
 from aqt.utils import askUser, showInfo
 import datetime
 from .common import miInfo, miAsk
+from ..ui.theme_controller import load_color
 from anki.utils import strip_html, is_win, is_mac, is_lin
 
 
@@ -139,7 +140,7 @@ class HistoryBrowser(QWidget):
         Set the colors for the history browser based on the active theme.
         """
         # Load the background color from the active theme
-        background_color = self.dictInt.load_theme_color("header_background")
+        background_color = load_color(self.dictInt.theme_manager, "header_background")
 
         # Create a QPalette object and set the background color
         palette = QPalette()
