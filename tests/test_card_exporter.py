@@ -509,16 +509,16 @@ class TestCardExporter(unittest.TestCase):
         self.exporter.audioName = "test.mp3"
         self.exporter.audioPath = "/path/test.mp3"
         self.exporter.clearCurrent()
-        self.assertIs(self.exporter.audioTag, False)
-        self.assertIs(self.exporter.audioName, False)
-        self.assertIs(self.exporter.audioPath, False)
+        self.assertEqual(self.exporter.audioTag, "")
+        self.assertEqual(self.exporter.audioName, "")
+        self.assertEqual(self.exporter.audioPath, "")
 
     def test_clear_current_resets_image_labels(self):
         self.exporter.imgName = "img.png"
         self.exporter.imgPath = "/path/img.png"
         self.exporter.clearCurrent()
-        self.assertIs(self.exporter.imgName, False)
-        self.assertIs(self.exporter.imgPath, False)
+        self.assertEqual(self.exporter.imgName, "")
+        self.assertEqual(self.exporter.imgPath, "")
 
     def test_clear_current_sets_audio_map_text(self):
         self.exporter.clearCurrent()

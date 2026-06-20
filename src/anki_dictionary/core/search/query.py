@@ -150,13 +150,12 @@ class SearchQueryBuilder:
     ) -> None:
         for provider in providers:
             lookup = provider.lookup(entry["term"], entry.get("altterm") or "")
-            if lookup.frequency is not None:
-                freq = int(lookup.frequency) if lookup.frequency else 0
-                count = self._db.getStarCount(freq)
+            if lookup.rank is not None:
+                count = self._db.getStarCount(lookup.rank)
                 if count:
                     entry["starCount"] = count
-                if lookup.labels:
-                    entry["levelLabels"] = ", ".join(lookup.labels)
+            if lookup.levels:
+                entry["levelLabels"] = ", ".join(lookup.levels)
 
     def search(
         self,

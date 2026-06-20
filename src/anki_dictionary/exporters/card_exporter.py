@@ -295,7 +295,7 @@ Please review your template and notetype combination."""
         return True
 
     def getDecks(self):
-        return dict(note_creator.get_decks(self.mw.col))
+        return {name: did for did, name in note_creator.get_decks(self.mw.col)}
 
     def getDeckCB(self):
         cb = QComboBox()
