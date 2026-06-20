@@ -497,7 +497,7 @@ Please review your template and notetype combination."""
         if imgText != "No Image Selected":
             imgField = t["image"]
             if imgField != "Don't Export":
-                imgTag = '<img ankiDict="' + self.imgName + '">'  # ty:ignore[unsupported-operator]
+                imgTag = '<img ankiDict="' + self.imgName + '">'
                 if self.fieldValid(imgField):
                     if imgField not in fields:
                         fields[imgField] = [imgTag]
@@ -515,7 +515,7 @@ Please review your template and notetype combination."""
                     if audioField not in fields:
                         fields[audioField] = [self.audioTag]
                     else:
-                        fields[audioField].append(self.audioTag)  # ty:ignore[invalid-argument-type]
+                        fields[audioField].append(self.audioTag)
         specific = t["specific"]
         for field in specific:
             for dictionary in specific[field]:
