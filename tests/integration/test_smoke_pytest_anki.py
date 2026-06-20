@@ -1,7 +1,9 @@
 """Smoketest using pytest-anki2.
 
-This test verifies that the addon can be loaded into a real Anki session
-provided by the pytest-anki2 plugin.
+These tests verify that the addon can be loaded into a real Anki session
+provided by the pytest-anki2 plugin, and that opening the dictionary
+triggers the expected error from HistoryBrowser.setColors() calling
+dictInt.load_theme_color() which doesn't exist on DictInterface.
 """
 
 import atexit
@@ -63,3 +65,50 @@ def test_addon_loads_with_pytest_anki(anki_session: AnkiSession) -> None:
     assert hasattr(anki_session.mw, "ankiDictionary")
     # Config should also be attached
     assert hasattr(anki_session.mw, "AnkiDictConfig")
+
+
+@pytest.mark.parametrize(
+    "anki_session",
+    [
+        dict(
+            load_profile=False,
+        )
+    ],
+    indirect=True,
+)
+def test_history_browser_set_colors_uses_theme_manager(
+    anki_session: AnkiSession,
+) -> None:
+    """HistoryBrowser.setColors() must use theme_manager, not a non-existent
+    load_theme_color() method.  Regression test: the parent (DictInterface)
+    has theme_manager but not load_theme_color."""
+    from unittest.mock import MagicMock
+    from PyQt6.QtWidgets import QWidget
+    from anki_dictionary.ui.themes import ThemeColors
+    from anki_dictionary.utils.history import HistoryBrowser, HistoryModel
+
+    parent = QWidget()
+    parent.theme_manager = MagicMock()
+    parent.theme_manager.get_active_theme.return_value = ThemeColors(
+        header_background="#ffffff",
+        selector="#f8f9fa",
+        header_text="#212529",
+        search_term="#007bff",
+        border="#dee2e6",
+        anki_button_background="#f8f9fa",
+        anki_button_text="#212529",
+        tab_hover="#e9ecef",
+        current_tab_gradient_top="#ffffff",
+        current_tab_gradient_bottom="#e9ecef",
+        example_highlight="#fff3cd",
+        definition_background="#ffffff",
+        definition_text="#212529",
+        pitch_accent_color="#dc3545",
+    )
+    parent.theme_manager.get_qt_styles.return_value = ""
+
+    model = HistoryModel([], parent)
+    browser = HistoryBrowser(model, parent)
+
+    assert browser is not None
+    assert isinstance(browser, HistoryBrowser)
