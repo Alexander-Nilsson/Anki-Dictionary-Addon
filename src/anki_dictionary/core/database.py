@@ -17,6 +17,7 @@ from ..utils.paths import (
 from ..utils.common import miInfo
 from ..utils.logger import get_logger
 from ..utils.config import get_addon_config
+from .search_query_builder import SearchQueryBuilder
 from .word_list_registry import WordListRegistry
 
 # Initialize logger
@@ -33,6 +34,7 @@ class DictDB:
         self.oldConnection: Optional[sqlite3.Cursor] = None
         self._extra_data_cache: Dict[str, List[Any]] = {}
         self._registry: Optional[WordListRegistry] = None
+        self.search_query_builder = SearchQueryBuilder(self)
 
         # Get the root addon directory
         self.addon_root = get_addon_root()
@@ -575,319 +577,52 @@ class DictDB:
             return None
 
     def getDefEx(self, sT: str) -> bool:
-        """Check if search type is definition or example."""
-        if sT in ["Definition", "Example"]:
-            return True
-        return False
+        return self.search_query_builder.get_def_ex(sT)
 
     def applySearchType(self, terms: List[str], sT: str) -> List[str]:
-        """Apply search type modifications to terms."""
-        for idx, term in enumerate(terms):
-            if sT in ["Forward", "Pronunciation"]:
-                terms[idx] = terms[idx] + "%"
-            elif sT == "Backward":
-                terms[idx] = "%_" + terms[idx]
-            elif sT == "Anywhere":
-                terms[idx] = "%" + terms[idx] + "%"
-            elif sT == "Exact":
-                terms[idx] = terms[idx]
-            elif sT == "Definition":
-                terms[idx] = "%" + terms[idx] + "%"
-            else:
-                terms[idx] = "%「%" + terms[idx] + "%」%"
-        return terms
+        return self.search_query_builder.apply_search_type(terms, sT)
 
     def deconjugate(
         self, terms: List[str], conjugations: List[Dict[str, Any]]
     ) -> List[str]:
-        """Deconjugate terms using provided conjugation rules."""
-        deconjugations: List[str] = []
-        for term in terms:
-            for c in conjugations:
-                if term.endswith(c["inflected"]):
-                    for x in c["dict"]:
-                        deinflected = self.rreplace(term, c["inflected"], x, 1)
-                        if "prefix" in c:
-                            prefix = c["prefix"]
-                            if deinflected.startswith(prefix):
-                                deprefixedDeinflected = deinflected[len(prefix) :]
-                                if deprefixedDeinflected not in deconjugations:
-                                    deconjugations.append(deprefixedDeinflected)
-                        if deinflected not in deconjugations:
-                            deconjugations.append(deinflected)
-        deconjugations = list(filter(lambda x: len(x) > 1, deconjugations))
-        deconjugations = list(set(deconjugations))
-        return terms + deconjugations
+        return self.search_query_builder.deconjugate(terms, conjugations)
 
     def get_term_frequency_info(
         self, term: str, lang: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Get frequency and level info for a specific term and language."""
-        if not lang:
-            return {"term": term, "starCount": "", "levelLabels": ""}
-
-        providers = self._get_extra_data(lang)
-        if not providers:
-            return {"term": term, "starCount": "", "levelLabels": ""}
-
-        # Create a dummy entry for _apply_frequency_info
-        entry = {
-            "term": term,
-            "altterm": "",
-            "pronunciation": "",
-            "starCount": "",
-            "levelLabels": "",
-        }
-        self._apply_frequency_info(entry, providers, config)
-        return entry
+        return self.search_query_builder.get_term_frequency_info(term, lang, config)
 
     def rreplace(self, s: str, old: str, new: str, occurrence: int) -> str:
-        """Replace from right side."""
-        li = s.rsplit(old, occurrence)
-        return new.join(li)
+        return self.search_query_builder._rreplace(s, old, new, occurrence)
 
     def searchTerm(
         self, term, selectedGroup, conjugations, sT, deinflect, dictLimit, maxDefs
     ):
-        alreadyConjTyped = {}
-        results = {}
-        group = selectedGroup["dictionaries"]
-        totalDefs = 0
-        defEx = self.getDefEx(sT)
-        op = "LIKE"
-        if defEx:
-            column = "definition"
-        elif sT == "Pronunciation":
-            column = "pronunciation"
-        else:
-            column = "term"
-        if sT == "Exact":
-            op = "="
-        base_terms = [term]
-        if term.lower() not in base_terms:
-            base_terms.append(term.lower())
-        if term.capitalize() not in base_terms:
-            base_terms.append(term.capitalize())
-
-        # Get dictionary to table mapping for all dictionaries
-        dict_mapping = self.getDictToTable()
-        logger.debug(
-            f"Search: Term='{term}', Group='{selectedGroup.get('name', 'unknown')}', Type='{sT}'"
+        return self.search_query_builder.search(
+            term, selectedGroup, conjugations, sT, deinflect, int(dictLimit), maxDefs
         )
 
-        # Pre-load frequency lists for all unique languages in the group
-        langs = set()
-        for dic in group:
-            d_name = dic["dict"]
-            if d_name in ["Images", "LLM", "Forvo"]:
-                continue
-
-            info = dict_mapping.get(d_name) or dict_mapping.get(
-                self.cleanDictName(d_name)
-            )
-            if info:
-                langs.add(info["lang"])
-            elif "lang" in dic:
-                langs.add(dic["lang"])
-
-        extra_data = {lang: self._get_extra_data(lang) for lang in langs}
-        config = get_addon_config()
-
-        for dic in group:
-            d_name = dic["dict"]
-            if d_name == "Images":
-                results["Images"] = True
-                continue
-            if d_name == "LLM":
-                results["LLM"] = True
-                continue
-            if d_name == "Forvo":
-                results["Forvo"] = True
-                continue
-
-            # Resolve table name and language
-            # Try original name, then clean name, then normalized name (all case-insensitive)
-            info = (
-                dict_mapping.get(d_name)
-                or dict_mapping.get(d_name.lower())
-                or dict_mapping.get(self.cleanDictName(d_name))
-                or dict_mapping.get(self.cleanDictName(d_name).lower())
-                or dict_mapping.get(self.normalize_dict_name(d_name))
-                or dict_mapping.get(self.normalize_dict_name(d_name).lower())
-            )
-            if info:
-                table_name = info["dict"]
-                lang = info["lang"]
-            else:
-                table_name = d_name
-                lang = dic.get("lang", "")
-
-            providers = extra_data.get(lang, [])
-
-            if deinflect:
-                if lang in alreadyConjTyped:
-                    current_terms = alreadyConjTyped[lang]
-                elif lang in conjugations:
-                    # Start from a fresh copy of base_terms
-                    current_terms = self.deconjugate(
-                        list(base_terms), conjugations[lang]
-                    )
-                    current_terms = self.applySearchType(current_terms, sT)
-                    alreadyConjTyped[lang] = current_terms
-                else:
-                    # Start from a fresh copy of base_terms
-                    current_terms = self.applySearchType(list(base_terms), sT)
-                    alreadyConjTyped[lang] = current_terms
-            else:
-                # Key by search type since that affects the terms
-                cache_key = f"{lang}_{sT}"
-                if cache_key in alreadyConjTyped:
-                    current_terms = alreadyConjTyped[cache_key]
-                else:
-                    current_terms = self.applySearchType(list(base_terms), sT)
-                    alreadyConjTyped[cache_key] = current_terms
-
-            toQuery = self.getQueryCriteria(column, current_terms, op)
-            termTuple = tuple(current_terms)
-            allRs = self.executeSearch(table_name, toQuery, dictLimit, termTuple)
-
-            if len(allRs) > 0:
-                dictRes = []
-                for r in allRs:
-                    totalDefs += 1
-                    entry = self.resultToDict(r)
-
-                    self._apply_frequency_info(entry, providers, config)
-
-                    dictRes.append(entry)
-                    if totalDefs >= maxDefs:
-                        results[d_name] = dictRes
-                        return results
-                results[d_name] = dictRes
-            elif not defEx and not sT == "Pronunciation":
-                columns = ["altterm", "pronunciation"]
-                for col in columns:
-                    toQuery = self.getQueryCriteria(col, current_terms, op)
-                    termTuple = tuple(current_terms)
-                    allRs = self.executeSearch(
-                        table_name, toQuery, dictLimit, termTuple
-                    )
-                    if len(allRs) > 0:
-                        dictRes = []
-                        for r in allRs:
-                            totalDefs += 1
-                            entry = self.resultToDict(r)
-
-                            self._apply_frequency_info(entry, providers, config)
-
-                            dictRes.append(entry)
-                            if totalDefs >= maxDefs:
-                                results[d_name] = dictRes
-                                return results
-                        results[d_name] = dictRes
-                        break
-        return results
-
     def processDefinitionHTML(self, text):
-        """Process HTML tags in dictionary definitions for proper display."""
-        if not isinstance(text, str):
-            text = str(text) if text is not None else ""
-
-        # Strip leading/trailing whitespace first
-        text = text.strip()
-
-        # First convert any newlines to <br> tags
-        text = text.replace("\n", "<br>")
-
-        # Handle <br> tags that might already be in definitions
-        # Convert any existing <br> or <br/> or <BR> tags to proper HTML line breaks
-        text = re.sub(r"<br\s*/?>", "<br>", text, flags=re.IGNORECASE)
-
-        # Handle other common HTML entities that might appear in definitions
-        text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-
-        # Ensure proper line spacing for better readability
-        # Replace multiple consecutive <br> tags with proper spacing
-        text = re.sub(r"(<br>\s*){2,}", "<br><br>", text)
-
-        # Strip leading and trailing <br> tags that might have been created or were already there
-        text = re.sub(r"^(<br>\s*)+", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"(<br>\s*)+$", "", text, flags=re.IGNORECASE)
-
-        # Remove leading [?] placeholder markers from definition text
-        text = re.sub(r"^\[\?\]\s*", "", text)
-
-        return text.strip()
+        return self.search_query_builder.process_definition_html(text)
 
     def resultToDict(self, r):
-        # Create the output dictionary
-        output = {
-            "term": r[0],
-            "altterm": r[1],
-            "pronunciation": r[2],
-            "pos": r[3],
-            "definition": self.processDefinitionHTML(r[4]),
-            "examples": r[5],
-            "audio": r[6],
-            "starCount": r[7],
-            "levelLabels": "",
-        }
-
-        return output
+        return self.search_query_builder.result_to_dict(r)
 
     def executeSearch(
         self, dictName: str, toQuery: str, dictLimit: str, termTuple: Tuple[Any, ...]
     ) -> List[Tuple[Any, ...]]:
-        """Execute database search with given parameters."""
-        if not self._ensure_connection():
-            return []
-        try:
-            cursor = self._get_cursor()
-            safe_table = self._quote_identifier(dictName)
-            query = (
-                "SELECT term, altterm, pronunciation, pos, definition, examples, audio, starCount FROM "
-                + safe_table
-                + " WHERE "
-                + toQuery
-                + " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT ?"
-            )
-            cursor.execute(query, termTuple + (int(dictLimit),))
-            out = cursor.fetchall()
-            return out
-        except sqlite3.Error as e:
-            logger.error(f"Search error in dictionary '{dictName}': {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error searching dictionary '{dictName}': {e}")
-            return []
+        return self.search_query_builder.execute_search(
+            dictName, toQuery, int(dictLimit), termTuple
+        )
 
     def getQueryCriteria(self, col, terms, op="LIKE"):
-
-        toQuery = ""
-        for idx, item in enumerate(terms):
-            if idx == 0:
-                toQuery += " " + col + " " + op + " ? "
-            else:
-                toQuery += " OR " + col + " " + op + " ? "
-        return toQuery
+        return self.search_query_builder.get_query_criteria(col, terms, op)
 
     def getDefForMassExp(self, term, dN, limit, rN):
-        duplicateHeader, termHeader = self.getDuplicateSetting(rN)  # ty:ignore[not-iterable]
-        results = []
-        columns = ["term", "altterm", "pronunciation"]
-        for col in columns:
-            terms = [term]
-            toQuery = " " + col + " = ? "
-            termTuple = tuple(terms)
-            allRs = self.executeSearch(dN, toQuery, limit, termTuple)
-            if len(allRs) > 0:
-                for r in allRs:
-                    results.append(self.resultToDict(r))
-                break
-        return results, duplicateHeader, termHeader
+        return self.search_query_builder.get_def_for_mass_exp(term, dN, int(limit), rN)
 
     def cleanLT(self, text):
-        return re.sub(r"<((?:[^b][^r])|(?:[b][^r]))", r"&lt;\1", str(text))
+        return self.search_query_builder.clean_lt(text)
 
     def createDB(self, text: str) -> None:
         """Create a new dictionary table with indexes."""
