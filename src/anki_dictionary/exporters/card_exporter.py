@@ -885,7 +885,7 @@ Please review your template and notetype combination."""
             media_manager.copy_to_media(
                 self.imgPath,
                 self.imgName,
-                self.mw.col.media.dir(),  # ty:ignore[no-matching-overload]
+                self.mw.col.media.dir(),
             )
 
     def moveAudioToMediaFolder(self):
@@ -893,7 +893,7 @@ Please review your template and notetype combination."""
             media_manager.copy_to_media(
                 self.audioPath,
                 self.audioName,
-                self.mw.col.media.dir(),  # ty:ignore[no-matching-overload]
+                self.mw.col.media.dir(),
             )
 
     def playAudio(self):
