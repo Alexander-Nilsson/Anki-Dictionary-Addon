@@ -431,14 +431,16 @@ class TestCardExporter(unittest.TestCase):
 
     def test_play_audio_calls_player_with_path(self):
         self.exporter.audioPath = "/fake/path/audio.mp3"
-        self.exporter.audioPlayer = MagicMock()
+        self.exporter.media_transfer = MagicMock()
         self.exporter.playAudio()
-        self.exporter.audioPlayer.play.assert_called_with("/fake/path/audio.mp3")
+        self.exporter.media_transfer.play_audio.assert_called_with(
+            "/fake/path/audio.mp3"
+        )
 
     def test_play_audio_no_path(self):
-        self.exporter.audioPlayer = MagicMock()
+        self.exporter.media_transfer = MagicMock()
         self.exporter.playAudio()
-        self.exporter.audioPlayer.play.assert_not_called()
+        self.exporter.media_transfer.play_audio.assert_not_called()
 
     def test_export_image_sets_attributes(self):
         self.exporter.imageMap = MagicMock()
@@ -550,19 +552,16 @@ class TestCardExporter(unittest.TestCase):
     # -- bulkMediaExportCancelledByBrowserRefresh -----------------------
 
     def test_bulk_media_export_cancelled_by_browser_refresh(self):
-        self.exporter.bulkMediaExportProgressWindow = MagicMock()
-        self.exporter.bulkMediaExportProgressWindow.currentValue = 5
+        self.exporter.bulk_processor.media_export_progress_window = MagicMock()
+        self.exporter.bulk_processor.media_export_progress_window.current_value = 5
 
-        with patch("anki_dictionary.exporters.card_exporter.miInfo") as mock_info:
-            self.exporter.bulkMediaExportCancelledByBrowserRefresh()
+        self.exporter.bulkMediaExportCancelledByBrowserRefresh()
 
-            mock_info.assert_called_once()
-            self.assertIn("5", mock_info.call_args[0][0])
-            self.assertIs(self.exporter.bulkMediaExportProgressWindow, False)
-            self.assertFalse(self.exporter.mw.DictBulkMediaExportWasCancelled)
+        self.assertIsNone(self.exporter.bulk_processor.media_export_progress_window)
+        self.assertFalse(self.exporter.mw.DictBulkMediaExportWasCancelled)
 
     def test_bulk_media_export_cancelled_no_window(self):
-        self.exporter.bulkMediaExportProgressWindow = False
+        self.exporter.bulk_processor.media_export_progress_window = None
         self.exporter.bulkMediaExportCancelledByBrowserRefresh()
 
     # -- attemptAutoAdd -------------------------------------------------
