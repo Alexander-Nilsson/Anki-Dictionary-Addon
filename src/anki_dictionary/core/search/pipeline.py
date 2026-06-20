@@ -40,6 +40,8 @@ class SearchPipeline:
             threadpool=midict.threadpool,
             on_llm_result=self.loadLLMResults,
             on_llm_error=self.showLLMError,
+            on_forvo_result=self.onForvoResult,
+            on_forvo_error=self.onForvoError,
         )
 
     # ── public entry point ─────────────────────────

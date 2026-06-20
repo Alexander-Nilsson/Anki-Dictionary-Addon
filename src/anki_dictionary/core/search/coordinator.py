@@ -28,11 +28,15 @@ class ExternalServiceCoordinator:
         threadpool: QThreadPool,
         on_llm_result: Optional[Callable[[Dict[str, Any]], None]] = None,
         on_llm_error: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_forvo_result: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_forvo_error: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> None:
         self._eval = eval_fn
         self._threadpool = threadpool
         self._on_llm_result_cb = on_llm_result
         self._on_llm_error_cb = on_llm_error
+        self._on_forvo_result_cb = on_forvo_result
+        self._on_forvo_error_cb = on_forvo_error
 
     # ── LLM ────────────────────────────────────────
 
@@ -84,11 +88,15 @@ class ExternalServiceCoordinator:
         if not items:
             self._remove_element(id_name, "Forvo")
             return
+        if self._on_forvo_result_cb is not None:
+            self._on_forvo_result_cb(result)
 
     def _on_forvo_error(self, result: Dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
         id_name = result.get("idName") or "forvo-loader"
+        if self._on_forvo_error_cb is not None:
+            self._on_forvo_error_cb(result)
 
     # ── Image search ───────────────────────────────
 
