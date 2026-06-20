@@ -19,6 +19,7 @@ from ..utils.logger import get_logger
 from ..utils.config import get_addon_config
 from .search.query import SearchQueryBuilder
 from .word_list_registry import WordListRegistry
+from .frequency import FrequencyEngine
 
 # Initialize logger
 logger = get_logger("database")
@@ -34,6 +35,7 @@ class DictDB:
         self.oldConnection: Optional[sqlite3.Cursor] = None
         self._extra_data_cache: Dict[str, List[Any]] = {}
         self._registry: Optional[WordListRegistry] = None
+        self._frequency_engine: Optional[FrequencyEngine] = None
         self.search_query_builder = SearchQueryBuilder(self)
 
         # Get the root addon directory
@@ -69,6 +71,7 @@ class DictDB:
             raise
 
         self._registry = WordListRegistry(get_db_dir())
+        self._frequency_engine = FrequencyEngine(self._registry)
 
     @staticmethod
     def _quote_identifier(name: str) -> str:
@@ -112,23 +115,12 @@ class DictDB:
         return providers
 
     def getStarCount(self, freq: int) -> str:
-        """Convert frequency rank to star rating."""
         config = get_addon_config()
-        star_char = config.get("star_char", "★")
+        star_char = config.get("star_char", "\u2605")
         thresholds = config.get("star_thresholds", [1501, 5001, 15001, 30001, 60001])
+        from .frequency import get_star_count
 
-        if freq < thresholds[0]:
-            return star_char * 5
-        elif freq < thresholds[1]:
-            return star_char * 4
-        elif freq < thresholds[2]:
-            return star_char * 3
-        elif freq < thresholds[3]:
-            return star_char * 2
-        elif freq < thresholds[4]:
-            return star_char * 1
-        else:
-            return ""
+        return get_star_count(freq, star_char, thresholds)
 
     def _apply_frequency_info(
         self,
@@ -136,86 +128,18 @@ class DictDB:
         providers: List[Any],
         config: Dict[str, Any],
     ) -> None:
-        """Apply frequency and level information to an entry from multiple providers."""
-        show_stars = config.get("show_stars", True)
-        show_rank = config.get("show_rank", False)
-        show_level_labels = config.get("show_level_labels", True)
-        word_list_visibility = config.get("word_list_visibility", {})
-
-        levels: List[str] = []
-        frequency: int = 999999
-        term = entry["term"]
-        alt = entry["altterm"]
-        entry_reading = self.adjustReading(entry["pronunciation"] or term)
-
-        for provider in providers:
-            name = provider.name
-            lang_vis = word_list_visibility.get(provider.lang, {})
-            if not lang_vis.get(name, True):
-                continue
-
-            result = provider.lookup(term, entry_reading)
-
-            if not result.rank and not result.levels:
-                alt_result = provider.lookup(alt, entry_reading) if alt else None
-                if alt_result and (alt_result.rank is not None or alt_result.levels):
-                    result = alt_result
-
-            if result.rank is not None and result.rank < frequency:
-                frequency = result.rank
-
-            for level in result.levels:
-                levels.append(f"{name}:{level}")
-
-        # Apply collected levels
-        entry["levelLabels"] = (
-            " / ".join(levels) if levels and show_level_labels else ""
-        )
-
-        # Apply best found frequency rank
-        if frequency == 999999 and entry.get("frequency"):
-            try:
-                frequency = int(entry["frequency"])
-            except (ValueError, TypeError):
-                logger.debug("Could not parse frequency: %s", entry.get("frequency"))
-
-        if frequency != 999999:
-            if show_stars:
-                entry["starCount"] = self.getStarCount(frequency)
-            if show_rank:
-                entry["frequency"] = frequency
-        else:
-            if not show_stars:
-                entry["starCount"] = ""
-            if not show_rank:
-                entry["frequency"] = ""
+        if self._frequency_engine is not None:
+            self._frequency_engine.apply(entry, providers, config)
 
     def kana_converter(self, to_translate: str, hiraganer: bool = False) -> str:
-        """Convert between Hiragana and Katakana."""
-        hiragana = (
-            "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
-            "あいうえおかきくけこさしすせそたちつてと"
-            "なにぬねのはひふへほまみむめもやゆよらりるれろ"
-            "わをんぁぃぅぇぉゃゅょっゐゑ"
-        )
-        katakana = (
-            "ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ"
-            "アイウエオカキクケコサシスセソタチツテト"
-            "ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ"
-            "ワヲンァィゥェォャュョッヰヱ"
-        )
-        if hiraganer:
-            katakana_ords = [ord(char) for char in katakana]
-            translate_table = dict(zip(katakana_ords, hiragana))
-            return to_translate.translate(translate_table)
-        else:
-            hiragana_ords = [ord(char) for char in hiragana]
-            translate_table = dict(zip(hiragana_ords, katakana))
-            return to_translate.translate(translate_table)
+        from .frequency import kana_converter as _kc
+
+        return _kc(to_translate, hiraganer)
 
     def adjustReading(self, reading: str) -> str:
-        """Adjust reading for frequency lookup."""
-        return self.kana_converter(reading)
+        from .frequency import adjust_reading
+
+        return adjust_reading(reading)
 
     def getLangId(self, lang: str) -> Optional[int]:
         """Get language ID from language name."""
@@ -585,66 +509,16 @@ class DictDB:
         return self.search_query_builder.get_term_frequency_info(term, lang, config)
 
     def reapply_frequency_for_language(self, lang: str, config: Dict[str, Any]) -> int:
-        """Re-compute and persist frequency/starCount for all existing
-        dictionary entries of a given language.
-
-        Returns the number of entries updated.
-        """
-        if not self._ensure_connection():
+        if not self._ensure_connection() or self._frequency_engine is None:
             return 0
-
         providers = self._get_extra_data(lang)
         if not providers:
             return 0
-
-        dicts = self.getDictsByLanguage(lang)
-        cursor = self._get_cursor()
-        total = 0
-
-        for dict_name in dicts:
-            lid = self.getLangIdFromDict(dict_name)
-            if lid is None:
-                continue
-            table = self.formatDictName(lid, dict_name)
-            safe_table = self._quote_identifier(table)
-
-            try:
-                cursor.execute(
-                    f"SELECT rowid, term, altterm, pronunciation, definition, "
-                    f"examples, audio, frequency, starCount "
-                    f"FROM {safe_table}"
-                )
-            except Exception as e:
-                logger.debug("Skipping %s: %s", table, e)
-                continue
-
-            for row in cursor.fetchall():
-                entry = {
-                    "term": row[1],
-                    "altterm": row[2] or "",
-                    "pronunciation": row[3] or "",
-                    "definition": row[4] or "",
-                    "frequency": row[7] or "",
-                    "starCount": row[8] or "",
-                    "levelLabels": "",
-                }
-                self._apply_frequency_info(entry, providers, config)
-
-                new_freq = entry.get("frequency", "")
-                new_stars = entry.get("starCount", "")
-                try:
-                    cursor.execute(
-                        f"UPDATE {safe_table} SET frequency = ?, starCount = ? "
-                        f"WHERE rowid = ?",
-                        (new_freq, new_stars, row[0]),
-                    )
-                    total += 1
-                except Exception as e:
-                    logger.debug("Error updating row %s: %s", row[0], e)
-
-            self.commitChanges()
-
-        return total
+        if self.conn is None:
+            return 0
+        return self._frequency_engine.reapply_for_language(
+            lang, config, self.conn, self
+        )
 
     def searchTerm(
         self, term, selectedGroup, conjugations, sT, deinflect, dictLimit, maxDefs
