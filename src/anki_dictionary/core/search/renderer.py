@@ -419,7 +419,7 @@ class ResultRenderer:
             + '\')" class="ankiExportButton"><img '
             + img_tooltip
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip_tooltip
             + ' class="clipper">\u2702</div><div '
@@ -500,6 +500,7 @@ class ResultRenderer:
         back_bracket: str,
         config: Dict[str, Any],
         term_headers: Dict[str, List[str]] | None = None,
+        is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         stars = str(result.get("starCount", ""))
@@ -534,7 +535,7 @@ class ResultRenderer:
             + '\')" class="ankiExportButton"><img '
             + img
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
             + ' class="clipper">\u2702</div><div '
@@ -611,7 +612,7 @@ class ResultRenderer:
             + '\')" class="ankiExportButton"><img '
             + img
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
             + ' class="clipper">\u2702</div><div '
@@ -622,7 +623,7 @@ class ResultRenderer:
             + '<div class="defNav"><div onclick="navigateDef(event, false)" '
             + 'class="prevDef">\u25b2</div>'
             + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDict">\u25bc</div></div></div></div>'
+            + 'class="nextDef">\u25bc</div></div></div></div>'
         )
 
         definition = result.get("definition", "")
@@ -676,7 +677,7 @@ class ResultRenderer:
             + 'class="ankiExportButton"><img '
             + img
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
             + ' class="clipper">\u2702</div><div '

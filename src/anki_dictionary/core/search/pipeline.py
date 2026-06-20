@@ -246,6 +246,7 @@ class SearchPipeline:
         back_b = config.get("backBracket", "\u3011")
         term_headers = getattr(self.midict, "termHeaders", None)
 
+        is_dark = self.midict.dictInt.theme_manager.is_dark
         definitions = llm_integration.split_llm_definitions(result["definition"])
         if not definitions:
             definitions = [result["definition"]]
@@ -260,6 +261,7 @@ class SearchPipeline:
                 back_b,
                 config,
                 term_headers,
+                is_dark,
             )
             html_entries += self.renderer.render_llm_definition_block(
                 def_text,
