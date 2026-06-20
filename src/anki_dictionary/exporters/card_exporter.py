@@ -39,6 +39,7 @@ from anki import sound
 import re
 import collections
 
+from . import note_creator
 from ..utils import media_manager
 from ..utils.logger import get_logger
 
@@ -294,27 +295,7 @@ Please review your template and notetype combination."""
         return True
 
     def getDecks(self):
-        decksRaw = self.mw.col.decks
-        decks = {}
-
-        try:
-            decks_list = decksRaw.all_names_and_ids()
-            for deck_info in decks_list:
-                deck = decksRaw.get(deck_info.id)
-                if deck and not deck.get("dyn", False):
-                    decks[deck_info.name] = deck_info.id
-        except (AttributeError, TypeError):
-            try:
-                for did, deck in decksRaw.items():
-                    if not deck["dyn"]:
-                        decks[deck["name"]] = did
-            except AttributeError:
-                all_decks = decksRaw.all()
-                for deck in all_decks:
-                    if not deck.get("dyn", False):
-                        decks[deck["name"]] = deck["id"]
-
-        return decks
+        return dict(note_creator.get_decks(self.mw.col))
 
     def getDeckCB(self):
         cb = QComboBox()
