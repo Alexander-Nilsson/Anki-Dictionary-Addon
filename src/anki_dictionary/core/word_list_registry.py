@@ -203,7 +203,7 @@ class WordListRegistry:
                 data
                 and isinstance(data[0], list)
                 and len(data[0]) >= 3
-                and data[0][1] == "freq"
+                and isinstance(data[0][2], int)
             ):
                 return "level"
             return "rank"

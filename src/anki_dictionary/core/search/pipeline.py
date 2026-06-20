@@ -130,13 +130,13 @@ class SearchPipeline:
         front_b = config.get("frontBracket", "\u3010")
         back_b = config.get("backBracket", "\u3011")
         term_headers = getattr(self.midict, "termHeaders", None)
+        is_dark = self.midict.dictInt.theme_manager.is_dark
 
         group = self.midict.dictInt.getSelectedDictGroup()
         group_dicts = [d["dict"] for d in group.get("dictionaries", [])]
         has_special = any(d in ("Images", "LLM", "Forvo") for d in group_dicts)
 
         if not results and not has_special:
-            is_dark = self.midict.dictInt.theme_manager.is_dark
             return self.renderer.get_no_results_html(term, is_dark)
 
         html = self.renderer.get_sidebar(
@@ -153,7 +153,7 @@ class SearchPipeline:
             if dict_name == "Images":
                 image_id = f"gcon{int(time.time() * 1000)}".replace(".", "")
                 html += self.renderer.render_image_search_html(
-                    term, font, front_b, back_b, config, term_headers, image_id
+                    term, font, front_b, back_b, config, term_headers, image_id, is_dark
                 )
                 self._trigger_image_search(term, image_id)
                 dict_count += 1
@@ -222,6 +222,7 @@ class SearchPipeline:
                     img_tip,
                     clip_tip,
                     send_tip,
+                    is_dark,
                 )
                 html += self.renderer.render_definition_block(
                     definition, font, term, config
@@ -496,6 +497,7 @@ class SearchPipeline:
         front_bracket: str,
         back_bracket: str,
     ) -> str:
+        is_dark = self.midict.dictInt.theme_manager.is_dark
         return self.renderer.format_single_entry(
             result,
             dict_name,
@@ -504,6 +506,7 @@ class SearchPipeline:
             back_bracket,
             self.midict.config,
             getattr(self.midict, "termHeaders", None),
+            is_dark,
         )
 
     def getCleanedUrls(self, urls: List[str]) -> List[str]:

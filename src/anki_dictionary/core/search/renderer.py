@@ -377,6 +377,7 @@ class ResultRenderer:
         img_tooltip: str = "",
         clip_tooltip: str = "",
         send_tooltip: str = "",
+        is_dark: bool = False,
     ) -> str:
         stars = entry.get("starCount", "")
         levels = entry.get("levelLabels", "")
@@ -562,6 +563,7 @@ class ResultRenderer:
         back_bracket: str,
         config: Dict[str, Any],
         term_headers: Dict[str, List[str]] | None = None,
+        is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         html = (
@@ -639,6 +641,7 @@ class ResultRenderer:
         config: Dict[str, Any],
         term_headers: Dict[str, List[str]] | None = None,
         id_name: str = "",
+        is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         prepared = self.get_prepared_term_header(
