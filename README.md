@@ -8,6 +8,12 @@
   <a href="https://www.gnu.org/licenses/agpl-3.0.html" title="License: GNU AGPLv3">
     <img src="https://img.shields.io/badge/license-GNU%20AGPLv3-green.svg" alt="License: GNU AGPLv3">
   </a>
+  <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/actions/workflows/ci.yml" title="CI status">
+    <img src="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/actions/workflows/codeql.yml" title="CodeQL status">
+    <img src="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
+  </a>
 </p>
 
 <p align="center">

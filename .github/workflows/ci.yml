@@ -5,21 +5,26 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  pipeline:
-    name: Lint, Test, Build, and Release
+  ci:
+    name: Lint, Test, Build
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -82,6 +87,13 @@ jobs:
           #    fail) to install manylinux_2_36 wheels ──
           .venv/bin/pip install pytest-anki2 --no-deps
 
+      - name: Security Audit (Python Dependencies)
+        run: |
+          uv export --frozen --no-dev -o /tmp/requirements-prod.txt
+          uvx pip-audit -r /tmp/requirements-prod.txt
+          uv export --frozen --dev -o /tmp/requirements-dev.txt
+          uvx pip-audit -r /tmp/requirements-dev.txt
+
       - name: Lint
         run: |
           .venv/bin/ruff check .
@@ -107,17 +119,95 @@ jobs:
             --tb=short -v
 
           # ── pytest-anki2 smoketest (needs pytest-qt, forked process) ──
-          # NOTE: teardown segfaults in Qt 6.9.1 enum cleanup (aqt progress_qt6),
-          # so we ignore the exit code; the test itself passes.
-          .venv/bin/pytest tests/integration/test_smoke_pytest_anki.py --tb=short -v || true
+          # NOTE: teardown segfaults in Qt 6.9.1 enum cleanup (aqt progress_qt6);
+          # exit codes 0/5+ = pass, 1/2 = real test failure.
+          .venv/bin/pytest tests/integration/test_smoke_pytest_anki.py --tb=short -v; \
+            rc=$?; \
+            if [ $rc -eq 1 ] || [ $rc -eq 2 ]; then exit $rc; fi
 
       - name: Build
         run: .venv/bin/python build.py all
 
-      # --- RELEASE SECTION (Only runs on master branch push) ---
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ankiaddon
+          path: build/*.ankiaddon
+          retention-days: 7
+
+  macos-ci:
+    name: macOS (Lint, Type Check, Unit Tests)
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.13
+        run: |
+          uv python install 3.13
+          uv python pin 3.13
+          rm -rf .venv
+
+      - name: Install Dependencies
+        run: |
+          # macOS native wheels — no manylinux workaround needed
+          uv venv --seed
+          uv sync --no-cache
+
+      - name: Lint
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+
+      - name: Type Check
+        run: uv run ty check .
+
+      - name: Unit Tests
+        run: |
+          .venv/bin/pytest tests/ -p no:qt -p no:xvfb \
+            -m "not integration and not network" \
+            --ignore=tests/test_all_dictionaries.py \
+            --ignore=tests/test_dictionary_index.py \
+            --tb=short -v
+
+  release:
+    name: Release
+    needs: [ci, macos-ci]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.13
+        run: |
+          uv python install 3.13
+          uv python pin 3.13
+          rm -rf .venv
+
+      - name: Install Python Dependencies
+        run: |
+          uv venv --seed
+          uv sync --frozen --no-cache
 
       - name: Bump Version, Build, Commit, and Tag
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         id: build_step
         run: |
           NEW_VERSION=$(.venv/bin/python -c "
@@ -129,20 +219,17 @@ jobs:
           ")
 
           .venv/bin/python -c "
-          import re
-          with open('pyproject.toml', 'r+') as f:
-              c = f.read(); f.seek(0)
-              f.write(re.sub(r'^version = \".*\"', f'version = \"$NEW_VERSION\"', c, flags=re.MULTILINE))
-              f.truncate()
-          "
-
-          .venv/bin/python -c "
-          import re
-          with open('src/anki_dictionary/__init__.py', 'r+') as f:
-              c = f.read(); f.seek(0)
-              f.write(re.sub(r'^__version__ = \".*\"', f'__version__ = \"$NEW_VERSION\"', c, flags=re.MULTILINE))
-              f.truncate()
-          "
+          import re, sys
+          nv = sys.argv[1]
+          for path, key in [
+              ('pyproject.toml', 'version'),
+              ('src/anki_dictionary/__init__.py', '__version__'),
+          ]:
+              with open(path, 'r+') as f:
+                  c = f.read(); f.seek(0)
+                  f.write(re.sub(r'^' + key + r' = \".*\"', key + ' = \"' + nv + '\"', c, flags=re.MULTILINE))
+                  f.truncate()
+          " "$NEW_VERSION"
 
           .venv/bin/python build.py all
 
@@ -151,15 +238,13 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git add pyproject.toml src/anki_dictionary/__init__.py
           git commit -m "Bump version to $NEW_VERSION [skip ci]"
-          git tag -d "v$NEW_VERSION" 2>/dev/null || true
           git tag "v$NEW_VERSION"
-          git push origin master +"refs/tags/v$NEW_VERSION"
+          git push origin master "refs/tags/v$NEW_VERSION"
 
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.build_step.outputs.tag }}
