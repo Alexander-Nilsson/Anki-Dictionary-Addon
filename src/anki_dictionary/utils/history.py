@@ -6,6 +6,7 @@ import json
 from aqt.qt import (
     QAbstractItemView,
     QAbstractTableModel,
+    QColor,
     QHBoxLayout,
     QHeaderView,
     QKeySequence,
@@ -139,7 +140,8 @@ class HistoryBrowser(QWidget):
         Set the colors for the history browser based on the active theme.
         """
         # Load the background color from the active theme
-        background_color = self.dictInt.load_theme_color("header_background")
+        active_theme = self.dictInt.theme_manager.get_active_theme()
+        background_color = QColor(active_theme.header_background)
 
         # Create a QPalette object and set the background color
         palette = QPalette()
