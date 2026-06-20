@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Bump, Build, and Release
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.13
+        run: |
+          uv python install 3.13
+          uv python pin 3.13
+          rm -rf .venv
+
+      - name: Install Python Dependencies
+        run: |
+          # Only install prod deps — build.py only needs stdlib
+          uv venv --seed
+          uv sync --frozen --no-dev --no-cache
+
+      - name: Bump Version, Build, Commit, and Tag
+        id: build_step
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # ── Compute next version ──
+          NEW_VERSION=$(uv run python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              v = tomllib.load(f)['project']['version'].split('.')
+          v[-1] = str(int(v[-1]) + 1)
+          print('.'.join(v))
+          ")
+
+          # ── Guard against tag collision ──
+          if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+            echo "⚠️  Tag v$NEW_VERSION already exists — skipping (release already published)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ── Bump version in source files ──
+          uv run python -c "
+          import re, sys
+          nv = sys.argv[1]
+          for path, key in [
+              ('pyproject.toml', 'version'),
+              ('src/anki_dictionary/__init__.py', '__version__'),
+          ]:
+              with open(path, 'r+') as f:
+                  c = f.read(); f.seek(0)
+                  f.write(re.sub(r'^' + key + r' = \".*\"', key + ' = \"' + nv + '\"', c, flags=re.MULTILINE))
+                  f.truncate()
+          " "$NEW_VERSION"
+
+          # ── Build the addon ──
+          uv run python build.py all
+
+          # ── Pull any concurrent pushes to master ──
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch origin master
+          git rebase origin/master || {
+            echo "❌ Rebase failed — aborting to avoid force-push"
+            git rebase --abort
+            exit 1
+          }
+
+          # ── Commit and tag ──
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml src/anki_dictionary/__init__.py
+          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+
+          # ── Push branch and tag atomically ──
+          git tag "v$NEW_VERSION"
+          git push origin master "refs/tags/v$NEW_VERSION"
+
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        if: steps.build_step.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.build_step.outputs.tag }}
+          name: Release ${{ steps.build_step.outputs.tag }}
+          files: build/*.ankiaddon
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
