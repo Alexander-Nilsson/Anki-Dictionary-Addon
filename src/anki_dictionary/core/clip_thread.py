@@ -38,11 +38,11 @@ class ClipThread(QObject):
             if is_mac:
                 import ssl
 
-                ssl._create_default_https_context = ssl._create_unverified_context
+                ssl._create_default_https_context = ssl._create_unverified_context  # ty:ignore[invalid-assignment]
                 try:
-                    from Quartz import (  # ty:ignore[unresolved-import]
-                        CGEventGetIntegerValueField,
-                        kCGKeyboardEventKeycode,
+                    from Quartz import (
+                        CGEventGetIntegerValueField,  # ty:ignore[unresolved-import]
+                        kCGKeyboardEventKeycode,  # ty:ignore[unresolved-import]
                     )
 
                     self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
