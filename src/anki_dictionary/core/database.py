@@ -10,8 +10,6 @@ from aqt import mw
 from ..utils.paths import (
     get_addon_root,
     get_db_dir,
-    get_frequency_dir,
-    get_hsk_dir,
     get_addon_name,
 )
 from ..utils.common import miInfo
@@ -507,18 +505,6 @@ class DictDB:
         self, term: str, lang: str, config: Dict[str, Any]
     ) -> Dict[str, Any]:
         return self.search_query_builder.get_term_frequency_info(term, lang, config)
-
-    def reapply_frequency_for_language(self, lang: str, config: Dict[str, Any]) -> int:
-        if not self._ensure_connection() or self._frequency_engine is None:
-            return 0
-        providers = self._get_extra_data(lang)
-        if not providers:
-            return 0
-        if self.conn is None:
-            return 0
-        return self._frequency_engine.reapply_for_language(
-            lang, config, self.conn, self
-        )
 
     def searchTerm(
         self, term, selectedGroup, conjugations, sT, deinflect, dictLimit, maxDefs

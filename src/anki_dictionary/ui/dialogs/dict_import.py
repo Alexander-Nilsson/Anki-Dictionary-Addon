@@ -8,7 +8,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 from aqt.qt import QMessageBox, QWidget
 
-from ...utils.paths import get_db_dir, get_word_lists_dir
+from ...utils.paths import get_db_dir
 from ...utils.logger import get_logger
 
 log = get_logger("dict_import")
@@ -55,7 +55,6 @@ def importDict(
     is_yomichan = has_term_bank or (has_index and is_pitch_dict)
 
     log.info("Importing dict")
-    frequency_dict = getFrequencyList(lang_name)
     term_header = json.dumps(["term", "altterm", "pronunciation"])
 
     success, message, final_name = db.addDict(dict_name, lang_name, term_header)
@@ -91,7 +90,7 @@ def importDict(
         dict_files.append(fn)
     dict_files = natural_sort(dict_files)
 
-    loadDict(zfile, dict_files, lang_name, final_name, frequency_dict, not is_yomichan)
+    loadDict(zfile, dict_files, lang_name, final_name, not is_yomichan)
     return final_name
 
 
@@ -106,7 +105,6 @@ def loadDict(
     filenames: List[str],
     lang: str,
     dictName: str,
-    frequencyDict: Any,
     miDict: bool = False,
 ) -> None:
     tableName = "l" + str(aqt.mw.miDictDB.getLangId(lang)) + "name" + dictName  # ty:ignore[unresolved-attribute]
@@ -122,16 +120,6 @@ def loadDict(
                 except UnicodeDecodeError:
                     decoded = content.decode("latin-1")
             jsonDict += json.loads(decoded)
-    if frequencyDict:
-        log.info("Frequency dictionary found")
-        if miDict:
-            jsonDict = organizeDictionaryByFrequency(
-                jsonDict, frequencyDict, dictName, lang, True
-            )
-        else:
-            jsonDict = organizeDictionaryByFrequency(
-                jsonDict, frequencyDict, dictName, lang
-            )
     for count, entry in enumerate(jsonDict):
         if (
             isinstance(entry, list)
@@ -139,11 +127,11 @@ def loadDict(
             and isinstance(entry[2], dict)
             and "pitches" in entry[2]
         ):
-            handlePitchDictEntry(jsonDict, count, entry, frequencyDict is not None)
+            handlePitchDictEntry(jsonDict, count, entry)
         elif miDict:
-            handleMiDictEntry(jsonDict, count, entry, frequencyDict is not None)
+            handleMiDictEntry(jsonDict, count, entry)
         else:
-            handleYomiDictEntry(jsonDict, count, entry, frequencyDict is not None)
+            handleYomiDictEntry(jsonDict, count, entry)
     aqt.mw.miDictDB.importToDict(tableName, jsonDict)  # ty:ignore[unresolved-attribute]
     aqt.mw.miDictDB.commitChanges()  # ty:ignore[unresolved-attribute]
 
@@ -173,9 +161,7 @@ def getAdjustedDefinition(definition: str) -> str:
     return definition
 
 
-def handlePitchDictEntry(
-    jsonDict: List, count: int, entry: Any, freq: bool = False
-) -> None:
+def handlePitchDictEntry(jsonDict: List, count: int, entry: Any) -> None:
     term = ""
     altterm = ""
     reading = ""
@@ -183,8 +169,8 @@ def handlePitchDictEntry(
     definition = ""
     examples = ""
     audio = ""
-    frequency = entry[8] if freq and len(entry) > 8 else ""
-    starCount = entry[9] if freq and len(entry) > 9 else ""
+    frequency = ""
+    starCount = ""
     pitch_accent = ""
 
     term = entry[0]
@@ -206,9 +192,7 @@ def handlePitchDictEntry(
     )
 
 
-def handleMiDictEntry(
-    jsonDict: List, count: int, entry: Any, freq: bool = False
-) -> None:
+def handleMiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
     if isinstance(entry, list):
         term = entry[0] if len(entry) > 0 else ""
         altterm = entry[1] if len(entry) > 1 else ""
@@ -217,16 +201,16 @@ def handleMiDictEntry(
         pronunciation = details.get("pronunciation", altterm)
         pos = details.get("pos", "")
         definition = details.get("definition", "")
-        frequency = details.get("frequency", "") if freq else ""
-        starCount = details.get("starCount", "") if freq else ""
+        frequency = ""
+        starCount = ""
     elif isinstance(entry, dict):
         term = entry.get("term", "")
         altterm = entry.get("altterm", "")
         pronunciation = entry.get("pronunciation", "")
         pos = entry.get("pos", "")
         definition = entry.get("definition", "")
-        frequency = entry.get("frequency", "") if freq else ""
-        starCount = entry.get("starCount", "") if freq else ""
+        frequency = ""
+        starCount = ""
     else:
         return
 
@@ -251,9 +235,7 @@ def handleMiDictEntry(
     )
 
 
-def handleYomiDictEntry(
-    jsonDict: List, count: int, entry: Any, freq: bool = False
-) -> None:
+def handleYomiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
     def extract_definition(items: Any) -> str:
         def recursive_extract(item):
             if isinstance(item, str):
@@ -327,8 +309,8 @@ def handleYomiDictEntry(
     term = entry[0]
     reading = entry[1] if entry[1] else term
     pos = entry[2] if len(entry) > 2 else ""
-    frequency = entry[8] if freq and len(entry) > 8 else ""
-    starCount = entry[9] if freq and len(entry) > 9 else ""
+    frequency = ""
+    starCount = ""
     definition = ""
     pitch_accents = []
 
@@ -351,167 +333,3 @@ def handleYomiDictEntry(
         frequency,
         starCount,
     )
-
-
-def kana_converter(to_translate: str, hiraganer: bool = False) -> str:
-    hiragana = (
-        "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ"
-        "あいうえおかきくけこさしすせそたちつてと"
-        "なにぬねのはひふへほまみむめもやゆよらりるれろ"
-        "わをんぁぃぅぇぉゃゅょっゐゑ"
-    )
-    katakana = (
-        "ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ"
-        "アイウエオカキクケコサシスセソタチツテト"
-        "ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ"
-        "ワヲンァィゥェォャュョッヰヱ"
-    )
-    if hiraganer:
-        katakana = [ord(char) for char in katakana]
-        translate_table = dict(zip(katakana, hiragana))
-        return to_translate.translate(translate_table)
-    else:
-        hiragana = [ord(char) for char in hiragana]
-        translate_table = dict(zip(hiragana, katakana))
-        return to_translate.translate(translate_table)
-
-
-def adjustReading(reading: str) -> str:
-    return kana_converter(reading)
-
-
-def organizeDictionaryByFrequency(
-    jsonDict: List, frequencyDict: Any, dictName: str, lang: str, miDict: bool = False
-) -> List:
-    readingHyouki = frequencyDict.get("readingDictionaryType", False)
-
-    for idx, entry in enumerate(jsonDict):
-        if isinstance(entry, list):
-            term = entry[0] if len(entry) > 0 else ""
-            reading = entry[1] if len(entry) > 1 and isinstance(entry[1], str) else ""
-            details = (
-                entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else None
-            )
-
-            if readingHyouki:
-                if details:
-                    reading = details.get("reading", "") or reading or term
-                adjusted = adjustReading(reading)
-            else:
-                adjusted = None
-
-            frequency = 999999
-            starCount = ""
-
-            if miDict and details is not None:
-                if readingHyouki and term in frequencyDict:
-                    if adjusted in frequencyDict[term]:
-                        frequency = frequencyDict[term][adjusted]
-                elif not readingHyouki and term in frequencyDict:
-                    frequency = frequencyDict[term]
-                details["frequency"] = frequency
-                details["starCount"] = getStarCount(frequency)
-            else:
-                if readingHyouki and term in frequencyDict:
-                    if adjusted in frequencyDict[term]:
-                        frequency = frequencyDict[term][adjusted]
-                elif not readingHyouki and term in frequencyDict:
-                    frequency = frequencyDict[term]
-
-                while len(entry) < 10:
-                    entry.append("")
-                entry[8] = frequency
-                entry[9] = getStarCount(frequency)
-
-        else:
-            continue
-
-    if miDict:
-
-        def get_frequency(item: Any) -> int:
-            if isinstance(item, tuple) and len(item) > 7:
-                return item[7] if item[7] != "" else 999999
-            elif isinstance(item, list) and len(item) > 2 and isinstance(item[2], dict):
-                return item[2].get("frequency", 999999)
-            else:
-                return 999999
-
-        return sorted(jsonDict, key=get_frequency)
-    else:
-        return sorted(jsonDict, key=lambda i: i[8] if len(i) > 8 else 999999)
-
-
-def getStarCount(freq: int) -> str:
-    if freq < 1501:
-        return "★★★★★"
-    elif freq < 5001:
-        return "★★★★"
-    elif freq < 15001:
-        return "★★★"
-    elif freq < 30001:
-        return "★★"
-    elif freq < 60001:
-        return "★"
-    else:
-        return ""
-
-
-def getFrequencyList(lang: str) -> Any:
-    # Check legacy frequency/ directory first
-    legacyPath = os.path.join(get_db_dir(), "frequency", "%s.json" % lang)
-    if os.path.exists(legacyPath):
-        return _load_frequency_file(legacyPath)
-
-    # Fall back to word_lists/ directory (new location)
-    wordListsDir = get_word_lists_dir()
-    if os.path.exists(wordListsDir):
-        prefix = lang.replace(" ", "_") + "_"
-        for filename in os.listdir(wordListsDir):
-            if not filename.endswith(".json"):
-                continue
-            if not filename.startswith(prefix) and filename != f"{lang}.json":
-                continue
-            filePath = os.path.join(wordListsDir, filename)
-            result = _load_frequency_file(filePath)
-            if result:
-                return result
-
-    return False
-
-
-def _load_frequency_file(filePath: str) -> Any:
-    frequencyDict: Dict[str, Any] = {}
-    try:
-        with open(filePath, "r", encoding="utf-8-sig") as f:
-            frequencyList = json.load(f)
-    except Exception:
-        return False
-    if not frequencyList:
-        return False
-    if isinstance(frequencyList[0], str):
-        yomi = False
-        frequencyDict["readingDictionaryType"] = False
-    elif (
-        isinstance(frequencyList[0], list)
-        and len(frequencyList[0]) == 2
-        and isinstance(frequencyList[0][0], str)
-        and isinstance(frequencyList[0][1], str)
-    ):
-        yomi = True
-        frequencyDict["readingDictionaryType"] = True
-    else:
-        return False
-    for idx, f in enumerate(frequencyList):
-        if yomi:
-            term = f[0].strip()
-            reading = f[1].strip()
-            if term in frequencyDict:
-                frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
-            else:
-                frequencyDict[term] = {}
-                frequencyDict[term][reading] = idx  # ty:ignore[invalid-assignment]
-        else:
-            term = f.strip()
-            if term not in frequencyDict:
-                frequencyDict[term] = idx
-    return frequencyDict

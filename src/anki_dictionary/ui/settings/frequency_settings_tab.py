@@ -9,13 +9,14 @@ from aqt.qt import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from ...core.word_list_registry import WordListProvider
+
+_DEFAULT_DISPLAY_NAMES = {"hsk": "HSK³", "jlpt": "JLPT", "cefr": "CEFR"}
 
 
 class FrequencySettingsTab(QWidget):
@@ -42,8 +43,17 @@ class FrequencySettingsTab(QWidget):
         self.showLevelLabels.setChecked(True)
 
         self._list_checkboxes: Dict[str, QCheckBox] = {}
+        self._display_name_inputs: Dict[str, QLineEdit] = {}
 
         self._build_ui()
+
+    @staticmethod
+    def _get_default_display_name(name: str) -> str:
+        name_lower = name.lower()
+        for key, val in _DEFAULT_DISPLAY_NAMES.items():
+            if key in name_lower:
+                return val
+        return name
 
     def _discover_providers(self) -> Dict[str, WordListProvider]:
         providers: Dict[str, WordListProvider] = {}
@@ -60,32 +70,12 @@ class FrequencySettingsTab(QWidget):
             pass
         return providers
 
-    def _on_reapply(self) -> None:
-        """Reapply frequency data to all existing dictionary entries."""
-        from ...utils.config import get_addon_config, save_addon_config
-
-        config = get_addon_config()
-        langs = self.mw.miDictDB.getCurrentDbLangs()
-        total = 0
-        for lang in langs:
+    def _on_settings_changed(self) -> None:
+        if hasattr(self.mw, "ankiDictionary") and self.mw.ankiDictionary:
             try:
-                self.mw.progress.start(label=f"Reapplying frequency data for {lang}...")
-                count = self.mw.miDictDB.reapply_frequency_for_language(lang, config)
-                total += count
-            except Exception as e:
-                from ...utils.logger import get_logger
-
-                get_logger("frequency_settings").error(
-                    "Error reapplying for %s: %s", lang, e
-                )
-            finally:
-                self.mw.progress.finish()
-
-        from aqt.utils import tooltip
-
-        tooltip(
-            f"Frequency data reapplied to {total} entries across {len(langs)} language(s)."
-        )
+                self.mw.ankiDictionary.refresh_application_theme()
+            except Exception:
+                pass
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -97,19 +87,40 @@ class FrequencySettingsTab(QWidget):
         infoLabel.setStyleSheet("font-style: italic; margin-bottom: 10px;")
         layout.addWidget(infoLabel)
 
-        visGroup = QGroupBox("Visibility Options")
+        visGroup = QGroupBox("Word List Visibility & Labels")
         visLayout = QVBoxLayout()
         visLayout.addWidget(self.showStars)
         visLayout.addWidget(self.showRank)
         visLayout.addWidget(self.showLevelLabels)
 
-        # Dynamic word list checkboxes
+        visLayout.addWidget(QLabel(""))
+        header_lay = QHBoxLayout()
+        header_lay.addWidget(QLabel("Enabled"))
+        header_lay.addWidget(QLabel("List"))
+        header_lay.addStretch()
+        header_lay.addWidget(QLabel("Display Name"))
+        visLayout.addLayout(header_lay)
+
         for key, provider in sorted(self._discover_providers().items()):
-            label = f"{provider.lang}: {provider.name}"
-            cb = QCheckBox(label)
+            row = QHBoxLayout()
+            cb = QCheckBox()
             cb.setChecked(True)
             self._list_checkboxes[key] = cb
-            visLayout.addWidget(cb)
+            row.addWidget(cb)
+
+            row.addWidget(QLabel(f"{provider.lang}: {provider.name}"))
+            row.addStretch()
+
+            display_input = QLineEdit()
+            display_input.setPlaceholderText(
+                self._get_default_display_name(provider.name)
+            )
+            display_input.setMaxLength(30)
+            display_input.setFixedWidth(150)
+            self._display_name_inputs[key] = display_input
+            row.addWidget(display_input)
+
+            visLayout.addLayout(row)
 
         visGroup.setLayout(visLayout)
         layout.addWidget(visGroup)
@@ -133,24 +144,6 @@ class FrequencySettingsTab(QWidget):
         starGroup.setLayout(starLayout)
         layout.addWidget(starGroup)
 
-        actionGroup = QGroupBox("Actions")
-        actionLayout = QVBoxLayout()
-
-        self.reapplyBtn = QPushButton("Reapply Frequency Data to All Existing Entries")
-        self.reapplyBtn.clicked.connect(self._on_reapply)
-        actionLayout.addWidget(self.reapplyBtn)
-
-        reapplyHint = QLabel(
-            "Recompute frequency ranks and star counts for all existing "
-            "dictionary entries using currently downloaded word lists."
-        )
-        reapplyHint.setStyleSheet("font-size: 10px; color: gray;")
-        reapplyHint.setWordWrap(True)
-        actionLayout.addWidget(reapplyHint)
-
-        actionGroup.setLayout(actionLayout)
-        layout.addWidget(actionGroup)
-
         layout.addStretch()
 
     def load_config(self, config: Dict[str, Any]) -> None:
@@ -171,10 +164,16 @@ class FrequencySettingsTab(QWidget):
         word_list_visibility: Dict[str, Dict[str, bool]] = config.get(
             "word_list_visibility", {}
         )
+        word_list_display_names: Dict[str, Dict[str, str]] = config.get(
+            "word_list_display_names", {}
+        )
         for key, cb in self._list_checkboxes.items():
             lang, name = key.split("::", 1)
             visible = word_list_visibility.get(lang, {}).get(name, True)
             cb.setChecked(visible)
+            display_name = word_list_display_names.get(lang, {}).get(name, "")
+            if display_name:
+                self._display_name_inputs[key].setText(display_name)
 
     def save_config(self, config: Dict[str, Any]) -> None:
         config["star_char"] = self.freqStarChar.text()
@@ -196,3 +195,16 @@ class FrequencySettingsTab(QWidget):
                 word_list_visibility[lang] = {}
             word_list_visibility[lang][name] = cb.isChecked()
         config["word_list_visibility"] = word_list_visibility
+
+        word_list_display_names: Dict[str, Dict[str, str]] = {}
+        for key, inp in self._display_name_inputs.items():
+            lang, name = key.split("::", 1)
+            text = inp.text().strip()
+            default = self._get_default_display_name(name)
+            if text and text != default:
+                if lang not in word_list_display_names:
+                    word_list_display_names[lang] = {}
+                word_list_display_names[lang][name] = text
+        config["word_list_display_names"] = word_list_display_names
+
+        self._on_settings_changed()

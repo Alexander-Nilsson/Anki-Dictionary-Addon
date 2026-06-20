@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Dict, List, Optional
 
 from ..utils.config import get_addon_config
@@ -80,6 +79,18 @@ class FrequencyEngine:
 
     # ── public ─────────────────────────────────────
 
+    @staticmethod
+    def _get_display_name(name: str, display_names: Dict[str, str]) -> str:
+        cfg = display_names.get(name)
+        if cfg:
+            return cfg
+        name_lower = name.lower()
+        defaults = {"hsk": "HSK³", "jlpt": "JLPT", "cefr": "CEFR"}
+        for key, val in defaults.items():
+            if key in name_lower:
+                return val
+        return name
+
     def apply(
         self,
         entry: Dict[str, Any],
@@ -87,13 +98,17 @@ class FrequencyEngine:
         config: Dict[str, Any],
     ) -> None:
         """Mutate *entry* in-place with starCount, frequency, levelLabels."""
+        if not providers:
+            return
+
         show_stars = config.get("show_stars", True)
         show_rank = config.get("show_rank", False)
         show_level_labels = config.get("show_level_labels", True)
         word_list_visibility = config.get("word_list_visibility", {})
+        word_list_display_names = config.get("word_list_display_names", {})
 
         levels: List[str] = []
-        frequency: int = 999999
+        frequency: Optional[int] = None
         term = entry["term"]
         alt = entry.get("altterm", "")
         entry_reading = adjust_reading(entry.get("pronunciation", "") or term)
@@ -114,25 +129,21 @@ class FrequencyEngine:
                     ):
                         result = alt_result
 
-            if result.rank is not None and result.rank < frequency:
+            if result.rank is not None and (
+                frequency is None or result.rank < frequency
+            ):
                 frequency = result.rank
 
+            lang_display_names = word_list_display_names.get(provider.lang, {})
+            display_name = self._get_display_name(name, lang_display_names)
             for level in result.levels:
-                levels.append(f"{name}:{level}")
+                levels.append(f"{display_name}:{level}")
 
-        # Apply collected levels
         entry["levelLabels"] = (
             " / ".join(levels) if levels and show_level_labels else ""
         )
 
-        # Apply best found frequency rank
-        if frequency == 999999 and entry.get("frequency"):
-            try:
-                frequency = int(entry["frequency"])
-            except (ValueError, TypeError):
-                logger.debug("Could not parse frequency: %s", entry.get("frequency"))
-
-        if frequency != 999999:
+        if frequency is not None:
             if show_stars:
                 star_char = config.get("star_char", "\u2605")
                 thresholds = config.get(
@@ -142,10 +153,8 @@ class FrequencyEngine:
             if show_rank:
                 entry["frequency"] = frequency
         else:
-            if not show_stars:
-                entry["starCount"] = ""
-            if not show_rank:
-                entry["frequency"] = ""
+            entry["starCount"] = ""
+            entry["frequency"] = ""
 
     def get_providers_for_lang(self, lang: str) -> List[WordListProvider]:
         if self._registry is None:
@@ -153,68 +162,3 @@ class FrequencyEngine:
         return self._registry.get_providers(lang)
 
     # ── persistence helper ─────────────────────────
-
-    def reapply_for_language(
-        self,
-        lang: str,
-        config: Dict[str, Any],
-        conn: sqlite3.Connection,
-        dict_db: Any,
-    ) -> int:
-        """Re-compute and persist frequency/starCount for all existing
-        dictionary entries of a given language.
-
-        Requires a live SQLite connection and a DictDB reference for schema
-        queries. Returns the number of entries updated.
-        """
-        providers = self.get_providers_for_lang(lang)
-        if not providers:
-            return 0
-
-        cursor = conn.cursor()
-        total = 0
-        dict_names = dict_db.getDictsByLanguage(lang)
-
-        for dict_name in dict_names:
-            lid = dict_db.getLangIdFromDict(dict_name)
-            if lid is None:
-                continue
-            table = dict_db.formatDictName(lid, dict_name)
-            safe_table = f'"{table}"'
-
-            try:
-                cursor.execute(
-                    f"SELECT rowid, term, altterm, pronunciation, definition, "
-                    f"examples, audio, frequency, starCount FROM {safe_table}"
-                )
-            except Exception as e:
-                logger.debug("Skipping %s: %s", table, e)
-                continue
-
-            for row in cursor.fetchall():
-                entry: Dict[str, Any] = {
-                    "term": row[1],
-                    "altterm": row[2] or "",
-                    "pronunciation": row[3] or "",
-                    "definition": row[4] or "",
-                    "frequency": row[7] or "",
-                    "starCount": row[8] or "",
-                    "levelLabels": "",
-                }
-                self.apply(entry, providers, config)
-
-                new_freq = entry.get("frequency", "")
-                new_stars = entry.get("starCount", "")
-                try:
-                    cursor.execute(
-                        f"UPDATE {safe_table} SET frequency = ?, starCount = ? "
-                        f"WHERE rowid = ?",
-                        (new_freq, new_stars, row[0]),
-                    )
-                    total += 1
-                except Exception as e:
-                    logger.debug("Error updating row %s: %s", row[0], e)
-
-            conn.commit()
-
-        return total

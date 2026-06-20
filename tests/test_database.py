@@ -225,7 +225,7 @@ class TestDictDB(unittest.TestCase):
             "term": "我",
             "altterm": "",
             "pronunciation": "",
-            "frequency": 999999,
+            "frequency": "",
         }
         config = self.mock_get_config.return_value
 
