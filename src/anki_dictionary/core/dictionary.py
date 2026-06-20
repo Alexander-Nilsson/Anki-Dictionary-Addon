@@ -71,6 +71,7 @@ from ..utils.common import miInfo
 from ..web.icons import get_base64_icon
 from PyQt6.QtSvgWidgets import QSvgWidget
 from ..ui.dialogs.theme_editor import *
+from ..ui import theme_controller
 from ..ui.themes import *
 
 
@@ -275,118 +276,19 @@ class DictInterface(QWidget):
         self.threadpool = QThreadPool()  # Initialize QThreadPool
         ensureWidgetInScreenBoundaries(self)
 
-    def load_theme_color(self, color_key):
-        """
-        Load a specific color from the active theme.
-        """
-        try:
-            active_theme = self.theme_manager.get_active_theme()
-            color_value = getattr(active_theme, color_key, "#ffffff")
-            return QColor(color_value)
-        except Exception as e:
-            logger.error(f"Error loading active theme color: {e}")
-        return QColor("#ffffff")  # Default color if anything fails
-
-    def hex_to_rgba(self, hex_color, alpha):
-        hex_color = hex_color.lstrip("#")
-        if len(hex_color) == 3:
-            hex_color = "".join([c * 2 for c in hex_color])
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        r_b = int(hex_color[4:6], 16)
-        return f"rgba({r}, {g}, {r_b}, {alpha})"
-
-    def refresh_widget(self, widget):
-        """
-        Recursively refresh a widget and its children.
-        """
-        widget.update()
-        widget.repaint()
-        for child in widget.findChildren(QWidget):
-            self.refresh_widget(child)
-
-    def update_window_icon(self):
-        """Update the window icon based on the current theme."""
-        icon_name = "nightanki.svg" if self.theme_manager.is_dark else "anki.svg"
-        self.setWindowIcon(QIcon(join(self.iconpath, icon_name)))
-
     def refresh_application_theme(self, reload_html=True):
-        """
-        Refresh the application theme by updating styles and re-rendering components.
-        """
-        # Reload the active theme from disk to ensure we have the latest changes
         self.theme_manager._load_active_theme()
-
-        # Load the active theme from theme manager
-        try:
-            active_theme = self.theme_manager.get_active_theme()
-        except Exception as e:
-            logger.error(f"Error loading active theme: {e}")
-            return
-
-        # Update the stylesheet for the entire widget
+        active_theme_dict = theme_controller.get_theme_dict(self.theme_manager)
         self.setStyleSheet(self.theme_manager.get_qt_styles())
-
-        # Update the stylesheet for child widgets (e.g., combo boxes, buttons, etc.)
-        self.update_child_widget_styles()
-
-        # Update all SVG icons with the theme color
+        theme_controller.apply_child_widget_styles(self, self.theme_manager)
         self.setAllIcons()
-
-        self.update_window_icon()
-
+        icon_name = theme_controller.get_window_icon_name(self.theme_manager)
+        self.setWindowIcon(QIcon(join(self.iconpath, icon_name)))
         if reload_html:
-            # Simple reload - just reload the dictionary interface completely
-            # We assume it's not a search load here, just a theme refresh
             html, url = self.getHTMLURL(False)
             self.dict.loadHTMLURL(html, url)
-
-        # Update the history browser colors if it exists
         if hasattr(self, "historyBrowser") and self.historyBrowser:
             self.historyBrowser.setColors()
-
-    def update_child_widget_styles(self):
-        """
-        Update the styles of child widgets to reflect the new theme.
-        """
-        # Example: Update the combo box styles
-        self.dictGroups.setStyleSheet(self.theme_manager.get_combo_style())
-        self.sType.setStyleSheet(self.theme_manager.get_combo_style())
-
-        # Update search bar style
-        active_theme = self.theme_manager.get_active_theme()
-        search_style = f"""
-            QLineEdit {{
-                color: {active_theme.header_text};
-                background: {active_theme.header_background};
-                border: 1.5px solid {active_theme.border};
-                border-radius: 6px;
-                padding: 4px 8px;
-                font-weight: 500;
-            }}
-            QLineEdit:focus {{
-                border: 2px solid {active_theme.search_term};
-            }}
-        """
-        self.search.setStyleSheet(search_style)
-
-        # Update button styles
-        for button in self.findChildren(QPushButton):
-            if not isinstance(button, SVGPushButton):
-                button.setStyleSheet(self.theme_manager.get_qt_styles())
-
-        # Update QFrame spacers
-        for frame in self.findChildren(QFrame):
-            if (
-                frame.frameShape() == QFrame.Shape.VLine
-                or frame.frameShape() == QFrame.Shape.HLine
-            ):
-                # Use a translucent version of the border color for the spacer
-                border_color = self.load_theme_color("border")
-                r = border_color.red()
-                g = border_color.green()
-                b = border_color.blue()
-                frame.setStyleSheet(f"background-color: rgba({r}, {g}, {b}, 50);")
 
     def getPalette(self, color):
         pal = QPalette()
@@ -531,227 +433,10 @@ class DictInterface(QWidget):
         return False
 
     def getHTMLURL(self, willSearch):
-        try:
-            active_theme = self.theme_manager.get_active_theme()
-            active_theme_dict = vars(active_theme)
-        except Exception as e:
-            logger.error(f"Error loading active theme: {e}")
-            active_theme_dict = {
-                "header_background": "#51576d",
-                "selector": "#949cbb",
-                "header_text": "#babbf1",
-                "search_term": "#f4b8e4",
-                "border": "#babbf1",
-                "anki_button_background": "#99d1db",
-                "anki_button_text": "#c6d0f5",
-                "tab_hover": "#f4b8e4",
-                "current_tab_gradient_top": "#737994",
-                "current_tab_gradient_bottom": "#414559",
-                "example_highlight": "#414559",
-                "definition_background": "#51576d",
-                "definition_text": "#c6d0f5",
-                "pitch_accent_color": "#eebebe",
-            }
-
-        qss = f"""
-                    QWidget {{
-                        background-color: {active_theme_dict["header_background"]};
-                        font-family: 'Segoe UI', sans-serif;
-                        font-size: 14px;
-                    }}
-                    QPushButton {{
-                        color: {active_theme_dict["header_text"]};
-                        border: 1.5px solid {active_theme_dict["border"]};
-                        border-radius: 6px;
-                        padding: 8px;
-                        background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                            stop: 0 {active_theme_dict["current_tab_gradient_top"]},
-                            stop: 1 {active_theme_dict["current_tab_gradient_bottom"]});
-                    }}
-                    QPushButton:hover {{
-                        border: 2px solid {active_theme_dict["search_term"]};
-                        background: {active_theme_dict["tab_hover"]};
-                    }}
-                    QLineEdit, QComboBox {{
-                        background-color: {active_theme_dict["header_background"]};
-                        color: {active_theme_dict["header_text"]};
-                        border: 1.5px solid {active_theme_dict["border"]};
-                        border-radius: 6px;
-                        padding: 6px 10px;
-                    }}
-                    QLineEdit:focus {{
-                        border: 2px solid {active_theme_dict["search_term"]};
-                    }}
-                    QLabel {{
-                        color: {active_theme_dict["header_text"]};
-                        font-weight: bold;
-                    }}
-                    QComboBox QAbstractItemView {{
-                        background-color: {active_theme_dict["header_background"]};
-                        color: {active_theme_dict["header_text"]};
-                        border: 1px solid {active_theme_dict["border"]};
-                        selection-background-color: {active_theme_dict["search_term"]};
-                    }}
-                """
+        active_theme_dict = theme_controller.get_theme_dict(self.theme_manager)
+        qss = theme_controller.generate_qt_stylesheet(active_theme_dict)
         self.setStyleSheet(qss)
-        custom_theme_css = f"""
-            <style id="customThemeCss">
-                :root {{
-                    --background: {active_theme_dict["header_background"]};
-                    --selector: {active_theme_dict["selector"]};
-                    --background-secondary: {active_theme_dict["selector"]};
-                    --text: {active_theme_dict["header_text"]};
-                    --header_text: {active_theme_dict["header_text"]};
-                    --text-secondary: {active_theme_dict["search_term"]};
-                    --search_term: {active_theme_dict["search_term"]};
-                    --border: {active_theme_dict["border"]};
-                    --button-bg: {active_theme_dict["anki_button_background"]};
-                    --button-text: {active_theme_dict["anki_button_text"]};
-                    --button-bg-hover: {active_theme_dict["tab_hover"]};
-                    --tab_hover: {active_theme_dict["tab_hover"]};
-                    --definition_background: {active_theme_dict["definition_background"]};
-                    --definition_text: {active_theme_dict["definition_text"]};
-                }}
-                body {{
-                    background-color: {active_theme_dict["header_background"]};
-                    color: {active_theme_dict["header_text"]};
-                }}
-                .header {{
-                    background-color: {active_theme_dict["header_background"]};
-                    color: {active_theme_dict["header_text"]};
-                    border-bottom: 2px solid {active_theme_dict["border"]};
-                }}
-                .targetTerm {{
-                    color: {active_theme_dict["search_term"]} !important;
-                }}
-                .exampleSentence {{
-                    background-color: {self.hex_to_rgba(active_theme_dict["example_highlight"], 0.2)};
-                    border-radius: 3px;
-                    padding: 1px 4px;
-                    margin: 0 2px;
-                }}
-                .definitionBlock {{
-                    background-color: {active_theme_dict["definition_background"]};
-                    color: {active_theme_dict["definition_text"]};
-                    border: 1px solid {active_theme_dict["border"]};
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin: 10px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                }}
-                .altterm {{
-                    color: {active_theme_dict["pitch_accent_color"]};
-                }}
-                .ankiExportButton {{
-                    border: 1.5px solid {active_theme_dict["border"]};
-                    border-radius: 6px;
-                    padding: 6px;
-                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                        stop: 0 {active_theme_dict["current_tab_gradient_top"]},
-                        stop: 1 {active_theme_dict["current_tab_gradient_bottom"]});
-                    transition: all 0.2s;
-                }}
-                .ankiExportButton:hover {{
-                    border-color: {active_theme_dict["search_term"]};
-                    transform: translateY(-1px);
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                }}
-                .ankiExportButton img {{
-                    height: 28px !important;
-                    width: 28px !important;
-                }}
-                .tablinks {{
-                    border: 1px solid {active_theme_dict["border"]};
-                    border-radius: 6px 6px 0 0;
-                    margin-right: 2px;
-                }}
-                .tablinks.active {{
-                    background-image: linear-gradient(
-                        {active_theme_dict["current_tab_gradient_top"]},
-                        {active_theme_dict["current_tab_gradient_bottom"]}
-                    );
-                    border-bottom: 2px solid {active_theme_dict["search_term"]};
-                }}
-                .tablinks:hover {{
-                    background-color: {active_theme_dict["tab_hover"]};
-                }}
-                .overwriteSelect, .fieldSelect {{
-                    background-color: {active_theme_dict["selector"]};
-                    border: 1px solid {active_theme_dict["border"]};
-                    border-radius: 6px;
-                    padding: 5px 10px;
-                    font-size: inherit;
-                    cursor: pointer;
-                }}
-                .fieldSelectCont {{
-                    position: relative;
-                    min-width: 200px;
-                    display: inline-block;
-                }}
-                .fieldCheckboxes, .overwriteCheckboxes {{
-                    position: absolute;
-                    top: 100%;
-                    left: 0;
-                    right: 0;
-                    background-color: {active_theme_dict["header_background"]};
-                    border: 1px solid {active_theme_dict["border"]};
-                    border-radius: 0 0 6px 6px;
-                    display: none;
-                    z-index: 1000;
-                    min-width: 250px;
-                    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-                    overflow: hidden;
-                    flex-direction: column;
-                }}
-                .fieldCheckboxes.open, .overwriteCheckboxes.open {{
-                    display: flex;
-                }}
-                .fieldSearchInput {{
-                    width: 100%;
-                    padding: 8px 10px;
-                    border: none;
-                    border-bottom: 1px solid {active_theme_dict["border"]};
-                    background-color: {active_theme_dict["selector"]};
-                    color: {active_theme_dict["header_text"]};
-                    box-sizing: border-box;
-                    font-size: inherit;
-                    outline: none;
-                    flex-shrink: 0;
-                }}
-                .fieldSearchInput::placeholder {{
-                    color: {active_theme_dict["header_text"]};
-                    opacity: 0.6;
-                }}
-                .fieldOptionsContainer {{
-                    max-height: 250px;
-                    overflow-y: auto;
-                    padding: 5px 0;
-                    flex: 1;
-                    min-height: 0;
-                }}
-                .fieldCheckboxLabel {{
-                    display: flex;
-                    align-items: center;
-                    padding: 8px 10px;
-                    cursor: pointer;
-                    color: {active_theme_dict["header_text"]};
-                    white-space: nowrap;
-                    user-select: none;
-                }}
-                .fieldCheckboxLabel:hover {{
-                    background-color: {active_theme_dict["tab_hover"]};
-                }}
-                .fieldCheckboxLabel input[type="checkbox"] {{
-                    margin-right: 8px;
-                    cursor: pointer;
-                }}
-                .fieldCheckboxLabel span {{
-                    flex: 1;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }}
-        </style>
-        """
+        custom_theme_css = theme_controller.generate_html_css(active_theme_dict)
 
         html_path = join(self.addonPath, "assets", "templates", "dictionary.html")
         js_path = join(self.addonPath, "assets", "scripts", "dictionary.js")
@@ -1129,8 +814,7 @@ class DictInterface(QWidget):
         self.refresh_application_theme(reload_html=True)
 
     def setSvg(self, widget, name):
-        # Get theme color for icons
-        theme_color = self.load_theme_color("header_text")
+        theme_color = theme_controller.load_color(self.theme_manager, "header_text")
         return widget.setSvg(join(self.iconpath, name + ".svg"), theme_color.name())
 
     def setAllIcons(self):
