@@ -643,6 +643,7 @@ class ResultRenderer:
         term_headers: Dict[str, List[str]] | None = None,
         id_name: str = "",
         is_dark: bool = False,
+        settings_html: str = "",
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         prepared = self.get_prepared_term_header(
@@ -662,6 +663,7 @@ class ResultRenderer:
             + '" class="dictionaryTitleBlock">'
             + '<div class="dictionaryTitle">Images</div>'
             + '<div class="dictionarySettings">'
+            + settings_html
             + '<div class="dictNav">'
             + '<div onclick="navigateDict(event, false)" '
             + 'class="prevDict">\u25b2</div>'

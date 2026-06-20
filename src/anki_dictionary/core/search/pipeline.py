@@ -155,7 +155,18 @@ class SearchPipeline:
             if dict_name == "Images":
                 image_id = f"gcon{int(time.time() * 1000)}".replace(".", "")
                 html += self.renderer.render_image_search_html(
-                    term, font, front_b, back_b, config, term_headers, image_id, is_dark
+                    term,
+                    font,
+                    front_b,
+                    back_b,
+                    config,
+                    term_headers,
+                    image_id,
+                    is_dark,
+                    settings_html=(
+                        self._get_overwrite_html(dict_count, dict_name)
+                        + self._get_field_html(dict_name)
+                    ),
                 )
                 self._trigger_image_search(term, image_id)
                 dict_count += 1
@@ -614,11 +625,126 @@ class SearchPipeline:
                 or self.midict.db.getAddType(clean_name)
                 or "add"
             )
-        label = {"overwrite": "Overwrite", "no": "If Empty"}.get(add_type, "Add")
-        return f"&nbsp;{label}"
+
+        tooltip = ""
+        if self.midict.config.get("tooltips"):
+            tooltip = (
+                ' title="This determines the conditions for sending a definition'
+                " to a field. Overwrite the target field's content."
+                " Add to the target field's current contents."
+                ' Only add definitions to the target field if it is empty."'
+            )
+
+        type_names = {"overwrite": "Overwrite", "no": "If Empty", "add": "Add"}
+        type_name = f"&nbsp;{type_names.get(add_type, 'Add')}"
+        return (
+            '<div class="overwriteSelectCont"><div '
+            + tooltip
+            + ' class="overwriteSelect" onclick="showCheckboxes(event)">'
+            + type_name
+            + "</div>"
+            + self._get_overwrite_checkboxes(dict_name, add_type)
+            + "</div>"
+        )
+
+    def _get_overwrite_checkboxes(self, dict_name: str, add_type: str) -> str:
+        count = str(self.midict.radioCount)
+        if not hasattr(self.midict, "radioCount"):
+            self.midict.radioCount = 0
+        self.midict.radioCount += 1
+
+        def _radio(value, label_text):
+            checked = " checked" if add_type == value else ""
+            return (
+                '<label class="inCheckBox"><input'
+                + checked
+                + ' onclick="handleAddTypeCheck(this)" class="inCheckBox radio'
+                + dict_name
+                + '" type="radio" name="'
+                + count
+                + dict_name
+                + '" value="'
+                + value
+                + '"/>'
+                + label_text
+                + "</label>"
+            )
+
+        return (
+            '<div class="overwriteCheckboxes" data-dictname="'
+            + dict_name
+            + '">'
+            + _radio("add", "Add")
+            + _radio("overwrite", "Overwrite")
+            + _radio("no", "If Empty")
+            + "</div>"
+        )
 
     def _get_field_html(self, dict_name: str) -> str:
-        return ""
+        clean_name = self.midict.db.cleanDictName(dict_name)
+        if dict_name in ("Images", "LLM", "Forvo") or clean_name in (
+            "Images",
+            "LLM",
+            "Forvo",
+        ):
+            key = dict_name if dict_name in ("Images", "LLM", "Forvo") else clean_name
+            selF = self.midict.config.get(f"{key}Fields", [])
+        else:
+            selF = (
+                self.midict.db.getFieldsSetting(dict_name)
+                or self.midict.db.getFieldsSetting(clean_name)
+                or []
+            )
+
+        tooltip = ""
+        if self.midict.config.get("tooltips"):
+            tooltip = ' title="Select this dictionary\'s target fields for when sending a definition to a card."'
+        title = "&nbsp;Select Fields \u25be"
+        length = len(selF)
+        if length > 0:
+            title = "&nbsp;" + str(length) + " Selected"
+        return (
+            '<div class="fieldSelectCont"><div class="fieldSelect" '
+            + tooltip
+            + ' onclick="showCheckboxes(event)">'
+            + title
+            + "</div>"
+            + self._get_checkboxes(dict_name, selF)
+            + "</div>"
+        )
+
+    def _get_checkboxes(self, dict_name: str, selF: list) -> str:
+        fields = self._get_field_names()
+        options = (
+            '<div class="fieldCheckboxes" data-dictname="' + dict_name + '">'
+            '<input type="text" class="fieldSearchInput" placeholder="Search fields..." '
+            'onclick="event.stopPropagation()" onkeyup="filterFieldOptions(this)" />'
+            '<div class="fieldOptionsContainer">'
+        )
+        for f in fields:
+            checked = " checked" if f in selF else ""
+            options += (
+                '<label class="fieldCheckboxLabel"><input type="checkbox"'
+                + checked
+                + ' class="fieldCheckbox" onchange="handleFieldCheckbox(this)" value="'
+                + f
+                + '" /><span>'
+                + f
+                + "</span></label>"
+            )
+        options += "</div></div>"
+        return options
+
+    def _get_field_names(self) -> list:
+        mw = self.midict.dictInt.mw
+        models = mw.col.models.all()
+        fields = []
+        for model in models:
+            for fld in model["flds"]:
+                if fld["name"] not in fields:
+                    fields.append(fld["name"])
+        fields.sort()
+        return fields
 
     def _inject_font(self, font: str) -> None:
         name = re.sub(r"\..*$", "", font)
