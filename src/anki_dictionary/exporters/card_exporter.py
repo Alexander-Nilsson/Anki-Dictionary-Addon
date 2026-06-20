@@ -178,11 +178,11 @@ class CardExporter:
         self.cancelButton = QPushButton("Cancel")
         self.addButton = QPushButton("Add")
         self.exportJS = self.config["jReadingCards"]
-        self.imgName = False
-        self.imgPath = False
-        self.audioTag = False
-        self.audioName = False
-        self.audioPath = False
+        self.imgName = ""
+        self.imgPath = ""
+        self.audioTag = ""
+        self.audioName = ""
+        self.audioPath = ""
         self.audioPlayer = sound
         self.audioPlay = QPushButton("Play")
         self.html_cleaner = HtmlCleaner()
@@ -642,13 +642,13 @@ Please review your template and notetype combination."""
         self.audioMap.clear()
         self.audioMap.setText("No Audio Selected")
         self.audioPlay.hide()
-        self.audioTag = False
-        self.audioName = False
-        self.audioPath = False
+        self.audioTag = ""
+        self.audioName = ""
+        self.audioPath = ""
         self.imageMap.clear()
         self.imageMap.setText("No Image Selected")
-        self.imgPath = False
-        self.imgName = False
+        self.imgPath = ""
+        self.imgName = ""
 
     def getDefinitions(self):
         definitions = QTableWidget()

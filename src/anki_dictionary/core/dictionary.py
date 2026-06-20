@@ -375,7 +375,8 @@ class DictInterface(QWidget):
         self.sbOpened = False
         self.historyModel = HistoryModel(self.getHistory(), self)
         self.historyBrowser = HistoryBrowser(self.historyModel, self)
-        self.update_window_icon()
+        icon_name = theme_controller.get_window_icon_name(self.theme_manager)
+        self.setWindowIcon(QIcon(join(self.iconpath, icon_name)))
         self.readyToSearch = False
         self.restoreSizePos()
         self.initTooltips()

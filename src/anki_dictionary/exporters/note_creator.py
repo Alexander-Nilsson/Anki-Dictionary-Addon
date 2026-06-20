@@ -7,7 +7,7 @@ from anki.collection import Collection
 
 
 def add_note(note: Note, did: int, collection: Collection) -> None:
-    collection.add_note(note, did)
+    collection.add_note(note, did)  # ty:ignore[invalid-argument-type]
 
 
 def get_decks(collection: Collection) -> List[Tuple[int, str]]:
@@ -21,7 +21,10 @@ def get_fields_values(
     field_map = config.get("fieldNameToValue", {})
     fields_config = config.get("fieldConfig", {})
     values: Dict[str, str] = {}
-    for field in note.note_type()["flds"]:
+    nt = note.note_type()
+    if nt is None:
+        return values
+    for field in nt["flds"]:
         name = field["name"]
         mapped = field_map.get(name, name)
         if mapped in fields_config:
@@ -36,7 +39,10 @@ def get_fields_values(
 def automatically_add_definitions(
     note: Note, word: str, template: str, db: Any
 ) -> None:
-    for field in note.note_type()["flds"]:
+    nt = note.note_type()
+    if nt is None:
+        return
+    for field in nt["flds"]:
         name = field["name"]
         if name.lower() in ("word", "term", "vocabulary"):
             if not note[name]:
