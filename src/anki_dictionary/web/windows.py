@@ -143,8 +143,8 @@ class FreqConjWebWindow(QDialog):
                 json_files = [n for n in z.namelist() if n.endswith(".json")]
                 if json_files:
                     data = z.read(json_files[0])
-            except Exception:
-                pass
+            except Exception as e:
+                aqt.utils.showInfo(f"Failed to extract JSON from downloaded ZIP: {e}")
 
         if self.mode == self.Mode.Freq:
             dir_path = get_word_lists_dir()
