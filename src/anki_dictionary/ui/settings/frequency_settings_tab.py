@@ -278,14 +278,22 @@ class FrequencySettingsTab(QWidget):
     def _clear_layout(layout: QVBoxLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
-            if item.layout():
-                while item.layout().count():
-                    ci = item.layout().takeAt(0)
-                    if ci.widget():
-                        ci.widget().deleteLater()
-                item.layout().deleteLater()
-            elif item.widget():
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            sub_layout = item.layout()
+            if sub_layout is not None:
+                while sub_layout.count():
+                    ci = sub_layout.takeAt(0)
+                    if ci is None:
+                        continue
+                    w = ci.widget()
+                    if w is not None:
+                        w.deleteLater()
+                sub_layout.deleteLater()
+            else:
+                w = item.widget()
+                if w is not None:
+                    w.deleteLater()
 
     def _delete_word_list(self, filepath: str, fname: str) -> None:
         from aqt.qt import QMessageBox
