@@ -274,8 +274,8 @@ class WordListRegistry:
             # Remove old directory if empty
             try:
                 os.rmdir(old_path)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.debug(f"Could not remove legacy directory {old_path}: {e}")
 
     def clear_cache(self, lang: Optional[str] = None) -> None:
         if lang:
