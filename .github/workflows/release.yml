@@ -41,6 +41,17 @@ jobs:
           uv venv --seed
           uv sync --frozen --no-dev --no-cache
 
+      - name: Git Auth & Rebase (pull concurrent pushes)
+        run: |
+          git remote set-url origin \
+            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch origin master
+          git rebase origin/master || {
+            echo "❌ Rebase failed — aborting to avoid force-push"
+            git rebase --abort
+            exit 1
+          }
+
       - name: Bump Version, Build, Commit, and Tag
         id: build_step
         shell: bash
@@ -79,15 +90,6 @@ jobs:
 
           # ── Build the addon ──
           uv run python build.py all
-
-          # ── Pull any concurrent pushes to master ──
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git fetch origin master
-          git rebase origin/master || {
-            echo "❌ Rebase failed — aborting to avoid force-push"
-            git rebase --abort
-            exit 1
-          }
 
           # ── Commit and tag ──
           git config user.name "github-actions[bot]"
