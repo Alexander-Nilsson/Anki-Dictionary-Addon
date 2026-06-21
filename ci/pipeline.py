@@ -169,7 +169,11 @@ async def pipeline() -> None:
         print("Smoke test passed")
 
         print("Building addon...")
-        await ctr.with_exec([".venv/bin/python", "build.py", "all"]).sync()
+        built = await ctr.with_exec([".venv/bin/python", "build.py", "all"]).sync()
         print("Build complete")
+
+        print("Exporting build artifacts to host...")
+        await built.directory("/src/build").export("./build")
+        print("Artifacts exported to ./build/")
 
         print("Pipeline complete!")

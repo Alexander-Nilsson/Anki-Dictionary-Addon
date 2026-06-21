@@ -1,10 +1,22 @@
+# CI — Runs on PRs and pushes to master.
+#
+# Trigger strategy:
+#   - pull_request → verify PRs before merge
+#   - push → catch direct pushes and produce build artifacts for release
+#   - [skip ci] in commit message skips this workflow (GitHub-native)
+#
+# Linux CI uses Dagger (ci/pipeline.py) for reproducibility with local runs.
+# macOS CI runs natively for macOS-specific verification.
+# Build artifacts from the push-on-master run are uploaded for the release
+# workflow to download (avoids rebuilding in release).
+
 name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 concurrency:
@@ -15,19 +27,19 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    name: Lint, Test, Build
-    runs-on: ubuntu-latest
+  linux-ci:
+    name: Linux (Dagger — Lint, Type Check, Test, Build)
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
 
@@ -37,97 +49,16 @@ jobs:
           uv python pin 3.13
           rm -rf .venv
 
-      - name: Install System Dependencies
+      - name: Install Dagger CLI
         run: |
-          sudo apt-get update && sudo apt-get install -y \
-            xvfb \
-            libegl1 libgl1 \
-            libxkbcommon0 libxkbcommon-x11-0 \
-            libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-keysyms1 \
-            libnss3 libnspr4 \
-            libfontconfig1 libdbus-1-3 \
-            libxcomposite1 libxdamage1 libxrandr2 libxtst6 \
-            libxfixes3 libxrender1 libxi6 libxcursor1 \
-            libxxf86vm1 libxss1 \
-            libasound2t64 libpulse0 libpulse-mainloop-glib0
+          curl -L https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Install Python Dependencies
-        run: |
-          # ── Project deps via uv (none need manylinux_2_36) ──
-          uv venv --seed
-          uv sync --frozen --no-dev --no-cache
-
-          # ── Dev deps + anki/aqt transitive deps via pip ──
-          # (all pure Python or manylinux_2_35 compatible)
-          .venv/bin/pip install \
-            decorator distro markdown orjson protobuf PySocks \
-            flask jsonschema pip-system-certs send2trash waitress \
-            "ruff>=0.11.0" \
-            "pytest>=8.4.1" "pytest-cov>=6.1.1" "pytest-qt>=4.4.0" \
-            "pytest-xdist>=3.6.1" "pytest-xvfb>=3.1.0"
-
-          # ── anki/aqt: extract wheels directly into site-packages to
-          #    bypass platform tag checks (catthehacker containers have
-          #    compatible glibc but pip rejects manylinux_2_36 wheels) ──
-          .venv/bin/python -c "
-          import io, os, urllib.request, zipfile
-          site_pkgs = [p for p in __import__('sys').path if 'site-packages' in p][0]
-          for name, url in [
-              ('anki', 'https://files.pythonhosted.org/packages/2b/bc/36972ebb0c09effa41a1dc5f1e9c19b9fd85675cc3196f43559eeb3d0ceb/anki-25.9.4-cp39-abi3-manylinux_2_36_x86_64.whl'),
-              ('aqt',  'https://files.pythonhosted.org/packages/83/a1/a8e8c5bc7dda44c0decfdeb128ca308d65d7beca1a4131230e9abadef439/aqt-25.9.4-py3-none-any.whl'),
-          ]:
-              resp = urllib.request.urlopen(url)
-              zf = zipfile.ZipFile(io.BytesIO(resp.read()))
-              zf.extractall(site_pkgs)
-              print(f'Extracted {name} to {site_pkgs}')
-          "
-
-          # ── pytest-anki2: install without deps because anki/aqt are
-          #    already extracted above and we don't want pip to try (and
-          #    fail) to install manylinux_2_36 wheels ──
-          .venv/bin/pip install pytest-anki2 --no-deps
-
-      - name: Security Audit (Python Dependencies)
-        run: |
-          uv export --frozen --no-dev -o /tmp/requirements-prod.txt
-          uvx pip-audit -r /tmp/requirements-prod.txt
-          uv export --frozen --dev -o /tmp/requirements-dev.txt
-          uvx pip-audit -r /tmp/requirements-dev.txt
-
-      - name: Lint
-        run: |
-          .venv/bin/ruff check .
-          .venv/bin/ruff format --check .
-
-      - name: Type Check
-        run: |
-          uv sync --frozen
-          uv run ty check .
-
-      - name: Test
-        run: |
-          # ── Fast unit tests (no Qt, no network) ──
-          .venv/bin/pytest tests/ -p no:qt -p no:xvfb \
-            -m "not integration and not network" \
-            --ignore=tests/test_all_dictionaries.py \
-            --ignore=tests/test_dictionary_index.py \
-            --tb=short -v
-
-          # ── Existing integration tests (custom qapp, no pytest-qt) ──
-          .venv/bin/pytest tests/integration/ -p no:qt -p no:xvfb \
-            --ignore=tests/integration/test_smoke_pytest_anki.py \
-            --tb=short -v
-
-          # ── pytest-anki2 smoketest (needs pytest-qt, forked process) ──
-          # NOTE: teardown segfaults in Qt 6.9.1 enum cleanup (aqt progress_qt6);
-          # so we ignore the exit code; the test itself passes.
-          .venv/bin/pytest tests/integration/test_smoke_pytest_anki.py --tb=short -v || true
-
-      - name: Build
-        run: .venv/bin/python build.py all
+      - name: Run CI Pipeline (Dagger)
+        run: dagger run uv run python -m ci
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ankiaddon
           path: build/*.ankiaddon
@@ -139,12 +70,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
 
@@ -175,5 +106,3 @@ jobs:
             --ignore=tests/test_all_dictionaries.py \
             --ignore=tests/test_dictionary_index.py \
             --tb=short -v
-
-
