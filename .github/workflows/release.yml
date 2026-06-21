@@ -185,7 +185,9 @@ jobs:
         if: steps.guard.outputs.skip != 'true'
         run: uv run python build.py all
 
-      # ── Commit version bump, create tag, push both ──
+      # ── Commit version bump, create tag, push ──
+      # Master push may be rejected by branch protection (requires PRs).
+      # The tag push is the critical part — the release works with just the tag.
       - name: Commit, Tag, and Push
         if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
         run: |
@@ -194,7 +196,8 @@ jobs:
           git add pyproject.toml src/anki_dictionary/__init__.py
           git commit -m "Bump version to ${{ steps.version.outputs.version }} [skip ci]"
           git tag "v${{ steps.version.outputs.version }}"
-          git push origin master "refs/tags/v${{ steps.version.outputs.version }}"
+          git push origin master || echo "⚠️  Commit push to master rejected (protected branch) — tag push will follow"
+          git push origin "refs/tags/v${{ steps.version.outputs.version }}"
 
       # ── Create GitHub Release with auto-generated notes ──
       - name: Create GitHub Release
