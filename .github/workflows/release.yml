@@ -1,44 +1,54 @@
+# Release — Creates a GitHub Release on merged PRs to master.
+#
+# Trigger strategy:
+#   - pull_request closed + merged → automatic release (tests already passed in CI)
+#   - workflow_dispatch → manual release with optional version override
+#   - Does NOT trigger on direct pushes to master (only PR merges)
+#
+# This workflow does NOT re-run tests — it trusts that CI passed on the PR.
+# It only: computes version → bumps files → builds → tags → creates release.
+#
+# Version source of truth: git tags (NOT pyproject.toml).
+# This prevents version mismatches if a previous release failed mid-way.
+
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  pull_request:
+    types: [closed]
     branches: [master]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.2.3). Leave empty for auto-increment from latest tag."
+        required: false
+        type: string
 
 concurrency:
   group: release
   cancel-in-progress: false
 
+# Minimal permissions — only what's needed to push tags, commits, and releases
 permissions:
   contents: write
 
 jobs:
   release:
     name: Bump, Build, and Release
+    # Only run on merged PRs (not just closed) or manual dispatch
     if: >
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
       || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
-
-      - name: Check for [skip ci]
-        if: github.event_name == 'workflow_run'
-        run: |
-          if echo "${{ github.event.workflow_run.head_commit.message }}" | grep -q '\[skip ci\]'; then
-            echo "Commit contains [skip ci] — skipping release"
-            exit 0
-          fi
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
 
@@ -53,40 +63,94 @@ jobs:
           uv venv --seed
           uv sync --frozen --no-dev --no-cache
 
-      - name: Git Auth & Rebase (pull concurrent pushes)
-        run: |
-          git remote set-url origin \
-            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git fetch origin master
-          git rebase origin/master || {
-            echo "❌ Rebase failed — aborting to avoid force-push"
-            git rebase --abort
-            exit 1
-          }
-
-      - name: Bump Version, Build, Commit, and Tag
-        id: build_step
+      # ── Compute version ──
+      # Source of truth: latest git tag. Falls back to pyproject.toml if no tags.
+      # Manual override via workflow_dispatch inputs.version takes precedence.
+      - name: Compute Next Version
+        id: version
         shell: bash
         run: |
           set -euo pipefail
 
-          # ── Compute next version ──
-          NEW_VERSION=$(uv run python -c "
+          MANUAL="${{ github.event.inputs.version || '' }}"
+
+          if [ -n "$MANUAL" ]; then
+            # ── Validate manual version format (semantic versioning) ──
+            if ! echo "$MANUAL" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$'; then
+              echo "❌ Invalid version format: '$MANUAL'"
+              echo "   Expected: X.Y.Z or X.Y.Z-suffix (e.g. 1.2.3 or 1.2.3-beta)"
+              exit 1
+            fi
+            echo "version=$MANUAL" >> "$GITHUB_OUTPUT"
+            echo "📌 Using manual version: $MANUAL"
+            exit 0
+          fi
+
+          # ── Auto-increment from latest git tag ──
+          LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # ── Fallback: no tags exist, read from pyproject.toml ──
+            echo "⚠️  No version tags found — falling back to pyproject.toml"
+            CURRENT=$(uv run python -c "
           import tomllib
           with open('pyproject.toml', 'rb') as f:
               v = tomllib.load(f)['project']['version'].split('.')
           v[-1] = str(int(v[-1]) + 1)
           print('.'.join(v))
           ")
+            echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+            echo "📌 Computed version from pyproject.toml: $CURRENT"
+          else
+            # ── Parse and increment patch version ──
+            V="${LATEST_TAG#v}"
+            IFS='.' read -ra PARTS <<< "$V"
 
-          # ── Guard against tag collision ──
-          if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
-            echo "⚠️  Tag v$NEW_VERSION already exists — skipping (release already published)"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            if [ "${#PARTS[@]}" -lt 3 ]; then
+              echo "❌ Failed to parse version from tag '$LATEST_TAG' — expected X.Y.Z"
+              exit 1
+            fi
+
+            PATCH=$((PARTS[2] + 1))
+            NEW_VERSION="${PARTS[0]}.${PARTS[1]}.$PATCH"
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "📌 Latest tag: $LATEST_TAG → Next version: $NEW_VERSION"
           fi
 
-          # ── Bump version in source files ──
+      # ── Guard: check if tag/release already exists (idempotency) ──
+      # If tag exists + release exists → skip entirely (already released)
+      # If tag exists + no release → recreate release (recovery from partial failure)
+      # If tag doesn't exist → proceed with full release
+      - name: Check for Existing Tag or Release
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.version.outputs.version }}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG")
+
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "⚠️  Tag $TAG and release already exist — nothing to do"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "⚠️  Tag $TAG exists but no release — will recreate release"
+              echo "recreate=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "✅ Tag $TAG does not exist — proceeding with full release"
+          fi
+
+      # ── Bump version in source files (only for new releases) ──
+      - name: Bump Version in Source Files
+        if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
+        shell: bash
+        run: |
+          V="${{ steps.version.outputs.version }}"
           uv run python -c "
           import re, sys
           nv = sys.argv[1]
@@ -98,30 +162,46 @@ jobs:
                   c = f.read(); f.seek(0)
                   f.write(re.sub(r'^' + key + r' = \".*\"', key + ' = \"' + nv + '\"', c, flags=re.MULTILINE))
                   f.truncate()
-          " "$NEW_VERSION"
+              print(f'  Bumped {key} to {nv} in {path}')
+          " "$V"
 
-          # ── Build the addon ──
-          uv run python build.py all
+      # ── Build the addon ──
+      # Always builds fresh — the version in the .ankiaddon filename must match.
+      - name: Build Addon
+        if: steps.guard.outputs.skip != 'true'
+        run: uv run python build.py all
 
-          # ── Commit and tag ──
+      # ── Git auth + rebase (handle concurrent merges) ──
+      - name: Git Auth & Rebase
+        if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
+        run: |
+          git remote set-url origin \
+            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch origin master
+          git rebase origin/master || {
+            echo "❌ Rebase failed — aborting to avoid force-push"
+            git rebase --abort
+            exit 1
+          }
+
+      # ── Commit version bump, create tag, push both ──
+      - name: Commit, Tag, and Push
+        if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml src/anki_dictionary/__init__.py
-          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+          git commit -m "Bump version to ${{ steps.version.outputs.version }} [skip ci]"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin master "refs/tags/v${{ steps.version.outputs.version }}"
 
-          # ── Push branch and tag atomically ──
-          git tag "v$NEW_VERSION"
-          git push origin master "refs/tags/v$NEW_VERSION"
-
-          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create Release
-        if: steps.build_step.outputs.skip != 'true'
-        uses: softprops/action-gh-release@v2
+      # ── Create GitHub Release with auto-generated notes ──
+      - name: Create GitHub Release
+        if: steps.guard.outputs.skip != 'true'
+        uses: softprops/action-gh-release@2bb465e97f322d3cb2a965294d483e0d26a67aa9 # v3.0.1
         with:
-          tag_name: ${{ steps.build_step.outputs.tag }}
-          name: Release ${{ steps.build_step.outputs.tag }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           files: build/*.ankiaddon
           generate_release_notes: true
         env:
