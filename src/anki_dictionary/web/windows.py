@@ -1,4 +1,6 @@
+import io
 import os
+import zipfile
 from enum import Enum
 from aqt.qt import (
     QDialog,
@@ -134,6 +136,16 @@ class FreqConjWebWindow(QDialog):
 
         data = b"".join(chunks)
 
+        # Detect and extract if the downloaded file is a zip archive
+        if data[:4] == b"PK\x03\x04":
+            try:
+                z = zipfile.ZipFile(io.BytesIO(data))
+                json_files = [n for n in z.namelist() if n.endswith(".json")]
+                if json_files:
+                    data = z.read(json_files[0])
+            except Exception as e:
+                aqt.utils.showInfo(f"Failed to extract JSON from downloaded ZIP: {e}")
+
         if self.mode == self.Mode.Freq:
             dir_path = get_word_lists_dir()
         else:
@@ -144,9 +156,11 @@ class FreqConjWebWindow(QDialog):
         if self.mode == self.Mode.Freq and list_name != "Frequency":
             slug = list_name.lower().replace(" ", "_")
             slug = "".join(c for c in slug if c.isalnum() or c == "_")
-            filename = "%s_%s.json" % (self.dst_lang, slug)
+            lang_part = self.dst_lang.replace(" ", "_")
+            filename = "%s_%s.json" % (lang_part, slug)
         else:
-            filename = "%s.json" % self.dst_lang
+            lang_part = self.dst_lang.replace(" ", "_")
+            filename = "%s.json" % lang_part
 
         dst_path = os.path.join(dir_path, filename)
 

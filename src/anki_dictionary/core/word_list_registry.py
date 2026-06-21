@@ -44,6 +44,15 @@ class WordListProvider:
                 for item in data["list"]:
                     if isinstance(item, list) and len(item) >= 1:
                         self._index[item[0]] = item
+            elif self._is_metadata_only(data):
+                logger.warning(
+                    "Skipping metadata-only word list '%s' for '%s' "
+                    "(file has no word data, only header: %s)",
+                    name,
+                    lang,
+                    list(data.keys()),
+                )
+                self._index = {}
             else:
                 self._index = data
         elif isinstance(data, list) and type_ == "rank":
@@ -60,6 +69,31 @@ class WordListProvider:
                     level_val = item[2]
                     if isinstance(level_val, (int, float)):
                         self._index[str(item[0])] = str(int(level_val))
+
+    @staticmethod
+    def _is_metadata_only(data: dict) -> bool:
+        """Detect format-3 metadata envelopes that contain no word data.
+
+        Files from the web installer may carry only a header dict with keys
+        like title/revision/format/url — no actual word→rank/level mappings.
+        """
+        META_KEYS = {
+            "title",
+            "revision",
+            "format",
+            "url",
+            "description",
+            "author",
+            "attribution",
+            "frequencyMode",
+            "readingDictionaryType",
+        }
+        if not isinstance(data, dict):
+            return False
+        if len(data) < 3:
+            return False
+        word_keys = [k for k in data if k not in META_KEYS]
+        return len(word_keys) == 0
 
     def lookup(self, term: str, reading: str = "") -> LookupResult:
         if self.type == "rank":
@@ -128,6 +162,8 @@ class WordListRegistry:
     def word_lists_dir(self) -> str:
         return self._dir
 
+    _TYPE_TAGS = {".freq": "rank", ".level": "level"}
+
     def get_providers(self, lang: str) -> List[WordListProvider]:
         if lang in self._cache:
             return self._cache[lang]
@@ -161,6 +197,14 @@ class WordListRegistry:
 
                 name = self._name_from_filename(filename, lang)
                 type_ = self._detect_type(data)
+
+                # Filename tag (.freq / .level) wins over heuristic detection
+                tag = self._type_tag_from_filename(filename)
+                if tag is not None:
+                    type_ = tag
+                elif type_ == "rank" and self._name_looks_like_level_by_name(name):
+                    type_ = "level"
+
                 providers.append(WordListProvider(type_, name, lang, "", data))
 
         self._cache[lang] = providers
@@ -190,6 +234,49 @@ class WordListRegistry:
             return
         self._migrated = True
 
+        db_dir = os.path.dirname(self._dir)
+        old_dirs = {
+            "frequency": "rank",
+            "hsk": "level",
+        }
+        for old_name, type_ in old_dirs.items():
+            old_path = os.path.join(db_dir, old_name)
+            if not os.path.isdir(old_path):
+                continue
+            for fname in os.listdir(old_path):
+                if not fname.endswith(".json"):
+                    continue
+                src = os.path.join(old_path, fname)
+                try:
+                    with open(src, "r", encoding="utf-8-sig") as f:
+                        json.load(f)
+                except Exception as e:
+                    logger.error(f"Error reading legacy {old_name}/{fname}: {e}")
+                    continue
+                lang_part = fname.replace(".json", "")
+                # Legacy files use lang name directly; derive display name
+                display_name = old_name.title()
+                dest_name = f"{lang_part}_{display_name}.json"
+                dst = os.path.join(self._dir, dest_name)
+                if not os.path.exists(dst):
+                    try:
+                        shutil.copy2(src, dst)
+                        logger.info(
+                            f"Migrated {old_name}/{fname} -> word_lists/{dest_name}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Error migrating {old_name}/{fname}: {e}")
+                        continue
+                try:
+                    os.remove(src)
+                except Exception as e:
+                    logger.warning(f"Could not remove legacy {old_name}/{fname}: {e}")
+            # Remove old directory if empty
+            try:
+                os.rmdir(old_path)
+            except OSError as e:
+                logger.debug(f"Could not remove legacy directory {old_path}: {e}")
+
     def clear_cache(self, lang: Optional[str] = None) -> None:
         if lang:
             self._cache.pop(lang, None)
@@ -203,7 +290,7 @@ class WordListRegistry:
                 data
                 and isinstance(data[0], list)
                 and len(data[0]) >= 3
-                and data[0][1] == "freq"
+                and isinstance(data[0][2], int)
             ):
                 return "level"
             return "rank"
@@ -221,8 +308,46 @@ class WordListRegistry:
         return "rank"
 
     @staticmethod
+    def _type_tag_from_filename(filename: str) -> str | None:
+        """Check filename for .freq / .level tag (set by the installer)."""
+        base = filename.replace(".json", "")
+        for tag, type_ in WordListRegistry._TYPE_TAGS.items():
+            if base.endswith(tag):
+                return type_
+        return None
+
+    @staticmethod
+    def _name_looks_like_level_by_name(name: str) -> bool:
+        """Heuristic: name suggests level data rather than rank data.
+
+        Only triggers when the name contains a known level-list keyword
+        AND does NOT contain rank/frequency keywords to avoid false
+        positives (e.g. "HSK Frequency" is rank data despite "hsk").
+        """
+        LEVEL_KEYWORDS = {
+            "hsk",
+            "jlpt",
+            "cefr",
+            "topik",
+            "tocfl",
+            "wanikani",
+            "dialect",
+            "level",
+        }
+        RANK_KEYWORDS = {"frequency", "freq", "rank"}
+        name_lower = name.lower().replace(" ", "_").replace("-", "_")
+        has_level = any(kw in name_lower for kw in LEVEL_KEYWORDS)
+        has_rank = any(kw in name_lower for kw in RANK_KEYWORDS)
+        return has_level and not has_rank
+
+    @staticmethod
     def _name_from_filename(filename: str, lang: str) -> str:
         name = filename.replace(".json", "")
+        # Strip installer type tag (.freq / .level) if present
+        for tag in WordListRegistry._TYPE_TAGS:
+            if name.endswith(tag):
+                name = name[: -len(tag)]
+                break
         stripped = False
         for sep in [" ", "_"]:
             prefix = lang.replace(" ", sep) + sep

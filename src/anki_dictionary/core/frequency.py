@@ -91,6 +91,31 @@ class FrequencyEngine:
                 return val
         return name
 
+    @staticmethod
+    def _get_provider_role(
+        provider: WordListProvider,
+        provider_roles: Dict[str, str],
+        word_list_visibility: Dict[str, Dict[str, bool]],
+    ) -> str:
+        """Resolve the role for *provider*.
+
+        Returns one of ``"stars_rank"``, ``"stars"``, ``"rank"``,
+        ``"level"``, or ``"off"``.
+        """
+        key = f"{provider.lang}::{provider.name}"
+        role = provider_roles.get(key)
+        if role is not None:
+            return role
+
+        # Fallback to legacy visibility checkbox
+        lang_vis = word_list_visibility.get(provider.lang, {})
+        if not lang_vis.get(provider.name, True):
+            return "off"
+
+        if provider.type == "level":
+            return "level"
+        return "stars_rank"
+
     def apply(
         self,
         entry: Dict[str, Any],
@@ -106,6 +131,7 @@ class FrequencyEngine:
         show_level_labels = config.get("show_level_labels", True)
         word_list_visibility = config.get("word_list_visibility", {})
         word_list_display_names = config.get("word_list_display_names", {})
+        provider_roles = config.get("provider_roles", {})
 
         levels: List[str] = []
         frequency: Optional[int] = None
@@ -114,9 +140,10 @@ class FrequencyEngine:
         entry_reading = adjust_reading(entry.get("pronunciation", "") or term)
 
         for provider in providers:
-            name = provider.name
-            lang_vis = word_list_visibility.get(provider.lang, {})
-            if not lang_vis.get(name, True):
+            role = self._get_provider_role(
+                provider, provider_roles, word_list_visibility
+            )
+            if role == "off":
                 continue
 
             result = provider.lookup(term, entry_reading)
@@ -129,15 +156,26 @@ class FrequencyEngine:
                     ):
                         result = alt_result
 
-            if result.rank is not None and (
-                frequency is None or result.rank < frequency
+            # Stars contribution — lowest rank wins
+            uses_stars = role in ("stars_rank", "stars")
+            if (
+                uses_stars
+                and result.rank is not None
+                and (frequency is None or result.rank < frequency)
             ):
                 frequency = result.rank
 
-            lang_display_names = word_list_display_names.get(provider.lang, {})
-            display_name = self._get_display_name(name, lang_display_names)
-            for level in result.levels:
-                levels.append(f"{display_name}:{level}")
+            # Rank-number contribution
+            uses_rank = role in ("stars_rank", "rank")
+            if uses_rank and result.rank is not None:
+                entry["frequency"] = result.rank
+
+            # Level-label contribution
+            if role == "level" and result.levels:
+                lang_display_names = word_list_display_names.get(provider.lang, {})
+                display_name = self._get_display_name(provider.name, lang_display_names)
+                for level in result.levels:
+                    levels.append(f"{display_name}:{level}")
 
         entry["levelLabels"] = (
             " / ".join(levels) if levels and show_level_labels else ""
@@ -150,11 +188,13 @@ class FrequencyEngine:
                     "star_thresholds", [1501, 5001, 15001, 30001, 60001]
                 )
                 entry["starCount"] = get_star_count(frequency, star_char, thresholds)
-            if show_rank:
-                entry["frequency"] = frequency
+            else:
+                entry["starCount"] = ""
+            if not show_rank:
+                entry.pop("frequency", None)
         else:
             entry["starCount"] = ""
-            entry["frequency"] = ""
+            entry.pop("frequency", None)
 
     def get_providers_for_lang(self, lang: str) -> List[WordListProvider]:
         if self._registry is None:

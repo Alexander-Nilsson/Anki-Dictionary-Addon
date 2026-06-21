@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import time
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from PyQt6.QtCore import QThreadPool
 
 from ...integrations import image_search as duckduckgoimages
 from ...integrations import llm as llm_integration
-from ...integrations.llm import split_llm_definitions
 from ...integrations import forvo as forvo_integration
 from ...utils.logger import get_logger
 
@@ -23,9 +22,21 @@ class ExternalServiceCoordinator:
     HTML into the web view, and a ``threadpool`` for background workers.
     """
 
-    def __init__(self, eval_fn: Any, threadpool: QThreadPool) -> None:
+    def __init__(
+        self,
+        eval_fn: Any,
+        threadpool: QThreadPool,
+        on_llm_result: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_llm_error: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_forvo_result: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_forvo_error: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> None:
         self._eval = eval_fn
         self._threadpool = threadpool
+        self._on_llm_result_cb = on_llm_result
+        self._on_llm_error_cb = on_llm_error
+        self._on_forvo_result_cb = on_forvo_result
+        self._on_forvo_error_cb = on_forvo_error
 
     # ── LLM ────────────────────────────────────────
 
@@ -45,30 +56,14 @@ class ExternalServiceCoordinator:
         self._threadpool.start(worker)
 
     def _on_llm_result(self, result: Dict[str, Any]) -> None:
-        dict_name = result.get("dictName", "LLM")
-        id_name = result.get("idName") or "llm-loader"
-        definitions = split_llm_definitions(result["definition"])
-        if not definitions:
-            definitions = [result["definition"]]
-
-        html_entries = ""
-        # We cannot import ResultRenderer here without creating a dep cycle.
-        # The caller (SearchPipeline) should inject the rendered HTML.
-        self._eval(
-            f"console.log('LLM: Starting injection for ID: {id_name}'); "
-            f"var loader = document.getElementById('{id_name}'); "
-            f"if(loader) {{ "
-            f"  var placeholder = loader.querySelector('.llm-loading-placeholder'); "
-            f"  if(placeholder) {{ "
-            f"    console.log('LLM: Found placeholder'); "
-            f"  }} "
-            f"}}"
-        )
+        if self._on_llm_result_cb is not None:
+            self._on_llm_result_cb(result)
 
     def _on_llm_error(self, result: Dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown LLM error")
-        id_name = result.get("idName") or "llm-loader"
         logger.warning("LLM error: %s", error_msg)
+        if self._on_llm_error_cb is not None:
+            self._on_llm_error_cb(result)
 
     # ── Forvo ──────────────────────────────────────
 
@@ -93,11 +88,15 @@ class ExternalServiceCoordinator:
         if not items:
             self._remove_element(id_name, "Forvo")
             return
+        if self._on_forvo_result_cb is not None:
+            self._on_forvo_result_cb(result)
 
     def _on_forvo_error(self, result: Dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
         id_name = result.get("idName") or "forvo-loader"
+        if self._on_forvo_error_cb is not None:
+            self._on_forvo_error_cb(result)
 
     # ── Image search ───────────────────────────────
 

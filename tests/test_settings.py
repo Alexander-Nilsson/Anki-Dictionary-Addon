@@ -622,6 +622,19 @@ _CONFIG_WITH_EMPTY_GROUPS = {
 
 
 class TestSettingsGui(unittest.TestCase):
+    def setUp(self):
+        # FrequencySettingsTab._build_ui() calls _refresh_installed_files()
+        # which calls _clear_layout() — a `while layout.count():` loop.
+        # With mock Qt layouts, count() returns a truthy MagicMock, so the
+        # loop never terminates.  These tests exercise SettingsGui, not the
+        # frequency tab's file listing, so skip the refresh entirely.
+        self._refresh_patch = patch(
+            "anki_dictionary.ui.settings.frequency_settings_tab."
+            "FrequencySettingsTab._refresh_installed_files"
+        )
+        self._refresh_patch.start()
+        self.addCleanup(self._refresh_patch.stop)
+
     @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
     def test_init_creates_tabs(self, mock_get_config):
         mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS

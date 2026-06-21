@@ -1,20 +1,25 @@
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Dict, List
 
 from aqt.qt import (
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
-from ...core.word_list_registry import WordListProvider
+from ...core.word_list_registry import WordListProvider, WordListRegistry
+from ...utils.paths import get_word_lists_dir
 
 _DEFAULT_DISPLAY_NAMES = {"hsk": "HSK³", "jlpt": "JLPT", "cefr": "CEFR"}
 
@@ -42,7 +47,7 @@ class FrequencySettingsTab(QWidget):
         self.showLevelLabels = QCheckBox("Display Level Labels")
         self.showLevelLabels.setChecked(True)
 
-        self._list_checkboxes: Dict[str, QCheckBox] = {}
+        self._list_roles: Dict[str, QComboBox] = {}
         self._display_name_inputs: Dict[str, QLineEdit] = {}
 
         self._build_ui()
@@ -95,18 +100,32 @@ class FrequencySettingsTab(QWidget):
 
         visLayout.addWidget(QLabel(""))
         header_lay = QHBoxLayout()
-        header_lay.addWidget(QLabel("Enabled"))
+        header_lay.addWidget(QLabel("Role"))
         header_lay.addWidget(QLabel("List"))
         header_lay.addStretch()
         header_lay.addWidget(QLabel("Display Name"))
         visLayout.addLayout(header_lay)
 
+        _RANK_ROLES = [
+            ("stars_rank", "Stars + Rank"),
+            ("stars", "Stars only"),
+            ("rank", "Rank only"),
+            ("off", "Off"),
+        ]
+        _LEVEL_ROLES = [
+            ("level", "Level"),
+            ("off", "Off"),
+        ]
+
         for key, provider in sorted(self._discover_providers().items()):
             row = QHBoxLayout()
-            cb = QCheckBox()
-            cb.setChecked(True)
-            self._list_checkboxes[key] = cb
-            row.addWidget(cb)
+            combo = QComboBox()
+            roles = _RANK_ROLES if provider.type == "rank" else _LEVEL_ROLES
+            for role_key, role_label in roles:
+                combo.addItem(role_label, role_key)
+            combo.setCurrentIndex(0)
+            self._list_roles[key] = combo
+            row.addWidget(combo)
 
             row.addWidget(QLabel(f"{provider.lang}: {provider.name}"))
             row.addStretch()
@@ -144,7 +163,160 @@ class FrequencySettingsTab(QWidget):
         starGroup.setLayout(starLayout)
         layout.addWidget(starGroup)
 
+        self._files_container = QVBoxLayout()
+        self._build_installed_files_section(layout)
+
         layout.addStretch()
+
+    def _build_installed_files_section(self, layout: QVBoxLayout) -> None:
+        group = QGroupBox("Installed Word List Files")
+        glayout = QVBoxLayout()
+
+        toolbar = QHBoxLayout()
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self._refresh_installed_files)
+        toolbar.addWidget(refresh_btn)
+        toolbar.addStretch()
+        glayout.addLayout(toolbar)
+
+        glayout.addLayout(self._files_container)
+        self._refresh_installed_files()
+
+        group.setLayout(glayout)
+        layout.addWidget(group)
+
+    def _file_analysis(
+        self,
+        filepath: str,
+    ) -> dict:
+        result: dict = {
+            "type": "unknown",
+            "status": "unknown",
+            "lang_prefix": "",
+        }
+        fname = os.path.basename(filepath)
+        try:
+            with open(filepath, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            result["status"] = "unparseable"
+            return result
+
+        if WordListProvider._is_metadata_only(data):
+            result["status"] = "metadata-only"
+            return result
+
+        type_ = WordListRegistry._detect_type(data)
+        result["type"] = type_
+        result["status"] = "ok"
+
+        base = fname.replace(".json", "")
+        for sep in (" ", "_"):
+            parts = base.split(sep, 1)
+            if len(parts) > 1:
+                result["lang_prefix"] = parts[0].replace("_", " ")
+                break
+        return result
+
+    def _refresh_installed_files(self) -> None:
+        self._clear_layout(self._files_container)
+        wl_dir = get_word_lists_dir()
+        if not os.path.isdir(wl_dir):
+            return
+
+        header = QHBoxLayout()
+        header.addWidget(QLabel("<b>File</b>"), 3)
+        header.addWidget(QLabel("<b>Type</b>"), 1)
+        header.addWidget(QLabel("<b>Status</b>"), 1)
+        header.addWidget(QLabel(""), 1)
+        self._files_container.addLayout(header)
+
+        for fname in sorted(os.listdir(wl_dir)):
+            if not fname.endswith(".json"):
+                continue
+            fpath = os.path.join(wl_dir, fname)
+            analysis = self._file_analysis(fpath)
+
+            row = QHBoxLayout()
+
+            # Skip the nested word_lists/word_lists/ bug directory
+            if os.path.isdir(fpath):
+                continue
+
+            size = os.path.getsize(fpath)
+            label_parts = [fname, f" ({size:,} B)"]
+            if analysis["lang_prefix"]:
+                label_parts.append(f"  [{analysis['lang_prefix']}]")
+            file_label = QLabel("".join(label_parts))
+            row.addWidget(file_label, 3)
+
+            type_label = QLabel(analysis["type"])
+            row.addWidget(type_label, 1)
+
+            status_map = {
+                "ok": "OK",
+                "metadata-only": "metadata-only (no word data)",
+                "unparseable": "invalid JSON",
+                "unknown": "unknown",
+            }
+            status_text = status_map.get(analysis["status"], analysis["status"])
+            status_label = QLabel(status_text)
+            if analysis["status"] != "ok":
+                status_label.setStyleSheet("color: #cc4400;")
+            row.addWidget(status_label, 1)
+
+            del_btn = QPushButton("Delete")
+            del_btn.setFixedWidth(60)
+            del_btn.clicked.connect(
+                lambda checked, p=fpath, n=fname: self._delete_word_list(p, n)
+            )
+            row.addWidget(del_btn, 1)
+
+            self._files_container.addLayout(row)
+
+    @staticmethod
+    def _clear_layout(layout: QVBoxLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            if item is None:
+                continue
+            sub_layout = item.layout()
+            if sub_layout is not None:
+                while sub_layout.count():
+                    ci = sub_layout.takeAt(0)
+                    if ci is None:
+                        continue
+                    w = ci.widget()
+                    if w is not None:
+                        w.deleteLater()
+                sub_layout.deleteLater()
+            else:
+                w = item.widget()
+                if w is not None:
+                    w.deleteLater()
+
+    def _delete_word_list(self, filepath: str, fname: str) -> None:
+        from aqt.qt import QMessageBox
+
+        reply = QMessageBox.question(
+            self,
+            "Delete Word List",
+            f'Delete "{fname}"?\n\nThis cannot be undone.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            os.remove(filepath)
+        except OSError as e:
+            QMessageBox.warning(self, "Error", f"Failed to delete: {e}")
+            return
+        if hasattr(self.mw, "miDictDB"):
+            registry = getattr(self.mw.miDictDB, "_registry", None)
+            if registry:
+                registry.clear_cache()
+            self.mw.miDictDB._extra_data_cache.clear()
+        self._refresh_installed_files()
 
     def load_config(self, config: Dict[str, Any]) -> None:
         self.freqStarChar.setText(config.get("star_char", "\u2605"))
@@ -161,17 +333,19 @@ class FrequencySettingsTab(QWidget):
         self.showRank.setChecked(config.get("show_rank", False))
         self.showLevelLabels.setChecked(config.get("show_level_labels", True))
 
-        word_list_visibility: Dict[str, Dict[str, bool]] = config.get(
-            "word_list_visibility", {}
-        )
+        provider_roles: Dict[str, str] = config.get("provider_roles", {})
         word_list_display_names: Dict[str, Dict[str, str]] = config.get(
             "word_list_display_names", {}
         )
-        for key, cb in self._list_checkboxes.items():
-            lang, name = key.split("::", 1)
-            visible = word_list_visibility.get(lang, {}).get(name, True)
-            cb.setChecked(visible)
-            display_name = word_list_display_names.get(lang, {}).get(name, "")
+        for key, combo in self._list_roles.items():
+            role = provider_roles.get(key)
+            if role is not None:
+                idx = combo.findData(role)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+            display_name = word_list_display_names.get(key.split("::")[0], {}).get(
+                key.split("::")[1], ""
+            )
             if display_name:
                 self._display_name_inputs[key].setText(display_name)
 
@@ -188,13 +362,12 @@ class FrequencySettingsTab(QWidget):
         config["show_rank"] = self.showRank.isChecked()
         config["show_level_labels"] = self.showLevelLabels.isChecked()
 
-        word_list_visibility: Dict[str, Dict[str, bool]] = {}
-        for key, cb in self._list_checkboxes.items():
-            lang, name = key.split("::", 1)
-            if lang not in word_list_visibility:
-                word_list_visibility[lang] = {}
-            word_list_visibility[lang][name] = cb.isChecked()
-        config["word_list_visibility"] = word_list_visibility
+        provider_roles: Dict[str, str] = {}
+        for key, combo in self._list_roles.items():
+            role = combo.currentData()
+            if role:
+                provider_roles[key] = role
+        config["provider_roles"] = provider_roles
 
         word_list_display_names: Dict[str, Dict[str, str]] = {}
         for key, inp in self._display_name_inputs.items():

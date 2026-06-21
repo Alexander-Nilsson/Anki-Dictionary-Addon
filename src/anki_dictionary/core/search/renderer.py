@@ -377,6 +377,7 @@ class ResultRenderer:
         img_tooltip: str = "",
         clip_tooltip: str = "",
         send_tooltip: str = "",
+        is_dark: bool = False,
     ) -> str:
         stars = entry.get("starCount", "")
         levels = entry.get("levelLabels", "")
@@ -418,7 +419,7 @@ class ResultRenderer:
             + '\')" class="ankiExportButton"><img '
             + img_tooltip
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip_tooltip
             + ' class="clipper">\u2702</div><div '
@@ -499,6 +500,7 @@ class ResultRenderer:
         back_bracket: str,
         config: Dict[str, Any],
         term_headers: Dict[str, List[str]] | None = None,
+        is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         stars = str(result.get("starCount", ""))
@@ -533,7 +535,7 @@ class ResultRenderer:
             + '\')" class="ankiExportButton"><img '
             + img
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
             + ' class="clipper">\u2702</div><div '
@@ -562,6 +564,7 @@ class ResultRenderer:
         back_bracket: str,
         config: Dict[str, Any],
         term_headers: Dict[str, List[str]] | None = None,
+        is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         html = (
@@ -609,7 +612,7 @@ class ResultRenderer:
             + '\')" class="ankiExportButton"><img '
             + img
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
             + ' class="clipper">\u2702</div><div '
@@ -620,7 +623,7 @@ class ResultRenderer:
             + '<div class="defNav"><div onclick="navigateDef(event, false)" '
             + 'class="prevDef">\u25b2</div>'
             + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDict">\u25bc</div></div></div></div>'
+            + 'class="nextDef">\u25bc</div></div></div></div>'
         )
 
         definition = result.get("definition", "")
@@ -639,6 +642,8 @@ class ResultRenderer:
         config: Dict[str, Any],
         term_headers: Dict[str, List[str]] | None = None,
         id_name: str = "",
+        is_dark: bool = False,
+        settings_html: str = "",
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         prepared = self.get_prepared_term_header(
@@ -658,6 +663,7 @@ class ResultRenderer:
             + '" class="dictionaryTitleBlock">'
             + '<div class="dictionaryTitle">Images</div>'
             + '<div class="dictionarySettings">'
+            + settings_html
             + '<div class="dictNav">'
             + '<div onclick="navigateDict(event, false)" '
             + 'class="prevDict">\u25b2</div>'
@@ -673,7 +679,7 @@ class ResultRenderer:
             + 'class="ankiExportButton"><img '
             + img
             + ' src="'
-            + self.get_base64_icon("anki.svg", False)
+            + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
             + ' class="clipper">\u2702</div><div '

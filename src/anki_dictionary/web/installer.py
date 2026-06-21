@@ -34,6 +34,71 @@ addon_path = os.path.dirname(
 )
 
 
+# Known metadata-only keys in format-3 word list headers (no actual word data).
+_METADATA_ONLY_KEYS = {
+    "title",
+    "revision",
+    "format",
+    "url",
+    "description",
+    "author",
+    "attribution",
+    "frequencyMode",
+    "readingDictionaryType",
+}
+
+
+def _validate_word_list_data(
+    raw: bytes,
+    name: str,
+    log_emit,
+) -> bytes | None:
+    """Validate downloaded word list data before saving.
+
+    Returns the raw bytes if valid, or None to skip saving (after logging
+    a descriptive error).
+
+    Rejects:
+    - Git LFS pointer files (the server stores some lists in LFS,
+      but raw.githubusercontent.com serves the pointer, not the content)
+    - Metadata-only format-3 envelopes (``{"title":"...","format":3,...}``
+      with no actual term→rank/level data)
+    - Unparseable JSON
+    """
+    # --- 1. Git LFS pointers ---
+    if raw.startswith(b"version https://git-lfs"):
+        log_emit(
+            f" ERROR: {name} is a Git LFS pointer (not the actual word data). "
+            "Skipping. Try a different word list."
+        )
+        return None
+
+    # --- 2. Valid JSON ---
+    try:
+        decoded = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        log_emit(f" ERROR: {name} is not valid UTF-8 text. Skipping.")
+        return None
+
+    try:
+        parsed = json.loads(decoded)
+    except json.JSONDecodeError:
+        log_emit(f" ERROR: {name} is not valid JSON. Skipping.")
+        return None
+
+    # --- 3. Metadata-only format-3 envelope ---
+    if isinstance(parsed, dict):
+        word_keys = [k for k in parsed if k not in _METADATA_ONLY_KEYS]
+        if len(parsed) >= 3 and len(word_keys) == 0:
+            log_emit(
+                f" ERROR: {name} is a metadata-only header (keys: "
+                f"{list(parsed.keys())}). No word data found. Skipping."
+            )
+            return None
+
+    return raw
+
+
 class NoAutoSelectLineEdit(QLineEdit):
     def focusInEvent(self, e):  # ty:ignore[invalid-method-override]
         super(NoAutoSelectLineEdit, self).focusInEvent(e)
@@ -308,6 +373,35 @@ class DictionarySelectPage(MiWizardPage):
 
                 dictionaries = language.get("dictionaries", [])
                 load_dict_list(dictionaries, lang_item)
+
+                # Show available word lists as non-checkable info under each language
+                for section_name, key in [
+                    ("Frequency Lists", "frequency_lists"),
+                    ("Word Lists", "word_lists"),
+                ]:
+                    items = language.get(key, [])
+                    if not items:
+                        continue
+                    section_item = QTreeWidgetItem([section_name])
+                    section_item.setFlags(
+                        section_item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable
+                    )
+                    section_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
+                    section_item.setData(0, Qt.ItemDataRole.UserRole + 1, None)
+                    lang_item.addChild(section_item)
+                    for wl in items:
+                        wl_name = wl.get("name", "?")
+                        wl_desc = wl.get("description", "")
+                        text = wl_name
+                        if wl_desc:
+                            text += " - " + wl_desc
+                        wl_item = QTreeWidgetItem([text])
+                        wl_item.setFlags(
+                            wl_item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable
+                        )
+                        wl_item.setData(0, Qt.ItemDataRole.UserRole + 0, None)
+                        wl_item.setData(0, Qt.ItemDataRole.UserRole + 1, None)
+                        section_item.addChild(wl_item)
         finally:
             self._updating_checks = False
 
@@ -370,18 +464,19 @@ class DictionaryConfirmPage(MiWizardPage):
                 txt += "</b><ul>"
 
                 if install_word_lists:
-                    has_word_lists = False
-                    word_list_sources = []
-                    if "frequency_lists" in language:
-                        word_list_sources.extend(language["frequency_lists"])
-                    if "word_lists" in language:
-                        word_list_sources.extend(language["word_lists"])
-                    has_word_lists = len(word_list_sources) > 0
-
-                    if has_word_lists:
-                        txt += "<li>Installing word list data (%d lists)</li>" % len(
-                            word_list_sources
-                        )
+                    freq_lists = language.get("frequency_lists", [])
+                    word_lists_data = language.get("word_lists", [])
+                    if freq_lists or word_lists_data:
+                        txt += "<li>"
+                        parts = []
+                        if freq_lists:
+                            names = ", ".join(fl["name"] for fl in freq_lists)
+                            parts.append("Frequency lists: " + names)
+                        if word_lists_data:
+                            names = ", ".join(wl["name"] for wl in word_lists_data)
+                            parts.append("Word lists: " + names)
+                        txt += "<br>".join(parts)
+                        txt += "</li>"
                     else:
                         txt += "<li><b>No word list data available</b></li>"
 
@@ -483,20 +578,23 @@ class DictionaryInstallPage(MiWizardPage):
                     aqt.mw.miDictDB.addLanguages([lname])  # ty:ignore[unresolved-attribute]
                 except Exception:
                     pass
-
                 # Install word list data (frequency_lists + word_lists)
                 if self.install_word_lists:
-                    wl_sources = []
+                    wl_sources: list[tuple[dict, str]] = []
                     for fl in l.get("frequency_lists", []):
-                        wl_sources.append(fl)
+                        wl_sources.append((fl, "frequency"))
                     for wl in l.get("word_lists", []):
-                        wl_sources.append(wl)
+                        wl_sources.append((wl, "level"))
 
-                    for wl_info in wl_sources:
+                    for wl_info, wl_type in wl_sources:
                         wl_name = wl_info["name"]
                         wl_url = self.construct_url(wl_info["url"])
+                        type_label = {
+                            "frequency": "frequency list",
+                            "level": "word list",
+                        }.get(wl_type, "word list")
                         self.log_update.emit(
-                            "Installing %s %s word list..." % (lname, wl_name)
+                            "Installing %s %s (%s)..." % (lname, wl_name, type_label)
                         )
                         dl_resp = self.fetch_data(client, wl_url)
                         if dl_resp.status_code == 200:
@@ -506,7 +604,7 @@ class DictionaryInstallPage(MiWizardPage):
                                     chunks.append(chunk)
                             data = b"".join(chunks)
 
-                            if wl_url.lower().endswith(".zip"):
+                            if data[:4] == b"PK\x03\x04":
                                 try:
                                     z = zipfile.ZipFile(io.BytesIO(data))
                                     json_files = [
@@ -519,12 +617,22 @@ class DictionaryInstallPage(MiWizardPage):
                                         " ERROR: Failed to unzip: %s" % str(e)
                                     )
 
+                            validated = _validate_word_list_data(
+                                data,
+                                wl_name,
+                                self.log_update.emit,
+                            )
+                            if validated is None:
+                                continue
+
                             slug = wl_name.lower().replace(" ", "_")
                             slug = "".join(c for c in slug if c.isalnum() or c == "_")
-                            filename = "%s_%s.json" % (lname, slug)
+                            lang_part = lname.replace(" ", "_")
+                            type_tag = ".freq" if wl_type == "frequency" else ".level"
+                            filename = "%s_%s%s.json" % (lang_part, slug, type_tag)
                             dst_path = os.path.join(word_lists_path, filename)
                             with open(dst_path, "wb") as f:
-                                f.write(data)
+                                f.write(validated)
                             self.log_update.emit(" Installed as %s" % filename)
                         else:
                             self.log_update.emit(

@@ -1,7 +1,9 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
 
@@ -15,7 +17,9 @@ permissions:
 jobs:
   release:
     name: Bump, Build, and Release
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -23,6 +27,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
+
+      - name: Check for [skip ci]
+        if: github.event_name == 'workflow_run'
+        run: |
+          if echo "${{ github.event.workflow_run.head_commit.message }}" | grep -q '\[skip ci\]'; then
+            echo "Commit contains [skip ci] — skipping release"
+            exit 0
+          fi
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -37,7 +50,6 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          # Only install prod deps — build.py only needs stdlib
           uv venv --seed
           uv sync --frozen --no-dev --no-cache
 
