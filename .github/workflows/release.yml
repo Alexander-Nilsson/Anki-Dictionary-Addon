@@ -145,6 +145,20 @@ jobs:
             echo "✅ Tag $TAG does not exist — proceeding with full release"
           fi
 
+      # ── Git auth + rebase (handle concurrent merges) ──
+      # Must run BEFORE any file modifications to avoid "unstaged changes" error.
+      - name: Git Auth & Rebase
+        if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
+        run: |
+          git remote set-url origin \
+            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch origin master
+          git rebase origin/master || {
+            echo "❌ Rebase failed — aborting to avoid force-push"
+            git rebase --abort
+            exit 1
+          }
+
       # ── Bump version in source files (only for new releases) ──
       - name: Bump Version in Source Files
         if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
@@ -170,19 +184,6 @@ jobs:
       - name: Build Addon
         if: steps.guard.outputs.skip != 'true'
         run: uv run python build.py all
-
-      # ── Git auth + rebase (handle concurrent merges) ──
-      - name: Git Auth & Rebase
-        if: steps.guard.outputs.skip != 'true' && steps.guard.outputs.recreate != 'true'
-        run: |
-          git remote set-url origin \
-            https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git fetch origin master
-          git rebase origin/master || {
-            echo "❌ Rebase failed — aborting to avoid force-push"
-            git rebase --abort
-            exit 1
-          }
 
       # ── Commit version bump, create tag, push both ──
       - name: Commit, Tag, and Push
