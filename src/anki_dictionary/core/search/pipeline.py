@@ -313,15 +313,20 @@ class SearchPipeline:
             'font-size: 1.1em;">LLM Connection Error</div>'
             f"<div>{error_msg}</div></div>"
         )
-        self.midict.eval(
-            f"var loader = document.getElementById('{id_name}'); "
-            f"if(loader) {{ "
-            f"  var old = loader.querySelector('.definitionBlock'); "
-            f"  if(old) old.remove(); "
-            f"  var tb = loader.querySelector('.dictionaryTitleBlock'); "
-            f"  if(tb) tb.insertAdjacentHTML('afterend', {esc}); "
-            f"}}"
-        )
+        try:
+            self.midict.eval(
+                f"var loader = document.getElementById('{id_name}'); "
+                f"if(loader) {{ "
+                f"  var old = loader.querySelector('.definitionBlock'); "
+                f"  if(old) old.remove(); "
+                f"  var tb = loader.querySelector('.dictionaryTitleBlock'); "
+                f"  if(tb) tb.insertAdjacentHTML('afterend', {esc}); "
+                f"}}"
+            )
+        except Exception:
+            logger.debug(
+                "Failed to inject LLM error into webview (may have been destroyed)"
+            )
 
     # ── Forvo result injection ─────────────────────
 
