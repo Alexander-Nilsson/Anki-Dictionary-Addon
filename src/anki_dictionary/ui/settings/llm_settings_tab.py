@@ -15,9 +15,6 @@ from aqt.qt import (
     QVBoxLayout,
     QWidget,
 )
-from aqt.utils import showInfo
-
-from ...utils.common import miInfo
 
 
 class _PromptRow(QWidget):
@@ -294,14 +291,12 @@ class LLMSettingsTab(QWidget):
             message = result["message"]
 
             if success:
-                self.llmStatusLabel.setText("Success!")
+                self.llmStatusLabel.setText(message)
                 self.llmStatusLabel.setStyleSheet("color: green; font-weight: bold;")
-                showInfo(message, self)
             else:
-                self.llmStatusLabel.setText("Failed!")
+                self.llmStatusLabel.setText(message)
                 self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
-                miInfo(message, self)
         except Exception as e:
-            self.llmStatusLabel.setText("Error!")
+            msg = f"Test crashed with error: {str(e)}"
+            self.llmStatusLabel.setText(msg)
             self.llmStatusLabel.setStyleSheet("color: red; font-weight: bold;")
-            miInfo(f"Test crashed with error: {str(e)}", self)
