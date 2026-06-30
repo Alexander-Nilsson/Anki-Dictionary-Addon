@@ -122,19 +122,19 @@ def refresh_anki_dict_config(
     """
     if config is not None:
         # Direct config provided - use it
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = config
+        if hasattr(aqt.mw, "__dict__"):
+            aqt.mw.__dict__["AnkiDictConfig"] = config
     else:
         # Re-load from disk/state
         config = get_addon_config()
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = config
+        if hasattr(aqt.mw, "__dict__"):
+            aqt.mw.__dict__["AnkiDictConfig"] = config
 
     # If dictionary exists and is visible, update its configuration
     if (
-        hasattr(mw, "ankiDictionary")
-        and mw.ankiDictionary
-        and hasattr(mw.ankiDictionary, "resetConfiguration")
+        hasattr(aqt.mw, "ankiDictionary")
+        and aqt.mw.ankiDictionary
+        and hasattr(aqt.mw.ankiDictionary, "resetConfiguration")
     ):
         try:
             # We don't want to pass the config object as terms to resetConfiguration
@@ -174,13 +174,13 @@ def save_addon_config(config: dict[str, Any]) -> bool:
         logger.debug("Could not save config to addon state")
 
     # 2. Update legacy location
-    if hasattr(mw, "__dict__"):
-        mw.__dict__["AnkiDictConfig"] = config
+    if hasattr(aqt.mw, "__dict__"):
+        aqt.mw.__dict__["AnkiDictConfig"] = config
 
     # 3. Save to Anki's config manager
     try:
         addon_name = get_addon_name()
-        mw.addonManager.writeConfig(addon_name, config)
+        aqt.mw.addonManager.writeConfig(addon_name, config)
     except Exception:
         return False
 

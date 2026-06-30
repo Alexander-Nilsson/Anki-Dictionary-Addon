@@ -133,8 +133,6 @@ class CardExporter:
         word=False,
         definition=False,
     ):
-        if _unused_templates is None:
-            templates = []
         self.window = QWidget()
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidget(self.window)
