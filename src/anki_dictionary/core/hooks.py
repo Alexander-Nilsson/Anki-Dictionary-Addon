@@ -12,12 +12,10 @@ import re
 
 try:
     from anki.hooks import addHook, wrap
-    from anki.utils import is_lin, is_mac, is_win
 except ImportError:
     # Fallback for testing
     addHook = lambda *args: None  # ty:ignore[invalid-assignment]
     wrap = lambda *args: lambda *a, **k: None  # ty:ignore[invalid-assignment]
-    is_win = is_mac = is_lin = False  # ty:ignore[invalid-assignment]
 
 try:
     import aqt.editor
