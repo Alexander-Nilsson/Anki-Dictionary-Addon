@@ -7,6 +7,7 @@ from os.path import dirname, exists, join
 
 from anki.utils import is_mac
 from aqt.qt import (
+    QColor,  # noqa: F401 — needed at runtime by downstream importers
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -16,6 +17,7 @@ from aqt.qt import (
     QLabel,
     QLineEdit,
     QPalette,
+    QPixmap,  # noqa: F401 — needed at runtime by downstream importers
     QPushButton,
     QShortcut,
     QSize,

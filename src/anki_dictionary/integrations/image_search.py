@@ -104,8 +104,8 @@ def _make_session():
     """
     if _ON_MAC:
         try:
-            from curl_cffi import (
-                requests as curl_requests,  # ty:ignore[unresolved-import]
+            from curl_cffi import (  # ty:ignore[unresolved-import]
+                requests as curl_requests,
             )
         except ImportError:
             # Inject vendor paths manually using our known addon_path
@@ -122,8 +122,8 @@ def _make_session():
                 sys.path.insert(0, mac_vendor)
 
             try:
-                from curl_cffi import (
-                    requests as curl_requests,  # ty:ignore[unresolved-import]
+                from curl_cffi import (  # ty:ignore[unresolved-import]
+                    requests as curl_requests,
                 )
             except ImportError as e:
                 # Log the exact error to diagnose C-extension mismatches (e.g., Python 3.9 vs 3.12)

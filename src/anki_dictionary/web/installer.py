@@ -533,7 +533,7 @@ class DictionaryInstallPage(MiWizardPage):
                 return client.session.get(quoted_url, timeout=60, stream=True)
 
         def run(self):
-            from ..ui.dialogs.dictionary_manager import importDict
+            from ..ui.dialogs.dict_import import importDict
 
             client = HttpClient()
 
@@ -698,7 +698,7 @@ class DictionaryInstallPage(MiWizardPage):
                         try:
                             importDict(
                                 lname,
-                                io.BytesIO(ddata),  # ty:ignore[invalid-argument-type]
+                                io.BytesIO(ddata),
                                 dname,
                                 parent=self.wizard,
                             )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import zipfile
-from typing import Any
+from typing import Any, BinaryIO
 
 import aqt
 from aqt.qt import QMessageBox, QWidget
@@ -14,7 +14,7 @@ log = get_logger("dict_import")
 
 
 def importDict(
-    lang_name: str, file: str, dict_name: str, parent: QWidget | None = None
+    lang_name: str, file: str | BinaryIO, dict_name: str, parent: QWidget | None = None
 ) -> None:
     db = aqt.mw.miDictDB  # ty:ignore[unresolved-attribute]
 
