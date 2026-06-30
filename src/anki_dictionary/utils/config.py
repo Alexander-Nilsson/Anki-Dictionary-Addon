@@ -10,7 +10,7 @@ import os
 import sys
 from typing import Any
 
-from aqt import mw
+import aqt
 
 from .logger import get_logger
 from .paths import get_addon_name, get_addon_root
@@ -48,18 +48,18 @@ def get_addon_config() -> dict[str, Any]:
 
     # Fallback 1: try to get config from mw.AnkiDictConfig (legacy compatibility)
     if (
-        hasattr(mw, "__dict__")
-        and "AnkiDictConfig" in mw.__dict__
-        and mw.__dict__["AnkiDictConfig"] is not None
+        hasattr(aqt.mw, "__dict__")
+        and "AnkiDictConfig" in aqt.mw.__dict__
+        and aqt.mw.__dict__["AnkiDictConfig"] is not None
     ):
-        config_dict = mw.__dict__["AnkiDictConfig"]
+        config_dict = aqt.mw.__dict__["AnkiDictConfig"]
         if isinstance(config_dict, dict):
             return config_dict
 
     # Fallback 2: try to get config using correct addon name
     addon_name = get_addon_name()
     try:
-        config = mw.addonManager.getConfig(addon_name)
+        config = aqt.mw.addonManager.getConfig(addon_name)
         if config:
             return config
     except Exception:
@@ -139,7 +139,7 @@ def refresh_anki_dict_config(
         try:
             # We don't want to pass the config object as terms to resetConfiguration
             # just trigger a reload of settings and groups.
-            mw.ankiDictionary.resetConfiguration()  # ty:ignore[call-non-callable]
+            aqt.mw.ankiDictionary.resetConfiguration()  # ty:ignore[call-non-callable]
         except Exception as e:
             logger.error(f"Error refreshing dictionary configuration: {e}")
 
