@@ -27,7 +27,6 @@ try:
     from aqt.qt import QAction, QKeySequence, QMenu, Qt
     from aqt.reviewer import Reviewer
     from aqt.tagedit import TagEdit
-    from aqt.utils import showInfo
 except ImportError:
     # Fallback for testing - use real PyQt if possible
     try:
@@ -37,7 +36,6 @@ except ImportError:
     except ImportError:
         pass
     mw = None  # ty:ignore[invalid-assignment]
-    showInfo = lambda *args: None  # ty:ignore[invalid-assignment]
     AddCards = EditCurrent = Browser = TagEdit = Reviewer = Previewer = object  # ty:ignore[invalid-assignment]
     import sys
 
