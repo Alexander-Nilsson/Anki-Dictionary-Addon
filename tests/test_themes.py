@@ -1,13 +1,12 @@
-import tempfile
-import unittest
 import os
 import sys
+import tempfile
+import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from anki_dictionary.ui.themes import ThemeManager, ThemeColors
+from anki_dictionary.ui.themes import ThemeColors, ThemeManager
 
 
 class TestThemes(unittest.TestCase):

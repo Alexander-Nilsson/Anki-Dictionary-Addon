@@ -1,7 +1,7 @@
-from dataclasses import dataclass
-from typing import Dict, Optional
 import json
 import os
+from dataclasses import dataclass
+
 from ..utils.logger import get_logger
 
 log = get_logger("themes")
@@ -46,7 +46,7 @@ class ThemeManager:
         self._load_user_themes()
         self._load_active_theme()
 
-    def _load_default_themes(self) -> Dict[str, ThemeColors]:
+    def _load_default_themes(self) -> dict[str, ThemeColors]:
         return {
             "light": ThemeColors(
                 header_background="#FFFFFF",
@@ -182,7 +182,7 @@ class ThemeManager:
         """Load user-defined themes from themes.json"""
         if os.path.exists(self.themes_file):
             try:
-                with open(self.themes_file, "r") as f:
+                with open(self.themes_file) as f:
                     user_themes = json.load(f)
                 for name, colors in user_themes.items():
                     self.themes[name] = ThemeColors(**colors)
@@ -193,7 +193,7 @@ class ThemeManager:
         """Load the active theme from active.json"""
         if os.path.exists(self.active_theme_file):
             try:
-                with open(self.active_theme_file, "r") as f:
+                with open(self.active_theme_file) as f:
                     active_theme_data = json.load(f)
 
                 # Remove any extra fields that aren't part of ThemeColors
@@ -271,7 +271,7 @@ class ThemeManager:
         self.themes[name] = colors
         self._save_themes()
 
-    def save_active_theme(self, colors: ThemeColors, theme_name: Optional[str] = None):
+    def save_active_theme(self, colors: ThemeColors, theme_name: str | None = None):
         self.themes["active"] = colors
         self._save_themes()
         os.makedirs(os.path.dirname(self.active_theme_file), exist_ok=True)
@@ -288,7 +288,7 @@ class ThemeManager:
             themes_dict = {name: vars(colors) for name, colors in self.themes.items()}
             json.dump(themes_dict, f, indent=2)
 
-    def get_css(self, theme_name: Optional[str] = None) -> str:
+    def get_css(self, theme_name: str | None = None) -> str:
         """Generate CSS for the current theme"""
         requested_theme = theme_name or self.current_theme
 
@@ -358,9 +358,7 @@ class ThemeManager:
         }}
         """
 
-    def get_qt_styles(
-        self, theme_name: Optional[str] = None, is_mac: bool = False
-    ) -> str:
+    def get_qt_styles(self, theme_name: str | None = None, is_mac: bool = False) -> str:
         """Generate Qt styles for the current theme"""
         requested_theme = theme_name or self.current_theme
 
@@ -444,7 +442,7 @@ class ThemeManager:
             """
 
     def get_combo_style(
-        self, theme_name: Optional[str] = None, is_mac: bool = False
+        self, theme_name: str | None = None, is_mac: bool = False
     ) -> str:
         """Generate Qt styles for QComboBox"""
         requested_theme = theme_name or self.current_theme

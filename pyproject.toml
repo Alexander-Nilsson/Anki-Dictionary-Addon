@@ -47,7 +47,7 @@ target-version = "py313"
 exclude = ["_check_tags.py"]
 
 [tool.ruff.lint]
-select = ["E9", "F63", "F7", "F82"]
+select = ["F", "I", "B", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.mccabe]
@@ -58,6 +58,7 @@ quote-style = "double"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["E402"]
+"src/anki_dictionary/core/clip_thread.py" = ["B010"]
 
 [tool.ty]
 

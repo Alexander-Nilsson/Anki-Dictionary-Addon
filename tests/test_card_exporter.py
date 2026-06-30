@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import atexit
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +191,8 @@ if _src not in sys.path:
     sys.path.insert(0, _src)
 
 # Now safe to import addon modules
-from anki_dictionary.exporters.html_cleaner import HtmlCleaner  # noqa: E402
 from anki_dictionary.exporters.card_exporter import CardExporter  # noqa: E402
+from anki_dictionary.exporters.html_cleaner import HtmlCleaner  # noqa: E402
 
 
 # ===================================================================

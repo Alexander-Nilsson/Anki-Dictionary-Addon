@@ -5,9 +5,9 @@ Development helper script for Anki Dictionary Addon
 This script provides common development tasks in one place.
 """
 
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
 
 
@@ -23,6 +23,9 @@ def run_tests():
         "run",
         "pytest",
         "tests/",
+        "--cov=src/",
+        "--cov-report=term-missing",
+        "--cov-fail-under=0",
         "-p",
         "no:qt",
         "-p",

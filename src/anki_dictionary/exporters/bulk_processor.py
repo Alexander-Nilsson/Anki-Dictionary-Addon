@@ -1,16 +1,14 @@
 from dataclasses import dataclass
 from os.path import join
-from typing import Optional
 
 from aqt.qt import (
     QApplication,
     QIcon,
     QLabel,
     QProgressBar,
-    QScreen,
+    Qt,
     QVBoxLayout,
     QWidget,
-    Qt,
 )
 
 from ..utils.common import miInfo
@@ -32,7 +30,7 @@ class BulkProcessor:
         self._dict_int = dict_int
         self._always_on_top = always_on_top
         self.text_importing = False
-        self.media_export_progress_window: Optional[_MediaProgress] = None
+        self.media_export_progress_window: _MediaProgress | None = None
 
     def bulk_text_export(self, cards, add_text_card_fn):
         self.text_importing = True
@@ -47,7 +45,7 @@ class BulkProcessor:
             if not self.text_importing:
                 miInfo(
                     "Importing cards from the extension has been cancelled."
-                    "\n\n{} of {} were added.".format(idx, total),
+                    f"\n\n{idx} of {total} were added.",
                 )
                 return
             add_text_card_fn(card)
@@ -95,9 +93,9 @@ class BulkProcessor:
             if state.current_value == state.total:
                 total = state.total
                 if total == 1:
-                    miInfo("{} card has been imported.".format(total))
+                    miInfo(f"{total} card has been imported.")
                 else:
-                    miInfo("{} cards have been imported.".format(total))
+                    miInfo(f"{total} cards have been imported.")
                 self._close_progress_bar(state.widget)
                 self.media_export_progress_window = None
         except Exception:
@@ -108,9 +106,7 @@ class BulkProcessor:
         if state:
             miInfo(
                 "Importing cards from the extension has been cancelled from"
-                " within the browser.\n\n {} cards were imported.".format(
-                    state.current_value
-                )
+                f" within the browser.\n\n {state.current_value} cards were imported."
             )
             self._close_progress_bar(state.widget)
             self.media_export_progress_window = None
@@ -132,9 +128,7 @@ class BulkProcessor:
                 if not closed_because_finished_importing:
                     self._mw.DictBulkMediaExportWasCancelled = True
                     miInfo(
-                        "Importing cancelled.\n\n{} cards were imported.".format(
-                            current_value
-                        )
+                        f"Importing cancelled.\n\n{current_value} cards were imported."
                     )
 
         text_display = QLabel()

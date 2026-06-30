@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import atexit
 import sys
 import types
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Module-level mocks for Qt, Anki, and aqt BEFORE any local imports.
@@ -155,10 +154,10 @@ atexit.register(_restore_modules)
 # ---------------------------------------------------------------------------
 # Import modules under test
 # ---------------------------------------------------------------------------
-from anki_dictionary.ui.settings.settings_gui import SettingsGui
+from anki_dictionary.ui.settings.dict_groups import DictGroupEditor
 from anki_dictionary.ui.settings.dict_groups_tab import DictionaryGroupsTab
 from anki_dictionary.ui.settings.export_templates_tab import ExportTemplatesTab
-from anki_dictionary.ui.settings.dict_groups import DictGroupEditor
+from anki_dictionary.ui.settings.settings_gui import SettingsGui
 from anki_dictionary.ui.settings.templates import TemplateEditor
 
 

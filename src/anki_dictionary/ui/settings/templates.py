@@ -1,10 +1,5 @@
-# -*- coding: utf-8 -*-
 #
 #
-import json
-import sys
-import math
-from anki.hooks import addHook
 from aqt.qt import (
     QAbstractItemView,
     QComboBox,
@@ -15,24 +10,19 @@ from aqt.qt import (
     QLineEdit,
     QPushButton,
     QSize,
+    Qt,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    Qt,
 )
-from aqt.utils import openLink, tooltip, showInfo, askUser
-from anki.utils import is_mac, is_win, is_lin
-from anki.lang import _
-import re
-import os
-from os.path import dirname, join
-from ...utils.common import miInfo, miAsk
+
+from ...utils.common import miInfo
 from ...utils.config import get_addon_config, save_addon_config
 
 
 class TemplateEditor(QDialog):
     def __init__(self, mw, parent=None, dictionaries=None, toEdit=False, tName=False):
-        super(TemplateEditor, self).__init__(parent, Qt.WindowType.Window)
+        super().__init__(parent, Qt.WindowType.Window)
         if dictionaries is None:
             dictionaries = []
         self.setMinimumSize(QSize(400, 0))
@@ -187,9 +177,6 @@ class TemplateEditor(QDialog):
         self.entrySeparator.setText("<br><br>")
 
     def getDictFieldsTable(self):
-        macLin = False
-        if is_mac or is_lin:
-            macLin = True
         dictFields = QTableWidget()
         dictFields.setColumnCount(3)
         tableHeader = dictFields.horizontalHeader()

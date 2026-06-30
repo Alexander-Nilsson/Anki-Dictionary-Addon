@@ -1,18 +1,19 @@
-# -*- coding: utf-8 -*-
 #
 
-import aqt
-from aqt.qt import QIcon, QMessageBox, QWidget
-from typing import Any
-import os
 import contextlib
+import os
 from collections.abc import Generator
+from typing import Any
+
+import aqt
 import urllib3.util.connection as connection
+from aqt.qt import QIcon, QMessageBox, QWidget
+
 from .paths import get_icons_dir
 
 
 @contextlib.contextmanager
-def prefer_ipv4() -> Generator[None, None, None]:
+def prefer_ipv4() -> Generator[None]:
     old_has_ipv6 = getattr(connection, "HAS_IPV6", False)
     try:
         connection.HAS_IPV6 = False

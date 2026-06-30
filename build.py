@@ -6,12 +6,12 @@ This script helps build and package the addon for distribution.
 It handles dependency installation and file bundling.
 """
 
-import os
-import sys
-import shutil
-import zipfile
 import json
+import os
+import shutil
 import subprocess
+import sys
+import zipfile
 from pathlib import Path
 
 
@@ -28,7 +28,7 @@ def get_project_config():
             # Fallback to toml library
             import toml
 
-            with open("pyproject.toml", "r") as f:
+            with open("pyproject.toml") as f:
                 config = toml.load(f)
 
         return config
@@ -49,7 +49,7 @@ def run_pip_command(args, env=None):
         # We need to map some flags because uv pip is stricter than pip
         mapped_args = []
         skip_next = False
-        for i, arg in enumerate(args):
+        for _i, arg in enumerate(args):
             if skip_next:
                 skip_next = False
                 continue
@@ -219,17 +219,11 @@ def generate_manifest():
     """Generate manifest.json from pyproject.toml data"""
     project_config = get_project_config()["project"]
 
-    # Extract macOS-specific requirements for manifest
+    # macOS-specific requirements (extracted for manifest)
     dependencies = project_config.get("dependencies", [])
-    macos_requirements = []
 
     for dep in dependencies:
         if "pyobjc" in dep and "darwin" in dep:
-            # Extract package name before semicolon
-            package_name = dep.split(";")[0].strip()
-            # macos_requirements.append(package_name)
-            # Actually, manifest 'requirements' are usually not used by Anki for pip install?
-            # Anki checks this list to warn users?
             pass
 
     manifest_data = {
@@ -244,7 +238,7 @@ def generate_manifest():
     with open(manifest_path, "w") as f:
         json.dump(manifest_data, f, indent=4)
 
-    print(f"   ✓ Generated manifest.json")
+    print("   ✓ Generated manifest.json")
     return manifest_path
 
 
@@ -289,7 +283,7 @@ def build_addon():
     config_path = addon_dir / "config.json"
     if config_path.exists():
         print("   🧹 Cleaning configuration in build...")
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config = json.load(f)
 
         # Reset to defaults

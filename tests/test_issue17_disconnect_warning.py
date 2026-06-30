@@ -7,12 +7,11 @@ mocks Qt so tests can run headless.
 
 from __future__ import annotations
 
+import atexit
 import sys
 import types
 import unittest
 from unittest.mock import MagicMock, patch
-
-import atexit
 
 
 class _QtMockMeta(type):

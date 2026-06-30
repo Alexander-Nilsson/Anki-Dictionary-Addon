@@ -9,8 +9,8 @@ from aqt.qt import (
     QFileDialog,
     QMessageBox,
     QProgressDialog,
-    QTreeWidgetItem,
     Qt,
+    QTreeWidgetItem,
 )
 
 from ...utils.logger import get_logger
@@ -170,7 +170,7 @@ class DictImporter:
             except Exception:
                 pass
 
-        self.parent.info('Imported data as "%s" for "%s".' % (filename, lang_name))
+        self.parent.info(f'Imported data as "{filename}" for "{lang_name}".')
 
     def web_freq_data(self):
         lang_item = self.parent.tree_manager.get_current_lang_item()
@@ -197,7 +197,7 @@ class DictImporter:
         conj_path = os.path.join(get_db_dir(), "conjugation")
         os.makedirs(conj_path, exist_ok=True)
 
-        dst_path = os.path.join(conj_path, "%s.json" % lang_name)
+        dst_path = os.path.join(conj_path, f"{lang_name}.json")
 
         try:
             shutil.copy(path, dst_path)
@@ -205,7 +205,7 @@ class DictImporter:
             self.parent.info("Importing conjugation data failed.")
             return
 
-        self.parent.info('Imported conjugation data for "%s".' % lang_name)
+        self.parent.info(f'Imported conjugation data for "{lang_name}".')
 
     def web_conj_data(self):
         lang_item = self.parent.tree_manager.get_current_lang_item()
@@ -261,7 +261,7 @@ class DictImporter:
         term_txt = ", ".join(json.loads(db.getDictTermHeader(dict_clean)))
 
         term_txt, ok = self.parent.get_string(
-            'Set term header for dictionary "%s"' % dict_clean.replace("_", " "),
+            'Set term header for dictionary "{}"'.format(dict_clean.replace("_", " ")),
             term_txt,
         )
 
@@ -275,7 +275,7 @@ class DictImporter:
         for part_txt in parts_txt:
             part = part_txt.strip().lower()
             if part not in valid_parts:
-                self.parent.info('The term header part "%s" is not valid.' % part_txt)
+                self.parent.info(f'The term header part "{part_txt}" is not valid.')
                 return
             parts.append(part)
 

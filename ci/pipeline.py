@@ -1,8 +1,6 @@
-import os
 import sys
 
 import dagger
-
 
 SYSTEM_DEPS = [
     "xvfb",
@@ -121,6 +119,9 @@ async def pipeline() -> None:
                 [
                     ".venv/bin/pytest",
                     "tests/",
+                    "--cov=src/",
+                    "--cov-report=term-missing",
+                    "--cov-fail-under=0",
                     "-p",
                     "no:qt",
                     "-p",

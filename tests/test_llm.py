@@ -1,10 +1,12 @@
-# -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import MagicMock, patch
+
 from anki_dictionary.integrations.llm import (
+    LLM_DELIMITER,
     LLMWorker,
     split_llm_definitions,
-    LLM_DELIMITER,
+)
+from anki_dictionary.integrations.llm import (
     test_llm_config as _llm_config_check,
 )
 

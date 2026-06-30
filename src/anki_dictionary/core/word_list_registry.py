@@ -5,18 +5,17 @@ import os
 import re
 import shutil
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils.logger import get_logger
-from ..utils.paths import get_db_dir
 
 logger = get_logger("word_list_registry")
 
 
 @dataclass
 class LookupResult:
-    rank: Optional[int] = None
-    levels: List[str] = field(default_factory=list)
+    rank: int | None = None
+    levels: list[str] = field(default_factory=list)
     reading: str = ""
 
 
@@ -34,7 +33,7 @@ class WordListProvider:
         self.lang = lang
         self.description = description
         self._data = data
-        self._index: Optional[Dict[str, Any]] = None
+        self._index: dict[str, Any] | None = None
 
         if isinstance(data, dict):
             if "index" in data and isinstance(data["index"], dict):
@@ -141,7 +140,7 @@ class WordListProvider:
 
         return result
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "type": self.type,
             "name": self.name,
@@ -155,7 +154,7 @@ class WordListRegistry:
 
     def __init__(self, db_dir: str) -> None:
         self._dir = os.path.join(db_dir, self.DATA_DIR)
-        self._cache: Dict[str, List[WordListProvider]] = {}
+        self._cache: dict[str, list[WordListProvider]] = {}
         self._migrated = False
 
     @property
@@ -164,14 +163,14 @@ class WordListRegistry:
 
     _TYPE_TAGS = {".freq": "rank", ".level": "level"}
 
-    def get_providers(self, lang: str) -> List[WordListProvider]:
+    def get_providers(self, lang: str) -> list[WordListProvider]:
         if lang in self._cache:
             return self._cache[lang]
 
         self._ensure_migration()
         os.makedirs(self._dir, exist_ok=True)
 
-        providers: List[WordListProvider] = []
+        providers: list[WordListProvider] = []
         prefix_underscore = lang.replace(" ", "_") + "_"
         prefix_space = lang + " "
 
@@ -189,7 +188,7 @@ class WordListRegistry:
 
                 filepath = os.path.join(self._dir, filename)
                 try:
-                    with open(filepath, "r", encoding="utf-8-sig") as f:
+                    with open(filepath, encoding="utf-8-sig") as f:
                         data = json.load(f)
                 except Exception as e:
                     logger.error(f"Error loading {filepath}: {e}")
@@ -239,7 +238,7 @@ class WordListRegistry:
             "frequency": "rank",
             "hsk": "level",
         }
-        for old_name, type_ in old_dirs.items():
+        for old_name, _ in old_dirs.items():
             old_path = os.path.join(db_dir, old_name)
             if not os.path.isdir(old_path):
                 continue
@@ -248,7 +247,7 @@ class WordListRegistry:
                     continue
                 src = os.path.join(old_path, fname)
                 try:
-                    with open(src, "r", encoding="utf-8-sig") as f:
+                    with open(src, encoding="utf-8-sig") as f:
                         json.load(f)
                 except Exception as e:
                     logger.error(f"Error reading legacy {old_name}/{fname}: {e}")
@@ -277,7 +276,7 @@ class WordListRegistry:
             except OSError as e:
                 logger.debug(f"Could not remove legacy directory {old_path}: {e}")
 
-    def clear_cache(self, lang: Optional[str] = None) -> None:
+    def clear_cache(self, lang: str | None = None) -> None:
         if lang:
             self._cache.pop(lang, None)
         else:

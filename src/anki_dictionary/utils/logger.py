@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Logging utility for the Anki Dictionary Addon.
 """
@@ -6,6 +5,7 @@ Logging utility for the Anki Dictionary Addon.
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
+
 from aqt import mw
 
 from .paths import get_addon_root

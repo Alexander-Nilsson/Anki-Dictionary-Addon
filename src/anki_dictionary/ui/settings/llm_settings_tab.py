@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from aqt.qt import (
     QCheckBox,
@@ -90,7 +90,7 @@ class LLMSettingsTab(QWidget):
         self.llmStatusLabel.setStyleSheet("font-weight: bold;")
 
         # Dynamic prompt rows
-        self._prompt_rows: List[_PromptRow] = []
+        self._prompt_rows: list[_PromptRow] = []
         self._prompts_container = QVBoxLayout()
         self._prompts_label = QLabel("Prompt Templates:")
         self._prompts_hint = QLabel(
@@ -182,7 +182,7 @@ class LLMSettingsTab(QWidget):
 
     # --- Load / Save ---
 
-    def load_config(self, config: Dict[str, Any]) -> None:
+    def load_config(self, config: dict[str, Any]) -> None:
         self.llmEnabled.setChecked(config.get("llm_enabled", False))
         self.llmApiKey.setText(config.get("llm_api_key", ""))
         self.llmBaseUrl.setText(
@@ -214,7 +214,7 @@ class LLMSettingsTab(QWidget):
                     active = True  # migrate old plain-string format
                 self._add_prompt_row(text, active)
 
-    def save_config(self, config: Dict[str, Any]) -> None:
+    def save_config(self, config: dict[str, Any]) -> None:
         config["llm_enabled"] = self.llmEnabled.isChecked()
         config["llm_api_key"] = self.llmApiKey.text()
         config["llm_base_url"] = self.llmBaseUrl.text()

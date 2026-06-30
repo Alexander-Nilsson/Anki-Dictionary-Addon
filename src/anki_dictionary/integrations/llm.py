@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 LLM Integration for Anki Dictionary.
 Supports OpenAI-compatible APIs and Ollama /api/chat.
 """
 
-import requests
-import json
 import re
-from typing import Optional, Dict, Any, Callable, Tuple
+from collections.abc import Callable
+from typing import Any
+
+import requests
 
 from ..utils.logger import get_logger
 
@@ -21,10 +21,10 @@ LLM_DELIMITER_INSTRUCTION = (
 )
 
 try:
-    from aqt.qt import QObject, pyqtSignal, QRunnable
+    from aqt.qt import QObject, QRunnable, pyqtSignal
 except ImportError:
     # Fallback to standard PyQt6 for standalone testing/development
-    from PyQt6.QtCore import QObject, pyqtSignal, QRunnable
+    from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 
 
 class LLMWorkerSignals(QObject):
@@ -39,9 +39,9 @@ def prepare_llm_payload(
     base_url: str,
     model: str,
     content: str,
-    config: Dict[str, Any],
+    config: dict[str, Any],
     is_test: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Prepare the request payload based on the endpoint type.
     Handles Ollama /api/chat and standard OpenAI formats.
@@ -78,7 +78,7 @@ def prepare_llm_payload(
         return payload
 
 
-def extract_llm_content(data: Dict[str, Any], base_url: str) -> str:
+def extract_llm_content(data: dict[str, Any], base_url: str) -> str:
     """
     Extract the response content from various API formats.
     """
@@ -121,7 +121,7 @@ def split_llm_definitions(content: str) -> list[str]:
     return [c for c in chunks if c]
 
 
-def clean_llm_content(content: str, config: Dict[str, Any]) -> str:
+def clean_llm_content(content: str, config: dict[str, Any]) -> str:
     """
     Remove thinking tags and perform basic cleanup based on configuration.
     """
@@ -141,7 +141,7 @@ class LLMWorker(QRunnable):
     def __init__(
         self,
         term: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         star_count: str = "",
         level_labels: str = "",
         idName: str = "",
@@ -246,7 +246,7 @@ class LLMWorker(QRunnable):
             self.signals.finished.emit()
 
 
-def test_llm_config(config: Dict[str, Any], callback: Callable[[bool, str], None]):
+def test_llm_config(config: dict[str, Any], callback: Callable[[bool, str], None]):
     """
     Test the LLM configuration with a simple ping.
     This runs synchronously and should be called from a thread.

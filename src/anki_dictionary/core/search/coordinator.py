@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import time
 import json
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from PyQt6.QtCore import QThreadPool
 
+from ...integrations import forvo as forvo_integration
 from ...integrations import image_search as duckduckgoimages
 from ...integrations import llm as llm_integration
-from ...integrations import forvo as forvo_integration
 from ...utils.logger import get_logger
 
 logger = get_logger(__name__.split(".")[-1])
@@ -26,10 +26,10 @@ class ExternalServiceCoordinator:
         self,
         eval_fn: Any,
         threadpool: QThreadPool,
-        on_llm_result: Optional[Callable[[Dict[str, Any]], None]] = None,
-        on_llm_error: Optional[Callable[[Dict[str, Any]], None]] = None,
-        on_forvo_result: Optional[Callable[[Dict[str, Any]], None]] = None,
-        on_forvo_error: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_llm_result: Callable[[dict[str, Any]], None] | None = None,
+        on_llm_error: Callable[[dict[str, Any]], None] | None = None,
+        on_forvo_result: Callable[[dict[str, Any]], None] | None = None,
+        on_forvo_error: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._eval = eval_fn
         self._threadpool = threadpool
@@ -43,7 +43,7 @@ class ExternalServiceCoordinator:
     def trigger_llm(
         self,
         term: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         star_count: str = "",
         level_labels: str = "",
         id_name: str = "",
@@ -55,13 +55,13 @@ class ExternalServiceCoordinator:
         worker.signals.error_occurred.connect(self._on_llm_error)
         self._threadpool.start(worker)
 
-    def _on_llm_result(self, result: Dict[str, Any]) -> None:
+    def _on_llm_result(self, result: dict[str, Any]) -> None:
         if self._on_llm_result_cb is not None:
             self._on_llm_result_cb(result)
 
-    def _on_llm_error(self, result: Dict[str, Any]) -> None:
+    def _on_llm_error(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown LLM error")
-        logger.warning("LLM error: %s", error_msg)
+        logger.debug("LLM error: %s", error_msg)
         if self._on_llm_error_cb is not None:
             self._on_llm_error_cb(result)
 
@@ -70,9 +70,9 @@ class ExternalServiceCoordinator:
     def trigger_forvo(
         self,
         term: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         id_name: str = "",
-        language: Optional[str] = None,
+        language: str | None = None,
     ) -> None:
         if language is None:
             language = config.get("forvo_language", "ja")
@@ -82,7 +82,7 @@ class ExternalServiceCoordinator:
         worker.signals.error_occurred.connect(self._on_forvo_error)
         self._threadpool.start(worker)
 
-    def _on_forvo_result(self, result: Dict[str, Any]) -> None:
+    def _on_forvo_result(self, result: dict[str, Any]) -> None:
         id_name = result.get("idName") or "forvo-loader"
         items = result.get("items", [])
         if not items:
@@ -91,10 +91,9 @@ class ExternalServiceCoordinator:
         if self._on_forvo_result_cb is not None:
             self._on_forvo_result_cb(result)
 
-    def _on_forvo_error(self, result: Dict[str, Any]) -> None:
+    def _on_forvo_error(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
-        id_name = result.get("idName") or "forvo-loader"
         if self._on_forvo_error_cb is not None:
             self._on_forvo_error_cb(result)
 
@@ -103,7 +102,7 @@ class ExternalServiceCoordinator:
     def trigger_image_search(
         self,
         term: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         id_name: str = "",
         offset: int = 0,
     ) -> None:

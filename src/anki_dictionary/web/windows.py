@@ -2,6 +2,9 @@ import io
 import os
 import zipfile
 from enum import Enum
+
+import aqt
+from anki.httpclient import HttpClient
 from aqt.qt import (
     QDialog,
     QIcon,
@@ -10,14 +13,12 @@ from aqt.qt import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
-    QVBoxLayout,
     Qt,
+    QVBoxLayout,
 )
-from anki.httpclient import HttpClient
-import aqt
-from ..utils.common import prefer_ipv4
 
-from ..utils.paths import get_icons_dir, get_db_dir, get_word_lists_dir
+from ..utils.common import prefer_ipv4
+from ..utils.paths import get_db_dir, get_icons_dir, get_word_lists_dir
 from . import config as webConfig
 
 
@@ -29,7 +30,7 @@ class FreqConjWebWindow(QDialog):
     MIN_SIZE = (400, 400)
 
     def __init__(self, dst_lang, index_data, mode):
-        super(FreqConjWebWindow, self).__init__()
+        super().__init__()
         self.dst_lang = dst_lang
         self.mode = mode
         self.mode_str = "word_lists" if self.mode == self.Mode.Freq else "conjugation"
@@ -41,7 +42,7 @@ class FreqConjWebWindow(QDialog):
         self.setLayout(lyt)
 
         lbl = QLabel(
-            "Select the language you want to download %s data from" % self.mode_str
+            f"Select the language you want to download {self.mode_str} data from"
         )
         lbl.setWordWrap(True)
         lyt.addWidget(lbl)
@@ -124,7 +125,7 @@ class FreqConjWebWindow(QDialog):
 
         if resp is None or resp.status_code != 200:
             QMessageBox.information(
-                self, self.windowTitle(), "Downloading %s data failed." % self.mode_str
+                self, self.windowTitle(), f"Downloading {self.mode_str} data failed."
             )
             return
 
@@ -157,10 +158,10 @@ class FreqConjWebWindow(QDialog):
             slug = list_name.lower().replace(" ", "_")
             slug = "".join(c for c in slug if c.isalnum() or c == "_")
             lang_part = self.dst_lang.replace(" ", "_")
-            filename = "%s_%s.json" % (lang_part, slug)
+            filename = f"{lang_part}_{slug}.json"
         else:
             lang_part = self.dst_lang.replace(" ", "_")
-            filename = "%s.json" % lang_part
+            filename = f"{lang_part}.json"
 
         dst_path = os.path.join(dir_path, filename)
 
@@ -176,9 +177,9 @@ class FreqConjWebWindow(QDialog):
             aqt.mw.miDictDB._extra_data_cache.pop(self.dst_lang, None)  # ty:ignore[unresolved-attribute]
 
         if self.mode == self.Mode.Freq:
-            msg = 'Imported data as "%s" for "%s".' % (filename, self.dst_lang)
+            msg = f'Imported data as "{filename}" for "{self.dst_lang}".'
         else:
-            msg = 'Imported conjugation data for "%s".' % self.dst_lang
+            msg = f'Imported conjugation data for "{self.dst_lang}".'
         QMessageBox.information(self, self.windowTitle(), msg)
 
         self.accept()

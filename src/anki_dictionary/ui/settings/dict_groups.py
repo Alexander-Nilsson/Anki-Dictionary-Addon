@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 #
 #
-import json
-import sys
-import math
-from anki.hooks import addHook
+import ntpath
+from operator import itemgetter
+from os.path import exists, join
+from shutil import copyfile
+
+from anki.utils import is_lin, is_mac
 from aqt.qt import (
     QAbstractItemView,
     QCheckBox,
@@ -18,32 +19,21 @@ from aqt.qt import (
     QLineEdit,
     QPushButton,
     QRadioButton,
+    Qt,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    Qt,
 )
-from aqt.utils import tooltip, showInfo
-from anki.utils import is_mac, is_win, is_lin
-from anki.lang import _
-from aqt.webview import AnkiWebView
-import re
-import os
-from os.path import dirname, join, exists
-from aqt.qt import Qt
-from ...utils.common import miInfo, miAsk
-from ...utils.config import get_addon_config, save_addon_config
 
-from shutil import copyfile
-from operator import itemgetter
-import ntpath
+from ...utils.common import miAsk, miInfo
+from ...utils.config import get_addon_config, save_addon_config
 
 
 class DictGroupEditor(QDialog):
     def __init__(
         self, mw, parent=None, dictionaries=None, group=False, groupName=False
     ):
-        super(DictGroupEditor, self).__init__(parent, Qt.WindowType.Window)
+        super().__init__(parent, Qt.WindowType.Window)
         if dictionaries is None:
             dictionaries = []
         self.mw = mw

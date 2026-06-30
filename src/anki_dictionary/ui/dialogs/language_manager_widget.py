@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 import aqt
-from aqt.qt import QMessageBox, QTreeWidgetItem, Qt
+from aqt.qt import QMessageBox, Qt, QTreeWidgetItem
 
 from ...utils.logger import get_logger
 from ...utils.paths import get_db_dir, get_word_lists_dir
@@ -52,8 +52,7 @@ class LanguageManager:
         dlg = QMessageBox(
             QMessageBox.Icon.Question,
             "Anki Dictionary",
-            'Do you really want to remove the language "%s"?\n\nAll settings and dictionaries for it will be removed.'
-            % lang_name,
+            f'Do you really want to remove the language "{lang_name}"?\n\nAll settings and dictionaries for it will be removed.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             self.parent,
         )
@@ -74,7 +73,7 @@ class LanguageManager:
             pass
 
         try:
-            path = os.path.join(get_db_dir(), "conjugation", "%s.json" % lang_name)
+            path = os.path.join(get_db_dir(), "conjugation", f"{lang_name}.json")
             os.remove(path)
         except OSError:
             pass
@@ -95,7 +94,7 @@ class LanguageManager:
         dlg = QMessageBox(
             QMessageBox.Icon.Question,
             "Anki Dictionary",
-            'Do you really want to remove the dictionary "%s"?' % dict_display,
+            f'Do you really want to remove the dictionary "{dict_display}"?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             self.parent,
         )

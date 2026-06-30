@@ -1,13 +1,11 @@
 import os
 import re
 import sys
-import time
-from os.path import join, exists, dirname
-from typing import Any, Dict
+from os.path import dirname, join
+from typing import Any
 
-from aqt.qt import QObject, QSize, Qt
-from aqt.qt import pyqtSignal
-from anki.utils import is_mac, is_win, is_lin
+from anki.utils import is_lin, is_mac, is_win
+from aqt.qt import QObject, QSize, Qt, pyqtSignal
 
 from ..utils import media_manager
 from ..utils.config import get_addon_config
@@ -38,11 +36,13 @@ class ClipThread(QObject):
             if is_mac:
                 import ssl
 
-                ssl._create_default_https_context = ssl._create_unverified_context  # ty:ignore[invalid-assignment]
+                setattr(
+                    ssl, "_create_default_https_context", ssl._create_unverified_context
+                )
                 try:
                     from Quartz import (
-                        CGEventGetIntegerValueField,  # ty:ignore[unresolved-import]
-                        kCGKeyboardEventKeycode,  # ty:ignore[unresolved-import]
+                        CGEventGetIntegerValueField,
+                        kCGKeyboardEventKeycode,
                     )
 
                     self.kCGKeyboardEventKeycode = kCGKeyboardEventKeycode
@@ -142,14 +142,13 @@ class ClipThread(QObject):
     def handleColSearch(self) -> None:
         self.colSearch.emit(self.mw.app.clipboard().text())
 
-    def getConfig(self) -> Dict[str, Any]:
+    def getConfig(self) -> dict[str, Any]:
         return get_addon_config()
 
     def handleBulkTextExport(self, cards: list) -> None:
         self.bulkTextExport.emit(cards)
 
     def handleExtensionCardExport(self, card: dict) -> None:
-        config = self.getConfig()
         audioFileName = card["audio"]
         imageFileName = card["image"]
         bulk = card["bulk"]

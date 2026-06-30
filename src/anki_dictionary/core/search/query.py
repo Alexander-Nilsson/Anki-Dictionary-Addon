@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from ...utils.config import get_addon_config
 from ...utils.logger import get_logger
@@ -17,8 +17,8 @@ class SearchQueryBuilder:
     def get_def_ex(self, sT: str) -> bool:
         return sT in ("Definition", "Example")
 
-    def apply_search_type(self, terms: List[str], sT: str) -> List[str]:
-        for idx, term in enumerate(terms):
+    def apply_search_type(self, terms: list[str], sT: str) -> list[str]:
+        for idx, _term in enumerate(terms):
             if sT in ("Forward", "Pronunciation"):
                 terms[idx] = terms[idx] + "%"
             elif sT == "Backward":
@@ -34,9 +34,9 @@ class SearchQueryBuilder:
         return terms
 
     def deconjugate(
-        self, terms: List[str], conjugations: List[Dict[str, Any]]
-    ) -> List[str]:
-        deconjugations: List[str] = []
+        self, terms: list[str], conjugations: list[dict[str, Any]]
+    ) -> list[str]:
+        deconjugations: list[str] = []
         for term in terms:
             for c in conjugations:
                 if term.endswith(c["inflected"]):
@@ -58,7 +58,7 @@ class SearchQueryBuilder:
         return new.join(s.rsplit(old, occurrence))
 
     @staticmethod
-    def get_query_criteria(col: str, terms: List[str], op: str = "LIKE") -> str:
+    def get_query_criteria(col: str, terms: list[str], op: str = "LIKE") -> str:
         clauses = [f" {col} {op} ? " for _ in terms]
         return " OR ".join(clauses)
 
@@ -85,7 +85,7 @@ class SearchQueryBuilder:
         return re.sub(r"<((?:[^b][^r])|(?:[b][^r]))", r"&lt;\1", str(text))
 
     @staticmethod
-    def result_to_dict(r: Tuple[Any, ...]) -> Dict[str, Any]:
+    def result_to_dict(r: tuple[Any, ...]) -> dict[str, Any]:
         frequency: Any = r[8] if len(r) > 8 else ""
         return {
             "term": r[0],
@@ -105,8 +105,8 @@ class SearchQueryBuilder:
         dict_name: str,
         to_query: str,
         dict_limit: int,
-        term_tuple: Tuple[Any, ...],
-    ) -> List[Tuple[Any, ...]]:
+        term_tuple: tuple[Any, ...],
+    ) -> list[tuple[Any, ...]]:
         cursor = self._db._get_cursor()
         safe_table = self._quote_identifier(dict_name)
         cols = "term, altterm, pronunciation, pos, definition, examples, audio, starCount, frequency"
@@ -125,8 +125,8 @@ class SearchQueryBuilder:
             return []
 
     def get_term_frequency_info(
-        self, term: str, lang: str, config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, term: str, lang: str, config: dict[str, Any]
+    ) -> dict[str, Any]:
         if not lang:
             return {"term": term, "starCount": "", "levelLabels": ""}
         providers = self._db._get_extra_data(lang)
@@ -144,24 +144,24 @@ class SearchQueryBuilder:
 
     def _apply_frequency_info(
         self,
-        entry: Dict[str, Any],
-        providers: List[Any],
-        config: Dict[str, Any],
+        entry: dict[str, Any],
+        providers: list[Any],
+        config: dict[str, Any],
     ) -> None:
         self._db._apply_frequency_info(entry, providers, config)
 
     def search(
         self,
         term: str,
-        selected_group: Dict[str, Any],
-        conjugations: Dict[str, List[Dict[str, Any]]],
+        selected_group: dict[str, Any],
+        conjugations: dict[str, list[dict[str, Any]]],
         sT: str,
         deinflect: bool,
         dict_limit: int,
         max_defs: int,
-    ) -> Dict[str, Any]:
-        already_conj_typed: Dict[str, List[str]] = {}
-        results: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        already_conj_typed: dict[str, list[str]] = {}
+        results: dict[str, Any] = {}
         group = selected_group["dictionaries"]
         total_defs = 0
         def_ex = self.get_def_ex(sT)
@@ -270,10 +270,10 @@ class SearchQueryBuilder:
 
     def get_def_for_mass_exp(
         self, term: str, dN: str, limit: int, rN: str
-    ) -> Tuple[List[Dict[str, Any]], Any, Any]:
+    ) -> tuple[list[dict[str, Any]], Any, Any]:
         dup_result = self._db.getDuplicateSetting(rN)
         duplicate_header, term_header = dup_result if dup_result else (None, None)
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for col in ("term", "altterm", "pronunciation"):
             terms = [term]
             to_query = f" {col} = ? "

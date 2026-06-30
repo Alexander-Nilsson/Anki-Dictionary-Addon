@@ -4,11 +4,8 @@ These tests use a headless ``anki.collection.Collection`` (no Qt GUI needed)
 and verify that our addon's core modules can work with a live Anki database.
 """
 
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 
 class TestCollectionBasics:
@@ -44,8 +41,9 @@ class TestAddonDatabase:
     """Test DictDB against a real SQLite database (without mocking)."""
 
     def test_db_creation(self, headless_anki_collection):
-        import aqt
         from unittest.mock import MagicMock
+
+        import aqt
 
         aqt.mw = MagicMock()
         aqt.mw.pm.addonFolder.return_value = headless_anki_collection.base
@@ -63,9 +61,9 @@ class TestAddonImports:
 
     def test_core_modules_importable(self):
         import anki_dictionary.core.database  # noqa: F401
-        import anki_dictionary.utils.paths  # noqa: F401
         import anki_dictionary.utils.config  # noqa: F401
         import anki_dictionary.utils.constants  # noqa: F401
+        import anki_dictionary.utils.paths  # noqa: F401
 
     def test_utils_importable(self):
         import anki_dictionary.utils.common  # noqa: F401
@@ -189,6 +187,7 @@ class TestDictInterface:
         from unittest.mock import MagicMock
 
         import aqt
+
         import anki_dictionary.core.dictionary as _d
 
         aqt.mw = MagicMock()  # ensureWidgetInScreenBoundaries accesses aqt.mw.progress

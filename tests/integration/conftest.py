@@ -82,6 +82,7 @@ def headless_anki_collection():
     """
     import shutil
     import tempfile
+
     from anki.collection import Collection
 
     base_dir = tempfile.mkdtemp(prefix="anki_dict_int_")

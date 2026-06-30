@@ -3,8 +3,8 @@
 Tests for the main Anki Dictionary Addon functionality
 """
 
-import unittest
 import sys
+import unittest
 from pathlib import Path
 
 # Add src directory to path for imports
@@ -70,7 +70,7 @@ class TestAddonBasics(unittest.TestCase):
         )
         if not config_path.exists():
             self.skipTest("Build directory does not exist - run build first")
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
 
         # Should be a dictionary

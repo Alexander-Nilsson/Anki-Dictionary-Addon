@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Configuration utilities for the Anki Dictionary Addon.
 
@@ -6,20 +5,20 @@ This module provides safe access to addon configuration that works
 regardless of the module path or Anki version.
 """
 
+import json
 import os
 import sys
-import json
-from typing import Any, Dict, Optional
-from aqt import mw
+from typing import Any
 
+import aqt
 
-from .paths import get_addon_root, get_addon_name
 from .logger import get_logger
+from .paths import get_addon_name, get_addon_root
 
 logger = get_logger(__name__.split(".")[-1])
 
 
-def get_addon_config() -> Dict[str, Any]:
+def get_addon_config() -> dict[str, Any]:
     """
     Get addon configuration safely.
 
@@ -49,18 +48,18 @@ def get_addon_config() -> Dict[str, Any]:
 
     # Fallback 1: try to get config from mw.AnkiDictConfig (legacy compatibility)
     if (
-        hasattr(mw, "__dict__")
-        and "AnkiDictConfig" in mw.__dict__
-        and mw.__dict__["AnkiDictConfig"] is not None
+        hasattr(aqt.mw, "__dict__")
+        and "AnkiDictConfig" in aqt.mw.__dict__
+        and aqt.mw.__dict__["AnkiDictConfig"] is not None
     ):
-        config_dict = mw.__dict__["AnkiDictConfig"]
+        config_dict = aqt.mw.__dict__["AnkiDictConfig"]
         if isinstance(config_dict, dict):
             return config_dict
 
     # Fallback 2: try to get config using correct addon name
     addon_name = get_addon_name()
     try:
-        config = mw.addonManager.getConfig(addon_name)
+        config = aqt.mw.addonManager.getConfig(addon_name)
         if config:
             return config
     except Exception:
@@ -71,7 +70,7 @@ def get_addon_config() -> Dict[str, Any]:
         addon_root = get_addon_root()
         config_path = os.path.join(addon_root, "config.json")
         if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
         logger.debug("Could not load config from config.json")
@@ -112,7 +111,7 @@ def get_addon_config() -> Dict[str, Any]:
 
 
 def refresh_anki_dict_config(
-    config: Optional[Dict[str, Any]] = None, force: bool = False
+    config: dict[str, Any] | None = None, force: bool = False
 ) -> None:
     """
     Refresh the addon configuration and update the dictionary window if it exists.
@@ -123,29 +122,29 @@ def refresh_anki_dict_config(
     """
     if config is not None:
         # Direct config provided - use it
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = config
+        if hasattr(aqt.mw, "__dict__"):
+            aqt.mw.__dict__["AnkiDictConfig"] = config
     else:
         # Re-load from disk/state
         config = get_addon_config()
-        if hasattr(mw, "__dict__"):
-            mw.__dict__["AnkiDictConfig"] = config
+        if hasattr(aqt.mw, "__dict__"):
+            aqt.mw.__dict__["AnkiDictConfig"] = config
 
     # If dictionary exists and is visible, update its configuration
     if (
-        hasattr(mw, "ankiDictionary")
-        and mw.ankiDictionary
-        and hasattr(mw.ankiDictionary, "resetConfiguration")
+        hasattr(aqt.mw, "ankiDictionary")
+        and aqt.mw.ankiDictionary
+        and hasattr(aqt.mw.ankiDictionary, "resetConfiguration")
     ):
         try:
             # We don't want to pass the config object as terms to resetConfiguration
             # just trigger a reload of settings and groups.
-            mw.ankiDictionary.resetConfiguration()  # ty:ignore[call-non-callable]
+            aqt.mw.ankiDictionary.resetConfiguration()  # ty:ignore[call-non-callable]
         except Exception as e:
             logger.error(f"Error refreshing dictionary configuration: {e}")
 
 
-def save_addon_config(config: Dict[str, Any]) -> bool:
+def save_addon_config(config: dict[str, Any]) -> bool:
     """
     Save addon configuration safely.
 
@@ -175,13 +174,13 @@ def save_addon_config(config: Dict[str, Any]) -> bool:
         logger.debug("Could not save config to addon state")
 
     # 2. Update legacy location
-    if hasattr(mw, "__dict__"):
-        mw.__dict__["AnkiDictConfig"] = config
+    if hasattr(aqt.mw, "__dict__"):
+        aqt.mw.__dict__["AnkiDictConfig"] = config
 
     # 3. Save to Anki's config manager
     try:
         addon_name = get_addon_name()
-        mw.addonManager.writeConfig(addon_name, config)
+        aqt.mw.addonManager.writeConfig(addon_name, config)
     except Exception:
         return False
 

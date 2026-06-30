@@ -122,7 +122,7 @@ class NoteAssembler:
                         definition_list, dictionary
                     )
         unspecified = template["unspecified"]
-        for idx, def_list in enumerate(definition_list):
+        for _idx, def_list in enumerate(definition_list):
             if unspecified not in fields:
                 fields[unspecified] = [def_list[2]]
             else:

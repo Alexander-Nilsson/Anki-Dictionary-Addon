@@ -1,16 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 Utility for handling icons and base64 encoding.
 """
 
-import os
 import base64
+import os
 from functools import lru_cache
-from os.path import join, dirname
 
-
-from ..utils.paths import get_icons_dir
 from ..utils.logger import get_logger
+from ..utils.paths import get_icons_dir
 
 logger = get_logger(__name__.split(".")[-1])
 

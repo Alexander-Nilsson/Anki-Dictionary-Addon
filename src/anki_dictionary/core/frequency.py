@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from ..utils.config import get_addon_config
 from ..utils.logger import get_logger
-from ..utils.paths import get_db_dir
 from .word_list_registry import WordListProvider, WordListRegistry
 
 logger = get_logger(__name__.split(".")[-1])
@@ -27,8 +25,8 @@ KATAKANA = (
 
 _HIRA_ORDS = [ord(c) for c in HIRAGANA]
 _KATA_ORDS = [ord(c) for c in KATAKANA]
-_HIRAGANA_TABLE = dict(zip(_KATA_ORDS, HIRAGANA))
-_KATAKANA_TABLE = dict(zip(_HIRA_ORDS, KATAKANA))
+_HIRAGANA_TABLE = dict(zip(_KATA_ORDS, HIRAGANA, strict=True))
+_KATAKANA_TABLE = dict(zip(_HIRA_ORDS, KATAKANA, strict=True))
 
 
 def kana_converter(to_translate: str, hiraganer: bool = False) -> str:
@@ -43,7 +41,7 @@ def adjust_reading(reading: str) -> str:
 
 
 def get_star_count(
-    freq: int, star_char: str = "\u2605", thresholds: Optional[List[int]] = None
+    freq: int, star_char: str = "\u2605", thresholds: list[int] | None = None
 ) -> str:
     """Convert frequency rank to star rating string."""
     if thresholds is None:
@@ -74,13 +72,13 @@ class FrequencyEngine:
     To test with fake providers, pass a list of WordListProvider directly.
     """
 
-    def __init__(self, registry: Optional[WordListRegistry] = None) -> None:
+    def __init__(self, registry: WordListRegistry | None = None) -> None:
         self._registry = registry
 
     # ── public ─────────────────────────────────────
 
     @staticmethod
-    def _get_display_name(name: str, display_names: Dict[str, str]) -> str:
+    def _get_display_name(name: str, display_names: dict[str, str]) -> str:
         cfg = display_names.get(name)
         if cfg:
             return cfg
@@ -94,8 +92,8 @@ class FrequencyEngine:
     @staticmethod
     def _get_provider_role(
         provider: WordListProvider,
-        provider_roles: Dict[str, str],
-        word_list_visibility: Dict[str, Dict[str, bool]],
+        provider_roles: dict[str, str],
+        word_list_visibility: dict[str, dict[str, bool]],
     ) -> str:
         """Resolve the role for *provider*.
 
@@ -118,9 +116,9 @@ class FrequencyEngine:
 
     def apply(
         self,
-        entry: Dict[str, Any],
-        providers: List[WordListProvider],
-        config: Dict[str, Any],
+        entry: dict[str, Any],
+        providers: list[WordListProvider],
+        config: dict[str, Any],
     ) -> None:
         """Mutate *entry* in-place with starCount, frequency, levelLabels."""
         if not providers:
@@ -133,8 +131,8 @@ class FrequencyEngine:
         word_list_display_names = config.get("word_list_display_names", {})
         provider_roles = config.get("provider_roles", {})
 
-        levels: List[str] = []
-        frequency: Optional[int] = None
+        levels: list[str] = []
+        frequency: int | None = None
         term = entry["term"]
         alt = entry.get("altterm", "")
         entry_reading = adjust_reading(entry.get("pronunciation", "") or term)
@@ -196,7 +194,7 @@ class FrequencyEngine:
             entry["starCount"] = ""
             entry.pop("frequency", None)
 
-    def get_providers_for_lang(self, lang: str) -> List[WordListProvider]:
+    def get_providers_for_lang(self, lang: str) -> list[WordListProvider]:
         if self._registry is None:
             return []
         return self._registry.get_providers(lang)

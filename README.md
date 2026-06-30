@@ -5,7 +5,7 @@
   <a href="https://ankiweb.net/shared/info/1973740182">
     <img src="https://img.shields.io/badge/AnkiWeb-1973740182-blue.svg" alt="AnkiWeb ID">
   </a>
-  <a href="https://www.gnu.org/licenses/agpl-3.0.html" title="License: GNU AGPLv3">
+  <a href="LICENSE" title="License: GNU AGPLv3">
     <img src="https://img.shields.io/badge/license-GNU%20AGPLv3-green.svg" alt="License: GNU AGPLv3">
   </a>
   <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/actions/workflows/ci.yml" title="CI status">
@@ -68,7 +68,7 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 
 The **Anki Dictionary Addon** is a successor to the [Migaku Dictionary Addon](https://github.com/migaku-official/Migaku-Dictionary-Addon).
 
-This project is **free and open-source software**. The code is released under the **GNU AGPLv3 license**. Please see the [LICENSE](https://www.gnu.org/licenses/agpl-3.0.html) file for details.
+This project is **free and open-source software**. The code is released under the **GNU AGPLv3 license**. Please see the [LICENSE](LICENSE) file for details.
 
 -----
 

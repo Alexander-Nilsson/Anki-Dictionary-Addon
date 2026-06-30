@@ -6,7 +6,6 @@ import re
 import shutil
 import time
 from os.path import exists, join
-from typing import Optional, Tuple
 from urllib.request import Request, urlopen
 
 from aqt.qt import QImage, QSize, Qt
@@ -120,7 +119,7 @@ def scale_image(
         return False
 
 
-def copy_to_media(source: str, filename: str, media_dir: str) -> Optional[str]:
+def copy_to_media(source: str, filename: str, media_dir: str) -> str | None:
     dest = join(media_dir, filename)
     if exists(source) and not exists(dest):
         try:
@@ -134,7 +133,7 @@ def copy_to_media(source: str, filename: str, media_dir: str) -> Optional[str]:
 
 def copy_to_temp(
     source: str, temp_dir: str, ext: str = "mp3"
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     try:
         if not exists(source):
             return None, None
@@ -169,7 +168,7 @@ def remove_file(path: str) -> None:
         logger.warning(f"Failed to remove {path}: {e}")
 
 
-def load_image_from_url(url: str) -> Optional[QImage]:
+def load_image_from_url(url: str) -> QImage | None:
     try:
         if url.startswith("data:"):
             _, encoded = url.split(",", 1)

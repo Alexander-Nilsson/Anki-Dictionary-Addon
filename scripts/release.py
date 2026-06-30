@@ -9,9 +9,9 @@ This script helps automate the release process:
 4. GitHub Actions will then build and create the release automatically
 """
 
+import re
 import subprocess
 import sys
-import re
 from pathlib import Path
 
 
@@ -28,7 +28,7 @@ def get_current_version():
             # Fallback to toml library
             import toml
 
-            with open("pyproject.toml", "r") as f:
+            with open("pyproject.toml") as f:
                 config = toml.load(f)
 
         return config["project"]["version"]
@@ -43,7 +43,7 @@ def update_version(new_version):
 
     # 1. Update pyproject.toml
     try:
-        with open("pyproject.toml", "r") as f:
+        with open("pyproject.toml") as f:
             content = f.read()
         pattern = r'version\s*=\s*["\'][^"\']*["\']'
         replacement = f'version = "{new_version}"'
@@ -59,7 +59,7 @@ def update_version(new_version):
     init_path = Path("src/anki_dictionary/__init__.py")
     if init_path.exists():
         try:
-            with open(init_path, "r") as f:
+            with open(init_path) as f:
                 content = f.read()
             pattern = r'__version__\s*=\s*["\'][^"\']*["\']'
             replacement = f'__version__ = "{new_version}"'
@@ -222,10 +222,10 @@ def main():
     # Confirm with user
     print("\nThis will:")
     print(f"  • Update version in pyproject.toml to {new_version}")
-    print(f"  • Commit the change")
+    print("  • Commit the change")
     print(f"  • Create tag v{new_version}")
-    print(f"  • Push to remote repository")
-    print(f"  • Trigger GitHub Actions to build and release")
+    print("  • Push to remote repository")
+    print("  • Trigger GitHub Actions to build and release")
     print()
 
     confirm = input("Continue with release? (y/N): ")

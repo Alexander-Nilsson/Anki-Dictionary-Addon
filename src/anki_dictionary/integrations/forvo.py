@@ -1,22 +1,22 @@
-# -*- coding: utf-8 -*-
 """
 Forvo Integration for Anki Dictionary.
 Scrapes pronunciations from Forvo.com.
 """
 
-import re
 import base64
+import re
 import subprocess
 import sys
 import time
-from typing import Dict, Any, Tuple
-from bs4 import BeautifulSoup
 import urllib.parse
+from typing import Any
+
+from bs4 import BeautifulSoup
 
 try:
-    from aqt.qt import QObject, pyqtSignal, QRunnable
+    from aqt.qt import QObject, QRunnable, pyqtSignal
 except ImportError:
-    from PyQt6.QtCore import QObject, pyqtSignal, QRunnable
+    from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
 
 from ..utils.logger import get_logger
 
@@ -69,7 +69,7 @@ class ForvoWorkerSignals(QObject):
     finished = pyqtSignal()
 
 
-def _fetch_url(url: str, timeout: int = 15) -> Tuple[int, str]:
+def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
     """Fetch a Forvo page using curl, which bypasses Cloudflare TLS fingerprinting."""
     last_error = None
     for attempt in range(3):
@@ -123,7 +123,7 @@ class ForvoWorker(QRunnable):
     """Worker for scraping Forvo in a separate thread."""
 
     def __init__(
-        self, term: str, language_code: str, config: Dict[str, Any], idName: str = ""
+        self, term: str, language_code: str, config: dict[str, Any], idName: str = ""
     ):
         super().__init__()
         self.term = term

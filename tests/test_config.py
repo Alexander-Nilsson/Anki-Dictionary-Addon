@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
-import json
-import unittest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
-
 import sys
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 _src = str(Path(__file__).parent.parent / "src")
 if _src not in sys.path:
@@ -14,8 +11,8 @@ if _src not in sys.path:
 
 from anki_dictionary.utils.config import (
     get_addon_config,
-    save_addon_config,
     refresh_anki_dict_config,
+    save_addon_config,
 )
 
 
@@ -23,7 +20,7 @@ class TestConfig(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
 
-    @patch("anki_dictionary.utils.config.mw")
+    @patch("anki_dictionary.utils.config.aqt.mw")
     @patch("anki_dictionary.utils.config.get_addon_root")
     def test_get_addon_config_fallback_defaults(self, mock_root, mock_mw):
         mock_root.return_value = "/fake/addon"
@@ -39,7 +36,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(result["currentGroup"], "All")
         self.assertEqual(result["forvo_enabled"], True)
 
-    @patch("anki_dictionary.utils.config.mw")
+    @patch("anki_dictionary.utils.config.aqt.mw")
     @patch("anki_dictionary.utils.config.get_addon_root")
     def test_save_and_refresh_config(self, mock_root, mock_mw):
         mock_root.return_value = "/fake/addon"
@@ -49,7 +46,7 @@ class TestConfig(unittest.TestCase):
         result = save_addon_config(config)
         self.assertTrue(result)
 
-    @patch("anki_dictionary.utils.config.mw")
+    @patch("anki_dictionary.utils.config.aqt.mw")
     def test_refresh_config_with_dict(self, mock_mw):
         mock_mw.ankiDictionary = MagicMock()
         mock_mw.ankiDictionary.isVisible.return_value = True
@@ -58,7 +55,7 @@ class TestConfig(unittest.TestCase):
         refresh_anki_dict_config(config)
         mock_mw.ankiDictionary.resetConfiguration.assert_called_once()
 
-    @patch("anki_dictionary.utils.config.mw")
+    @patch("anki_dictionary.utils.config.aqt.mw")
     def test_get_addon_config_from_state(self, mock_mw):
         from __init__ import get_addon_state
 

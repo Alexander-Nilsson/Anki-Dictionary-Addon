@@ -1,26 +1,26 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
-from anki.notes import Note
 from anki.collection import Collection
+from anki.notes import Note
 
 
 def add_note(note: Note, did: int, collection: Collection) -> None:
     collection.add_note(note, did)  # ty:ignore[invalid-argument-type]
 
 
-def get_decks(collection: Collection) -> List[Tuple[int, str]]:
+def get_decks(collection: Collection) -> list[tuple[int, str]]:
     decks = collection.decks.all_names_and_ids()
     return [(d.id, d.name) for d in decks]
 
 
 def get_fields_values(
-    config: Dict[str, Any], db: Any, note: Note, template: str
-) -> Dict[str, str]:
+    config: dict[str, Any], db: Any, note: Note, template: str
+) -> dict[str, str]:
     field_map = config.get("fieldNameToValue", {})
     fields_config = config.get("fieldConfig", {})
-    values: Dict[str, str] = {}
+    values: dict[str, str] = {}
     nt = note.note_type()
     if nt is None:
         return values
@@ -49,7 +49,7 @@ def automatically_add_definitions(
                 note[name] = word
 
 
-def extract_freq_info(entry: Dict[str, Any], config: Dict[str, Any]) -> Tuple[str, str]:
+def extract_freq_info(entry: dict[str, Any], config: dict[str, Any]) -> tuple[str, str]:
     star_count = entry.get("starCount", "")
     level_labels = entry.get("levelLabels", "")
     return star_count, level_labels
