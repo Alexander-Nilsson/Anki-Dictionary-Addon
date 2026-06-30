@@ -128,12 +128,12 @@ class CardExporter:
         self,
         dictInt,
         dictWeb,
-        templates=None,
+        _unused_templates=None,
         sentence=False,
         word=False,
         definition=False,
     ):
-        if templates is None:
+        if _unused_templates is None:
             templates = []
         self.window = QWidget()
         self.scrollArea = QScrollArea()
