@@ -45,7 +45,7 @@ if vendor_path not in sys.path:
 # Special check for broken PIL in vendor (often happens if bundled on different OS)
 if os.path.exists(os.path.join(vendor_path, "PIL")):
     try:
-        import PIL  # noqa: F401
+        __import__("PIL")
     except ImportError:
         # If it's broken, remove vendor from path temporarily or handle it
         pass
