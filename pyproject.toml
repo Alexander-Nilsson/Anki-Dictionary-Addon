@@ -58,6 +58,7 @@ quote-style = "double"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["E402"]
+"src/anki_dictionary/core/clip_thread.py" = ["B010"]
 
 [tool.ty]
 
