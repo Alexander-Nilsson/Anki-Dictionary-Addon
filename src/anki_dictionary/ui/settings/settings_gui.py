@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 #
 #
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from os.path import dirname, join
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
+from anki.utils import is_win
 from aqt.qt import (
     QCheckBox,
     QComboBox,
@@ -23,29 +24,29 @@ from aqt.qt import (
     QScrollArea,
     QShortcut,
     QSpinBox,
+    Qt,
     QTabWidget,
     QUrl,
     QVBoxLayout,
     QWidget,
-    Qt,
 )
-from anki.utils import is_mac, is_win, is_lin
-from .llm_settings_tab import LLMSettingsTab
-from .forvo_settings_tab import ForvoSettingsTab
-from .frequency_settings_tab import FrequencySettingsTab
-from .dict_groups_tab import DictionaryGroupsTab
-from .export_templates_tab import ExportTemplatesTab
-from ...utils.common import miInfo, miAsk
-from ..dialogs.dictionary_manager import DictionaryManagerWidget
+
+from ...utils.common import miAsk
 from ...utils.config import get_addon_config, save_addon_config
 from ...utils.constants import COUNTRY_LIST
+from ..dialogs.dictionary_manager import DictionaryManagerWidget
+from .dict_groups_tab import DictionaryGroupsTab
+from .export_templates_tab import ExportTemplatesTab
+from .forvo_settings_tab import ForvoSettingsTab
+from .frequency_settings_tab import FrequencySettingsTab
+from .llm_settings_tab import LLMSettingsTab
 
 verNumber = "0.1"
 
 
 class SettingsGui(QWidget):
     def __init__(self, mw: Any, path: str, reboot: Callable[[], None]) -> None:
-        super(SettingsGui, self).__init__()
+        super().__init__()
         self.mw = mw
         self.reboot = reboot
         self.addonPath = path
@@ -186,7 +187,7 @@ class SettingsGui(QWidget):
 
         self.llmTab.init_tooltips()
 
-    def getConfig(self) -> Dict[str, Any]:
+    def getConfig(self) -> dict[str, Any]:
         return get_addon_config()
 
     def loadConfig(self) -> None:
@@ -243,7 +244,7 @@ class SettingsGui(QWidget):
     def loadTemplateTable(self) -> None:
         self.exportTemplatesTab.loadTemplateTable()
 
-    def getDictionaryNames(self) -> List[str]:
+    def getDictionaryNames(self) -> list[str]:
         dictList = self.mw.miDictDB.getAllDictsWithLang()
         dictionaryList = []
         for dictionary in dictList:
@@ -377,6 +378,6 @@ class SettingsGui(QWidget):
     def getHTML(self) -> tuple:
         htmlPath = join(self.addonPath, "guide.html")
         url = QUrl.fromLocalFile(htmlPath)
-        with open(htmlPath, "r", encoding="utf-8") as fh:
+        with open(htmlPath, encoding="utf-8") as fh:
             html = fh.read()
         return html, url

@@ -1,23 +1,22 @@
-# -*- coding: utf-8 -*-
-
-import sqlite3
+import json
 import os
 import re
-import json
-from typing import Any, Dict, List, Optional, Tuple
+import sqlite3
+from typing import Any
 
 from aqt import mw
+
+from ..utils.common import miInfo
+from ..utils.config import get_addon_config
+from ..utils.logger import get_logger
 from ..utils.paths import (
+    get_addon_name,
     get_addon_root,
     get_db_dir,
-    get_addon_name,
 )
-from ..utils.common import miInfo
-from ..utils.logger import get_logger
-from ..utils.config import get_addon_config
+from .frequency import FrequencyEngine
 from .search.query import SearchQueryBuilder
 from .word_list_registry import WordListRegistry
-from .frequency import FrequencyEngine
 
 # Initialize logger
 logger = get_logger("database")
@@ -28,12 +27,12 @@ class DictDB:
 
     def __init__(self) -> None:
         """Initialize the database connection."""
-        self.conn: Optional[sqlite3.Connection] = None
-        self.c: Optional[sqlite3.Cursor] = None
-        self.oldConnection: Optional[sqlite3.Cursor] = None
-        self._extra_data_cache: Dict[str, List[Any]] = {}
-        self._registry: Optional[WordListRegistry] = None
-        self._frequency_engine: Optional[FrequencyEngine] = None
+        self.conn: sqlite3.Connection | None = None
+        self.c: sqlite3.Cursor | None = None
+        self.oldConnection: sqlite3.Cursor | None = None
+        self._extra_data_cache: dict[str, list[Any]] = {}
+        self._registry: WordListRegistry | None = None
+        self._frequency_engine: FrequencyEngine | None = None
         self.search_query_builder = SearchQueryBuilder(self)
 
         # Get the root addon directory
@@ -99,7 +98,7 @@ class DictDB:
         if self.conn:
             self.conn.close()
 
-    def _get_extra_data(self, lang: str) -> List[Any]:
+    def _get_extra_data(self, lang: str) -> list[Any]:
         """Load all frequency and level data for a language via WordListRegistry."""
         if lang in self._extra_data_cache:
             return self._extra_data_cache[lang]
@@ -122,9 +121,9 @@ class DictDB:
 
     def _apply_frequency_info(
         self,
-        entry: Dict[str, Any],
-        providers: List[Any],
-        config: Dict[str, Any],
+        entry: dict[str, Any],
+        providers: list[Any],
+        config: dict[str, Any],
     ) -> None:
         if self._frequency_engine is not None:
             self._frequency_engine.apply(entry, providers, config)
@@ -139,7 +138,7 @@ class DictDB:
 
         return adjust_reading(reading)
 
-    def getLangId(self, lang: str) -> Optional[int]:
+    def getLangId(self, lang: str) -> int | None:
         """Get language ID from language name."""
         if not self._ensure_connection():
             return None
@@ -170,7 +169,7 @@ class DictDB:
         self.commitChanges()
         cursor.execute("VACUUM;")
 
-    def getLangIdFromDict(self, dictname: str) -> Optional[int]:
+    def getLangIdFromDict(self, dictname: str) -> int | None:
         """Get language ID for a given dictionary name."""
         if not self._ensure_connection():
             return None
@@ -181,7 +180,7 @@ class DictDB:
         result = cursor.fetchone()
         return result[0] if result else None
 
-    def getDictsByLanguage(self, lang: str) -> List[str]:
+    def getDictsByLanguage(self, lang: str) -> list[str]:
         """Get all dictionary names for a given language."""
         if not self._ensure_connection():
             return []
@@ -189,7 +188,7 @@ class DictDB:
         cursor = self._get_cursor()
         cursor.execute("SELECT dictname FROM dictnames WHERE lid = ?;", (lid,))
         try:
-            langs: List[str] = []
+            langs: list[str] = []
             allLs = cursor.fetchall()
             if len(allLs) > 0:
                 for l in allLs:
@@ -215,7 +214,7 @@ class DictDB:
 
     def addDict(
         self, dictname: str, lang: str, termHeader: str
-    ) -> Tuple[bool, str, Optional[str]]:
+    ) -> tuple[bool, str, str | None]:
         """Add a new dictionary to the database."""
         if not self._ensure_connection():
             return False, "Database connection failed", None
@@ -312,7 +311,7 @@ class DictDB:
 
         return result if result else "unnamed_dictionary"
 
-    def formatDictName(self, lid: Optional[int], name: str) -> str:
+    def formatDictName(self, lid: int | None, name: str) -> str:
         """Format dictionary name with language ID prefix."""
         return "l" + str(lid) + "name" + name
 
@@ -326,7 +325,7 @@ class DictDB:
         self.commitChanges()
         cursor.execute("VACUUM;")
 
-    def addLanguages(self, list: List[str]) -> None:
+    def addLanguages(self, list: list[str]) -> None:
         """Add multiple languages to the database."""
         if not self._ensure_connection():
             return
@@ -335,14 +334,14 @@ class DictDB:
             cursor.execute("INSERT INTO langnames (langname) VALUES (?);", (l,))
         self.commitChanges()
 
-    def getCurrentDbLangs(self) -> List[str]:
+    def getCurrentDbLangs(self) -> list[str]:
         """Get all languages currently in the database."""
         if not self._ensure_connection():
             return []
         cursor = self._get_cursor()
         cursor.execute("SELECT langname FROM langnames;")
         try:
-            langs: List[str] = []
+            langs: list[str] = []
             allLs = cursor.fetchall()
             if len(allLs) > 0:
                 for l in allLs:
@@ -351,10 +350,10 @@ class DictDB:
         except Exception:
             return []
 
-    def getUserGroups(self, dicts: List[str]) -> List[Dict[str, str]]:
+    def getUserGroups(self, dicts: list[str]) -> list[dict[str, str]]:
         """Get user dictionary groups based on provided dictionary names."""
         currentDicts = self.getDictToTable()
-        foundDicts: List[Dict[str, str]] = []
+        foundDicts: list[dict[str, str]] = []
         for d in dicts:
             # Check for both raw table name and clean name
             if d in currentDicts:
@@ -373,7 +372,7 @@ class DictDB:
                     foundDicts.append(currentDicts[clean_d])
         return foundDicts
 
-    def getDictToTable(self) -> Dict[str, Dict[str, str]]:
+    def getDictToTable(self) -> dict[str, dict[str, str]]:
         """Get dictionary to table mapping."""
         if not self._ensure_connection():
             return {}
@@ -382,7 +381,7 @@ class DictDB:
             "SELECT dictname, lid, langname FROM dictnames INNER JOIN langnames ON langnames.id = dictnames.lid;"
         )
         try:
-            dicts: Dict[str, Dict[str, str]] = {}
+            dicts: dict[str, dict[str, str]] = {}
             allDs = cursor.fetchall()
             if len(allDs) > 0:
                 for d in allDs:
@@ -402,14 +401,14 @@ class DictDB:
         except:
             return {}
 
-    def fetchDefs(self) -> List[str]:
+    def fetchDefs(self) -> list[str]:
         """Fetch definitions from dictname table."""
         if not self._ensure_connection():
             return []
         cursor = self._get_cursor()
         cursor.execute("SELECT definition FROM dictname LIMIT 10;")
         try:
-            langs: List[str] = []
+            langs: list[str] = []
             allLs = cursor.fetchall()
             if len(allLs) > 0:
                 for l in allLs:
@@ -418,14 +417,14 @@ class DictDB:
         except Exception:
             return []
 
-    def getAllDicts(self) -> List[str]:
+    def getAllDicts(self) -> list[str]:
         """Get all dictionary names formatted with language prefix."""
         if not self._ensure_connection():
             return []
         cursor = self._get_cursor()
         cursor.execute("SELECT dictname, lid FROM dictnames;")
         try:
-            dicts: List[str] = []
+            dicts: list[str] = []
             allDs = cursor.fetchall()
             if len(allDs) > 0:
                 for d in allDs:
@@ -434,7 +433,7 @@ class DictDB:
         except Exception:
             return []
 
-    def getAllDictsWithLang(self) -> List[Dict[str, str]]:
+    def getAllDictsWithLang(self) -> list[dict[str, str]]:
         """Get all dictionaries with their languages."""
         if not self._ensure_connection():
             return []
@@ -443,7 +442,7 @@ class DictDB:
             "SELECT dictname, lid, langname FROM dictnames INNER JOIN langnames ON langnames.id = dictnames.lid;"
         )
         try:
-            dicts: List[Dict[str, str]] = []
+            dicts: list[dict[str, str]] = []
             allDs = cursor.fetchall()
             if len(allDs) > 0:
                 for d in allDs:
@@ -454,10 +453,10 @@ class DictDB:
         except Exception:
             return []
 
-    def getDefaultGroups(self) -> Dict[str, Dict[str, Any]]:
+    def getDefaultGroups(self) -> dict[str, dict[str, Any]]:
         """Get default dictionary groups by language."""
         langs = self.getCurrentDbLangs()
-        dictsByLang: Dict[str, Dict[str, Any]] = {}
+        dictsByLang: dict[str, dict[str, Any]] = {}
         cursor = self._get_cursor()
         for lang in langs:
             cursor.execute(
@@ -465,7 +464,7 @@ class DictDB:
                 (lang,),
             )
             allDs = cursor.fetchall()
-            dicts: Dict[str, Any] = {}
+            dicts: dict[str, Any] = {}
             dicts["customFont"] = False
             dicts["font"] = False
             dicts["dictionaries"] = []
@@ -482,7 +481,7 @@ class DictDB:
         """Clean language ID prefix from dictionary name."""
         return re.sub(r"l\d+name", "", name)
 
-    def getDuplicateSetting(self, name: str) -> Optional[Tuple[int, List[str]]]:
+    def getDuplicateSetting(self, name: str) -> tuple[int, list[str]] | None:
         """Get duplicate setting for a dictionary."""
         if not self._ensure_connection():
             return None
@@ -502,8 +501,8 @@ class DictDB:
             return None
 
     def get_term_frequency_info(
-        self, term: str, lang: str, config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, term: str, lang: str, config: dict[str, Any]
+    ) -> dict[str, Any]:
         return self.search_query_builder.get_term_frequency_info(term, lang, config)
 
     def searchTerm(
@@ -564,7 +563,7 @@ class DictDB:
         )
 
     def importToDict(
-        self, dictName: str, dictionaryData: List[Tuple[Any, ...]]
+        self, dictName: str, dictionaryData: list[tuple[Any, ...]]
     ) -> None:
         """Import dictionary data to specified dictionary table."""
         if not self._ensure_connection():
@@ -617,7 +616,7 @@ class DictDB:
         )
         self.commitChanges()
 
-    def getFieldsSetting(self, name: str) -> Optional[Dict[str, Any]]:
+    def getFieldsSetting(self, name: str) -> dict[str, Any] | None:
         """Get fields setting for a dictionary."""
         if not self._ensure_connection():
             return None
@@ -637,9 +636,7 @@ class DictDB:
         except Exception:
             return None
 
-    def getAddTypeAndFields(
-        self, dictName: str
-    ) -> Optional[Tuple[Dict[str, Any], str]]:
+    def getAddTypeAndFields(self, dictName: str) -> tuple[dict[str, Any], str] | None:
         """Get add type and fields for a dictionary."""
         if not self._ensure_connection():
             return None
@@ -658,7 +655,7 @@ class DictDB:
         except Exception:
             return None
 
-    def getDupHeaders(self) -> Optional[Dict[str, int]]:
+    def getDupHeaders(self) -> dict[str, int] | None:
         """Get duplicate headers for all dictionaries."""
         if not self._ensure_connection():
             return None
@@ -666,7 +663,7 @@ class DictDB:
         cursor.execute("SELECT dictname, duplicateHeader FROM dictnames")
         try:
             dictHeaders = cursor.fetchall()
-            results: Dict[str, int] = {}
+            results: dict[str, int] = {}
             for r in dictHeaders:
                 results[r[0]] = r[1]
             return results
@@ -685,7 +682,7 @@ class DictDB:
         )
         self.commitChanges()
 
-    def getTermHeaders(self) -> Optional[Dict[str, List[str]]]:
+    def getTermHeaders(self) -> dict[str, list[str]] | None:
         """Get term headers for all dictionaries."""
         if not self._ensure_connection():
             return None
@@ -693,14 +690,14 @@ class DictDB:
         cursor.execute("SELECT dictname, termHeader FROM dictnames")
         try:
             dictHeaders = cursor.fetchall()
-            results: Dict[str, List[str]] = {}
+            results: dict[str, list[str]] = {}
             for r in dictHeaders:
                 results[r[0]] = json.loads(r[1])
             return results
         except Exception:
             return None
 
-    def getAddType(self, name: str) -> Optional[str]:
+    def getAddType(self, name: str) -> str | None:
         """Get add type for a dictionary."""
         if not self._ensure_connection():
             return None
@@ -713,7 +710,7 @@ class DictDB:
         result = cursor.fetchone()
         return result[0] if result else None
 
-    def getDictTermHeader(self, dictname: str) -> Optional[str]:
+    def getDictTermHeader(self, dictname: str) -> str | None:
         """Get term header for a specific dictionary."""
         if not self._ensure_connection():
             return None

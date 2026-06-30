@@ -5,8 +5,8 @@ Database initialization script for Anki Dictionary Addon
 This script creates a new empty database with the required schema for the addon.
 """
 
-import sqlite3
 import os
+import sqlite3
 import sys
 
 

@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import hashlib
 import os
-import re
 import ssl
 import tempfile
 import unittest
@@ -348,7 +346,7 @@ class TestLogDebug(unittest.TestCase):
                 log_debug("test message")
                 log_path = os.path.join(tmpdir, "image_search_debug.log")
                 self.assertTrue(os.path.exists(log_path))
-                with open(log_path, "r", encoding="utf-8") as f:
+                with open(log_path, encoding="utf-8") as f:
                     content = f.read()
                 self.assertIn("test message", content)
 

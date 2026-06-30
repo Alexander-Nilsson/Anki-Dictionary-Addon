@@ -1,6 +1,11 @@
-# -*- coding: utf-8 -*-
 #
 
+import re
+from os.path import join
+
+from anki import sound
+from anki.notes import Note
+from anki.utils import is_mac
 from aqt import dialogs
 from aqt.qt import (
     QAbstractItemView,
@@ -18,37 +23,31 @@ from aqt.qt import (
     QScrollArea,
     QShortcut,
     QSpinBox,
+    Qt,
     QTableWidget,
     QTableWidgetItem,
     QTextCharFormat,
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    Qt,
 )
-from anki.utils import is_mac
 from aqt.utils import ensureWidgetInScreenBoundaries
-from os.path import join
-from ..utils.common import miInfo, miAsk
+
+from ..utils.common import miAsk, miInfo
 from ..utils.config import get_addon_config
-from anki.notes import Note
-from anki import sound
-import re
-
-from . import note_creator
 from ..utils.logger import get_logger
-
+from . import note_creator
+from .bulk_processor import BulkProcessor
 from .html_cleaner import HtmlCleaner
 from .media_transfer import MediaTransfer
 from .note_assembler import NoteAssembler
-from .bulk_processor import BulkProcessor
 
 logger = get_logger(__name__.split(".")[-1])
 
 
 class MITextEdit(QTextEdit):
     def __init__(self, parent=None, dictInt=None):
-        super(MITextEdit, self).__init__(parent)
+        super().__init__(parent)
         self.dictInt = dictInt
         self.setAcceptRichText(False)
 
@@ -94,9 +93,7 @@ class MITextEdit(QTextEdit):
     def searchSelected(self, in_browser):
         if in_browser:
             b = dialogs.open("Browser", self.dictInt.mw)  # ty:ignore[unresolved-attribute]
-            b.form.searchEdit.lineEdit().setText(
-                "expression:*{0}*".format(self.selectedText())
-            )
+            b.form.searchEdit.lineEdit().setText(f"expression:*{self.selectedText()}*")
             b.onSearchActivated()
         else:
             self.dictInt.initSearch(self.selectedText())  # ty:ignore[unresolved-attribute]
@@ -107,7 +104,7 @@ class MITextEdit(QTextEdit):
 
 class MILineEdit(QLineEdit):
     def __init__(self, parent=None, dictInt=None):
-        super(MILineEdit, self).__init__(parent)
+        super().__init__(parent)
         self.dictInt = dictInt
 
     def contextMenuEvent(self, event):  # ty:ignore[invalid-method-override]
@@ -120,9 +117,7 @@ class MILineEdit(QLineEdit):
     def searchSelected(self, in_browser):
         if in_browser:
             b = dialogs.open("Browser", self.dictInt.mw)  # ty:ignore[unresolved-attribute]
-            b.form.searchEdit.lineEdit().setText(
-                "Expression:*{0}*".format(self.selectedText())
-            )
+            b.form.searchEdit.lineEdit().setText(f"Expression:*{self.selectedText()}*")
             b.onSearchActivated()
         else:
             self.dictInt.initSearch(self.selectedText())  # ty:ignore[unresolved-attribute]
@@ -133,11 +128,13 @@ class CardExporter:
         self,
         dictInt,
         dictWeb,
-        templates=[],
+        templates=None,
         sentence=False,
         word=False,
         definition=False,
     ):
+        if templates is None:
+            templates = []
         self.window = QWidget()
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidget(self.window)

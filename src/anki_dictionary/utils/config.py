@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Configuration utilities for the Anki Dictionary Addon.
 
@@ -6,20 +5,20 @@ This module provides safe access to addon configuration that works
 regardless of the module path or Anki version.
 """
 
+import json
 import os
 import sys
-import json
-from typing import Any, Dict, Optional
+from typing import Any
+
 from aqt import mw
 
-
-from .paths import get_addon_root, get_addon_name
 from .logger import get_logger
+from .paths import get_addon_name, get_addon_root
 
 logger = get_logger(__name__.split(".")[-1])
 
 
-def get_addon_config() -> Dict[str, Any]:
+def get_addon_config() -> dict[str, Any]:
     """
     Get addon configuration safely.
 
@@ -71,7 +70,7 @@ def get_addon_config() -> Dict[str, Any]:
         addon_root = get_addon_root()
         config_path = os.path.join(addon_root, "config.json")
         if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
         logger.debug("Could not load config from config.json")
@@ -112,7 +111,7 @@ def get_addon_config() -> Dict[str, Any]:
 
 
 def refresh_anki_dict_config(
-    config: Optional[Dict[str, Any]] = None, force: bool = False
+    config: dict[str, Any] | None = None, force: bool = False
 ) -> None:
     """
     Refresh the addon configuration and update the dictionary window if it exists.
@@ -145,7 +144,7 @@ def refresh_anki_dict_config(
             logger.error(f"Error refreshing dictionary configuration: {e}")
 
 
-def save_addon_config(config: Dict[str, Any]) -> bool:
+def save_addon_config(config: dict[str, Any]) -> bool:
     """
     Save addon configuration safely.
 

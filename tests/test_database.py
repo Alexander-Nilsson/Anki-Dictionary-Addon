@@ -1,19 +1,16 @@
-# -*- coding: utf-8 -*-
-import unittest
-from unittest.mock import MagicMock, patch
-import os
-import sqlite3
-import tempfile
-import sys
 import json
+import os
+import sys
+import tempfile
+import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from anki_dictionary.core.database import DictDB
 from anki_dictionary.core.search.query import SearchQueryBuilder
-from anki_dictionary.core.word_list_registry import WordListProvider
 from scripts.create_empty_db import create_empty_database
 
 

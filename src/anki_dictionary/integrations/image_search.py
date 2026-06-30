@@ -1,27 +1,26 @@
-# -*- coding: utf-8 -*-
-
+import concurrent.futures
+import hashlib
+import json
 import os
 import platform
-from os.path import dirname, join
-import requests
 import re
 import ssl
-import hashlib
-import concurrent.futures
-import json
+import urllib.parse
+from os.path import dirname, join
+
+import requests
 import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.ssl_ import create_urllib3_context
-import urllib.parse
 
 try:
-    from aqt.qt import QRunnable, QObject, pyqtSignal, QImage, QSize, Qt
+    from aqt.qt import QImage, QObject, QRunnable, QSize, Qt, pyqtSignal
 except ImportError:
-    from PyQt6.QtCore import QRunnable, QObject, pyqtSignal, QSize, Qt
+    from PyQt6.QtCore import QObject, QRunnable, QSize, Qt, pyqtSignal
     from PyQt6.QtGui import QImage
 
-from ..utils.constants import COUNTRY_TO_DDG
 from ..utils.common import prefer_ipv4
+from ..utils.constants import COUNTRY_TO_DDG
 from ..utils.logger import get_logger
 
 logger = get_logger("ImageSearch")
@@ -105,7 +104,9 @@ def _make_session():
     """
     if _ON_MAC:
         try:
-            from curl_cffi import requests as curl_requests  # ty:ignore[unresolved-import]
+            from curl_cffi import (
+                requests as curl_requests,  # ty:ignore[unresolved-import]
+            )
         except ImportError:
             # Inject vendor paths manually using our known addon_path
             import sys
@@ -121,7 +122,9 @@ def _make_session():
                 sys.path.insert(0, mac_vendor)
 
             try:
-                from curl_cffi import requests as curl_requests  # ty:ignore[unresolved-import]
+                from curl_cffi import (
+                    requests as curl_requests,  # ty:ignore[unresolved-import]
+                )
             except ImportError as e:
                 # Log the exact error to diagnose C-extension mismatches (e.g., Python 3.9 vs 3.12)
                 log_debug(f"[ImageSearch] curl_cffi import failed: {e}")
@@ -225,11 +228,7 @@ class DuckDuckGo(QRunnable):
 
             if response.status_code == 200:
                 # Some curl_cffi versions return JSON directly, fallback to .json()
-                data = (
-                    response.json()
-                    if hasattr(response.json, "__call__")
-                    else response.json
-                )
+                data = response.json() if callable(response.json) else response.json
                 return [img["image"] for img in data.get("results", [])][:maximum]
         except Exception as e:
             log_debug(f"[ImageSearch] Error in search: {e}")

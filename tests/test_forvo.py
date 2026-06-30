@@ -1,6 +1,7 @@
+import base64
 import unittest
 from unittest.mock import MagicMock, patch
-import base64
+
 from anki_dictionary.integrations.forvo import ForvoWorker
 
 

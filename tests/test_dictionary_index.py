@@ -1,11 +1,11 @@
-import unittest
-import requests
 import json
-import urllib.parse
-import sys
 import os
+import sys
+import unittest
+import urllib.parse
 
 import pytest
+import requests
 
 pytestmark = pytest.mark.network
 
@@ -59,7 +59,6 @@ class TestDictionaryIndex(unittest.TestCase):
         return url
 
     def _check_url(self, url):
-        import urllib.parse
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
 
@@ -109,6 +108,7 @@ class TestDictionaryIndex(unittest.TestCase):
         """Test all dictionary URLs in the index and report which ones are broken."""
         # Use a random param to bust cache just in case
         import time
+
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
 

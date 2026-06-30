@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 #
 #
 from __future__ import annotations
 
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
+from anki.utils import is_lin, is_mac, is_win
 from aqt.qt import (
     QAbstractItemView,
     QHeaderView,
@@ -12,10 +13,10 @@ from aqt.qt import (
     QTableWidget,
     QTableWidgetItem,
 )
-from anki.utils import is_mac, is_lin, is_win
-from .templates import TemplateEditor
+
 from ...utils.common import miAsk
 from ...utils.config import save_addon_config
+from .templates import TemplateEditor
 
 
 class ExportTemplatesTab:
@@ -24,7 +25,7 @@ class ExportTemplatesTab:
         mw: Any,
         parent: Any,
         get_config_callback: Callable[[], dict],
-        get_dictionary_names_callback: Callable[[], List[str]],
+        get_dictionary_names_callback: Callable[[], list[str]],
     ) -> None:
         self.mw = mw
         self.parent = parent

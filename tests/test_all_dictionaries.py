@@ -1,14 +1,12 @@
-import json
-import requests
 import io
 import os
 import sys
 import tempfile
-import unittest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 pytestmark = pytest.mark.network
 
@@ -17,10 +15,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import aqt
-from unittest.mock import MagicMock
+
 from anki_dictionary.core.database import DictDB
-from scripts.create_empty_db import create_empty_database
 from anki_dictionary.ui.dialogs.dictionary_manager import importDict
+from scripts.create_empty_db import create_empty_database
 
 aqt.mw = MagicMock()
 
@@ -102,7 +100,7 @@ def test_all():
                     print(f"  SUCCESS: {count} entries.")
                     results.append({"name": name, "status": "OK", "count": count})
                 else:
-                    print(f"  FAIL: No entries.")
+                    print("  FAIL: No entries.")
                     results.append(
                         {"name": name, "status": "FAIL", "error": "No entries imported"}
                     )

@@ -105,4 +105,5 @@ jobs:
             -m "not integration and not network" \
             --ignore=tests/test_all_dictionaries.py \
             --ignore=tests/test_dictionary_index.py \
+            --cov=src/ --cov-report=term-missing --cov-fail-under=0 \
             --tb=short -v

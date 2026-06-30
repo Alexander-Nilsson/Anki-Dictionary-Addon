@@ -1,19 +1,27 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import json
 import os
 from os.path import join
-from typing import List, Tuple, Any, Union
+from typing import Any
 
-from aqt.qt import QImage, QMimeData, QPixmap, QSize, QUrl, Qt, QLabel, QWidget
-from aqt.qt import QHBoxLayout, QVBoxLayout
-from aqt.utils import tooltip
 from aqt.operations.note import update_note
+from aqt.qt import (
+    QHBoxLayout,
+    QLabel,
+    QMimeData,
+    QPixmap,
+    QSize,
+    Qt,
+    QUrl,
+    QVBoxLayout,
+    QWidget,
+)
+from aqt.utils import tooltip
 
-from ..utils.logger import get_logger
-from ..utils import media_manager
 from ..exporters.card_exporter import CardExporter
+from ..utils import media_manager
+from ..utils.logger import get_logger
 
 logger = get_logger(__name__.split(".")[-1])
 
@@ -24,11 +32,11 @@ class CardCreationHandler:
     def __init__(self, midict):
         self.midict = midict
 
-    def addImgsToExportWindow(self, word: str, urls: List[str]) -> None:
+    def addImgsToExportWindow(self, word: str, urls: list[str]) -> None:
         self.initCardExporterIfNeeded()
         img_separator = ""
-        imgs: List[str] = []
-        raw_paths: List[str] = []
+        imgs: list[str] = []
+        raw_paths: list[str] = []
         auto_convert = self.midict.config.get("imageAutoConvert", True)
         media_dir = self.midict.dictInt.mw.col.media.dir()
         for imgurl in urls:
@@ -92,7 +100,7 @@ class CardCreationHandler:
         except Exception as e:
             logger.error(f"Error copying images to clipboard: {e}")
 
-    def getThumbs(self, paths: List[str]) -> QWidget:
+    def getThumbs(self, paths: list[str]) -> QWidget:
         thumbCase = QWidget()
         thumbCase.setContentsMargins(0, 0, 0, 0)
         vLayout = QVBoxLayout()
@@ -122,7 +130,7 @@ class CardCreationHandler:
         self.initCardExporterIfNeeded()
         self.midict.addWindow.addDefinition(dictName, word, text)
 
-    def exportImage(self, pathAndName: Tuple[str, str]) -> None:
+    def exportImage(self, pathAndName: tuple[str, str]) -> None:
         self.midict.dictInt.ensureVisible()
         path, name = pathAndName
         self.initCardExporterIfNeeded()
@@ -133,7 +141,7 @@ class CardCreationHandler:
         if not self.midict.addWindow:
             self.midict.addWindow = CardExporter(self.midict.dictInt, self.midict)
 
-    def bulkTextExport(self, cards: List[Any]) -> None:
+    def bulkTextExport(self, cards: list[Any]) -> None:
         self.initCardExporterIfNeeded()
         self.midict.addWindow.bulkTextExport(cards)
 
@@ -145,7 +153,7 @@ class CardCreationHandler:
         if self.midict.addWindow:
             self.midict.addWindow.bulkMediaExportCancelledByBrowserRefresh()
 
-    def exportAudio(self, audioList: Tuple[str, str, str]) -> None:
+    def exportAudio(self, audioList: tuple[str, str, str]) -> None:
         self.midict.dictInt.ensureVisible()
         temp, tag, name = audioList
         self.initCardExporterIfNeeded()
@@ -170,7 +178,7 @@ class CardCreationHandler:
 
     def getFieldContent(
         self, fContent: str, definition: str, addType: str
-    ) -> Union[str, bool]:
+    ) -> str | bool:
         fieldText = False
         if addType == "overwrite":
             fieldText = definition
@@ -188,7 +196,7 @@ class CardCreationHandler:
         if (self.midict.reviewer and self.midict.reviewer.card) or (
             self.midict.currentEditor and self.midict.currentEditor.note
         ):
-            urls_list: List[str] = []
+            urls_list: list[str] = []
             img_separator = ""
             urls_data = json.loads(urls)
             auto_convert = self.midict.config.get("imageAutoConvert", True)

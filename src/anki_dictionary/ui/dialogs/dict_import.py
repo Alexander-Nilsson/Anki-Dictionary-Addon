@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import aqt
 import json
-import zipfile
 import re
-import os
-from typing import Any, Dict, List, Optional, Tuple
+import zipfile
+from typing import Any
+
+import aqt
 from aqt.qt import QMessageBox, QWidget
 
-from ...utils.paths import get_db_dir
 from ...utils.logger import get_logger
 
 log = get_logger("dict_import")
@@ -24,8 +23,8 @@ def importDict(
 
     try:
         zfile = zipfile.ZipFile(file)
-    except zipfile.BadZipFile:
-        raise ValueError("Dictionary archive is invalid.")
+    except zipfile.BadZipFile as e:
+        raise ValueError("Dictionary archive is invalid.") from e
 
     has_term_bank = any(fn.startswith("term_bank_") for fn in zfile.namelist())
     has_index = any(fn == "index.json" for fn in zfile.namelist())
@@ -94,7 +93,7 @@ def importDict(
     return final_name
 
 
-def natural_sort(l: List[str]) -> List[str]:
+def natural_sort(l: list[str]) -> list[str]:
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
     return sorted(l, key=alphanum_key)
@@ -102,7 +101,7 @@ def natural_sort(l: List[str]) -> List[str]:
 
 def loadDict(
     zfile: zipfile.ZipFile,
-    filenames: List[str],
+    filenames: list[str],
     lang: str,
     dictName: str,
     miDict: bool = False,
@@ -161,7 +160,7 @@ def getAdjustedDefinition(definition: str) -> str:
     return definition
 
 
-def handlePitchDictEntry(jsonDict: List, count: int, entry: Any) -> None:
+def handlePitchDictEntry(jsonDict: list, count: int, entry: Any) -> None:
     term = ""
     altterm = ""
     reading = ""
@@ -171,13 +170,9 @@ def handlePitchDictEntry(jsonDict: List, count: int, entry: Any) -> None:
     audio = ""
     frequency = ""
     starCount = ""
-    pitch_accent = ""
 
     term = entry[0]
     reading = entry[2].get("reading", entry[0])
-    pitch_accent = (
-        entry[2]["pitches"][0].get("position") if entry[2]["pitches"] else None
-    )
 
     jsonDict[count] = (
         term,
@@ -192,7 +187,7 @@ def handlePitchDictEntry(jsonDict: List, count: int, entry: Any) -> None:
     )
 
 
-def handleMiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
+def handleMiDictEntry(jsonDict: list, count: int, entry: Any) -> None:
     if isinstance(entry, list):
         term = entry[0] if len(entry) > 0 else ""
         altterm = entry[1] if len(entry) > 1 else ""
@@ -235,7 +230,7 @@ def handleMiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
     )
 
 
-def handleYomiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
+def handleYomiDictEntry(jsonDict: list, count: int, entry: Any) -> None:
     def extract_definition(items: Any) -> str:
         def recursive_extract(item):
             if isinstance(item, str):
@@ -265,7 +260,7 @@ def handleYomiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
                 definitions.append(text)
         return "<br/>".join(definitions)
 
-    def find_header_section(items: Any) -> List:
+    def find_header_section(items: Any) -> list:
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, dict):
@@ -275,8 +270,8 @@ def handleYomiDictEntry(jsonDict: List, count: int, entry: Any) -> None:
                         return item.get("content", [])
         return []
 
-    def extract_pitch(content: Any) -> List[int]:
-        accents: List[int] = []
+    def extract_pitch(content: Any) -> list[int]:
+        accents: list[int] = []
 
         def recursive_search(item: Any) -> None:
             if isinstance(item, dict) and "data" in item:

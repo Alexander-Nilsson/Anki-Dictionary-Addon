@@ -15,7 +15,6 @@ from aqt.qt import (
 
 from ...utils.logger import get_logger
 from .dict_importer_widget import DictImporter
-from .dict_import import importDict
 from .language_manager_widget import LanguageManager
 from .tree_manager_widget import TreeManager
 
@@ -24,7 +23,7 @@ logger = get_logger(__name__.split(".")[-1])
 
 class DictionaryManagerWidget(QWidget):
     def __init__(self, mw, parent=None):
-        super(DictionaryManagerWidget, self).__init__(parent)
+        super().__init__(parent)
         self.mw = mw
         self.tree_manager = TreeManager(mw, self)
         self.dict_importer = DictImporter(mw, self)

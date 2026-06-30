@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
-import json
-import unittest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
-
 import sys
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 _src = str(Path(__file__).parent.parent / "src")
 if _src not in sys.path:
@@ -14,8 +11,8 @@ if _src not in sys.path:
 
 from anki_dictionary.utils.config import (
     get_addon_config,
-    save_addon_config,
     refresh_anki_dict_config,
+    save_addon_config,
 )
 
 

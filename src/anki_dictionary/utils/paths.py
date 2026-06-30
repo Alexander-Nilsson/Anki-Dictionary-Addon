@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Path utilities for the Anki Dictionary Addon.
 """

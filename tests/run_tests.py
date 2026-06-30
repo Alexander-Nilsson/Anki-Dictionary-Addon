@@ -5,11 +5,10 @@ Test runner for Anki Dictionary Addon
 This script runs all tests and provides a comprehensive test report.
 """
 
-import unittest
 import sys
-import os
-from pathlib import Path
 import time
+import unittest
+from pathlib import Path
 
 # Add current directory and project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -58,12 +57,12 @@ def discover_and_run_tests():
 
         if result.failures:
             print("\n🔴 FAILURES:")
-            for test, traceback in result.failures:
+            for test, _traceback in result.failures:
                 print(f"  - {test}")
 
         if result.errors:
             print("\n💥 ERRORS:")
-            for test, traceback in result.errors:
+            for test, _traceback in result.errors:
                 print(f"  - {test}")
 
         if skipped_count:
@@ -114,7 +113,7 @@ def check_test_dependencies():
             sys.path.insert(0, str(src_path))
 
         # Try to import basic addon modules
-        import anki_dictionary
+        import anki_dictionary  # noqa: F401
 
         print("✅ Main module can be imported")
     except ImportError as e:

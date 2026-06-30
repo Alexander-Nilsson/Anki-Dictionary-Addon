@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import re
-import os
-from os.path import join, exists
-from typing import Any, Dict, List, Tuple
+from os.path import exists, join
+from typing import Any
 
 from ...utils.logger import get_logger
 
@@ -20,7 +19,7 @@ def clean_term(term: str) -> str:
     )
 
 
-def get_font_family(group: Dict[str, Any]) -> str:
+def get_font_family(group: dict[str, Any]) -> str:
     if not group.get("font"):
         return " "
     if group.get("customFont"):
@@ -46,7 +45,7 @@ def process_definition_html(text: Any) -> str:
     return text.strip()
 
 
-def get_cleaned_urls(urls: List[str]) -> List[str]:
+def get_cleaned_urls(urls: list[str]) -> list[str]:
     return [
         u
         for u in urls
@@ -69,7 +68,7 @@ class ResultRenderer:
 
     # ── helpers ────────────────────────────────────
 
-    def get_tooltips(self, config: Dict[str, Any]) -> Tuple[str, str, str]:
+    def get_tooltips(self, config: dict[str, Any]) -> tuple[str, str, str]:
         if not config.get("tooltips", True):
             return "", "", ""
 
@@ -122,7 +121,7 @@ class ResultRenderer:
         except Exception:
             return ""
 
-    def highlight_target(self, text: str, term: str, config: Dict[str, Any]) -> str:
+    def highlight_target(self, text: str, term: str, config: dict[str, Any]) -> str:
         if not config.get("highlightTarget", False):
             return text
         if not isinstance(text, str):
@@ -148,10 +147,10 @@ class ResultRenderer:
             logger.error("Error during highlight_target: %s", e)
             return text
 
-    def format_term_headers(self, ths: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    def format_term_headers(self, ths: dict[str, list[str]]) -> dict[str, list[str]]:
         if not ths:
             return {}
-        formatted: Dict[str, List[str]] = {}
+        formatted: dict[str, list[str]] = {}
         for dictname, headers in ths.items():
             header_str = ""
             sb_str = ""
@@ -183,8 +182,8 @@ class ResultRenderer:
         term: str,
         altterm: str,
         pronunciation: str,
-        config: Dict[str, Any],
-        term_headers: Dict[str, List[str]] | None = None,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
         sb: bool = False,
     ) -> str:
         alt_fb = front_bracket
@@ -247,13 +246,13 @@ class ResultRenderer:
 
     def get_sidebar(
         self,
-        results: Dict[str, Any],
+        results: dict[str, Any],
         term: str,
         font: str,
         front_bracket: str,
         back_bracket: str,
-        config: Dict[str, Any],
-        term_headers: Dict[str, List[str]] | None = None,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
     ) -> str:
         html = "<div" + font + 'class="definitionSideBar"><div class="innerSideBar">'
         dict_count = 0
@@ -323,7 +322,7 @@ class ResultRenderer:
 
     # ── definition cleaning ────────────────────────
 
-    def clean_definition(self, entry: Dict[str, Any]) -> Tuple[str, str]:
+    def clean_definition(self, entry: dict[str, Any]) -> tuple[str, str]:
         definition = entry["definition"].strip()
         extracted_freq = ""
 
@@ -365,15 +364,15 @@ class ResultRenderer:
 
     def render_term_pronunciation_block(
         self,
-        entry: Dict[str, Any],
+        entry: dict[str, Any],
         dict_name: str,
         clean_name: str,
         font: str,
         front_bracket: str,
         back_bracket: str,
         extracted_freq: str,
-        config: Dict[str, Any],
-        term_headers: Dict[str, List[str]] | None = None,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
         img_tooltip: str = "",
         clip_tooltip: str = "",
         send_tooltip: str = "",
@@ -434,7 +433,7 @@ class ResultRenderer:
         )
 
     def render_definition_block(
-        self, definition: str, font: str, term: str, config: Dict[str, Any]
+        self, definition: str, font: str, term: str, config: dict[str, Any]
     ) -> str:
         return (
             "<div"
@@ -493,13 +492,13 @@ class ResultRenderer:
 
     def render_llm_entry(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         dict_name: str,
         font: str,
         front_bracket: str,
         back_bracket: str,
-        config: Dict[str, Any],
-        term_headers: Dict[str, List[str]] | None = None,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
         is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
@@ -550,20 +549,20 @@ class ResultRenderer:
         )
 
     def render_llm_definition_block(
-        self, definition: str, font: str, term: str, config: Dict[str, Any]
+        self, definition: str, font: str, term: str, config: dict[str, Any]
     ) -> str:
         processed = self.process_llm_definition(definition, term)
         return self.render_definition_block(processed, font, term, config)
 
     def format_single_entry(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         dict_name: str,
         font: str,
         front_bracket: str,
         back_bracket: str,
-        config: Dict[str, Any],
-        term_headers: Dict[str, List[str]] | None = None,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
         is_dark: bool = False,
     ) -> str:
         img, clip, send = self.get_tooltips(config)
@@ -639,8 +638,8 @@ class ResultRenderer:
         font: str,
         front_bracket: str,
         back_bracket: str,
-        config: Dict[str, Any],
-        term_headers: Dict[str, List[str]] | None = None,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
         id_name: str = "",
         is_dark: bool = False,
         settings_html: str = "",

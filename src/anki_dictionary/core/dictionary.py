@@ -1,21 +1,12 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from aqt.utils import (
-    shortcut,
-    saveGeom,
-    saveSplitter,
-    showInfo,
-    askUser,
-    ensureWidgetInScreenBoundaries,
-)
 import json
-import sys
-import math
-import base64
-from anki.hooks import runHook
+import os
+import re
+from os.path import dirname, exists, join
+
+from anki.utils import is_mac
 from aqt.qt import (
-    QColor,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -24,55 +15,37 @@ from aqt.qt import (
     QKeySequence,
     QLabel,
     QLineEdit,
-    QMimeData,
     QPalette,
-    QPixmap,
     QPushButton,
     QShortcut,
     QSize,
+    Qt,
     QVBoxLayout,
     QWidget,
-    Qt,
     pyqtSignal,
 )
-from PyQt6.QtCore import QThreadPool, QUrl
-from aqt.utils import openLink, tooltip
-from anki.utils import is_mac, is_win, is_lin
-from anki.lang import _
+from aqt.utils import (
+    ensureWidgetInScreenBoundaries,
+)
 from aqt.webview import AnkiWebView
-import re
-from shutil import copyfile
-import os, shutil
-from os.path import join, exists, dirname
-from typing import List, Dict, Optional, Tuple, Any, Union
-from urllib.request import Request, urlopen
+from PyQt6.QtCore import QThreadPool, QUrl
 
 from ..utils.history import HistoryBrowser, HistoryModel
-from aqt.editor import Editor
-from aqt.operations.note import update_note
-from ..exporters.card_exporter import CardExporter
-import time
-from . import database as dictdb
 from ..utils.logger import get_logger
-from .search.pipeline import SearchPipeline
 from .card_handler import CardCreationHandler
+from .search.pipeline import SearchPipeline
 
 logger = get_logger(__name__.split(".")[-1])
 
-import aqt
-from ..integrations import image_search as duckduckgoimages
-from ..integrations import llm as llm_integration
-from ..integrations import forvo as forvo_integration
-from ..ui.settings.settings_gui import SettingsGui
-import datetime
 import codecs
-import ntpath
-from ..utils.common import miInfo
-from ..web.icons import get_base64_icon
+import datetime
+
 from PyQt6.QtSvgWidgets import QSvgWidget
-from ..ui.dialogs.theme_editor import *
+
 from ..ui import theme_controller
-from ..ui.themes import *
+from ..ui.dialogs.theme_editor import ThemeEditorDialog
+from ..ui.settings.settings_gui import SettingsGui
+from ..ui.themes import ThemeManager
 
 
 class MIDict(AnkiWebView):
@@ -254,7 +227,7 @@ def imageResizer(img_path):
 
 class DictInterface(QWidget):
     def __init__(self, dictdb, mw, path, welcome, parent=None, terms=False):
-        super(DictInterface, self).__init__()
+        super().__init__()
         self.db = dictdb
         self.verticalBar = False
         self.addonPath = path
@@ -278,7 +251,6 @@ class DictInterface(QWidget):
 
     def refresh_application_theme(self, reload_html=True):
         self.theme_manager._load_active_theme()
-        active_theme_dict = theme_controller.get_theme_dict(self.theme_manager)
         self.setStyleSheet(self.theme_manager.get_qt_styles())
         theme_controller.apply_child_widget_styles(self, self.theme_manager)
         self.setAllIcons()
@@ -443,7 +415,7 @@ class DictInterface(QWidget):
         js_path = join(self.addonPath, "assets", "scripts", "dictionary.js")
 
         # Read the JavaScript content to inline it
-        with open(js_path, "r", encoding="utf-8") as js_file:
+        with open(js_path, encoding="utf-8") as js_file:
             js_content = js_file.read()
 
         # Get saved font sizes from config, default to [12, 22]
@@ -451,7 +423,7 @@ class DictInterface(QWidget):
         fefs = font_sizes[0] if len(font_sizes) > 0 else 12
         dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
 
-        with open(html_path, "r", encoding="utf-8") as fh:
+        with open(html_path, encoding="utf-8") as fh:
             html = fh.read()
             # Inject font size variables before the main script
             font_size_init = f"<script>var fefs = {fefs}, dbfs = {dbfs};</script>"
@@ -464,7 +436,6 @@ class DictInterface(QWidget):
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
             # Always inject welcome screen content if available
             if self.welcome and self.welcome.strip():
-                escaped_welcome = json.dumps(self.welcome)
                 html = html.replace(
                     '<div id="welcomeBackground"></div>',
                     f'<div id="welcomeBackground">{self.welcome}</div>',
@@ -498,7 +469,7 @@ class DictInterface(QWidget):
 
     def getInsertHTMLJS(self):
         insertHTML = join(self.addonPath, "assets", "scripts", "insertHTML.js")
-        with open(insertHTML, "r", encoding="utf-8") as insertHTMLFile:
+        with open(insertHTML, encoding="utf-8") as insertHTMLFile:
             return insertHTMLFile.read()
 
     def focusWindow(self):
@@ -1039,7 +1010,7 @@ class DictInterface(QWidget):
         path = join(self.mw.col.media.dir(), "_searchHistory.json")
         try:
             if exists(path):
-                with open(path, "r", encoding="utf-8") as histFile:
+                with open(path, encoding="utf-8") as histFile:
                     return json.loads(histFile.read())
             else:
                 # Create empty search history file if it doesn't exist
@@ -1226,7 +1197,7 @@ class SVGPushButton(QPushButton):
 
         # Read SVG file and replace color placeholders with the theme color
         try:
-            with open(svgPath, "r", encoding="utf-8") as f:
+            with open(svgPath, encoding="utf-8") as f:
                 svg_data = f.read()
                 svg_data = svg_data.replace('fill="currentColor"', f'fill="{color}"')
                 svg_data = svg_data.replace(

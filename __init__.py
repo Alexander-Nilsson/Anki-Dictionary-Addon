@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Anki Dictionary Addon
 
@@ -7,9 +6,9 @@ allowing users to search dictionaries and automatically create cards.
 """
 
 import os
-import sys
 import ssl
-from typing import Any, Dict, List, Optional
+import sys
+from typing import Any
 
 try:
     from aqt import mw
@@ -46,8 +45,7 @@ if vendor_path not in sys.path:
 # Special check for broken PIL in vendor (often happens if bundled on different OS)
 if os.path.exists(os.path.join(vendor_path, "PIL")):
     try:
-        # If we can't import a basic PIL component from vendor, it might be broken
-        import PIL
+        import PIL  # noqa: F401
     except ImportError:
         # If it's broken, remove vendor from path temporarily or handle it
         pass
@@ -63,7 +61,7 @@ class AddonState:
     """Container for addon state."""
 
     def __init__(self) -> None:
-        self.config: Dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
         self.exporting_definitions: bool = False
         self.settings_open: bool = False
         self.dictionary_instance: Any = (
@@ -71,12 +69,12 @@ class AddonState:
         )
         self.editor_loaded_after_dictionary: bool = False
         self.bulk_media_export_cancelled: bool = False
-        self.currently_pressed: List[str] = []
+        self.currently_pressed: list[str] = []
         self.dict_db: Any = None  # Will be properly typed when we fix the DictDB class
 
 
 # Global state instance
-_addon_state: Optional[AddonState] = None
+_addon_state: AddonState | None = None
 _initialized = False
 
 
@@ -153,7 +151,7 @@ def initialize_addon() -> None:
 
     # Setup hooks and UI
     try:
-        from anki_dictionary.core.hooks import setup_hooks, setup_gui_menu
+        from anki_dictionary.core.hooks import setup_gui_menu, setup_hooks
         from anki_dictionary.utils.config import refresh_anki_dict_config
 
         # Make refresh function globally available (legacy compatibility)

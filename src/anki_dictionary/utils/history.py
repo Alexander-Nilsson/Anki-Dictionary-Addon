@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
 #
 
-import json
 
+import datetime
+
+from anki.utils import is_mac
 from aqt.qt import (
     QAbstractItemView,
     QAbstractTableModel,
@@ -14,28 +15,26 @@ from aqt.qt import (
     QPalette,
     QPushButton,
     QShortcut,
+    Qt,
     QTableView,
     QVBoxLayout,
     QWidget,
-    Qt,
 )
-from aqt.utils import askUser, showInfo
-import datetime
-from .common import miInfo, miAsk
-from anki.utils import strip_html, is_win, is_mac, is_lin
+
+from .common import miAsk
 
 
 class HistoryModel(QAbstractTableModel):
     def __init__(self, history, parent=None):
-        super(HistoryModel, self).__init__(parent)
+        super().__init__(parent)
         self.history = history
         self.dictInt = parent
         self.justTerms = [item[0] for item in history]
 
-    def rowCount(self, index=QModelIndex()):  # ty:ignore[invalid-method-override]
+    def rowCount(self, index=QModelIndex()):  # noqa: B008  # ty:ignore[invalid-method-override]
         return len(self.history)
 
-    def columnCount(self, index=QModelIndex()):  # ty:ignore[invalid-method-override]
+    def columnCount(self, index=QModelIndex()):  # noqa: B008  # ty:ignore[invalid-method-override]
         return 2
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
@@ -62,12 +61,17 @@ class HistoryModel(QAbstractTableModel):
         return None
 
     def insertRows(
-        self, position=False, rows=1, index=QModelIndex(), term=False, date=False
+        self,
+        position=False,
+        rows=1,
+        index=QModelIndex(),  # noqa: B008
+        term=False,
+        date=False,
     ):  # ty:ignore[invalid-method-override]
         if not position:
             position = self.rowCount()
         self.beginInsertRows(QModelIndex(), position, position)
-        for row in range(rows):
+        for _row in range(rows):
             if term and date:
                 if term in self.justTerms:
                     index = self.justTerms.index(term)
@@ -79,7 +83,7 @@ class HistoryModel(QAbstractTableModel):
         self.dictInt.saveHistory()  # ty:ignore[unresolved-attribute]
         return True
 
-    def removeRows(self, position, rows=1, index=QModelIndex()):  # ty:ignore[invalid-method-override]
+    def removeRows(self, position, rows=1, index=QModelIndex()):  # noqa: B008  # ty:ignore[invalid-method-override]
         self.beginRemoveRows(QModelIndex(), position, position + rows - 1)
         del self.history[position : position + rows]
         self.endRemoveRows()
@@ -89,7 +93,7 @@ class HistoryModel(QAbstractTableModel):
 
 class HistoryBrowser(QWidget):
     def __init__(self, historyModel, parent):
-        super(HistoryBrowser, self).__init__(parent, Qt.WindowType.Window)
+        super().__init__(parent, Qt.WindowType.Window)
         self.history_model = None
         self.setAutoFillBackground(True)
         self.resize(300, 200)

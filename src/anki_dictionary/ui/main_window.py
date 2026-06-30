@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Main window and UI management for the Dictionary Addon.
 
@@ -6,34 +5,25 @@ This module contains the main dictionary interface initialization,
 window management, global hotkeys, and UI helper functions.
 """
 
-import os
-import sys
-import re
 import json
-import time
-from typing import Optional, List
-from os.path import dirname, join, exists
-from shutil import copyfile
-from operator import itemgetter
+import os
+import re
 
-from anki.utils import is_win, is_mac, is_lin
+from anki.utils import is_mac, is_win
 from aqt import mw
+
 from ..utils.logger import get_logger
 
 log = get_logger("main_window")
+import aqt.utils
 from aqt.qt import Qt
 from aqt.utils import showInfo
-import aqt.utils
 
-from ..core.dictionary import DictInterface
 from ..core.clip_thread import ClipThread
-from ..ui.themes import *
-from ..ui.dialogs.theme_editor import *
+from ..core.dictionary import DictInterface
 from ..ui.settings.settings_gui import SettingsGui
-from ..utils.common import miInfo, miAsk
-from ..integrations import image_search as duckduckgoimages
-
-from ..utils.paths import get_addon_root, get_templates_dir, get_icons_dir
+from ..utils.common import miInfo
+from ..utils.paths import get_addon_root, get_templates_dir
 
 # Global variables
 addon_path = get_addon_root()
@@ -136,7 +126,7 @@ def getWelcomeScreen():
     """Get welcome screen HTML."""
     htmlPath = os.path.join(get_templates_dir(), "welcome.html")
     try:
-        with open(htmlPath, "r", encoding="utf-8") as fh:
+        with open(htmlPath, encoding="utf-8") as fh:
             file = fh.read()
         return file
     except Exception as e:
@@ -148,7 +138,7 @@ def getMacWelcomeScreen():
     """Get Mac-specific welcome screen HTML."""
     htmlPath = os.path.join(get_templates_dir(), "macwelcome.html")
     try:
-        with open(htmlPath, "r", encoding="utf-8") as fh:
+        with open(htmlPath, encoding="utf-8") as fh:
             file = fh.read()
         return file
     except Exception as e:

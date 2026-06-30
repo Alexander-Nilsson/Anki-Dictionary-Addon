@@ -1,4 +1,3 @@
-import json
 import os
 
 from aqt.qt import (
@@ -16,10 +15,9 @@ from aqt.qt import (
     QWidget,
     pyqtSignal,
 )
-from aqt.utils import showInfo
 
-from ..themes import ThemeColors
 from ...utils.logger import get_logger
+from ..themes import ThemeColors
 
 log = get_logger("theme_editor")
 

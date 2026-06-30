@@ -5,7 +5,6 @@ but mock the Qt/Anki runtime (midict).  They do not require a display server
 or a collection, so they can run as unit tests.
 """
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -15,9 +14,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from scripts.create_empty_db import create_empty_database
 from anki_dictionary.core.database import DictDB
 from anki_dictionary.core.search.pipeline import SearchPipeline
+from scripts.create_empty_db import create_empty_database
 
 
 @pytest.fixture

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Constants used across the Anki Dictionary Addon.
 """
@@ -353,9 +352,10 @@ COUNTRY_TO_DDG = {
 
 # Load Forvo languages from assets
 def _load_forvo_languages():
-    import os
     import json
+    import os
     from os.path import dirname, join
+
     from .logger import get_logger
 
     log = get_logger("constants")
@@ -365,7 +365,7 @@ def _load_forvo_languages():
         addon_path = dirname(dirname(dirname(dirname(__file__))))
         langs_path = join(addon_path, "assets", "forvo_languages.json")
         if os.path.exists(langs_path):
-            with open(langs_path, "r", encoding="utf-8") as f:
+            with open(langs_path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
         log.error(f"Error loading Forvo languages: {e}")

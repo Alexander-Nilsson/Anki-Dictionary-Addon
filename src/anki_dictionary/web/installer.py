@@ -1,3 +1,10 @@
+import io
+import json
+import os
+import zipfile
+
+import aqt
+from anki.httpclient import HttpClient
 from aqt.qt import (
     QCheckBox,
     QHBoxLayout,
@@ -8,26 +15,19 @@ from aqt.qt import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    Qt,
     QTextCursor,
     QTextEdit,
     QThread,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
-    Qt,
     pyqtSignal,
 )
-from anki.httpclient import HttpClient
-import json
-import io
-import os
-import aqt
-import zipfile
-
 
 from ..ui.dialogs.wizard import MiWizard, MiWizardPage
-from . import config as webConfig
 from ..utils.common import prefer_ipv4
+from . import config as webConfig
 
 addon_path = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -101,7 +101,7 @@ def _validate_word_list_data(
 
 class NoAutoSelectLineEdit(QLineEdit):
     def focusInEvent(self, e):  # ty:ignore[invalid-method-override]
-        super(NoAutoSelectLineEdit, self).focusInEvent(e)
+        super().focusInEvent(e)
         self.deselect()
 
 
@@ -109,7 +109,7 @@ class DictionaryWebInstallWizard(MiWizard):
     INITIAL_SIZE = (600, 400)
 
     def __init__(self, force_lang=None):
-        super(DictionaryWebInstallWizard, self).__init__()
+        super().__init__()
 
         self.dictionary_force_lang = force_lang
 
@@ -121,9 +121,7 @@ class DictionaryWebInstallWizard(MiWizard):
         server_add_page = self.add_page(ServerAskPage(self))
         dict_select_page = self.add_page(DictionarySelectPage(self), server_add_page)
         dict_confirm_page = self.add_page(DictionaryConfirmPage(self), dict_select_page)
-        dict_install_page = self.add_page(
-            DictionaryInstallPage(self), dict_confirm_page
-        )
+        self.add_page(DictionaryInstallPage(self), dict_confirm_page)
 
         self.resize(*self.INITIAL_SIZE)
 
@@ -135,7 +133,7 @@ class DictionaryWebInstallWizard(MiWizard):
 
 class ServerAskPage(MiWizardPage):
     def __init__(self, wizard):
-        super(ServerAskPage, self).__init__(wizard)
+        super().__init__(wizard)
         self.wizard = wizard
 
         self.title = "Select Dictionary Server"
@@ -186,9 +184,8 @@ class ServerAskPage(MiWizardPage):
             QMessageBox.information(
                 self,
                 "Anki Dictionary",
-                'The server "%s" is not reachable.\n\n'
-                "Make sure you are connected to the internet and the url you entered is valid."
-                % server_url_usr,
+                f'The server "{server_url_usr}" is not reachable.\n\n'
+                "Make sure you are connected to the internet and the url you entered is valid.",
             )
             return False
 
@@ -200,7 +197,7 @@ class ServerAskPage(MiWizardPage):
 
 class DictionarySelectPage(MiWizardPage):
     def __init__(self, wizard):
-        super(DictionarySelectPage, self).__init__(wizard)
+        super().__init__(wizard)
         self.wizard = wizard
 
         self.title = "Select the dictionaries you want to install"
@@ -263,7 +260,7 @@ class DictionarySelectPage(MiWizardPage):
             language = lang_item.data(0, Qt.ItemDataRole.UserRole + 0)  # ty:ignore[unresolved-attribute]
             dictionaries = []
 
-            def scan_tree(item):
+            def scan_tree(item, dicts=dictionaries):
                 for di in range(item.childCount()):
                     dict_item = item.child(di)
                     dictionary = dict_item.data(0, Qt.ItemDataRole.UserRole + 1)
@@ -271,13 +268,13 @@ class DictionarySelectPage(MiWizardPage):
                         try:
                             # Try the new way
                             if dict_item.checkState(0) == Qt.CheckState.Checked:
-                                dictionaries.append(dictionary)
+                                dicts.append(dictionary)
                         except AttributeError:
                             # Fallback for older versions
                             if dict_item.checkState(0) == Qt.Checked:  # ty:ignore[unresolved-attribute]
-                                dictionaries.append(dictionary)
+                                dicts.append(dictionary)
                     else:
-                        scan_tree(dict_item)
+                        scan_tree(dict_item, dicts)
 
             scan_tree(lang_item)
 
@@ -408,7 +405,7 @@ class DictionarySelectPage(MiWizardPage):
 
 class DictionaryConfirmPage(MiWizardPage):
     def __init__(self, wizard, can_select_none=False):
-        super(DictionaryConfirmPage, self).__init__(wizard)
+        super().__init__(wizard)
         self.wizard = wizard
         self.can_select_none = can_select_none
 
@@ -426,7 +423,6 @@ class DictionaryConfirmPage(MiWizardPage):
 
     def on_show(self, is_next, is_prev):  # ty:ignore[invalid-method-override]
         install_index = getattr(self.wizard, "dictionary_install_index", [])
-        install_conj = getattr(self.wizard, "dictionary_install_conjugation", False)
         install_word_lists = getattr(
             self.wizard, "dictionary_install_word_lists", False
         )
@@ -555,7 +551,7 @@ class DictionaryInstallPage(MiWizardPage):
             for l in self.install_index:
                 num_dicts += len(l.get("dictionaries", []))
 
-            self.log_update.emit("Installing %d dictionaries..." % num_dicts)
+            self.log_update.emit(f"Installing {num_dicts} dictionaries...")
 
             word_lists_path = os.path.join(addon_path, "user_files", "db", "word_lists")
             os.makedirs(word_lists_path, exist_ok=True)
@@ -594,7 +590,7 @@ class DictionaryInstallPage(MiWizardPage):
                             "level": "word list",
                         }.get(wl_type, "word list")
                         self.log_update.emit(
-                            "Installing %s %s (%s)..." % (lname, wl_name, type_label)
+                            f"Installing {lname} {wl_name} ({type_label})..."
                         )
                         dl_resp = self.fetch_data(client, wl_url)
                         if dl_resp.status_code == 200:
@@ -614,7 +610,7 @@ class DictionaryInstallPage(MiWizardPage):
                                         data = z.read(json_files[0])
                                 except Exception as e:
                                     self.log_update.emit(
-                                        " ERROR: Failed to unzip: %s" % str(e)
+                                        f" ERROR: Failed to unzip: {str(e)}"
                                     )
 
                             validated = _validate_word_list_data(
@@ -629,14 +625,14 @@ class DictionaryInstallPage(MiWizardPage):
                             slug = "".join(c for c in slug if c.isalnum() or c == "_")
                             lang_part = lname.replace(" ", "_")
                             type_tag = ".freq" if wl_type == "frequency" else ".level"
-                            filename = "%s_%s%s.json" % (lang_part, slug, type_tag)
+                            filename = f"{lang_part}_{slug}{type_tag}.json"
                             dst_path = os.path.join(word_lists_path, filename)
                             with open(dst_path, "wb") as f:
                                 f.write(validated)
-                            self.log_update.emit(" Installed as %s" % filename)
+                            self.log_update.emit(f" Installed as {filename}")
                         else:
                             self.log_update.emit(
-                                " ERROR: Download failed (%d)." % dl_resp.status_code
+                                f" ERROR: Download failed ({dl_resp.status_code})."
                             )
 
                 # Install conjugation data
@@ -652,9 +648,7 @@ class DictionaryInstallPage(MiWizardPage):
                     for c_info in curls:
                         cname = c_info["name"]
                         curl = self.construct_url(c_info["url"])
-                        self.log_update.emit(
-                            "Installing %s %s data..." % (lname, cname)
-                        )
+                        self.log_update.emit(f"Installing {lname} {cname} data...")
                         dl_resp = self.fetch_data(client, curl)
                         if dl_resp.status_code == 200:
                             chunks = []
@@ -663,13 +657,13 @@ class DictionaryInstallPage(MiWizardPage):
                                     chunks.append(chunk)
                             data = b"".join(chunks)
 
-                            dst_path = os.path.join(conj_path, "%s.json" % lname)
+                            dst_path = os.path.join(conj_path, f"{lname}.json")
                             with open(dst_path, "wb") as f:
                                 f.write(data)
                             break
                         else:
                             self.log_update.emit(
-                                " ERROR: Download failed (%d)." % dl_resp.status_code
+                                f" ERROR: Download failed ({dl_resp.status_code})."
                             )
 
                 # Install dictionaries
@@ -680,15 +674,15 @@ class DictionaryInstallPage(MiWizardPage):
                     dname = d.get("name")
 
                     if aqt.mw.miDictDB.dictExists(dname, lname):  # ty:ignore[unresolved-attribute]
-                        self.log_update.emit("Skipping %s (already installed)." % dname)
+                        self.log_update.emit(f"Skipping {dname} (already installed).")
                         update_dict_progress(1.0)
                         num_installed += 1
                         continue
 
                     durl = self.construct_url(d.get("url"))
 
-                    self.log_update.emit("Installing %s..." % dname)
-                    self.log_update.emit(" Downloading %s..." % durl)
+                    self.log_update.emit(f"Installing {dname}...")
+                    self.log_update.emit(f" Downloading {durl}...")
                     dl_resp = self.fetch_data(client, durl)
 
                     if dl_resp.status_code == 200:
@@ -709,10 +703,10 @@ class DictionaryInstallPage(MiWizardPage):
                                 parent=self.wizard,
                             )
                         except ValueError as e:
-                            self.log_update.emit(" ERROR: %s" % str(e))
+                            self.log_update.emit(f" ERROR: {str(e)}")
                     else:
                         self.log_update.emit(
-                            " ERROR: Download failed (%d)." % dl_resp.status_code
+                            f" ERROR: Download failed ({dl_resp.status_code})."
                         )
 
                     update_dict_progress(1.0)
@@ -725,7 +719,7 @@ class DictionaryInstallPage(MiWizardPage):
             self.log_update.emit("All done.")
 
     def __init__(self, wizard, is_last_page=True):
-        super(DictionaryInstallPage, self).__init__(wizard)
+        super().__init__(wizard)
         self.wizard = wizard
         self.is_last_page = is_last_page
 

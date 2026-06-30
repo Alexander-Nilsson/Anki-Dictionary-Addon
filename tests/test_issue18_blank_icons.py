@@ -6,12 +6,11 @@ tooltips, regardless of platform.  Tests run headless via Qt mocks.
 
 from __future__ import annotations
 
+import atexit
 import sys
 import types
 import unittest
 from unittest.mock import MagicMock, patch
-
-import atexit
 
 
 class _QtMockMeta(type):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from aqt.qt import (
     QCheckBox,
@@ -54,14 +54,14 @@ class ForvoSettingsTab(QWidget):
 
         layout.addStretch()
 
-    def load_config(self, config: Dict[str, Any]) -> None:
+    def load_config(self, config: dict[str, Any]) -> None:
         self.forvoEnabled.setChecked(config.get("forvo_enabled", True))
         forvo_lang = config.get("forvo_language", "ja")
         index = self.forvoLanguage.findData(str(forvo_lang))
         if index != -1:
             self.forvoLanguage.setCurrentIndex(index)
 
-    def save_config(self, config: Dict[str, Any]) -> None:
+    def save_config(self, config: dict[str, Any]) -> None:
         config["forvo_enabled"] = self.forvoEnabled.isChecked()
         config["forvo_language"] = self.forvoLanguage.currentData()
 

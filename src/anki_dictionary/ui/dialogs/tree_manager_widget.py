@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from aqt.qt import QTreeWidgetItem, Qt
+from aqt.qt import Qt, QTreeWidgetItem
 
 from ...utils.logger import get_logger
 

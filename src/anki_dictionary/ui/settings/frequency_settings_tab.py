@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 from aqt.qt import (
     QCheckBox,
@@ -47,8 +47,8 @@ class FrequencySettingsTab(QWidget):
         self.showLevelLabels = QCheckBox("Display Level Labels")
         self.showLevelLabels.setChecked(True)
 
-        self._list_roles: Dict[str, QComboBox] = {}
-        self._display_name_inputs: Dict[str, QLineEdit] = {}
+        self._list_roles: dict[str, QComboBox] = {}
+        self._display_name_inputs: dict[str, QLineEdit] = {}
 
         self._build_ui()
 
@@ -60,8 +60,8 @@ class FrequencySettingsTab(QWidget):
                 return val
         return name
 
-    def _discover_providers(self) -> Dict[str, WordListProvider]:
-        providers: Dict[str, WordListProvider] = {}
+    def _discover_providers(self) -> dict[str, WordListProvider]:
+        providers: dict[str, WordListProvider] = {}
         try:
             langs = self.mw.miDictDB.getCurrentDbLangs()
             registry = self.mw.miDictDB._registry
@@ -196,7 +196,7 @@ class FrequencySettingsTab(QWidget):
         }
         fname = os.path.basename(filepath)
         try:
-            with open(filepath, "r", encoding="utf-8-sig") as f:
+            with open(filepath, encoding="utf-8-sig") as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError):
             result["status"] = "unparseable"
@@ -318,9 +318,9 @@ class FrequencySettingsTab(QWidget):
             self.mw.miDictDB._extra_data_cache.clear()
         self._refresh_installed_files()
 
-    def load_config(self, config: Dict[str, Any]) -> None:
+    def load_config(self, config: dict[str, Any]) -> None:
         self.freqStarChar.setText(config.get("star_char", "\u2605"))
-        thresholds: List[int] = config.get(
+        thresholds: list[int] = config.get(
             "star_thresholds", [1501, 5001, 15001, 30001, 60001]
         )
         self.freqThreshold1.setValue(thresholds[0])
@@ -333,8 +333,8 @@ class FrequencySettingsTab(QWidget):
         self.showRank.setChecked(config.get("show_rank", False))
         self.showLevelLabels.setChecked(config.get("show_level_labels", True))
 
-        provider_roles: Dict[str, str] = config.get("provider_roles", {})
-        word_list_display_names: Dict[str, Dict[str, str]] = config.get(
+        provider_roles: dict[str, str] = config.get("provider_roles", {})
+        word_list_display_names: dict[str, dict[str, str]] = config.get(
             "word_list_display_names", {}
         )
         for key, combo in self._list_roles.items():
@@ -349,7 +349,7 @@ class FrequencySettingsTab(QWidget):
             if display_name:
                 self._display_name_inputs[key].setText(display_name)
 
-    def save_config(self, config: Dict[str, Any]) -> None:
+    def save_config(self, config: dict[str, Any]) -> None:
         config["star_char"] = self.freqStarChar.text()
         config["star_thresholds"] = [
             self.freqThreshold1.value(),
@@ -362,14 +362,14 @@ class FrequencySettingsTab(QWidget):
         config["show_rank"] = self.showRank.isChecked()
         config["show_level_labels"] = self.showLevelLabels.isChecked()
 
-        provider_roles: Dict[str, str] = {}
+        provider_roles: dict[str, str] = {}
         for key, combo in self._list_roles.items():
             role = combo.currentData()
             if role:
                 provider_roles[key] = role
         config["provider_roles"] = provider_roles
 
-        word_list_display_names: Dict[str, Dict[str, str]] = {}
+        word_list_display_names: dict[str, dict[str, str]] = {}
         for key, inp in self._display_name_inputs.items():
             lang, name = key.split("::", 1)
             text = inp.text().strip()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Anki integration hooks for the Dictionary Addon.
 
@@ -10,11 +9,10 @@ This module handles all the integration points with Anki, including:
 """
 
 import re
-from typing import Optional
 
 try:
     from anki.hooks import addHook, wrap
-    from anki.utils import is_win, is_mac, is_lin
+    from anki.utils import is_lin, is_mac, is_win
 except ImportError:
     # Fallback for testing
     addHook = lambda *args: None  # ty:ignore[invalid-assignment]
@@ -22,22 +20,22 @@ except ImportError:
     is_win = is_mac = is_lin = False  # ty:ignore[invalid-assignment]
 
 try:
-    from aqt import mw
-    from aqt.qt import QAction, QKeySequence, QMenu, Qt
-    from aqt.utils import showInfo
-    from aqt.addcards import AddCards
-    from aqt.editcurrent import EditCurrent
-    from aqt.browser import Browser
-    from aqt.tagedit import TagEdit
-    from aqt.reviewer import Reviewer
-    from aqt.previewer import Previewer
     import aqt.editor
+    from aqt import mw
+    from aqt.addcards import AddCards
+    from aqt.browser import Browser
+    from aqt.editcurrent import EditCurrent
+    from aqt.previewer import Previewer
+    from aqt.qt import QAction, QKeySequence, QMenu, Qt
+    from aqt.reviewer import Reviewer
+    from aqt.tagedit import TagEdit
+    from aqt.utils import showInfo
 except ImportError:
     # Fallback for testing - use real PyQt if possible
     try:
-        from PyQt6.QtCore import *
-        from PyQt6.QtGui import *
-        from PyQt6.QtWidgets import *
+        from PyQt6.QtCore import *  # noqa: F403
+        from PyQt6.QtGui import *  # noqa: F403
+        from PyQt6.QtWidgets import *  # noqa: F403
     except ImportError:
         pass
     mw = None  # ty:ignore[invalid-assignment]
@@ -47,8 +45,7 @@ except ImportError:
 
     aqt = sys.modules.get("aqt") or object()  # ty:ignore[invalid-assignment]
 
-from ..utils.common import miInfo, getTarget, gt
-from ..utils.paths import get_addon_root
+from ..utils.common import getTarget, gt
 
 # Store the original link handler - will be set on first hook setup
 _original_link_handler = None
@@ -63,7 +60,7 @@ def closeDictionary():
 
 def dictOnStart():
     """Initialize dictionary when profile is loaded."""
-    from ..ui.main_window import removeTempFiles, initGlobalHotkeys
+    from ..ui.main_window import removeTempFiles
 
     removeTempFiles()
     # Uncomment if global hotkeys are enabled
@@ -73,7 +70,7 @@ def dictOnStart():
 
 def addToContextMenu(webview, menu):
     """Add dictionary search to context menu."""
-    from ..ui.main_window import searchTerm, searchCol
+    from ..ui.main_window import searchCol, searchTerm
 
     action1 = menu.addAction("Search in Dictionary")
     action1.triggered.connect(lambda: searchTerm(webview))

@@ -83,7 +83,9 @@ def test_history_browser_set_colors_uses_theme_manager(
     load_theme_color() method.  Regression test: the parent (DictInterface)
     has theme_manager but not load_theme_color."""
     from unittest.mock import MagicMock
+
     from PyQt6.QtWidgets import QWidget
+
     from anki_dictionary.ui.themes import ThemeColors
     from anki_dictionary.utils.history import HistoryBrowser, HistoryModel
 

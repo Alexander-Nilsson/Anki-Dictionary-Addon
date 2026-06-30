@@ -3,21 +3,17 @@ from __future__ import annotations
 import json
 import re
 import time
-import os
-from os.path import join, exists
-from typing import Any, Dict, List, Optional, Tuple
+from os.path import exists, join
+from typing import Any
 
+from ...integrations import llm as llm_integration
 from ...utils.logger import get_logger
-from ...web.icons import get_base64_icon
+from .coordinator import ExternalServiceCoordinator
 from .renderer import (
     ResultRenderer,
     clean_term,
     get_font_family,
-    process_definition_html,
 )
-from .coordinator import ExternalServiceCoordinator
-from ...integrations import llm as llm_integration
-from ...integrations import forvo as forvo_integration
 
 logger = get_logger(__name__.split(".")[-1])
 
@@ -46,7 +42,7 @@ class SearchPipeline:
 
     # ── public entry point ─────────────────────────
 
-    def addNewTab(self, term: str, selected_group: Dict[str, Any]) -> None:
+    def addNewTab(self, term: str, selected_group: dict[str, Any]) -> None:
         if (
             selected_group.get("customFont")
             and selected_group.get("font")
@@ -67,8 +63,8 @@ class SearchPipeline:
     # ── search + render ────────────────────────────
 
     def getHTMLResult(
-        self, term: str, selected_group: Dict[str, Any], id_name: str = ""
-    ) -> Tuple[str, str, str]:
+        self, term: str, selected_group: dict[str, Any], id_name: str = ""
+    ) -> tuple[str, str, str]:
         single_tab = self._get_tab_mode()
         cleaned = clean_term(term)
         font = get_font_family(selected_group)
@@ -124,7 +120,7 @@ class SearchPipeline:
 
     def _prepare_results(
         self,
-        results: Dict[str, Any],
+        results: dict[str, Any],
         term: str,
         font: str,
         id_name: str = "",
@@ -249,7 +245,7 @@ class SearchPipeline:
 
     # ── LLM result injection ───────────────────────
 
-    def loadLLMResults(self, result: Dict[str, Any]) -> None:
+    def loadLLMResults(self, result: dict[str, Any]) -> None:
         dict_name = result.get("dictName", "LLM")
         id_name = result.get("idName") or "llm-loader"
         group = self.midict.dictInt.getSelectedDictGroup()
@@ -302,7 +298,7 @@ class SearchPipeline:
             f"}}"
         )
 
-    def showLLMError(self, result: Dict[str, Any]) -> None:
+    def showLLMError(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown LLM error")
         id_name = result.get("idName") or "llm-loader"
         esc = json.dumps(
@@ -330,7 +326,7 @@ class SearchPipeline:
 
     # ── Forvo result injection ─────────────────────
 
-    def onForvoResult(self, result: Dict[str, Any]) -> None:
+    def onForvoResult(self, result: dict[str, Any]) -> None:
         id_name = result.get("idName") or "forvo-loader"
         term = result.get("term", "")
         items = result.get("items", [])
@@ -406,7 +402,7 @@ class SearchPipeline:
             f"}}"
         )
 
-    def onForvoError(self, result: Dict[str, Any]) -> None:
+    def onForvoError(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
         id_name = result.get("idName") or "forvo-loader"
@@ -442,7 +438,7 @@ class SearchPipeline:
 
     # ── image search ───────────────────────────────
 
-    def loadImageResults(self, results: Tuple[str, str]) -> None:
+    def loadImageResults(self, results: tuple[str, str]) -> None:
         html, id_name = results
         self.midict.eval(f"loadImageHtml({json.dumps(html)}, {json.dumps(id_name)});")
 
@@ -455,7 +451,7 @@ class SearchPipeline:
             search_term, self.midict.config, "load_more", offset
         )
 
-    def loadMoreImageResults(self, results: Tuple[str, str]) -> None:
+    def loadMoreImageResults(self, results: tuple[str, str]) -> None:
         html, id_name = results
         if not html or html.strip() == "":
             self.midict.eval(
@@ -476,14 +472,14 @@ class SearchPipeline:
     # ── helpers ────────────────────────────────────
 
     def formatTermHeaders(
-        self, ths: Dict[str, List[str]]
-    ) -> Optional[Dict[str, List[str]]]:
+        self, ths: dict[str, list[str]]
+    ) -> dict[str, list[str]] | None:
         result = self.renderer.format_term_headers(ths)
         return result if result else None
 
-    def loadConjugations(self) -> Dict[str, Any]:
+    def loadConjugations(self) -> dict[str, Any]:
         langs = self.midict.db.getCurrentDbLangs()
-        conv: Dict[str, Any] = {}
+        conv: dict[str, Any] = {}
         for lang in langs:
             fp = join(
                 self.midict.homeDir, "user_files", "db", "conjugation", f"{lang}.json"
@@ -498,14 +494,14 @@ class SearchPipeline:
                 )
                 if not exists(fp):
                     continue
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, encoding="utf-8") as f:
                 conv[lang] = json.loads(f.read())
         return conv
 
     def cleanTerm(self, term: str) -> str:
         return clean_term(term)
 
-    def getFontFamily(self, group: Dict[str, Any]) -> str:
+    def getFontFamily(self, group: dict[str, Any]) -> str:
         return get_font_family(group)
 
     def injectFont(self, font: str) -> None:
@@ -513,7 +509,7 @@ class SearchPipeline:
 
     def formatSingleEntry(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         dict_name: str,
         font: str,
         front_bracket: str,
@@ -531,7 +527,7 @@ class SearchPipeline:
             is_dark,
         )
 
-    def getCleanedUrls(self, urls: List[str]) -> List[str]:
+    def getCleanedUrls(self, urls: list[str]) -> list[str]:
         from .renderer import get_cleaned_urls
 
         return get_cleaned_urls(urls)
@@ -541,10 +537,10 @@ class SearchPipeline:
     def _get_tab_mode(self) -> str:
         return "true" if self.midict.dictInt.tabB.singleTab else "false"
 
-    def _extract_freq_from_results(self, results: Dict[str, Any]) -> Tuple[str, str]:
+    def _extract_freq_from_results(self, results: dict[str, Any]) -> tuple[str, str]:
         star_count = ""
         level_labels = ""
-        for d_name, d_results in results.items():
+        for _d_name, d_results in results.items():
             if not isinstance(d_results, list):
                 continue
             for entry in d_results:

@@ -1,5 +1,7 @@
 import json
+
 from anki.httpclient import HttpClient
+
 from ..utils.common import prefer_ipv4
 
 DEFAULT_SERVER = "https://github.com/Alexander-Nilsson/dictionaries/raw/main"

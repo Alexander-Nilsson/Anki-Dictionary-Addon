@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Consolidated wizard components for the Dictionary Addon.
 
@@ -9,12 +8,6 @@ This module contains:
 - Video content fetching for welcome screens
 """
 
-import os
-import re
-from typing import Optional, Tuple, List
-from os.path import dirname, join
-
-import aqt
 from aqt.qt import (
     QDialog,
     QFrame,
@@ -25,13 +18,10 @@ from aqt.qt import (
     QPushButton,
     QSizePolicy,
     QStyle,
+    Qt,
     QVBoxLayout,
     QWidget,
-    Qt,
 )
-from aqt.webview import AnkiWebView
-from aqt.utils import openLink
-from anki.hooks import addHook
 
 # Import config utilities
 from anki_dictionary.utils.config import get_addon_config, save_addon_config
@@ -41,7 +31,7 @@ class MiWizardPage(QWidget):
     """Base class for wizard pages."""
 
     def __init__(self, parent=None):
-        super(MiWizardPage, self).__init__(parent)
+        super().__init__(parent)
 
         self.wizard = None
         self.title = None
@@ -90,7 +80,7 @@ class MiWizard(QDialog):
     """Generic wizard dialog framework."""
 
     def __init__(self, parent=None):
-        super(MiWizard, self).__init__(parent)
+        super().__init__(parent)
 
         self._current_page = None
         self._page_back = {}
@@ -250,11 +240,11 @@ class MiWizard(QDialog):
 
             title = self._current_page.title
             if title:
-                header_text += "<h2>%s</h2>" % title
+                header_text += f"<h2>{title}</h2>"
 
             subtitle = self._current_page.subtitle
             if subtitle:
-                header_text += "<h4>%s</h4>" % subtitle
+                header_text += f"<h4>{subtitle}</h4>"
 
             if header_text:
                 self._header_lbl.setText(header_text)

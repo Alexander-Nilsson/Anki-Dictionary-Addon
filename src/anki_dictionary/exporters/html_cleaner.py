@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import re
@@ -32,7 +31,7 @@ class HtmlCleaner:
         )
 
         # Switch paragraphs to <br>
-        text = re.sub(r"</p>", r"<br />", text, re.S)
+        text = re.sub(r"</p>", r"<br />", text, flags=re.S)
 
         # Trim unneeded bits
         text = re.sub(r".+</head>", r"", text, flags=re.S)
