@@ -40,7 +40,7 @@ class ClipThread(QObject):
                     ssl, "_create_default_https_context", ssl._create_unverified_context
                 )
                 try:
-                    from Quartz import (
+                    from Quartz import (  # ty:ignore[unresolved-import]
                         CGEventGetIntegerValueField,
                         kCGKeyboardEventKeycode,
                     )
