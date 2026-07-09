@@ -107,6 +107,8 @@ def get_addon_config() -> dict[str, Any]:
         "show_rank": False,
         "show_level_labels": True,
         "word_list_visibility": {},
+        "auto_select_dict_group": True,
+        "language_defaults": {},
     }
 
 
