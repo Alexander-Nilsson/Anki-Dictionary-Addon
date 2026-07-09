@@ -94,7 +94,7 @@ class ResultRenderer:
         return f' title="{tip}" '
 
     @staticmethod
-    def _format_frequency(raw: str) -> str:
+    def format_frequency(raw: str) -> str:
         if not raw:
             return raw
         if "k" in raw.lower():
@@ -361,7 +361,7 @@ class ResultRenderer:
             )
             if freq_match:
                 if not extracted_freq:
-                    extracted_freq = self._format_frequency(freq_match.group(1))
+                    extracted_freq = self.format_frequency(freq_match.group(1))
                 definition = definition[freq_match.end() :].strip()
                 continue
             head_match = re.search(r"^\u3010[^\u3011]+\u3011\s*", definition)
@@ -382,7 +382,7 @@ class ResultRenderer:
         ).strip()
 
         if not extracted_freq and entry.get("frequency"):
-            extracted_freq = self._format_frequency(str(entry["frequency"]))
+            extracted_freq = self.format_frequency(str(entry["frequency"]))
 
         return definition, extracted_freq
 
@@ -544,6 +544,16 @@ class ResultRenderer:
         stars = str(result.get("starCount", ""))
         star_source = result.get("frequency_source_display", "")
         levels_html = self._build_level_labels_html(result)
+
+        frequency_rank = result.get("frequency_rank", "")
+        fr_src_display = result.get("frequency_rank_source_display", "")
+        fr_tip_attr = f' title="{fr_src_display}"' if fr_src_display else ""
+        rank_display = (
+            f' <span class="starcount frequency-rank"{fr_tip_attr}>'
+            f"[{frequency_rank}]</span>"
+            if frequency_rank
+            else ""
+        )
         return (
             '<div class="termPronunciation"><span '
             + font
@@ -564,6 +574,7 @@ class ResultRenderer:
             + ">"
             + stars
             + "</span>"
+            + rank_display
             + levels_html
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"

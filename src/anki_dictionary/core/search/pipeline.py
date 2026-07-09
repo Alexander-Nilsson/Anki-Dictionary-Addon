@@ -85,7 +85,9 @@ class SearchPipeline:
 
         # LLM
         if self.midict.config.get("llm_enabled", False) and "LLM" in group_dicts:
-            star_count, level_labels = self._extract_freq_from_results(results)
+            star_count, level_labels, frequency_rank, fr_src_display = (
+                self._extract_freq_from_results(results)
+            )
             if not star_count and not level_labels:
                 for d in selected_group.get("dictionaries", []):
                     lang = d.get("lang")
@@ -95,11 +97,34 @@ class SearchPipeline:
                         )
                         if info.get("starCount"):
                             star_count = info["starCount"]
+                            freq_raw = info.get("frequency")
+                            if freq_raw is not None:
+                                frequency_rank = ResultRenderer.format_frequency(
+                                    str(freq_raw)
+                                )
+                                fr_src_display = info.get(
+                                    "frequency_rank_source_display", ""
+                                )
                         if info.get("levelLabels"):
                             level_labels = info["levelLabels"]
                         if star_count or level_labels:
                             break
-            self._trigger_llm(cleaned, star_count, level_labels, id_name)
+
+            pronunciation = ""
+            if self.midict.config.get("llm_get_pronunciation", False):
+                pronunciation = self._extract_pronunciation_from_results(
+                    results, group_dicts
+                )
+
+            self._trigger_llm(
+                cleaned,
+                star_count,
+                level_labels,
+                id_name,
+                pronunciation,
+                frequency_rank,
+                fr_src_display,
+            )
 
         # Forvo
         forvo_id = ""
@@ -537,9 +562,13 @@ class SearchPipeline:
     def _get_tab_mode(self) -> str:
         return "true" if self.midict.dictInt.tabB.singleTab else "false"
 
-    def _extract_freq_from_results(self, results: dict[str, Any]) -> tuple[str, str]:
+    def _extract_freq_from_results(
+        self, results: dict[str, Any]
+    ) -> tuple[str, str, str, str]:
         star_count = ""
         level_labels = ""
+        frequency_rank = ""
+        frequency_rank_source_display = ""
         for _d_name, d_results in results.items():
             if not isinstance(d_results, list):
                 continue
@@ -551,18 +580,62 @@ class SearchPipeline:
                             star_count
                         ):
                             star_count = s
+                            freq = entry.get("frequency")
+                            if freq is not None:
+                                frequency_rank = self.renderer.format_frequency(
+                                    str(freq)
+                                )
+                                frequency_rank_source_display = entry.get(
+                                    "frequency_rank_source_display", ""
+                                )
                     elif not star_count:
                         star_count = s
+                        freq = entry.get("frequency")
+                        if freq is not None:
+                            frequency_rank = self.renderer.format_frequency(str(freq))
+                            frequency_rank_source_display = entry.get(
+                                "frequency_rank_source_display", ""
+                            )
                 ll = entry.get("levelLabels", "")
                 if ll and len(ll) > len(level_labels):
                     level_labels = ll
-        return star_count, level_labels
+        return star_count, level_labels, frequency_rank, frequency_rank_source_display
+
+    def _extract_pronunciation_from_results(
+        self, results: dict[str, Any], group_dicts: list[str]
+    ) -> str:
+        for d_name in group_dicts:
+            if d_name in ("Images", "LLM", "Forvo"):
+                continue
+            d_results = results.get(d_name)
+            if not isinstance(d_results, list):
+                continue
+            for entry in d_results:
+                pron = entry.get("pronunciation", "")
+                term = entry.get("term", "")
+                if pron and pron != term:
+                    return pron
+        return ""
 
     def _trigger_llm(
-        self, term: str, star_count: str, level_labels: str, id_name: str
+        self,
+        term: str,
+        star_count: str,
+        level_labels: str,
+        id_name: str,
+        pronunciation: str = "",
+        frequency_rank: str = "",
+        frequency_rank_source_display: str = "",
     ) -> None:
         self.coordinator.trigger_llm(
-            term, self.midict.config, star_count, level_labels, id_name
+            term,
+            self.midict.config,
+            star_count,
+            level_labels,
+            id_name,
+            pronunciation,
+            frequency_rank,
+            frequency_rank_source_display,
         )
 
     def _trigger_forvo(self, term: str, id_name: str, language: str) -> None:
