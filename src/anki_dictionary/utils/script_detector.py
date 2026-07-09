@@ -89,12 +89,6 @@ def detect_language(term: str) -> str:
         return "Thai"
 
     if _has_script(term, CYRILLIC):
-        try:
-            name = unicodedata.name(term[0], "")
-            if "CYRILLIC" in name:
-                return "Russian"
-        except (ValueError, TypeError):
-            pass
         return "Russian"
 
     if _has_script(term, ARABIC):
