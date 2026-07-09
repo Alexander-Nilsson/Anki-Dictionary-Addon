@@ -86,20 +86,46 @@ class ResultRenderer:
         )
         return img_tip, clip_tip, send_tip
 
-    def get_star_tooltip_html(self, star_count: str) -> str:
+    def get_star_tooltip_html(self, star_count: str, source: str = "") -> str:
         if not star_count or not isinstance(star_count, str):
             return ""
 
-        ranks = {
-            "\u2605\u2605\u2605\u2605\u2605": "Top 1,500",
-            "\u2605\u2605\u2605\u2605": "Top 5,000",
-            "\u2605\u2605\u2605": "Top 15,000",
-            "\u2605\u2605": "Top 30,000",
-            "\u2605": "Top 60,000",
-        }
-        lookup = star_count.split(" ")[-1] if " " in star_count else star_count
-        rank = ranks.get(lookup, "")
-        return f' title="Frequency: {rank}" ' if rank else ""
+        tip = f"Frequency: {source}" if source else "Frequency"
+        return f' title="{tip}" '
+
+    @staticmethod
+    def _format_frequency(raw: str) -> str:
+        if not raw:
+            return raw
+        if "k" in raw.lower():
+            return raw
+        try:
+            num = int(raw)
+        except ValueError:
+            return raw
+        if num < 1000:
+            return str(num)
+        k = num / 1000.0
+        if k >= 100:
+            return f"{k:.0f}k"
+        formatted = f"{k:.1f}k"
+        return formatted.replace(".0k", "k")
+
+    def _build_level_labels_html(self, entry: dict[str, Any]) -> str:
+        data = entry.get("levelLabelsData")
+        if data and isinstance(data, list):
+            parts = []
+            for item in data:
+                label = item.get("label", "")
+                source = item.get("source", "")
+                tip = f' title="{source}"' if source else ""
+                parts.append(f'<span class="starcount level-label"{tip}>{label}</span>')
+            if parts:
+                return " " + " ".join(parts)
+        levels = entry.get("levelLabels", "")
+        if levels:
+            return f' <span class="starcount level-label">{levels}</span>'
+        return ""
 
     def get_base64_icon(self, icon_name: str, is_dark: bool) -> str:
         if is_dark:
@@ -335,7 +361,7 @@ class ResultRenderer:
             )
             if freq_match:
                 if not extracted_freq:
-                    extracted_freq = freq_match.group(1)
+                    extracted_freq = self._format_frequency(freq_match.group(1))
                 definition = definition[freq_match.end() :].strip()
                 continue
             head_match = re.search(r"^\u3010[^\u3011]+\u3011\s*", definition)
@@ -356,7 +382,7 @@ class ResultRenderer:
         ).strip()
 
         if not extracted_freq and entry.get("frequency"):
-            extracted_freq = str(entry["frequency"])
+            extracted_freq = self._format_frequency(str(entry["frequency"]))
 
         return definition, extracted_freq
 
@@ -379,15 +405,28 @@ class ResultRenderer:
         is_dark: bool = False,
     ) -> str:
         stars = entry.get("starCount", "")
-        levels = entry.get("levelLabels", "")
+        star_source = entry.get("frequency_source_display", "")
+        rank_tip = entry.get("frequency_rank_source_display", "")
+        rank_tip_attr = f' title="{rank_tip}"' if rank_tip else ""
+
+        rank_source_name = entry.get("frequency_rank_source", "")
+        frequency_source_visibility: dict[str, bool] = config.get(
+            "frequency_source_visibility", {}
+        )
+        show_source = frequency_source_visibility.get(
+            rank_source_name, False
+        ) or config.get("show_frequency_source_name", False)
+        if show_source and extracted_freq and rank_tip:
+            rank_label = f"{rank_tip} [{extracted_freq}]"
+        else:
+            rank_label = f"[{extracted_freq}]"
         rank_display = (
-            f' <span class="starcount frequency-rank">[{extracted_freq}]</span>'
+            f' <span class="starcount frequency-rank"{rank_tip_attr}>'
+            f"{rank_label}</span>"
             if extracted_freq
             else ""
         )
-        levels_display = (
-            f' <span class="starcount level-label">{levels}</span>' if levels else ""
-        )
+        levels_display = self._build_level_labels_html(entry)
         return (
             '<div data-index="'
             + str(999)
@@ -406,7 +445,7 @@ class ResultRenderer:
                 term_headers,
             )
             + ' <span class="starcount"'
-            + self.get_star_tooltip_html(stars)
+            + self.get_star_tooltip_html(stars, star_source)
             + ">"
             + stars
             + "</span>"
@@ -503,10 +542,8 @@ class ResultRenderer:
     ) -> str:
         img, clip, send = self.get_tooltips(config)
         stars = str(result.get("starCount", ""))
-        levels = result.get("levelLabels", "")
-        levels_html = (
-            f' <span class="starcount level-label">{levels}</span>' if levels else ""
-        )
+        star_source = result.get("frequency_source_display", "")
+        levels_html = self._build_level_labels_html(result)
         return (
             '<div class="termPronunciation"><span '
             + font
@@ -523,7 +560,7 @@ class ResultRenderer:
                 term_headers,
             )
             + ' <span class="starcount"'
-            + self.get_star_tooltip_html(stars)
+            + self.get_star_tooltip_html(stars, star_source)
             + ">"
             + stars
             + "</span>"
@@ -579,10 +616,8 @@ class ResultRenderer:
         )
 
         stars = str(result.get("starCount", ""))
-        levels = result.get("levelLabels", "")
-        levels_html = (
-            f' <span class="starcount level-label">{levels}</span>' if levels else ""
-        )
+        star_source = result.get("frequency_source_display", "")
+        levels_html = self._build_level_labels_html(result)
 
         html += (
             '<div class="termPronunciation"><span '
@@ -600,7 +635,7 @@ class ResultRenderer:
                 term_headers,
             )
             + ' <span class="starcount"'
-            + self.get_star_tooltip_html(stars)
+            + self.get_star_tooltip_html(stars, star_source)
             + ">"
             + stars
             + "</span>"

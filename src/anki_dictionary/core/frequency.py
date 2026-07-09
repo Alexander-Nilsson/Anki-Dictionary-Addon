@@ -132,7 +132,12 @@ class FrequencyEngine:
         provider_roles = config.get("provider_roles", {})
 
         levels: list[str] = []
+        levels_data: list[dict[str, str]] = []
         frequency: int | None = None
+        frequency_source: str | None = None
+        frequency_source_display: str | None = None
+        frequency_rank_source: str | None = None
+        frequency_rank_source_display: str | None = None
         term = entry["term"]
         alt = entry.get("altterm", "")
         entry_reading = adjust_reading(entry.get("pronunciation", "") or term)
@@ -156,17 +161,24 @@ class FrequencyEngine:
 
             # Stars contribution — lowest rank wins
             uses_stars = role in ("stars_rank", "stars")
-            if (
-                uses_stars
-                and result.rank is not None
-                and (frequency is None or result.rank < frequency)
-            ):
-                frequency = result.rank
+            if uses_stars and result.rank is not None:
+                if frequency is None or result.rank < frequency:
+                    frequency = result.rank
+                    lang_display_names = word_list_display_names.get(provider.lang, {})
+                    frequency_source = provider.name
+                    frequency_source_display = self._get_display_name(
+                        provider.name, lang_display_names
+                    )
 
             # Rank-number contribution
             uses_rank = role in ("stars_rank", "rank")
             if uses_rank and result.rank is not None:
                 entry["frequency"] = result.rank
+                lang_display_names = word_list_display_names.get(provider.lang, {})
+                frequency_rank_source = f"{provider.lang}::{provider.name}"
+                frequency_rank_source_display = self._get_display_name(
+                    provider.name, lang_display_names
+                )
 
             # Level-label contribution
             if role == "level" and result.levels:
@@ -174,10 +186,19 @@ class FrequencyEngine:
                 display_name = self._get_display_name(provider.name, lang_display_names)
                 for level in result.levels:
                     levels.append(f"{display_name}:{level}")
+                    levels_data.append(
+                        {
+                            "label": f"{display_name}:{level}",
+                            "source": provider.name,
+                            "display": display_name,
+                        }
+                    )
 
         entry["levelLabels"] = (
             " / ".join(levels) if levels and show_level_labels else ""
         )
+        if levels_data and show_level_labels:
+            entry["levelLabelsData"] = levels_data
 
         if frequency is not None:
             if show_stars:
@@ -186,9 +207,16 @@ class FrequencyEngine:
                     "star_thresholds", [1501, 5001, 15001, 30001, 60001]
                 )
                 entry["starCount"] = get_star_count(frequency, star_char, thresholds)
+                entry["frequency_source"] = frequency_source or ""
+                entry["frequency_source_display"] = frequency_source_display or ""
             else:
                 entry["starCount"] = ""
-            if not show_rank:
+            if show_rank:
+                entry["frequency_rank_source"] = frequency_rank_source or ""
+                entry["frequency_rank_source_display"] = (
+                    frequency_rank_source_display or ""
+                )
+            else:
                 entry.pop("frequency", None)
         else:
             entry["starCount"] = ""
