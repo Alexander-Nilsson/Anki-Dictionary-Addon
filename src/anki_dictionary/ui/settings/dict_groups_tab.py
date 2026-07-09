@@ -153,6 +153,7 @@ class DictionaryGroupsTab:
                     try:
                         widget.clicked.disconnect()  # ty:ignore[unresolved-attribute]
                     except TypeError:
+                        # No existing connection to disconnect for this widget.
                         pass
         self.table.setRowCount(0)
         dictGroups = self.getConfig()["DictionaryGroups"]
