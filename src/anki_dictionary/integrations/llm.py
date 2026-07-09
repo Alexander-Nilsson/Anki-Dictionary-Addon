@@ -145,6 +145,9 @@ class LLMWorker(QRunnable):
         star_count: str = "",
         level_labels: str = "",
         idName: str = "",
+        pronunciation: str = "",
+        frequency_rank: str = "",
+        frequency_rank_source_display: str = "",
     ):
         super().__init__()
         self.term = term
@@ -152,6 +155,9 @@ class LLMWorker(QRunnable):
         self.star_count = star_count
         self.level_labels = level_labels
         self.idName = idName  # Track the UI tab ID
+        self._pronunciation = pronunciation
+        self._frequency_rank = frequency_rank
+        self._frequency_rank_source_display = frequency_rank_source_display
         self.timeout = config.get("llm_timeout", 15)
         self.signals = LLMWorkerSignals()
 
@@ -226,10 +232,12 @@ class LLMWorker(QRunnable):
             result = {
                 "term": self.term,
                 "definition": content,
-                "pronunciation": "",
+                "pronunciation": self._pronunciation,
                 "altterm": "",
                 "starCount": self.star_count,
                 "levelLabels": self.level_labels,
+                "frequency_rank": self._frequency_rank,
+                "frequency_rank_source_display": self._frequency_rank_source_display,
                 "dictName": "LLM",
                 "idName": self.idName,  # Send the ID back to the frontend
             }

@@ -148,14 +148,16 @@ class TestDisconnectBeforeTableClear(unittest.TestCase):
 
     def _disconnect_and_reload(self, tab, mod_path):
         """Simulate a reload that triggers disconnect then setRowCount(0)."""
+        old_lang = _make_mock_button()
         old_edit = _make_mock_button()
         old_del = _make_mock_button()
         tab.table.cellWidget.side_effect = lambda r, c: {
-            (0, 1): old_edit,
-            (0, 2): old_del,
+            (0, 1): old_lang,
+            (0, 2): old_edit,
+            (0, 3): old_del,
         }.get((r, c))
         tab.table.rowCount = MagicMock(return_value=1)
-        tab.table.columnCount = MagicMock(return_value=3)
+        tab.table.columnCount = MagicMock(return_value=4)
 
         with patch(f"{mod_path}.QPushButton") as mock_btn_cls:
             mock_btn_cls.side_effect = lambda text: _make_mock_button()
@@ -203,14 +205,16 @@ class TestDisconnectBeforeTableClear(unittest.TestCase):
         )
         tab.loadGroupTable()
 
+        old_lang = _make_mock_button()
         old_edit = _make_mock_button()
         old_del = _make_mock_button()
         tab.table.cellWidget.side_effect = lambda r, c: {
-            (0, 1): old_edit,
-            (0, 2): old_del,
+            (0, 1): old_lang,
+            (0, 2): old_edit,
+            (0, 3): old_del,
         }.get((r, c))
         tab.table.rowCount = MagicMock(return_value=1)
-        tab.table.columnCount = MagicMock(return_value=3)
+        tab.table.columnCount = MagicMock(return_value=4)
 
         with (
             patch("anki_dictionary.ui.settings.dict_groups_tab.miAsk") as ask,

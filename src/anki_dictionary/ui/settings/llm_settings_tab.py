@@ -83,6 +83,9 @@ class LLMSettingsTab(QWidget):
         self.llmKeepAlive.setPlaceholderText("e.g., 30m, 1h, 0")
         self.llmThink = QCheckBox()
         self.llmStream = QCheckBox()
+        self.llmGetPronunciation = QCheckBox(
+            "Get pronunciation from first dictionary entry"
+        )
         self.testLLMButton = QPushButton("Test API Connection")
         self.testLLMButton.clicked.connect(self.test_llm)
         self.llmStatusLabel = QLabel("")
@@ -158,6 +161,7 @@ class LLMSettingsTab(QWidget):
         formLayout.addRow("Keep Alive:", self.llmKeepAlive)
         formLayout.addRow("Enable Thinking", self.llmThink)
         formLayout.addRow("Enable Streaming:", self.llmStream)
+        formLayout.addRow("", self.llmGetPronunciation)
 
         formGroup.setLayout(formLayout)
         layout.addWidget(formGroup)
@@ -193,6 +197,7 @@ class LLMSettingsTab(QWidget):
         self.llmKeepAlive.setText(config.get("llm_keep_alive", "30m"))
         self.llmThink.setChecked(config.get("llm_think", False))
         self.llmStream.setChecked(config.get("llm_stream", False))
+        self.llmGetPronunciation.setChecked(config.get("llm_get_pronunciation", False))
 
         # Load prompts: prefer llm_prompts (list of strings or dicts),
         # fall back to llm_prompt (string)
@@ -223,6 +228,7 @@ class LLMSettingsTab(QWidget):
         config["llm_keep_alive"] = self.llmKeepAlive.text()
         config["llm_think"] = self.llmThink.isChecked()
         config["llm_stream"] = self.llmStream.isChecked()
+        config["llm_get_pronunciation"] = self.llmGetPronunciation.isChecked()
 
         # Save all prompts as array of dicts with active state
         prompts = [
@@ -251,6 +257,10 @@ class LLMSettingsTab(QWidget):
         )
         self.llmStream.setToolTip(
             "Enable streaming response. Note: The addon currently waits for the full response before displaying, but this can affect API behavior."
+        )
+        self.llmGetPronunciation.setToolTip(
+            "When enabled, the LLM heading will show pronunciation from the first dictionary "
+            "entry (in group order) that has pronunciation data."
         )
 
     # --- Test ---

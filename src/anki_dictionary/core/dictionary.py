@@ -984,14 +984,35 @@ class DictInterface(QWidget):
 
     def initSearch(self, term=False):
         self.ensureVisible()
-        selectedGroup = self.getSelectedDictGroup()
-        if term == False:
+        if term is False:
             term = self.search.text()
             term = term.strip()
         term = term.strip()
         term = self.cleanTermBrackets(term)
         if term == "":
             return
+
+        if self.config.get("auto_select_dict_group", True):
+            from anki_dictionary.utils.script_detector import find_matching_group
+
+            installed_langs = self.db.getCurrentDbLangs()
+            language_defaults = self.config.get("language_defaults", {})
+            match = find_matching_group(
+                term,
+                self.userGroups,
+                self.defaultGroups,
+                installed_langs=installed_langs,
+                language_defaults=language_defaults,
+            )
+            if match is not None:
+                idx = self.dictGroups.findText(match)
+                if idx >= 0:
+                    self.dictGroups.blockSignals(True)
+                    self.dictGroups.setCurrentIndex(idx)
+                    self.writeConfig("currentGroup", self.dictGroups.currentText())
+                    self.dictGroups.blockSignals(False)
+
+        selectedGroup = self.getSelectedDictGroup()
         self.search.setText(term.strip())
         self.addToHistory(term)
         self.dict.addNewTab(term, selectedGroup)

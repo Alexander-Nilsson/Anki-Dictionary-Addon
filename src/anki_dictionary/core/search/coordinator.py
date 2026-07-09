@@ -47,9 +47,19 @@ class ExternalServiceCoordinator:
         star_count: str = "",
         level_labels: str = "",
         id_name: str = "",
+        pronunciation: str = "",
+        frequency_rank: str = "",
+        frequency_rank_source_display: str = "",
     ) -> None:
         worker = llm_integration.LLMWorker(
-            term, config, star_count, level_labels, id_name
+            term,
+            config,
+            star_count,
+            level_labels,
+            id_name,
+            pronunciation,
+            frequency_rank,
+            frequency_rank_source_display,
         )
         worker.signals.result_ready.connect(self._on_llm_result)
         worker.signals.error_occurred.connect(self._on_llm_error)

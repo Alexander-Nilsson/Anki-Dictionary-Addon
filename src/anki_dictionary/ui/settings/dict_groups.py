@@ -50,6 +50,17 @@ class DictGroupEditor(QDialog):
         self.removeAll = QPushButton("Remove All")
         self.cancelButton = QPushButton("Cancel")
         self.saveButton = QPushButton("Save")
+
+        # Language default selector
+        self.languageDefaultCB = QComboBox()
+        self.languageDefaultCB.addItem("(None)")
+        try:
+            installed = self.mw.miDictDB.getCurrentDbLangs()
+            for lang in installed:
+                self.languageDefaultCB.addItem(lang)
+        except Exception as e:
+            miInfo(f"Failed to load installed dictionary languages: {e}")
+
         self.layout = QVBoxLayout()  # ty:ignore[invalid-assignment]
         self.setupLayout()
         self.fontToMove = False
@@ -72,6 +83,9 @@ class DictGroupEditor(QDialog):
         self.browseFontFile.setToolTip("Select a font to import from a file.")
         self.selectAll.setToolTip("Select all dictionaries.")
         self.removeAll.setToolTip("Clear the current selection.")
+        self.languageDefaultCB.setToolTip(
+            "Default this group for the selected language when Auto-Select is on."
+        )
 
     def resetNew(self):
         self.new = True
@@ -106,6 +120,16 @@ class DictGroupEditor(QDialog):
         else:
             self.fontDropDown.setCurrentText(group["font"])
         self.loadSelectedDictionaries(group["dictionaries"])
+
+        # Restore language default if set
+        config = self.getConfig()
+        lang_defaults = config.get("language_defaults", {})
+        for lang, gname in lang_defaults.items():
+            if gname == groupName:
+                idx = self.languageDefaultCB.findText(lang)
+                if idx >= 0:
+                    self.languageDefaultCB.setCurrentIndex(idx)
+                break
 
     def loadSelectedDictionaries(self, dicts):
         count = 1
@@ -222,6 +246,21 @@ class DictGroupEditor(QDialog):
             "font": fontName,
         }
         curGroups[gn] = dictGroup
+
+        # Save/update language default
+        lang_defaults = newConfig.get("language_defaults", {})
+        selected_lang = self.languageDefaultCB.currentText()
+        selected_lang = "" if selected_lang == "(None)" else selected_lang
+
+        # Remove any previous default pointing to this group
+        for k in list(lang_defaults.keys()):
+            if lang_defaults[k] == gn:
+                del lang_defaults[k]
+
+        if selected_lang:
+            lang_defaults[selected_lang] = gn
+
+        newConfig["language_defaults"] = lang_defaults
         save_addon_config(newConfig)
         if hasattr(self.mw, "refreshAnkiDictConfig"):
             self.mw.refreshAnkiDictConfig(newConfig)
@@ -346,6 +385,12 @@ class DictGroupEditor(QDialog):
         fontLayoutH2.addWidget(self.browseFontFile)
         fontLayoutH2.addStretch()
         self.layout.addLayout(fontLayoutH2)  # ty:ignore[unresolved-attribute]
+
+        langLayout = QHBoxLayout()
+        langLayout.addWidget(QLabel("Default for Language:"))
+        langLayout.addWidget(self.languageDefaultCB)
+        langLayout.addStretch()
+        self.layout.addLayout(langLayout)  # ty:ignore[unresolved-attribute]
 
         self.layout.addWidget(QLabel("Dictionaries"))  # ty:ignore[unresolved-attribute]
         self.layout.addWidget(self.dictionaries)  # ty:ignore[unresolved-attribute]

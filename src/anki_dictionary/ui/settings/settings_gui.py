@@ -89,6 +89,7 @@ class SettingsGui(QWidget):
         self.highlightTarget = QCheckBox()
         self.genJSExport = QCheckBox()
         self.imageAutoConvert = QCheckBox()
+        self.autoSelectGroupCB = QCheckBox()
 
         self.restoreButton = QPushButton("Restore Defaults")
         self.cancelButton = QPushButton("Cancel")
@@ -184,6 +185,10 @@ class SettingsGui(QWidget):
         self.highlightTarget.setToolTip(
             "The dictionary will highlight the searched term in\nthe search results."
         )
+        self.autoSelectGroupCB.setToolTip(
+            "Auto-switch dictionary group based on the script of the searched term.\n"
+            "Configure language→group defaults in the Dictionary Group editor."
+        )
 
         self.llmTab.init_tooltips()
 
@@ -207,6 +212,7 @@ class SettingsGui(QWidget):
         self.dictOnTop.setChecked(config.get("dictAlwaysOnTop", False))
         self.genJSExport.setChecked(config.get("jReadingCards", False))
         self.imageAutoConvert.setChecked(config.get("imageAutoConvert", True))
+        self.autoSelectGroupCB.setChecked(config.get("auto_select_dict_group", True))
 
         self.llmTab.load_config(config)
         self.forvoTab.load_config(config)
@@ -227,6 +233,7 @@ class SettingsGui(QWidget):
         nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
         nc["jReadingCards"] = self.genJSExport.isChecked()
         nc["imageAutoConvert"] = self.imageAutoConvert.isChecked()
+        nc["auto_select_dict_group"] = self.autoSelectGroupCB.isChecked()
 
         self.llmTab.save_config(nc)
         self.forvoTab.save_config(nc)
@@ -302,7 +309,12 @@ class SettingsGui(QWidget):
         dictsLayout = QVBoxLayout()
         exportsLayout = QVBoxLayout()
 
-        dictsLayout.addWidget(QLabel("Dictionary Groups"))
+        groupsHeader = QHBoxLayout()
+        groupsHeader.addWidget(QLabel("Dictionary Groups"))
+        self.autoSelectGroupCB.setText("Auto-Select")
+        groupsHeader.addWidget(self.autoSelectGroupCB)
+        groupsHeader.addStretch()
+        dictsLayout.addLayout(groupsHeader)
         dictsLayout.addWidget(self.addDictGroup)
         dictsLayout.addWidget(self.dictGroups)
 
@@ -366,6 +378,8 @@ class SettingsGui(QWidget):
 
         mediaGroup.setLayout(mediaForm)
         optionsLayout.addWidget(mediaGroup)
+
+        # --- Auto-Select Group (moved next to Dictionary Groups header above) ---
 
         layout.addLayout(optionsLayout)
         layout.addStretch()
