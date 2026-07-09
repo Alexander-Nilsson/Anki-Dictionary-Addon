@@ -58,8 +58,8 @@ class DictGroupEditor(QDialog):
             installed = self.mw.miDictDB.getCurrentDbLangs()
             for lang in installed:
                 self.languageDefaultCB.addItem(lang)
-        except Exception:
-            pass
+        except Exception as e:
+            miInfo(f"Failed to load installed dictionary languages: {e}")
 
         self.layout = QVBoxLayout()  # ty:ignore[invalid-assignment]
         self.setupLayout()
