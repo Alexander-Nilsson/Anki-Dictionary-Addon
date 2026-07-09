@@ -97,9 +97,7 @@ class DictionaryGroupsTab:
         tip_langs = ", ".join(current_langs) if current_langs else "(none)"
         btn.setToolTip(
             f"Language defaults: {tip_langs}\n"
-            "Click to set which languages this group is the default for.\n"
-            "When Auto-Select is enabled, searching text in a language\n"
-            "will automatically switch to this group."
+            "Click to set which languages default to this group when Auto-Select is on."
         )
 
         def make_handler(gn: str) -> Callable[[], None]:

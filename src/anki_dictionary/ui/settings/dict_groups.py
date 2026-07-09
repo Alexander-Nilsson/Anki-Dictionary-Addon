@@ -84,10 +84,7 @@ class DictGroupEditor(QDialog):
         self.selectAll.setToolTip("Select all dictionaries.")
         self.removeAll.setToolTip("Clear the current selection.")
         self.languageDefaultCB.setToolTip(
-            "Set this group as the default for the selected language.\n"
-            "When Auto-Select is enabled, searching text in this language\n"
-            "will automatically switch to this dictionary group.\n"
-            "If no custom default is set, the built-in language group is used."
+            "Default this group for the selected language when Auto-Select is on."
         )
 
     def resetNew(self):

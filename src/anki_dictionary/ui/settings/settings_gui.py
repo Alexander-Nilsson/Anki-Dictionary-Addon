@@ -186,13 +186,8 @@ class SettingsGui(QWidget):
             "The dictionary will highlight the searched term in\nthe search results."
         )
         self.autoSelectGroupCB.setToolTip(
-            "When enabled, the dictionary group is automatically selected based on\n"
-            "the script of the searched term. For example, searching a Chinese\n"
-            "character switches to the Chinese group, Thai text to the Thai group,\n"
-            "Cyrillic text to the Russian group, etc.\n\n"
-            "You can set which group is the default for each language in the\n"
-            "Dictionary Group editor. If no custom default is set, the built-in\n"
-            "language group (if one exists) will be used."
+            "Auto-switch dictionary group based on the script of the searched term.\n"
+            "Configure language→group defaults in the Dictionary Group editor."
         )
 
         self.llmTab.init_tooltips()
