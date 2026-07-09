@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 
@@ -24,6 +25,7 @@ from ...core.word_list_registry import WordListProvider, WordListRegistry
 from ...utils.paths import get_word_lists_dir
 
 _DEFAULT_DISPLAY_NAMES = {"hsk": "HSK³", "jlpt": "JLPT", "cefr": "CEFR"}
+logger = logging.getLogger(__name__)
 
 
 class FrequencySettingsTab(QWidget):
@@ -189,7 +191,15 @@ class FrequencySettingsTab(QWidget):
             )
             self._preview_label.setText(html)
         except Exception:
-            pass
+            logger.exception("Failed to update frequency preview")
+            self._preview_label.setText(
+                '<div style="display: flex; align-items: center; gap: 8px;'
+                ' flex-wrap: wrap;">'
+                '<span style="font-weight: 700; font-size: 15px;">例文</span>'
+                '<span class="pronunciation"'
+                ' style="color: #666; font-size: 13px;">れいぶん</span>'
+                "</div>"
+            )
 
     @staticmethod
     def _format_freq_k(freq: int) -> str:
