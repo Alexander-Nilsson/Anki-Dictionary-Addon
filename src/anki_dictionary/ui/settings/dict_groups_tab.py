@@ -76,7 +76,13 @@ class DictionaryGroupsTab:
             if hasattr(self.mw, "miDictDB"):
                 return self.mw.miDictDB.getCurrentDbLangs()
         except Exception:
-            pass
+            # Optional integration: if DB/lang lookup fails, keep UI functional
+            # by falling back to no installed languages.
+            import logging
+
+            logging.getLogger(__name__).debug(
+                "Failed to load installed dictionary languages.", exc_info=True
+            )
         return []
 
     def _lang_button_label(self, langs: list[str]) -> str:
