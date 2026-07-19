@@ -65,8 +65,9 @@ def dictOnStart():
         from ..ui.dialogs.release_notes import check_and_show_release_notes
 
         check_and_show_release_notes(mw)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Non-critical: release notes popup should not block addon startup.
+        print(f"Anki Dictionary: failed to show release notes: {exc}")
 
 
 def addToContextMenu(webview, menu):
