@@ -367,7 +367,7 @@ def setup_gui_menu():
     mw.DictMainMenu.addAction(search_term_action)  # ty:ignore[unresolved-attribute]
     mw.dict_actions["search_term"] = search_term_action  # ty:ignore[unresolved-attribute]
 
-    search_col_action = QAction("Search in Collection", mw)
+    search_col_action = QAction("Search in Browser", mw)
     search_col_action.setShortcut(QKeySequence("Ctrl+Shift+B"))
     search_col_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
     search_col_action.triggered.connect(trigger_search_col)
