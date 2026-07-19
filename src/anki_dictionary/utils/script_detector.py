@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import unicodedata
 from typing import Any
 
 CJK_UNIFIED = range(0x4E00, 0x9FFF + 1)
