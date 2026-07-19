@@ -102,5 +102,7 @@
   "imageAutoConvert": true,
   "forvo_enabled": true,
   "forvo_language": "ja",
-  "hsk_mode": "hsk3"
+  "hsk_mode": "hsk3",
+  "last_seen_version": "",
+  "hide_release_notes": false
 }

@@ -109,6 +109,8 @@ def get_addon_config() -> dict[str, Any]:
         "word_list_visibility": {},
         "auto_select_dict_group": True,
         "language_defaults": {},
+        "last_seen_version": "",
+        "hide_release_notes": False,
     }
 
 

@@ -59,9 +59,15 @@ def dictOnStart():
     from ..ui.main_window import removeTempFiles
 
     removeTempFiles()
-    # Uncomment if global hotkeys are enabled
-    # if mw.addonManager.getConfig(__name__)['globalHotkeys']:
-    #     initGlobalHotkeys()
+
+    # Show release notes popup for new versions
+    try:
+        from ..ui.dialogs.release_notes import check_and_show_release_notes
+
+        check_and_show_release_notes(mw)
+    except Exception as exc:
+        # Non-critical: release notes popup should not block addon startup.
+        print(f"Anki Dictionary: failed to show release notes: {exc}")
 
 
 def addToContextMenu(webview, menu):
@@ -367,7 +373,7 @@ def setup_gui_menu():
     mw.DictMainMenu.addAction(search_term_action)  # ty:ignore[unresolved-attribute]
     mw.dict_actions["search_term"] = search_term_action  # ty:ignore[unresolved-attribute]
 
-    search_col_action = QAction("Search in Collection", mw)
+    search_col_action = QAction("Search in Browser", mw)
     search_col_action.setShortcut(QKeySequence("Ctrl+Shift+B"))
     search_col_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
     search_col_action.triggered.connect(trigger_search_col)
