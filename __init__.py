@@ -15,9 +15,9 @@ try:
 except ImportError:
     mw = None
 
-# macOS SSL certificate fix
-if sys.platform == "darwin":
-    ssl._create_default_https_context = ssl._create_unverified_context
+# Disable SSL certificate verification to fix dictionary download issues
+# across all platforms (Windows/Linux/macOS)
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # Add the vendor directory to the system path
 vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
