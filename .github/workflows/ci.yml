@@ -62,3 +62,93 @@ jobs:
           name: ankiaddon
           path: build/*.ankiaddon
           retention-days: 7
+
+  windows-ci:
+    name: Windows (Platform Tests + Integration)
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.13
+        run: |
+          uv python install 3.13
+          uv python pin 3.13
+          rm -rf .venv
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Run Platform + Integration Tests
+        run: >
+          uv run pytest
+          tests/integration/
+          tests/test_addon_loads.py
+          tests/test_issue18_blank_icons.py
+          tests/test_issue17_disconnect_warning.py
+          tests/test_forvo_integration.py
+          tests/test_image_search.py
+          tests/test_card_exporter.py
+          tests/test_themes.py
+          tests/test_search_pipeline_smoke.py
+          --tb=short
+          -v
+
+      - name: Build Addon
+        run: uv run python build.py all
+
+  macos-ci:
+    name: macOS (Platform Tests + Integration)
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: macos-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.13
+        run: |
+          uv python install 3.13
+          uv python pin 3.13
+          rm -rf .venv
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Run Platform + Integration Tests
+        run: >
+          uv run pytest
+          tests/integration/
+          tests/test_addon_loads.py
+          tests/test_issue18_blank_icons.py
+          tests/test_issue17_disconnect_warning.py
+          tests/test_forvo_integration.py
+          tests/test_image_search.py
+          tests/test_card_exporter.py
+          tests/test_themes.py
+          tests/test_search_pipeline_smoke.py
+          --tb=short
+          -v
+
+      - name: Build Addon
+        run: uv run python build.py all
