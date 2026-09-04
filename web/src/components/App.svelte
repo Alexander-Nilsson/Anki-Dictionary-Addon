@@ -1,6 +1,7 @@
 <script lang="ts">
   import TabBar from "./TabBar.svelte";
   import TabContent from "./TabContent.svelte";
+  import Toaster from "./Toaster.svelte";
   import WelcomeScreen from "./WelcomeScreen.svelte";
   import {
     applySidebarState,
@@ -33,4 +34,5 @@
       {/if}
     </div>
   </div>
+  <Toaster />
 </div>

@@ -44,6 +44,10 @@ export const CMD = {
   imgExport: (word: string, urls: string[]) =>
     `imgExport:${word}\u25f3\u25f4${JSON.stringify(urls)}`,
   getMoreImages: (term: string) => `getMoreImages::${term}`,
+  /** Persist the drag-resized sidebar width (px). */
+  saveSidebarWidth: (width: number) => `saveSidebarWidth:${Math.round(width)}`,
+  /** Open the dictionary settings window (contains the usage guide). */
+  openSettings: () => "openSettings",
 } as const;
 
 /**

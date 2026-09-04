@@ -1241,3 +1241,18 @@
             z-index: 1600 !important;
             position: relative;
         }
+
+        /* Initial image-search placeholder: subtle shimmer until results land
+           (the .is-loading class is removed once real content is injected). */
+        .imageBlock.is-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            animation: imageLoadingPulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes imageLoadingPulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }

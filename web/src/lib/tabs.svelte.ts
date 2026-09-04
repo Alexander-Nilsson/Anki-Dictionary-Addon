@@ -6,6 +6,7 @@
  * `{@html}`; later phases will replace it with structured data + components.
  */
 import { CMD, pycmd } from "./pycmd";
+import { offsetTopRelative } from "./dom";
 import type { Tab } from "./types";
 
 /**
@@ -26,6 +27,9 @@ export const ui = new DictionaryUIStore();
 
 let nextId = 1;
 
+/** Per-tab scroll positions of the shared #defBox scroller. */
+const scrollPositions = new Map<number, number>();
+
 // ── tabs ────────────────────────────────────────────
 
 /**
@@ -45,6 +49,10 @@ export function addTab(term: string, html: string, singleTab: boolean): void {
     const idx = ui.tabs.findIndex((t) => t.id === ui.activeId);
     const target = idx >= 0 ? idx : ui.tabs.length - 1;
     ui.tabs[target] = { ...ui.tabs[target], term: cleanTerm, html };
+    // Content changed — forget the old scroll position and start at the top.
+    scrollPositions.delete(ui.tabs[target].id);
+    const defBox = document.getElementById("defBox");
+    if (defBox) defBox.scrollTop = 0;
     return;
   }
 
@@ -55,8 +63,10 @@ export function addTab(term: string, html: string, singleTab: boolean): void {
   }
 
   const tab: Tab = { id: nextId++, term: cleanTerm, html };
+  rememberActiveScroll();
   ui.tabs.push(tab);
   ui.activeId = tab.id;
+  restoreScroll(tab.id);
 }
 
 export function closeTab(id: number): void {
@@ -64,6 +74,7 @@ export function closeTab(id: number): void {
   if (idx === -1) return;
   const wasActive = id === ui.activeId;
   ui.tabs.splice(idx, 1);
+  scrollPositions.delete(id);
   if (wasActive) {
     if (ui.tabs.length === 0) {
       ui.activeId = null;
@@ -75,7 +86,27 @@ export function closeTab(id: number): void {
 }
 
 export function activate(id: number): void {
+  if (id === ui.activeId) return;
+  rememberActiveScroll();
   ui.activeId = id;
+  restoreScroll(id);
+}
+
+/** Save the outgoing tab's scroll before the shared #defBox is repurposed. */
+function rememberActiveScroll(): void {
+  const defBox = document.getElementById("defBox");
+  if (defBox && ui.activeId !== null) {
+    scrollPositions.set(ui.activeId, defBox.scrollTop);
+  }
+}
+
+/** Restore the incoming tab's saved scroll once it is visible. */
+function restoreScroll(id: number): void {
+  const defBox = document.getElementById("defBox");
+  if (!defBox) return;
+  requestAnimationFrame(() => {
+    defBox.scrollTop = scrollPositions.get(id) ?? 0;
+  });
 }
 
 /** Search result replaced the tab's content; send the term back to Python. */
@@ -195,4 +226,98 @@ export function initFromWindow(): void {
     ui.welcomeHtml = placeholder.innerHTML;
     placeholder.remove();
   }
+
+  // Sidebar width persisted by the user (0 = unset, keep the CSS default).
+  const sidebarWidth = Number(window.sidebarWidth);
+  if (Number.isFinite(sidebarWidth) && sidebarWidth > 0) {
+    const ws = document.getElementById("widthSpecs");
+    if (ws) {
+      ws.textContent =
+        `.sidebarOpenedDisplay{margin-left:${sidebarWidth}px !important;}` +
+        `.sidebarOpenedSideBar{width:${sidebarWidth}px;}`;
+    }
+  }
+}
+
+// ── sidebar active-entry sync ──────────────────────
+
+interface EntryPosition {
+  block: HTMLElement;
+  dictIndex: number;
+  entryIndex: number;
+}
+
+/**
+ * Highlight the sidebar entry that matches the definition block currently
+ * visible in the active tab. The sidebar's structure mirrors the results
+ * pane: listTitle *i* ↔ dictionaryTitleBlock *i*, and each li below it ↔ a
+ * termPronunciation block (in order), for every dictionary including Images.
+ *
+ * Purely additive (cosmetic) — no existing navigation is affected.
+ */
+function syncSidebarActive(): void {
+  const defBox = document.getElementById("defBox");
+  if (!defBox) return;
+  const activeTab = document.querySelector<HTMLElement>(
+    `.tabContent[data-index="${ui.activeId}"]`,
+  );
+  if (!activeTab) return;
+
+  const dictBlocks = Array.from(
+    activeTab.querySelectorAll<HTMLElement>(".dictionaryTitleBlock"),
+  );
+  if (dictBlocks.length === 0) return;
+
+  const entries: EntryPosition[] = [];
+  dictBlocks.forEach((block, dictIndex) => {
+    Array.from(block.querySelectorAll<HTMLElement>(".termPronunciation")).forEach(
+      (block, entryIndex) => {
+        entries.push({ block, dictIndex, entryIndex });
+      },
+    );
+  });
+  if (entries.length === 0) return;
+
+  // Bootstrap-style scrollspy: the current entry is the last one whose top
+  // has crossed the viewport top edge. When scrolled to the very bottom, pin
+  // the last entry — the page may be too short for its top to reach the top
+  // edge, so the plain crossing rule would never advance to it.
+  const atBottom =
+    defBox.scrollTop > 0 &&
+    defBox.scrollTop + defBox.clientHeight >= defBox.scrollHeight - 4;
+  let current: EntryPosition | null = null;
+  if (atBottom) {
+    current = entries[entries.length - 1];
+  } else {
+    const anchor = defBox.scrollTop + 1;
+    for (const entry of entries) {
+      if (offsetTopRelative(entry.block, defBox) <= anchor) current = entry;
+    }
+    // Nothing has scrolled past the top yet — highlight the first entry.
+    if (!current) current = entries[0];
+  }
+  if (!current) return;
+
+  const listTitles = Array.from(
+    activeTab.querySelectorAll<HTMLElement>(".definitionSideBar .listTitle"),
+  );
+  const title = listTitles[current.dictIndex];
+  if (!title) return;
+  const ol = title.nextElementSibling as HTMLElement | null;
+  const lis = ol ? Array.from(ol.querySelectorAll<HTMLElement>("li")) : [];
+  const target = lis[current.entryIndex];
+  if (!target) return;
+
+  const sidebar = activeTab.querySelector<HTMLElement>(".definitionSideBar");
+  sidebar?.querySelectorAll(".foundEntriesList li.active").forEach((el) => {
+    if (el !== target) el.classList.remove("active");
+  });
+  if (!target.classList.contains("active")) target.classList.add("active");
+}
+
+/** Track the scroll position of the results pane to sync the sidebar. */
+export function initSidebarSync(): void {
+  // Attach on document (capture) so the listener exists before the app
+  // mounts and survives #defBox appearing/disappearing.
+  document.addEventListener("scroll", syncSidebarActive, true);
 }

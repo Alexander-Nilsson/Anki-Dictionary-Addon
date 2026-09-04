@@ -19,6 +19,20 @@ import {
   navigate,
 } from "./dom";
 import { CMD, pycmd } from "./pycmd";
+import { showToast } from "./toast.svelte";
+
+// ── keyboard accessibility ─────────────────────────
+// The Python renderer marks tool/icon buttons with role="button" and
+// tabindex="0"; make Enter/Space trigger their inline onclick handlers, the
+// same way a native <button> works.
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const target = e.target as HTMLElement | null;
+  if (!target || target.getAttribute("role") !== "button") return;
+  e.preventDefault();
+  target.click();
+});
 
 // ── clipboard / export ─────────────────────────────
 
@@ -42,6 +56,7 @@ function getDefExport(ev: Event, dictName: string): void {
       definition.replace(/\n/g, "<br>");
   }
   pycmd(CMD.addDef(dictName, word, text));
+  showToast("Added to export window");
 }
 
 function getImageExport(ev: Event, _dictName: string): void {
@@ -52,7 +67,10 @@ function getImageExport(ev: Event, _dictName: string): void {
   if (!defBlock) return;
   const word = getMainWords(termTitle);
   const urls = collectSelectedImageUrls(defBlock);
-  if (urls.length > 0) pycmd(CMD.imgExport(word, urls));
+  if (urls.length > 0) {
+    pycmd(CMD.imgExport(word, urls));
+    showToast("Added images to export window");
+  }
 }
 
 /** Route export by dictionary type (images vs. definitions). */
@@ -79,6 +97,7 @@ function clipText(ev: Event): void {
     const urls = collectSelectedImageUrls(termBody);
     if (urls.length > 0) {
       pycmd(CMD.clippedImages(urls));
+      showToast("Images copied");
       return;
     }
   }
@@ -90,6 +109,7 @@ function clipText(ev: Event): void {
     text = getWordPron(termTitle) + definition;
   }
   pycmd(CMD.clipped(text));
+  showToast("Copied to clipboard");
 }
 
 function getDefForField(ev: Event, dictName: string): void {
@@ -112,6 +132,7 @@ function getDefForField(ev: Event, dictName: string): void {
       definition.replace(/\n/g, "<br>");
   }
   pycmd(CMD.sendToField(dictName, text));
+  showToast("Sent to field");
 }
 
 function getImageForField(ev: Event, _dictName: string): void {
@@ -121,7 +142,10 @@ function getImageForField(ev: Event, _dictName: string): void {
   const defBlock = termTitle.nextElementSibling as HTMLElement | null;
   if (!defBlock) return;
   const urls = collectSelectedImageUrls(defBlock);
-  if (urls.length > 0) pycmd(CMD.sendImgToField(urls));
+  if (urls.length > 0) {
+    pycmd(CMD.sendImgToField(urls));
+    showToast("Images sent to field");
+  }
 }
 
 function sendToField(ev: Event, dictName: string): void {
@@ -194,6 +218,8 @@ export function loadImageHtml(html: string, idName: string): void {
   const target = document.getElementById(idName);
   if (target) {
     target.innerHTML = html;
+    // The "Loading..." state is over once real content arrives.
+    target.classList.remove("is-loading");
   } else {
     console.warn("Target element not found:", idName);
   }
@@ -380,6 +406,7 @@ function filterFieldOptions(input: HTMLInputElement): void {
 
 let hresizeInt: number | undefined;
 let mouseX = 0;
+let resizing = false;
 
 document.addEventListener("mousemove", (e) => {
   mouseX = e.pageX;
@@ -391,6 +418,7 @@ function hresize(_ev: Event): void {
     userSelect.textContent =
       "body{-webkit-touch-callout: none;  -webkit-user-select: none;-khtml-user-select: none;-moz-user-select: none;-ms-user-select: none;user-select: none;}";
   }
+  resizing = true;
   hresizeInt = window.setInterval(() => {
     const ws = document.getElementById("widthSpecs");
     if (ws) {
@@ -404,14 +432,17 @@ function stopResize(): void {
   hresizeInt = undefined;
   const userSelect = document.getElementById("userSelect");
   if (userSelect) userSelect.textContent = "";
+  if (!resizing) return;
+  resizing = false;
   const ws = document.getElementById("widthSpecs");
   if (!ws) return;
-  if (mouseX > window.innerWidth) {
-    ws.textContent = `.sidebarOpenedDisplay{margin-left:${window.innerWidth - 20}px !important;}.sidebarOpenedSideBar{width:${window.innerWidth - 20}px;}`;
-  } else if (mouseX < 0) {
-    ws.textContent =
-      ".sidebarOpenedDisplay{margin-left:20px !important;}.sidebarOpenedSideBar{width:20px;}";
-  }
+  let width = mouseX;
+  if (width > window.innerWidth) width = window.innerWidth - 20;
+  if (width < 20) width = 20;
+  ws.textContent =
+    `.sidebarOpenedDisplay{margin-left:${width}px !important;}.sidebarOpenedSideBar{width:${width}px;}`;
+  // Persist so the width survives a dictionary reopen.
+  pycmd(CMD.saveSidebarWidth(width));
 }
 
 window.addEventListener("mouseup", stopResize);

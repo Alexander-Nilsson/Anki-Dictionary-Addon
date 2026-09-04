@@ -9,6 +9,8 @@ declare global {
     /** Font sizes injected by Python in getHTMLURL (defaults below). */
     fefs?: number;
     dbfs?: number;
+    /** Saved sidebar width (px) injected by Python; 0 means unset. */
+    sidebarWidth?: number;
   }
 }
 

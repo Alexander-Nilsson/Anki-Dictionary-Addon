@@ -109,6 +109,11 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("saveFS:"):
             f1, f2 = dAct[7:].split(":")
             self.dictInt.writeConfig("fontSizes", [int(f1), int(f2)])
+        elif dAct.startswith("openSettings"):
+            self.dictInt.openDictionarySettings()
+        elif dAct.startswith("saveSidebarWidth:"):
+            width = max(int(dAct[17:]), 20)
+            self.dictInt.writeConfig("sidebarWidth", width)
         elif dAct.startswith("fieldsSetting:"):
             fields = json.loads(dAct[14:])
             logger.debug(f"Received fieldsSetting command: {fields}")
@@ -413,6 +418,10 @@ class DictInterface(QWidget):
         dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
         return int(fefs), int(dbfs)
 
+    def _get_sidebar_width(self) -> int:
+        """Saved sidebar width in px (0 = unset, keep the CSS default)."""
+        return max(int(self.config.get("sidebarWidth", 0) or 0), 0)
+
     def _svelte_dictionary_path(self) -> str | None:
         """Locate the built Svelte UI bundle.
 
@@ -436,18 +445,26 @@ class DictInterface(QWidget):
         self.setStyleSheet(qss)
         custom_theme_css = theme_controller.generate_html_css(active_theme_dict)
         fefs, dbfs = self._get_font_sizes()
+        sidebar_width = self._get_sidebar_width()
 
         svelte_path = self._svelte_dictionary_path()
         if svelte_path:
             html, url = self._get_html_url_svelte(
-                svelte_path, custom_theme_css, fefs, dbfs
+                svelte_path, custom_theme_css, fefs, dbfs, sidebar_width
             )
         else:
-            html, url = self._get_html_url_legacy(custom_theme_css, fefs, dbfs)
+            html, url = self._get_html_url_legacy(
+                custom_theme_css, fefs, dbfs, sidebar_width
+            )
         return html, url
 
     def _get_html_url_svelte(
-        self, html_path: str, custom_theme_css: str, fefs: int, dbfs: int
+        self,
+        html_path: str,
+        custom_theme_css: str,
+        fefs: int,
+        dbfs: int,
+        sidebar_width: int,
     ) -> tuple[str, QUrl]:
         """Load the Svelte-built shell and apply the Python-side injections.
 
@@ -458,8 +475,12 @@ class DictInterface(QWidget):
         with open(html_path, encoding="utf-8") as fh:
             html = fh.read()
 
-        # Font sizes: the Svelte app reads window.fefs / window.dbfs.
-        font_size_init = f"<script>window.fefs = {fefs}; window.dbfs = {dbfs};</script>"
+        # Font sizes + saved sidebar width: the Svelte app reads
+        # window.fefs / window.dbfs / window.sidebarWidth.
+        font_size_init = (
+            f"<script>window.fefs = {fefs}; window.dbfs = {dbfs};"
+            f" window.sidebarWidth = {sidebar_width};</script>"
+        )
         html = html.replace("<!-- FONT_SIZES -->", font_size_init)
 
         # Theme CSS.
@@ -477,7 +498,7 @@ class DictInterface(QWidget):
         return html, QUrl.fromLocalFile(html_path)
 
     def _get_html_url_legacy(
-        self, custom_theme_css: str, fefs: int, dbfs: int
+        self, custom_theme_css: str, fefs: int, dbfs: int, sidebar_width: int
     ) -> tuple[str, QUrl]:
         html_path = join(self.addonPath, "assets", "templates", "dictionary.html")
         js_path = join(self.addonPath, "assets", "scripts", "dictionary.js")
@@ -487,7 +508,10 @@ class DictInterface(QWidget):
 
         with open(html_path, encoding="utf-8") as fh:
             html = fh.read()
-            font_size_init = f"<script>var fefs = {fefs}, dbfs = {dbfs};</script>"
+            font_size_init = (
+                f"<script>var fefs = {fefs}, dbfs = {dbfs},"
+                f" sidebarWidth = {sidebar_width};</script>"
+            )
             html = html.replace(
                 '<script src="../scripts/dictionary.js"></script>',
                 f"{font_size_init}<script>{js_content}</script>",

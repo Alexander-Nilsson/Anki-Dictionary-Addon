@@ -3,10 +3,13 @@ import "./app.css";
 import App from "./components/App.svelte";
 import { initBridge } from "./lib/bridge";
 import { awaitPycmdToLoad } from "./lib/pycmd";
-import { initFromWindow, resizer } from "./lib/tabs.svelte";
+import { initFromWindow, initSidebarSync, resizer } from "./lib/tabs.svelte";
 
 // Capture Python-injected settings (font sizes, welcome content) before mount.
 initFromWindow();
+
+// Keep the results-pane sidebar highlight in sync with the visible entry.
+initSidebarSync();
 
 // Expose the Python + content bridge globals.
 initBridge();
