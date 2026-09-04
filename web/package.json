@@ -1,0 +1,21 @@
+{
+  "name": "anki-dictionary-web-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Svelte UI for the Anki Dictionary Addon (rendered in AnkiWebView)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/inline.mjs",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tsconfig/svelte": "^5.0.4",
+    "svelte": "^5.57.0",
+    "svelte-check": "^4.7.6",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.2"
+  }
+}
