@@ -53,7 +53,14 @@ EXCLUDE_PATTERNS = [
     ".mypy_cache",
     ".coverage",
     "htmlcov",
+    "node_modules",
+    "web/dist",
 ]
+
+# Node.js LTS tarball used to build the Svelte web UI (pinned for reproducibility).
+NODE_VERSION = "v22.16.0"
+NODE_TARBALL = f"node-{NODE_VERSION}-linux-x64.tar.xz"
+NODE_URL = f"https://nodejs.org/dist/{NODE_VERSION}/{NODE_TARBALL}"
 
 PYTEST_FLAGS = ["--tb=short", "-v"]
 
@@ -81,6 +88,22 @@ async def pipeline() -> None:
             .with_exec(["pip3", "install", "uv", "--break-system-packages"])
             .with_exec(["uv", "python", "install", "3.13"])
             .with_exec(["uv", "python", "pin", "3.13"])
+            # Node 22 LTS for the Svelte web UI build (npm ci / vite / svelte-check).
+            .with_exec(
+                [
+                    "sh",
+                    "-c",
+                    "curl -fsSL "
+                    f"{NODE_URL} "
+                    "| tar -xJ -C /opt "
+                    "&& ln -sf "
+                    f"/opt/node-{NODE_VERSION}-linux-x64/bin/node /usr/local/bin/node "
+                    "&& ln -sf "
+                    f"/opt/node-{NODE_VERSION}-linux-x64/bin/npm /usr/local/bin/npm "
+                    "&& ln -sf "
+                    f"/opt/node-{NODE_VERSION}-linux-x64/bin/npx /usr/local/bin/npx",
+                ]
+            )
         )
 
         print("Mounting source...")
@@ -111,6 +134,12 @@ async def pipeline() -> None:
         print("Running type checker...")
         await ctr.with_exec(["uv", "run", "ty", "check", "."]).sync()
         print("Type check passed")
+
+        print("Building Svelte web UI...")
+        await ctr.with_exec(
+            ["sh", "-c", "cd web && npm ci && npm run build && npm run check"]
+        ).sync()
+        print("Web UI build + check passed")
 
         print("Running unit tests...")
         await (

@@ -407,54 +407,102 @@ class DictInterface(QWidget):
                 return validTerms
         return False
 
-    def getHTMLURL(self, willSearch):
+    def _get_font_sizes(self) -> tuple[int, int]:
+        font_sizes = self.config.get("fontSizes", [12, 22])
+        fefs = font_sizes[0] if len(font_sizes) > 0 else 12
+        dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
+        return int(fefs), int(dbfs)
+
+    def _svelte_dictionary_path(self) -> str | None:
+        """Locate the built Svelte UI bundle.
+
+        In a source checkout it lives at ``web/dist/dictionary.html``; in a
+        packaged addon it is copied to ``assets/web/dictionary.html`` by
+        ``build.py``. Returns ``None`` when the web UI has not been built so
+        callers can fall back to the legacy static assets.
+        """
+        candidates = (
+            join(self.addonPath, "web", "dist", "dictionary.html"),
+            join(self.addonPath, "assets", "web", "dictionary.html"),
+        )
+        for candidate in candidates:
+            if exists(candidate):
+                return candidate
+        return None
+
+    def getHTMLURL(self, _willSearch):
         active_theme_dict = theme_controller.get_theme_dict(self.theme_manager)
         qss = theme_controller.generate_qt_stylesheet(active_theme_dict)
         self.setStyleSheet(qss)
         custom_theme_css = theme_controller.generate_html_css(active_theme_dict)
+        fefs, dbfs = self._get_font_sizes()
 
+        svelte_path = self._svelte_dictionary_path()
+        if svelte_path:
+            html, url = self._get_html_url_svelte(
+                svelte_path, custom_theme_css, fefs, dbfs
+            )
+        else:
+            html, url = self._get_html_url_legacy(custom_theme_css, fefs, dbfs)
+        return html, url
+
+    def _get_html_url_svelte(
+        self, html_path: str, custom_theme_css: str, fefs: int, dbfs: int
+    ) -> tuple[str, QUrl]:
+        """Load the Svelte-built shell and apply the Python-side injections.
+
+        The Svelte ``index.html`` keeps the same placeholder hooks as the
+        legacy template (``customThemeCss``, ``welcomeBackground`` and a
+        ``FONT_SIZES`` marker) so the UI is configured identically.
+        """
+        with open(html_path, encoding="utf-8") as fh:
+            html = fh.read()
+
+        # Font sizes: the Svelte app reads window.fefs / window.dbfs.
+        font_size_init = f"<script>window.fefs = {fefs}; window.dbfs = {dbfs};</script>"
+        html = html.replace("<!-- FONT_SIZES -->", font_size_init)
+
+        # Theme CSS.
+        html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
+
+        # Welcome screen content.
+        if self.welcome and self.welcome.strip():
+            html = html.replace(
+                '<div id="welcomeBackground"></div>',
+                f'<div id="welcomeBackground">{self.welcome}</div>',
+            )
+
+        # Welcome visibility is fully reactive in the Svelte shell; nothing
+        # else needs to be injected.
+        return html, QUrl.fromLocalFile(html_path)
+
+    def _get_html_url_legacy(
+        self, custom_theme_css: str, fefs: int, dbfs: int
+    ) -> tuple[str, QUrl]:
         html_path = join(self.addonPath, "assets", "templates", "dictionary.html")
         js_path = join(self.addonPath, "assets", "scripts", "dictionary.js")
 
-        # Read the JavaScript content to inline it
         with open(js_path, encoding="utf-8") as js_file:
             js_content = js_file.read()
 
-        # Get saved font sizes from config, default to [12, 22]
-        font_sizes = self.config.get("fontSizes", [12, 22])
-        fefs = font_sizes[0] if len(font_sizes) > 0 else 12
-        dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
-
         with open(html_path, encoding="utf-8") as fh:
             html = fh.read()
-            # Inject font size variables before the main script
             font_size_init = f"<script>var fefs = {fefs}, dbfs = {dbfs};</script>"
-            # Replace the external script tag with inline JavaScript
             html = html.replace(
                 '<script src="../scripts/dictionary.js"></script>',
                 f"{font_size_init}<script>{js_content}</script>",
             )
-            # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
-            # Always inject welcome screen content if available
             if self.welcome and self.welcome.strip():
                 html = html.replace(
                     '<div id="welcomeBackground"></div>',
                     f'<div id="welcomeBackground">{self.welcome}</div>',
                 )
-
-            if not willSearch:
-                # Don't add a Welcome tab anymore, just show the background
-                html = html.replace(
-                    '<script id="initialValue"></script>',
-                    '<script id="initialValue">updateWelcomeVisibility();</script>',
-                )
-            else:
-                # If searching, we still need to clear the initialValue script tag
-                html = html.replace(
-                    '<script id="initialValue"></script>',
-                    '<script id="initialValue">updateWelcomeVisibility();</script>',
-                )
+            # Don't add a Welcome tab anymore, just show the background.
+            html = html.replace(
+                '<script id="initialValue"></script>',
+                '<script id="initialValue">updateWelcomeVisibility();</script>',
+            )
             url = QUrl.fromLocalFile(html_path)
         return html, url
 

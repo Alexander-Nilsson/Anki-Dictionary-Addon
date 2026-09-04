@@ -1,0 +1,36 @@
+/*
+ * Global styles for the Svelte dictionary UI.
+ *
+ * `legacy.css` is the stylesheet extracted verbatim from the old
+ * assets/templates/dictionary.html — it keeps the Phase-1 shell (which still
+ * renders Python-generated HTML) pixel-identical. Additions below are
+ * Svelte-specific tweaks for the componentized shell.
+ */
+
+@import "./legacy.css";
+
+/* The Svelte shell reproduces the legacy wrapper div (flex child that holds
+   the welcome background / results pane). */
+#defArea {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+/* Welcome screen fills the available space (legacy CSS hides it by default
+   and shows it under `.no-tabs`; we render it conditionally instead). */
+#welcomeBackground {
+  display: block !important;
+}
+
+/* Focus styles for Svelte-rendered tab buttons. */
+.tablinks:focus-visible {
+  outline: 2px solid var(--search_term);
+  outline-offset: -2px;
+}
+
+#app,
+#app > div {
+  width: 100%;
+  height: 100%;
+}

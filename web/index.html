@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Runtime-mutable style elements (the UI and Python both write to these,
+         mirroring the legacy assets/templates/dictionary.html contract). -->
+    <style id="fontSpecs">
+        .foundEntriesList{font-size: var(--font-size-xs);}.termPronunciation,.definitionBlock{font-size: var(--font-size-md); white-space: pre-line;}
+    </style>
+    <style id="widthSpecs">
+        .sidebarOpenedDisplay { margin-left: 240px !important; }
+        .sidebarOpenedSideBar { width: 240px !important; }
+    </style>
+    <style id="userSelect"></style>
+    <style id="customThemeCss"></style>
+    <style id="nightModeCss"></style>
+
+    <!-- FONT_SIZES -->
+    <!-- Python (getHTMLURL) replaces the placeholder above with:
+         <script>window.fefs = X; window.dbfs = Y;</script>
+         The UI falls back to sensible defaults when absent. -->
+</head>
+<body>
+    <div id="dropdownBackdrop"></div>
+    <div id="app"></div>
+
+    <!-- Welcome content placeholder: Python (getHTMLURL) injects the welcome
+         screen markup here before the page loads; the Svelte app captures it
+         on mount and renders it inside <WelcomeScreen />. -->
+    <div id="welcomeBackground"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

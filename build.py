@@ -242,6 +242,51 @@ def generate_manifest():
     return manifest_path
 
 
+def build_web_ui(addon_dir: Path):
+    """Build the Svelte UI and copy the bundled dictionary.html into the addon.
+
+    The Svelte app lives in ``web/`` and is compiled with Vite into a single
+    self-contained ``web/dist/dictionary.html`` (inlined JS + CSS). That file
+    is copied to ``assets/web/dictionary.html`` inside the addon package so
+    ``MIDict._svelte_dictionary_path`` can find it at runtime. Skips (with a
+    warning) when Node.js / npm are unavailable or the web build fails.
+    """
+    print("🌐 Building Svelte web UI...")
+
+    web_dir = Path("web")
+    if not web_dir.exists():
+        print("   ⚠️  No web/ directory found - skipping Svelte build")
+        return False
+
+    if shutil.which("npm") is None:
+        print("   ⚠️  npm not found - skipping Svelte build (legacy UI will be used)")
+        return False
+
+    try:
+        subprocess.run(["npm", "ci"], cwd=str(web_dir), check=True, capture_output=True)
+        subprocess.run(
+            ["npm", "run", "build"], cwd=str(web_dir), check=True, capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ Web UI build failed: {e}")
+        if e.stdout:
+            print(f"      stdout: {e.stdout.decode(errors='replace')[:2000]}")
+        if e.stderr:
+            print(f"      stderr: {e.stderr.decode(errors='replace')[:2000]}")
+        return False
+
+    bundled = web_dir / "dist" / "dictionary.html"
+    if not bundled.exists():
+        print("   ⚠️  Bundled dictionary.html not found after build - skipping")
+        return False
+
+    target_dir = addon_dir / "assets" / "web"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(bundled, target_dir / "dictionary.html")
+    print(f"   ✓ Copied Svelte bundle to {target_dir / 'dictionary.html'}")
+    return True
+
+
 def build_addon():
     """Build the addon for Anki installation"""
     print("🔨 Building Anki Dictionary Addon...")
@@ -352,6 +397,10 @@ def build_addon():
         pass
 
     print(f"✅ Addon built in: {addon_dir}")
+
+    # Build and bundle the Svelte UI last (it only needs assets/ + src/ present).
+    build_web_ui(addon_dir)
+
     return addon_dir
 
 
