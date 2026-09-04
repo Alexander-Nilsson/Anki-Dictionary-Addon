@@ -82,3 +82,56 @@ def test_built_bundle_is_self_contained_no_es_modules():
             assert not stripped.startswith(("import ", "export ")), (
                 f"ESM statement leaked into classic script: {stripped[:60]}"
             )
+
+
+def test_built_bundle_is_a_single_document():
+    """The bundle must not contain an embedded second copy of index.html.
+
+    Regression: inline.mjs used a *string* replacement to splice the bundle
+    after the welcome placeholder. ``String.replace`` interprets ``$`` escape
+    sequences inside the bundle's own JS (e.g. the regex-escape idiom
+    ``'\\\\$&'`` and backtick-prefixed ``$\\``` patterns), substituting the
+    matched substring / whole document prefix into the script and splicing an
+    unescaped ``</script>`` into it — truncating the script and preventing the
+    Svelte app from mounting.
+    """
+    if not built_html.exists():
+        import pytest
+
+        pytest.skip("web/dist/dictionary.html not built")
+    html = built_html.read_text(encoding="utf-8")
+
+    # An embedded document copy would add a second <!DOCTYPE> / <html>.
+    assert html.count("<!DOCTYPE") == 1
+    assert html.count("<html lang=") == 1
+
+
+def test_built_bundle_script_runs_to_mount():
+    """The inlined bundle script must survive to the app-mount code.
+
+    If the inliner corrupts or truncates the script (the ``$``-substitution
+    regression above), the mount tail and bridge globals disappear.
+    """
+    if not built_html.exists():
+        import pytest
+
+        pytest.skip("web/dist/dictionary.html not built")
+    html = built_html.read_text(encoding="utf-8")
+
+    script_bodies = re.findall(r"<script[^>]*>([\s\S]*?)</script>", html)
+    mount_code = "Svelte mount target #app not found"
+    bundle = next((b for b in script_bodies if mount_code in b), None)
+    assert bundle, (
+        "inlined bundle is truncated — the app-mount code is missing "
+        "(an unescaped `</script>` likely cut the script short)"
+    )
+
+    # The script element must not itself contain a terminator sequence.
+    assert "</script" not in bundle and "<script" not in bundle
+
+    # The raw Vite bundle must be embedded verbatim (no string-replace
+    # `$`-substitution corruption).
+    js_files = sorted((web_dir / "dist" / "assets").glob("index-*.js"))
+    if js_files:
+        raw = js_files[0].read_text(encoding="utf-8")
+        assert raw in bundle

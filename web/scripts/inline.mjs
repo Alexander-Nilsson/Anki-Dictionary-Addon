@@ -60,11 +60,19 @@ if (jsTags.length === 0) {
 
 // Place the inlined script after the welcome placeholder so the app mounts
 // after the welcome content (and Python-injected font vars) are in the DOM.
+//
+// IMPORTANT: use *function* replacements here. A string replacement would
+// interpret `$` escape sequences that appear inside the bundle's own JS
+// (`$&`, `` $` ``, `$'`, `$$` — e.g. the regex-escape idiom `` '\\$&' `` used
+// by cleanTermDef). `String.replace` would substitute the matched substring /
+// document prefix / suffix into the script, corrupting the bundle and
+// splicing an unescaped `</script>` into it, which truncates the script at
+// parse time and prevents the app from ever mounting.
 const welcomeDiv = '<div id="welcomeBackground"></div>';
 if (html.includes(welcomeDiv)) {
-  html = html.replace(welcomeDiv, `${welcomeDiv}\n    ${jsTags.join("\n    ")}`);
+  html = html.replace(welcomeDiv, () => `${welcomeDiv}\n    ${jsTags.join("\n    ")}`);
 } else {
-  html = html.replace("</body>", `${jsTags.join("\n    ")}\n</body>`);
+  html = html.replace("</body>", () => `${jsTags.join("\n    ")}\n</body>`);
 }
 
 writeFileSync(outPath, html, "utf8");
