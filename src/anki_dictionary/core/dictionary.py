@@ -495,6 +495,7 @@ class DictInterface(QWidget):
 
         # Welcome visibility is fully reactive in the Svelte shell; nothing
         # else needs to be injected.
+        self.svelte_shell = True
         return html, QUrl.fromLocalFile(html_path)
 
     def _get_html_url_legacy(
@@ -528,6 +529,7 @@ class DictInterface(QWidget):
                 '<script id="initialValue">updateWelcomeVisibility();</script>',
             )
             url = QUrl.fromLocalFile(html_path)
+        self.svelte_shell = False
         return html, url
 
     def getAllGroups(self):

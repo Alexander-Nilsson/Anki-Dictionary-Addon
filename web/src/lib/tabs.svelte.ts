@@ -7,7 +7,7 @@
  */
 import { CMD, pycmd } from "./pycmd";
 import { offsetTopRelative } from "./dom";
-import type { Tab } from "./types";
+import type { DictDocument, Tab } from "./types";
 
 /**
  * Module-scope shared store. A class instance is the idiomatic Svelte 5 way to
@@ -34,21 +34,33 @@ const scrollPositions = new Map<number, number>();
 
 /**
  * Add (or, in single-tab mode, replace) a tab. Mirrors the legacy
- * `addNewTab(html, term, singleTab, id)` semantics so Python callers are
- * unaffected.
+ * `addNewTab(payload, term, singleTab, id)` semantics so Python callers are
+ * unaffected. In Svelte mode the payload is a structured `DictDocument`; the
+ * legacy fallback page still sends an HTML string.
  */
-export function addTab(term: string, html: string, singleTab: boolean): void {
-  if (html === undefined || html === null) {
-    console.warn("addTab: called without html, skipping");
+export function addTab(
+  term: string,
+  payload: string | DictDocument,
+  singleTab: boolean
+): void {
+  if (payload === undefined || payload === null) {
+    console.warn("addTab: called without content, skipping");
     return;
   }
   const cleanTerm = term ?? "";
+  const doc = typeof payload === "object" ? payload : null;
+  const html = doc ? "" : (payload as string);
 
   if (singleTab && ui.tabs.length > 0) {
     // Replace the content of the active tab (or the last one if none active).
     const idx = ui.tabs.findIndex((t) => t.id === ui.activeId);
     const target = idx >= 0 ? idx : ui.tabs.length - 1;
-    ui.tabs[target] = { ...ui.tabs[target], term: cleanTerm, html };
+    ui.tabs[target] = {
+      ...ui.tabs[target],
+      term: cleanTerm,
+      html,
+      doc,
+    };
     // Content changed — forget the old scroll position and start at the top.
     scrollPositions.delete(ui.tabs[target].id);
     const defBox = document.getElementById("defBox");
@@ -62,7 +74,7 @@ export function addTab(term: string, html: string, singleTab: boolean): void {
     attemptCloseFirstTab();
   }
 
-  const tab: Tab = { id: nextId++, term: cleanTerm, html };
+  const tab: Tab = { id: nextId++, term: cleanTerm, html, doc };
   rememberActiveScroll();
   ui.tabs.push(tab);
   ui.activeId = tab.id;
@@ -268,14 +280,28 @@ function syncSidebarActive(): void {
   );
   if (dictBlocks.length === 0) return;
 
+  // Pair each .termPronunciation with the .dictionaryTitleBlock that precedes
+  // it. The entry blocks are *siblings* of the title block in the results pane
+  // (the legacy renderer and the Svelte components both emit flat siblings), so
+  // a children-only query would always be empty — walk document order instead.
+  // This also covers the wrapped Images/LLM/Forvo service sections, whose
+  // content lives inside the loader wrapper yet still follows their title.
   const entries: EntryPosition[] = [];
-  dictBlocks.forEach((block, dictIndex) => {
-    Array.from(block.querySelectorAll<HTMLElement>(".termPronunciation")).forEach(
-      (block, entryIndex) => {
-        entries.push({ block, dictIndex, entryIndex });
-      },
-    );
-  });
+  let dictIndex = -1;
+  let entryIndex = 0;
+  activeTab
+    .querySelectorAll<HTMLElement>(
+      ".dictionaryTitleBlock, .termPronunciation",
+    )
+    .forEach((node) => {
+      if (node.classList.contains("dictionaryTitleBlock")) {
+        dictIndex += 1;
+        entryIndex = 0;
+      } else {
+        entries.push({ block: node, dictIndex, entryIndex });
+        entryIndex += 1;
+      }
+    });
   if (entries.length === 0) return;
 
   // Bootstrap-style scrollspy: the current entry is the last one whose top

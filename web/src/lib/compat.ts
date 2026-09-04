@@ -30,6 +30,9 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const target = e.target as HTMLElement | null;
   if (!target || target.getAttribute("role") !== "button") return;
+  // Svelte-component buttons handle Enter/Space themselves; only delegate for
+  // injected HTML (legacy/service sections) that lacks its own handler.
+  if (target.hasAttribute("data-key-handled")) return;
   e.preventDefault();
   target.click();
 });
