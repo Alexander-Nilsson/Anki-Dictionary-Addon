@@ -154,3 +154,324 @@
     transform: none;
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Phase 2.5 polish — in-web chrome + doc-mode refinements.
+
+   Everything below is scoped with `.tabContent.doc-mode` (or is shell chrome)
+   so Python-generated *legacy* HTML tabs keep rendering pixel-identical.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* In-web chrome strip: search box + dictionary group + settings. Sits above
+   the tab strip; `flex: none` so `resizer()` (which measures #chromeBar)
+   keeps the #defBox math correct. */
+#chromeBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 6px 12px;
+  background: var(--background-secondary);
+  border-bottom: 2px solid var(--border);
+}
+
+#chromeBar .chromeSearch {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+#chromeBar .chromeSearch > svg {
+  position: absolute;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+#chromeBar input[type="text"] {
+  width: 100%;
+  padding: 6px 12px 6px 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+#chromeBar input[type="text"]:focus {
+  border-color: var(--search_term);
+  outline: 2px solid var(--search_term);
+  outline-offset: -1px;
+}
+
+#chromeBar select {
+  flex: none;
+  max-width: 140px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+#chromeBar .chromeBtn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+#chromeBar .chromeBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+#chromeBar .chromeBtn:hover {
+  background: var(--button-bg-hover);
+  color: var(--button-text);
+  border-color: transparent;
+}
+
+/* History dropdown (bright above the results pane). */
+#chromeBar .chromeHist {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1200;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#chromeBar .chromeHist li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+#chromeBar .chromeHist li:hover,
+#chromeBar .chromeHist li.sel {
+  background: var(--selector);
+}
+
+#chromeBar .chromeHist li small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  flex: none;
+}
+
+/* Back-to-top button (floating, shows after scrolling the results pane). */
+.backToTop {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  z-index: 900;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.backToTop svg {
+  width: 18px;
+  height: 18px;
+}
+
+.backToTop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.backToTop:hover {
+  color: var(--text);
+  border-color: var(--search_term);
+}
+
+/* ── doc-mode refinements (structured tabs only; legacy HTML untouched) ── */
+
+/* QW2: dictionary headers stick to the top of the results pane so you never
+   lose track of which dictionary/entry you're reading. */
+.doc-mode .dictionaryTitleBlock {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* QW1: SVG tool buttons size crisply; tools quiet down until the entry is
+   hovered / focused (kept slightly visible for discoverability). */
+.doc-mode .defTools svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.doc-mode .termPronunciation .defTools {
+  opacity: 0.45;
+  transition: opacity 140ms ease;
+}
+
+.doc-mode .termPronunciation:hover .defTools,
+.doc-mode .termPronunciation:focus-within .defTools {
+  opacity: 1;
+}
+
+/* QW4: stars / frequency-rank / JLPT-level become badge pills. */
+.doc-mode .tpCont .starcount {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 9px;
+  margin: 0 2px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.7;
+  vertical-align: 2px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  background: var(--selector);
+}
+
+.doc-mode .tpCont .starcount:not(.frequency-rank):not(.level-label) {
+  color: #e0a800; /* stars — warm gold reads on light & dark themes */
+}
+
+.doc-mode .tpCont .starcount.frequency-rank {
+  color: var(--search_term);
+}
+
+.doc-mode .tpCont .starcount.level-label {
+  color: var(--text-secondary);
+}
+
+/* QW4: example sentences as a tasteful indented card under the sense. */
+.doc-mode .exampleSentence {
+  font-style: normal;
+  background: var(--selector);
+  border-left-color: var(--search_term);
+}
+
+/* QW3: shimmer skeleton over the async-service placeholders (Images/LLM/
+   Forvo). The header/toolbar inside each placeholder stays visible and
+   clickable while services load; only the placeholder body text fades out,
+   and the sheet itself is a transparent moving sheen. Once real content is
+   injected (loadImageHtml / loadLLMResults / onForvoResult replace the
+   "Loading…" text) the observer flips `.done` and the sheet disappears. */
+.doc-mode .skeletonHost {
+  position: relative;
+  min-height: 84px;
+}
+
+.doc-mode .skeletonHost .loaderSkeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+        100deg,
+        transparent 35%,
+        rgba(128, 128, 128, 0.16) 50%,
+        transparent 65%
+      )
+      0 0 / 220% 100% no-repeat;
+  animation: chromeShimmer 1.4s linear infinite;
+}
+
+.doc-mode .skeletonHost.done .loaderSkeleton {
+  display: none;
+}
+
+/* While loading, fade the placeholder body (never the title/toolbar). LLM
+   and Forvo bodies are plain <i>text</i>; the images block pulses via the
+   legacy imageLoadingPulse animation, so kill that too or it overrides the
+   fade. */
+.doc-mode .skeletonHost:not(.done) .llm-loading-placeholder,
+.doc-mode .skeletonHost:not(.done) .definitionBlock i,
+.doc-mode .skeletonHost:not(.done) .imageBlock.is-loading {
+  opacity: 0;
+}
+
+.doc-mode .skeletonHost:not(.done) .imageBlock.is-loading {
+  animation: none;
+}
+
+@keyframes chromeShimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* QW5: very tall definition bodies collapse with a "show more" fade. */
+.doc-mode .definitionBlock.collapsible {
+  position: relative;
+}
+
+.doc-mode .definitionBlock.collapsed {
+  max-height: 420px;
+  overflow: hidden;
+}
+
+.doc-mode .definitionBlock.collapsed .defExpand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 30px 12px 6px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--definition_background) 65%
+  );
+  color: var(--search_term);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.doc-mode .definitionBlock.collapsed .defExpand:hover {
+  color: var(--text);
+}

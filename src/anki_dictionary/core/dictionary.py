@@ -168,6 +168,34 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("getMoreImages::"):
             search_term = dAct[15:]
             self.search_pipeline.loadMoreImages(search_term)
+        elif dAct.startswith("searchTerm:"):
+            # In-web search box (Svelte chrome) -> same path as the Qt field.
+            self.dictInt.initSearch(dAct[len("searchTerm:") :])
+        elif dAct.startswith("getSearchHistory:"):
+            self.eval(
+                "setSearchHistory("
+                + json.dumps(self.dictInt.getHistory(), ensure_ascii=False)
+                + ");"
+            )
+        elif dAct.startswith("getGroups:"):
+            combo = self.dictInt.dictGroups
+            names = [
+                combo.itemText(i) for i in range(combo.count()) if combo.itemEnabled(i)
+            ]
+            self.eval(
+                "setGroups("
+                + json.dumps(
+                    {"groups": names, "current": combo.currentText()},
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        elif dAct.startswith("setGroup:"):
+            name = dAct[len("setGroup:") :]
+            combo = self.dictInt.dictGroups
+            idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
 
     def setCurrentEditor(self, editor, target=""):
         if editor != self.currentEditor:

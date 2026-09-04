@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UI prototype — Anki Dictionary Addon (PROTOTYPE, not production)</title>
+<style>
+/* ==========================================================================
+   PROTOTYPE — throwaway UI exploration for the Anki Dictionary Addon.
+   Question: "What should the dictionary results view + addon chrome look and
+   feel like?" Four modes, switchable with ?variant= and the floating bar:
+   baseline (current) / a refined / b split-panels / c focus.
+   This file is standalone: open it in any browser, no build step.
+   ========================================================================== */
+
+:root {
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .32);
+  --font: "Segoe UI", system-ui, -apple-system, "Noto Sans JP", sans-serif;
+}
+:root[data-theme="dark"] {
+  --bg: #191d26; --bg-2: #1e2430; --panel: #232a38; --panel-2: #2a3242;
+  --line: #313a4c; --line-soft: #272f3e;
+  --text: #e9ecf3; --text-2: #9aa4b6; --text-3: #6b7486;
+  --accent: #4fc3f7; --accent-soft: rgba(79, 195, 247, .14);
+  --ok: #6ee7a0; --gold: #ffd166; --violet: #c39bff; --pink: #ff9ecb;
+  --danger: #ff7d7d;
+}
+:root[data-theme="light"] {
+  --bg: #f4f6fa; --bg-2: #eef1f6; --panel: #ffffff; --panel-2: #f7f9fc;
+  --line: #dfe5ee; --line-soft: #e8edf4;
+  --text: #212a38; --text-2: #5c6778; --text-3: #98a2b3;
+  --accent: #0e7bc0; --accent-soft: rgba(14, 123, 192, .12);
+  --ok: #1fa865; --gold: #c7900b; --violet: #7a4fd0; --pink: #d4478c;
+  --danger: #d64545;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--font); font-size: 14px; line-height: 1.55;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+input, select { font: inherit; }
+
+/* ── Chrome bar (proposed in-web chrome) ─────────────────────────────── */
+#chrome {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+#chrome .brand { font-weight: 700; letter-spacing: .2px; font-size: 14px; margin-right: 4px; }
+#chrome .brand small { color: var(--text-3); font-weight: 400; }
+.proto-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
+  padding: 3px 8px; border-radius: 99px;
+  background: var(--danger); color: #fff;
+}
+.searchwrap { position: relative; flex: 1; max-width: 520px; }
+.searchwrap input {
+  width: 100%; padding: 9px 15px 9px 38px;
+  border: 1px solid var(--line); border-radius: 99px;
+  background: var(--panel); color: var(--text);
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.searchwrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.searchwrap .kbd {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-3); font-size: 13px;
+}
+.histpop {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow); overflow: hidden; display: none; z-index: 50;
+}
+.histpop.open { display: block; }
+.histpop .hist-item { padding: 8px 14px; display: flex; justify-content: space-between; gap: 12px; cursor: pointer; }
+.histpop .hist-item:hover, .histpop .hist-item.sel { background: var(--accent-soft); }
+.histpop .hist-item small { color: var(--text-3); }
+.iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px; border: 1px solid transparent;
+  background: transparent; color: var(--text-2);
+}
+.iconbtn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft); }
+.iconbtn svg { width: 17px; height: 17px; }
+select.chrome-select {
+  padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); outline: none;
+}
+
+/* variant note strip */
+#note {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 8px 16px; border-bottom: 1px solid var(--line-soft);
+  background: var(--bg-2); color: var(--text-2); font-size: 12.5px;
+}
+#note b { color: var(--text); }
+#note .chip {
+  padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line);
+  color: var(--text-2); font-size: 11.5px;
+}
+#note .chip.good { border-color: var(--ok); color: var(--ok); }
+
+/* ── Stage (variant body) ────────────────────────────────────────────── */
+#stage { position: relative; }
+#stage .empty-hint { color: var(--text-3); padding: 40px; text-align: center; }
+
+/* toasts */
+#toasts { position: fixed; right: 18px; bottom: 66px; z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast {
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  border-radius: 10px; padding: 9px 14px; box-shadow: var(--shadow);
+  animation: tin .18s ease; font-size: 13px; max-width: 320px;
+}
+@keyframes tin { from { opacity: 0; transform: translateY(6px); } }
+
+/* back-to-top */
+.totop {
+  position: fixed; right: 20px; bottom: 74px; z-index: 30;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow);
+  display: none; align-items: center; justify-content: center; color: var(--text-2);
+}
+.totop.show { display: inline-flex; }
+
+/* ── Variant switcher (floating bottom bar) ──────────────────────────── */
+#sw {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  z-index: 90; display: flex; align-items: center; gap: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 99px;
+  box-shadow: var(--shadow); padding: 5px 8px;
+}
+#sw button {
+  width: 34px; height: 34px; border-radius: 50%; border: none;
+  background: transparent; color: var(--text-2); font-size: 16px;
+}
+#sw button:hover { background: var(--accent-soft); color: var(--accent); }
+#sw .sw-label { min-width: 190px; text-align: center; font-size: 12.5px; color: var(--text-2); }
+#sw .sw-label b { color: var(--text); }
+
+/* ==========================================================================
+   Shared pieces used by multiple variants
+   ========================================================================== */
+.side {
+  position: sticky; top: 0; align-self: flex-start;
+  width: 224px; flex: none; padding: 14px 10px;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+  max-height: calc(100vh - 120px); overflow: auto;
+}
+.side h4 { margin: 4px 10px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3); }
+.side .dict {
+  padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  color: var(--text-2); font-size: 13px;
+}
+.side .dict:hover { background: var(--accent-soft); color: var(--text); }
+.side .dict.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.side .dict .cnt {
+  font-size: 10.5px; padding: 1px 7px; border-radius: 99px; background: var(--panel-2); color: var(--text-3);
+}
+.side .dict.active .cnt { background: var(--accent); color: #0d1117; }
+.side .enu { margin: 2px 0 10px; padding: 0; list-style: none; }
+.side .enu li { padding: 4px 10px 4px 26px; font-size: 12.5px; color: var(--text-3); border-radius: 7px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side .enu li:hover { color: var(--text); background: var(--bg-2); }
+.side .enu li.on { color: var(--text); background: var(--accent-soft); }
+
+/* tool action buttons */
+.acts { display: flex; align-items: center; gap: 5px; }
+.acts .ab {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--text-2);
+}
+.acts .ab:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft); }
+.acts .ab svg { width: 15px; height: 15px; }
+.acts .sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+
+/* pills */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: .3px;
+  padding: 2px 8px; border-radius: 99px; line-height: 1.6;
+}
+.pill.gold  { color: var(--gold);  background: color-mix(in srgb, var(--gold) 15%, transparent); }
+.pill.accent{ color: var(--accent); background: var(--accent-soft); }
+.pill.ok    { color: var(--ok);    background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.pill.violet{ color: var(--violet);background: color-mix(in srgb, var(--violet) 14%, transparent); }
+.pill.pink  { color: var(--pink);  background: color-mix(in srgb, var(--pink) 14%, transparent); }
+.pill.plain { color: var(--text-2); background: var(--panel-2); }
+
+/* skeletons */
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--panel-2) 25%, var(--bg-2) 50%, var(--panel-2) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+.skel.line { height: 12px; margin: 8px 0; }
+
+/* ==========================================================================
+   VARIANT : baseline  (current look, recreated)
+   ========================================================================== */
+.v-base { display: flex; min-height: calc(100vh - 118px); }
+.v-base .side { position: sticky; top: 0; }
+.v-base .main { flex: 1; padding: 16px 20px; }
+.v-base .dblk { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); margin-bottom: 14px; overflow: hidden; }
+.v-base .dtitle {
+  display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+  background: var(--bg-2); font-weight: 600;
+}
+.v-base .dtitle .navs { margin-left: auto; display: flex; gap: 4px; }
+.v-base .dtitle .navs button { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); }
+.v-base .tp { padding: 10px 14px 0; }
+.v-base .tp .h { font-size: 19px; }
+.v-base .tp .h .term { font-weight: 700; }
+.v-base .tp .h .pron { color: var(--text-2); }
+.v-base .tp .tools { display: flex; gap: 6px; margin: 8px 0; }
+.v-base .tp .tools button {
+  border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+  width: 28px; height: 28px; color: var(--text-2); font-size: 14px;
+}
+.v-base .tp .tools button:hover { color: var(--accent); border-color: var(--accent); }
+.v-base .def { padding: 10px 14px 14px; color: var(--text-2); }
+.v-base .def .pos { font-style: italic; color: var(--text-3); margin-right: 6px; }
+.v-base .ldr { padding: 12px 14px; color: var(--text-3); font-size: 12.5px; }
+.v-base .ldr img { vertical-align: -3px; margin-right: 6px; }
+
+/* ==========================================================================
+   VARIANT : A — refined (same structure, polished)
+   ========================================================================== */
+.v-a { display: flex; min-height: calc(100vh - 118px); }
+.v-a .main { flex: 1; padding: 18px 22px; min-width: 0; }
+.v-a .dhead {
+  position: sticky; top: 58px; z-index: 20;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; margin: 0 -22px 14px;
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line);
+}
+.v-a .dhead .t { font-weight: 700; }
+.v-a .dhead .sub { font-size: 12px; color: var(--text-3); }
+.v-a .dhead .spacer { flex: 1; }
+.v-a .dhead .seg {
+  display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden;
+}
+.v-a .dhead .seg button { border: none; background: var(--panel); padding: 6px 12px; color: var(--text-2); }
+.v-a .dhead .seg button.on { background: var(--accent-soft); color: var(--accent); }
+.v-a .entry {
+  background: var(--panel); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.02);
+}
+.v-a .entry .row1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.v-a .entry .row1 .term { font-size: 24px; font-weight: 800; letter-spacing: .3px; }
+.v-a .entry .row1 .alt { color: var(--text-3); }
+.v-a .entry .row1 .pron { color: var(--text-2); font-size: 15px; }
+.v-a .entry .row1 .spacer { flex: 1; }
+.v-a .entry .row1 .acts { opacity: 0; transition: opacity .15s; }
+.v-a .entry:hover .row1 .acts, .v-a .entry:focus-within .row1 .acts { opacity: 1; }
+.v-a .entry .sense { margin: 10px 0 0; padding-left: 30px; position: relative; color: var(--text-2); }
+.v-a .entry .sense .n {
+  position: absolute; left: 0; top: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.v-a .entry .sense .pos { color: var(--text-3); font-style: italic; font-size: 12.5px; margin-right: 8px; }
+.v-a .entry .ex {
+  margin: 10px 0 0 30px; padding: 8px 12px; border-left: 3px solid var(--accent-soft);
+  background: var(--bg-2); border-radius: 0 8px 8px 0; font-size: 13px;
+}
+.v-a .entry .ex .jp { font-weight: 600; }
+.v-a .entry .ex .en { color: var(--text-3); }
+.v-a .media .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 10px; }
+.v-a .media .grid .tile {
+  aspect-ratio: 1; border-radius: var(--radius-sm); object-fit: cover; width: 100%;
+  border: 1px solid var(--line-soft); background: var(--bg-2);
+}
+.v-a .ldr-card { border: 1px dashed var(--line); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px; }
+.v-a .ldr-card .lbl { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+
+/* ==========================================================================
+   VARIANT : B — split panels (defs | media rail)
+   ========================================================================== */
+.v-b { display: flex; min-height: calc(100vh - 118px); }
+.v-b .main { flex: 1; padding: 18px 20px; min-width: 0; }
+.v-b .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.v-b .tabs button {
+  border: 1px solid var(--line); background: var(--panel); color: var(--text-2);
+  padding: 7px 14px; border-radius: 99px; display: inline-flex; align-items: center; gap: 7px;
+}
+.v-b .tabs button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.v-b .tabs .cnt { font-size: 10.5px; padding: 1px 7px; border-radius: 99px; background: var(--panel-2); color: var(--text-3); }
+.v-b .card {
+  background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 12px; display: flex; gap: 14px; align-items: flex-start;
+}
+.v-b .card .grow { flex: 1; min-width: 0; }
+.v-b .card .h { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.v-b .card .h .term { font-size: 20px; font-weight: 700; }
+.v-b .card .h .pron { color: var(--text-2); }
+.v-b .card .h .sp { flex: 1; }
+.v-b .card .body { color: var(--text-2); margin-top: 6px; }
+.v-b .card .foot {
+  margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
+  display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--text-3);
+}
+.v-b .rail {
+  position: sticky; top: 58px; flex: none; width: 300px; max-height: calc(100vh - 80px);
+  overflow: auto; padding: 16px 14px; border-left: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.v-b .rail h3 { margin: 4px 0 10px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+.v-b .rail .panel { display: none; }
+.v-b .rail .panel.on { display: block; }
+.v-b .rail .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.v-b .rail .grid .tile { aspect-ratio: 1; width: 100%; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--line-soft); cursor: zoom-in; transition: transform .12s; }
+.v-b .rail .grid .tile:hover { transform: scale(1.03); }
+.v-b .rail .audio-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.v-b .rail .audio-row .play {
+  width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--panel); color: var(--accent); display: inline-flex; align-items: center; justify-content: center;
+}
+.v-b .rail .audio-row .play:hover { background: var(--accent); color: #0d1117; }
+.v-b .llm-card { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); padding: 12px; font-size: 13px; color: var(--text-2); }
+
+/* ==========================================================================
+   VARIANT : C — focus (reader, keyboard-first)
+   ========================================================================== */
+.v-c { display: flex; align-items: flex-start; justify-content: center; padding: 26px 18px 120px; }
+.v-c .col { width: 100%; max-width: 760px; }
+.v-c .hero { text-align: center; margin-bottom: 26px; }
+.v-c .hero .term { font-size: 52px; font-weight: 800; letter-spacing: 2px; }
+.v-c .hero .pron { color: var(--text-2); font-size: 20px; margin-top: 2px; }
+.v-c .hero .pills { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.v-c .dictseg {
+  display: flex; justify-content: center; gap: 6px; margin-bottom: 22px; flex-wrap: wrap;
+}
+.v-c .dictseg button {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 99px;
+  padding: 6px 14px; color: var(--text-2); font-size: 13px;
+}
+.v-c .dictseg button.on { background: var(--accent); border-color: var(--accent); color: #0d1117; font-weight: 600; }
+.v-c .sense {
+  background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--radius);
+  padding: 18px 22px; margin-bottom: 14px;
+}
+.v-c .sense .q { font-size: 15.5px; color: var(--text); }
+.v-c .sense .q .hl { background: var(--accent-soft); border-radius: 4px; padding: 0 3px; }
+.v-c .sense .tag {
+  display: inline-block; font-size: 11px; color: var(--text-2);
+  background: var(--panel-2); padding: 2px 9px; border-radius: 99px; margin-bottom: 9px;
+}
+.v-c .imgstrip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 12px 0 18px; }
+.v-c .imgstrip .tile { width: 118px; height: 82px; flex: none; border-radius: 8px; object-fit: cover; border: 1px solid var(--line-soft); }
+.v-c .kestrip {
+  position: sticky; bottom: 0; z-index: 30;
+  display: flex; justify-content: center; gap: 8px; margin-top: 18px;
+}
+.v-c .kestrip .key {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--line); border-radius: 99px; padding: 6px 13px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(6px);
+  font-size: 12.5px; color: var(--text-2);
+}
+.v-c .kestrip kbd {
+  font-family: var(--font); font-size: 11px; padding: 1px 6px; border-radius: 5px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+}
+.v-c .k-strip-collapsed { display: block; }
+@media (max-width: 980px) { .v-b .rail { width: 240px; } }
+</style>
+</head>
+<body>
+
+<div id="chrome">
+  <span class="proto-tag">PROTOTYPE</span>
+  <span class="brand">辞書 <small>dictionary addon</small></span>
+  <div class="searchwrap" id="searchwrap">
+    <span class="kbd">⌕</span>
+    <input id="q" placeholder="Search any word — Enter to look up" autocomplete="off" spellcheck="false" />
+    <div class="histpop" id="histpop"></div>
+  </div>
+  <select class="chrome-select" id="grp">
+    <option>zh</option><option selected>ja</option><option>ads</option><option>test2</option>
+  </select>
+  <button class="iconbtn" id="histBtn" title="Search history (prototype)" aria-label="Search history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+  </button>
+  <button class="iconbtn" id="themeBtn" title="Toggle dark / light" aria-label="Toggle theme">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+  </button>
+  <button class="iconbtn" id="setBtn" title="Settings &amp; guide (opens native dialog in the real addon)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14 2h-4l-.6 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2L10 22h4l.6-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>
+  </button>
+</div>
+
+<div id="note"></div>
+<div id="stage"></div>
+
+<button class="totop" id="totop" title="Back to top" aria-label="Back to top">↑</button>
+<div id="toasts"></div>
+<div id="sw">
+  <button id="swPrev" aria-label="Previous variant" title="Previous (←)">‹</button>
+  <span class="sw-label" id="swLabel"></span>
+  <button id="swNext" aria-label="Next variant" title="Next (→)">›</button>
+</div>
+
+<script>
+/* ================= PROTOTYPE LOGIC (throwaway) ================= */
+const VARIANTS = [
+  { key: "baseline", name: "Baseline — today" },
+  { key: "a",        name: "A — refined, same structure" },
+  { key: "b",        name: "B — split panels (media rail)" },
+  { key: "c",        name: "C — focus, keyboard-first" },
+];
+const NOTES = {
+  baseline: ["Recreates the current results view.", "Proposed in-web chrome is shown; today the search box is a 100 px Qt field."],
+  a: ["Sticky dictionary headers", "hover-reveal SVG actions", "pill badges", "skeleton loaders", "example cards", "back-to-top"],
+  b: ["Dictionary tabs", "entry cards", "right media rail (Images / LLM / Forvo) with inline audio"],
+  c: ["Big term hero", "single sense cards", "inline image strip", "keyboard cheat sheet", "no clutter"],
+};
+
+const MOCK = {
+  term: "食べる",
+  dicts: [
+    {
+      name: "JMDict", sub: "Japanese–English · 2 senses",
+      entries: [
+        {
+          term: "食べる", alt: "食う・喰う", pron: "たべる",
+          badges: [
+            { cls: "gold",  text: "★★★★★", tip: "Frequency: JLPT word list" },
+            { cls: "plain", text: "[3k]",   tip: "Global frequency rank (NLD)" },
+            { cls: "ok",    text: "N5",     tip: "JLPT level" },
+          ],
+          senses: [
+            { pos: "Ichidan verb · transitive", jp: "to eat; to make a meal (of)", en: "お母さんは毎朝パンを食べる。 My mother eats bread every morning." },
+            { pos: "Ichidan verb · transitive", jp: "to live by (one's labour, somebody else's expense)", en: "親のすねをかじって食べている。 He lives off his parents." },
+            { pos: "Idiomatic", jp: "to turn sour (of rice)", en: "ご飯が食べてしまった。 The rice has turned sour." },
+          ],
+        },
+        {
+          term: "食べる", alt: "", pron: "たべる",
+          badges: [{ cls: "gold", text: "★★★★☆", tip: "Frequency: JLPT word list" }, { cls: "plain", text: "[4k]", tip: "" }],
+          senses: [
+            { pos: "Colloquial", jp: "to have a meal together with someone", en: "今日は友達と食べる。 I'm eating with a friend today." },
+          ],
+        },
+      ],
+    },
+    {
+      name: "中辞典", sub: "漢字・語源",
+      entries: [
+        {
+          term: "食べる", alt: "食", pron: "たべる",
+          badges: [{ cls: "violet", text: "常用漢字", tip: "Jōyō kanji" }],
+          senses: [
+            { pos: "語源", jp: "古典語「たぶ」に由来。口に含んで飲み込むこと。", en: "Derives from classical たぶ — to take into the mouth and swallow." },
+          ],
+        },
+      ],
+    },
+  ],
+  images: [
+    "https://picsum.photos/seed/food1/220", "https://picsum.photos/seed/food2/220",
+    "https://picsum.photos/seed/food3/220", "https://picsum.photos/seed/food4/220",
+    "https://picsum.photos/seed/food5/220", "https://picsum.photos/seed/food6/220",
+  ],
+  llm: {
+    main: "食べるは「物を口に入れて噛み、飲み込む」ことを表す最も一般的な中国語動詞。人・動物の両方に使い、比喩では「経験を積む」「打撃を受ける」などにも転じる。",
+    highlights: ["経験を積む", "打撃を受ける"],
+  },
+  forvo: [
+    { word: "食べる", region: "Japan", spk: "strawberry" },
+    { word: "食べる", region: "Tokyo", spk: "yoko" },
+  ],
+  hist: [
+    { term: "食べる", d: "2026-09-04" }, { term: "かっこいい", d: "2026-09-03" },
+    { term: "難しい", d: "2026-09-03" }, { term: "行く", d: "2026-09-02" },
+  ],
+};
+
+const ICONS = {
+  exportA: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M4 17v4h16v-4"/></svg>',
+  clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>',
+  audio: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+  prev: "▲", next: "▼",
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+};
+
+const $ = (s, r) => (r || document).querySelector(s);
+const Q = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg) {
+  const el = document.createElement("div");
+  el.className = "toast"; el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
+
+/* shared helpers */
+function actionsBar(want) {
+  const w = { exp: true, clip: true, send: true, prev: true, next: true, ...(want || {}) };
+  const b = (icon, tip, cls = "ab") =>
+    `<button class="${cls}" aria-label="${tip}" title="${tip}" data-act>${typeof icon === "string" && icon.startsWith("<") ? icon : esc(icon)}</button>`;
+  return `<div class="acts">${w.exp ? b(ICONS.exportA, "Add to card exporter") : ""}${w.clip ? b(ICONS.clip, "Copy definition") : ""}${w.send ? b(ICONS.send, "Send to target field") : ""}${(w.prev || w.next) ? '<span class="sep"></span>' + b(ICONS.prev, "Previous entry") + b(ICONS.next, "Next entry") : ""}</div>`;
+}
+function pillRow(badges) {
+  return `<span class="pills">${badges.map(b => `<span class="pill ${b.cls}" title="${esc(b.tip || "")}">${esc(b.text)}</span>`).join(" ")}</span>`;
+}
+function senseRow(s, n) {
+  return `<div class="sense"><span class="n">${n}</span><span class="pos">${esc(s.pos)}</span><span>${esc(s.jp)}</span>${s.en ? `<div class="ex"><span class="jp">${esc(s.jp)}</span> — <span class="en">${esc(s.en.split("。 ")[1] || s.en)}</span></div>` : ""}</div>`;
+}
+
+function imgTile(src, i) {
+  return `<img class="tile" src="${src}" alt="image ${i + 1}" loading="lazy" data-real="${src}">`;
+}
+
+/* image tiles start as skeletons, then "load" (proves the skeleton idea) */
+function skeletonGrid(srcs) {
+  return `<div class="grid">${srcs
+    .map(s => `<img class="tile skel" data-real="${s}" alt="">`)
+    .join("")}</div>`;
+}
+function hydrateImages(container) {
+  Q("img.tile[data-real]", container).forEach((t, i) => {
+    setTimeout(() => {
+      t.src = t.dataset.real;
+      t.classList.remove("skel");
+    }, 200 + i * 140);
+  });
+}
+
+/* ================= VARIANTS ================= */
+
+function vBaseline() {
+  const dictHtml = MOCK.dicts.map(d => `
+    <div class="dblk">
+      <div class="dtitle">
+        <span>${esc(d.name)}</span>
+        <span class="navs"><button title="Previous dictionary">▲</button><button title="Next dictionary">▼</button></span>
+      </div>
+      ${d.entries.map(e => `
+        <div class="tp">
+          <div class="h"><span class="term">${esc(e.term)}</span> ${e.alt ? `<span class="alt">${esc(e.alt)}</span>` : ""} <span class="pron">${esc(e.pron)}</span>
+          ${pillRow(e.badges)}</div>
+          <div class="tools">
+            <button title="Export">⇩</button><button title="Clipboard">✂</button><button title="Send">➞</button>
+            <button>▲</button><button>▼</button>
+          </div>
+        </div>
+        <div class="def">${e.senses.map((s, i) => `<div><span class="pos">${esc(s.pos)}</span>${esc(s.jp)}</div>`).join("")}</div>
+      `).join("")}
+    </div>`).join("");
+
+  const media = `
+    <div class="dblk">
+      <div class="dtitle"><span>Images</span><span class="navs"><button title="Next">▼</button></span></div>
+      <div class="ldr"><img src="" alt="" width="14" height="14"> Loading images from DuckDuckGo…</div>
+      <div class="ldr"><span>LLM — thinking…</span></div>
+      <div class="ldr"><span>Forvo — fetching pronunciations…</span></div>
+    </div>`;
+
+  return `<div class="v-base">
+    <aside class="side">${sidebarInner()}</aside>
+    <div class="main">${dictHtml}${media}</div>
+  </div>`;
+}
+
+function vRefined() {
+  const dictHtml = MOCK.dicts.map(d => `
+    <div class="dhead">
+      <span class="t">${esc(d.name)}</span>
+      <span class="sub">${esc(d.sub)}</span>
+      <span class="spacer"></span>
+      <span class="seg">
+        <button title="Override mode">⟳</button>
+        <button title="Target fields">⌗</button>
+      </span>
+      <span class="acts">${actionsBar({ exp: false, clip: false, send: false }) }</span>
+    </div>
+    ${d.entries.map(e => `
+      <section class="entry">
+        <div class="row1">
+          <span class="term">${esc(e.term)}</span>
+          ${e.alt ? `<span class="alt">${esc(e.alt)}</span>` : ""}
+          <span class="pron">${esc(e.pron)}</span>
+          ${pillRow(e.badges)}
+          <span class="spacer"></span>
+          ${actionsBar()}
+        </div>
+        ${e.senses.map((s, i) => `${senseRow(s, i + 1)}`).join("")}
+      </section>`).join("")}
+  `).join("");
+
+  const ldr = (lbl, inner) => `<div class="ldr-card"><div class="lbl">${lbl}</div>${inner}</div>`;
+  const media = `
+    ${ldr("Images", skeletonGrid(MOCK.images.slice(0, 6)))}
+    ${ldr("AI summary", `<div class="skel line" style="width:70%"></div><div class="skel line" style="width:55%"></div><div class="skel line" style="width:62%"></div>`)}
+    ${ldr("Forvo", `<div class="skel line" style="width:40%"></div>`)}
+  `;
+
+  return `<div class="v-a">
+    <aside class="side">${sidebarInner()}</aside>
+    <div class="main">
+      ${dictHtml}
+      <div class="media">${media}</div>
+    </div>
+  </div>`;
+}
+
+function vSplit() {
+  const tabs = MOCK.dicts.map((d, i) =>
+    `<button class="${i === 0 ? "on" : ""}" data-tab="${i}">${esc(d.name)} <span class="cnt">${d.entries.length}</span></button>`).join("");
+  const cards = MOCK.dicts.map(d =>
+    d.entries.map(e => `
+      <div class="card">
+        <div class="grow">
+          <div class="h">
+            <span class="term">${esc(e.term)}</span>
+            ${e.alt ? `<span class="alt">${esc(e.alt)}</span>` : ""}
+            <span class="pron">${esc(e.pron)}</span>
+            <span class="sp"></span>
+            ${actionsBar({ prev: false, next: false })}
+          </div>
+          <div class="pill-wrap">${pillRow(e.badges)}</div>
+          <div class="body">${e.senses.map(s => `${esc(s.pos)} — ${esc(s.jp)}`).join("<br>")}</div>
+          <div class="foot"><span>${esc(d.name)}</span><span>·</span><span>${e.senses.length} senses</span></div>
+        </div>
+      </div>`).join("")).join("");
+
+  const rail = `
+    <section class="rail">
+      <h3>Media & AI</h3>
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <button class="iconbtn" data-rp="imgs" title="Images" style="border-color:var(--line)">🖼</button>
+        <button class="iconbtn" data-rp="llm" title="AI summary" style="border-color:var(--line)">✦</button>
+        <button class="iconbtn" data-rp="forvo" title="Pronunciations" style="border-color:var(--line)">♪</button>
+      </div>
+      <div class="panel on" data-panel="imgs">
+        ${skeletonGrid(MOCK.images.slice(0, 6))}
+      </div>
+      <div class="panel" data-panel="llm">
+        <div class="llm-card">
+          <b>AI summary</b> — ${esc(MOCK.llm.main)}
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+            ${MOCK.llm.highlights.map(h => `<span class="pill accent">${esc(h)}</span>`).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="panel" data-panel="forvo">
+        ${MOCK.forvo.map(f => `
+          <div class="audio-row">
+            <button class="play" title="Play Forvo audio">${ICONS.audio}</button>
+            <div><b>${esc(f.word)}</b><br><small>${esc(f.region)} · ${esc(f.spk)}</small></div>
+            <span style="flex:1"></span>
+            <button class="iconbtn" title="Send audio to field">➞</button>
+          </div>`).join("")}
+      </div>
+    </section>`;
+
+  return `<div class="v-b">
+    <div class="main">
+      <div class="tabs">${tabs}</div>
+      ${cards}
+    </div>
+    ${rail}
+  </div>`;
+}
+
+function vFocus() {
+  const hero = `
+    <div class="hero">
+      <div class="term">${esc(MOCK.term)}</div>
+      <div class="pron">たべる · eat · to live on</div>
+      <div class="pills">
+        <span class="pill gold">★★★★★</span>
+        <span class="pill plain">[3k]</span>
+        <span class="pill ok">N5</span>
+        <span class="pill violet">常用漢字</span>
+      </div>
+    </div>
+    <div class="dictseg">${MOCK.dicts.map((d, i) => `<button class="${i === 0 ? "on" : ""}">${esc(d.name)}</button>`).join("")}<button>Images</button><button>AI</button></div>`;
+
+  const senses = MOCK.dicts[0].entries[0].senses.map((s, i) => {
+    const parts = (s.en || "").split("。 ");
+    const jpEx = parts[0] ? parts[0] + "。" : "";
+    const enEx = parts.slice(1).join("。 ");
+    return `
+    <div class="sense">
+      <div class="tag">${esc(s.pos)}</div>
+      <div class="q"><span class="hl">${esc(jpEx)}</span> ${esc(enEx)}</div>
+      <div style="margin-top:10px;color:var(--text-2)">${esc(s.jp)}</div>
+    </div>`;
+  }).join("");
+
+  const strip = `
+    <div class="imgstrip">${MOCK.images.slice(0, 6).map(s => `<img class="tile" src="${s}" alt="" loading="lazy">`).join("")}</div>`;
+
+  const keys = `
+    <div class="kestrip">
+      <span class="key"><kbd>⌘K</kbd> Search</span>
+      <span class="key"><kbd>Tab</kbd> Next dictionary</span>
+      <span class="key"><kbd>E</kbd> Export card</span>
+      <span class="key"><kbd>C</kbd> Copy</span>
+      <span class="key"><kbd>I</kbd> Images</span>
+      <span class="key"><kbd>?</kbd> Shortcuts</span>
+    </div>`;
+
+  return `<div class="v-c"><div class="col">${hero}${strip}${senses}${keys}</div></div>`;
+}
+
+function sidebarInner() {
+  const dicts = MOCK.dicts.concat([{ name: "Images" }, { name: "LLM" }, { name: "Forvo" }]);
+  return `
+    <h4>Dictionaries</h4>
+    ${dicts.map((d, i) => `
+      <div class="dict ${i === 0 ? "active" : ""}"><span>${esc(d.name)}</span><span class="cnt">${d.entries ? d.entries.length : (d.name === "Images" ? "15+" : "1")}</span></div>
+      ${d.entries ? `<ul class="enu">${d.entries.map(e => `<li class="${i === 0 ? "on" : ""}">${esc(e.term)} <small>${esc(e.pron)}</small></li>`).join("")}</ul>` : ""}
+    `).join("")}`;
+}
+
+/* ================= RENDER + SWITCHER ================= */
+
+function render() {
+  const v = current();
+  $("#stage").innerHTML =
+    v.key === "baseline" ? vBaseline() :
+    v.key === "a" ? vRefined() :
+    v.key === "b" ? vSplit() : vFocus();
+  $("#note").innerHTML =
+    `<b>${esc(v.name)}</b>` +
+    NOTES[v.key].map(n => `<span class="chip good">${esc(n)}</span>`).join("");
+  $("#swLabel").innerHTML = `${v.key.toUpperCase()} — <b>${esc(v.name)}</b>`;
+
+  /* post-render effects */
+  Q("#stage .grid").forEach(hydrateImages);
+  wireVariantActions();
+}
+
+function wireVariantActions() {
+  Q("[data-act]").forEach((btn, i, arr) => {
+    btn.onclick = () => {
+      const tip = (btn.getAttribute("title") || "action").toLowerCase();
+      if (tip.includes("copy")) { copyText("食べる — to eat; to make a meal (of)\nExample: お母さんは毎朝パンを食べる。"); return; }
+      if (tip.includes("export")) { toast("Queued “食べる” for the card exporter (mock)"); return; }
+      if (tip.includes("send")) { toast("Sent “食べる” to the target field (mock)"); return; }
+      if (tip.includes("previous entry") || tip.includes("next entry")) {
+        animateJump(btn);
+        return;
+      }
+      if (tip.includes("previous dictionary") || tip.includes("next dictionary")) { toast("Navigate dictionaries (mock)"); return; }
+      if (tip.includes("play forvo")) { toast("Playing Forvo pronunciation (mock)"); return; }
+      if (tip.includes("override")) { toast("Override mode dropdown (mock)"); return; }
+      if (tip.includes("target fields")) { toast("Field selector dropdown (mock)"); return; }
+      toast("Mock action");
+    };
+  });
+  Q("#stage .side .dict, #stage .side .enu li, #stage .dictseg button, #stage .tabs button").forEach(el => {
+    el.onclick = () => {
+      Q(el.parentElement.querySelectorAll ? el.parentElement.querySelectorAll(".on") : []).forEach(x => x.classList.remove("on"));
+      el.classList.add("on");
+    };
+  });
+  Q("#stage [data-tab]").forEach(el => el.onclick = () => {
+    Q("#stage [data-tab]").forEach(x => x.classList.remove("on"));
+    el.classList.add("on");
+  });
+  Q("#stage [data-rp]").forEach(btn => btn.onclick = () => {
+    Q("#stage [data-panel]").forEach(p => p.classList.remove("on"));
+    Q(`#stage [data-panel="${btn.dataset.rp}"]`).forEach(p => p.classList.add("on"));
+  });
+  Q("#stage .play").forEach(b => b.onclick = () => toast("Playing Forvo: 食べる · Japan (mock)"));
+  Q("#stage .imgstrip .tile, #stage .rail .tile").forEach(t => t.onclick = () => toast("Image action menu — open / export / send (mock)"));
+}
+
+function animateJump(btn) {
+  const entry = btn.closest(".entry") || btn.closest(".card") || btn.closest(".sense");
+  if (entry) {
+    toast("Scrolled to next entry (mock)");
+    entry.style.outline = "2px solid var(--accent)";
+    setTimeout(() => (entry.style.outline = ""), 700);
+  }
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast("Copied to clipboard ✓"), () => toast("Copy blocked in this context (browser)"));
+  } else {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast("Copied to clipboard ✓"); } catch { toast("Copy failed (mock)"); }
+    ta.remove();
+  }
+}
+
+/* ================= STATE / URL / KEYBOARD ================= */
+
+function current() {
+  const p = new URLSearchParams(location.search).get("variant");
+  return VARIANTS.find(v => v.key === p) || VARIANTS[0];
+}
+function setVariant(v, push = true) {
+  const url = new URL(location.href);
+  url.searchParams.set("variant", v.key);
+  history.replaceState(null, "", url);
+  toast(`Variant ${v.key.toUpperCase()} — ${v.name}`);
+  render();
+}
+
+/* history dropdown */
+function openHist() {
+  const pop = $("#histpop");
+  pop.innerHTML = MOCK.hist.map(h =>
+    `<div class="hist-item" data-term="${esc(h.term)}"><span>${esc(h.term)}</span><small>${esc(h.d)}</small></div>`).join("");
+  pop.classList.add("open");
+  Q(".hist-item", pop).forEach(el => {
+    el.onclick = () => { $("#q").value = el.dataset.term; closeHist(); toast(`Searched “${el.dataset.term}” (mock)`); };
+  });
+  pop.querySelector(".hist-item")?.classList.add("sel");
+}
+function closeHist() { $("#histpop").classList.remove("open"); }
+
+/* chrome wiring */
+function wireChrome() {
+  const q = $("#q");
+  q.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const v = q.value.trim() || "食べる";
+      toast(`Searched “${v}” — 2 dictionaries · 1 no-result (mock)`);
+      closeHist();
+    } else if (e.key === "Escape") closeHist();
+    else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && $("#histpop").classList.contains("open")) {
+      e.preventDefault();
+      const items = Q(".hist-item");
+      const sel = $(".hist-item.sel");
+      const idx = Math.max(0, items.indexOf(sel));
+      const next = items[(idx + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length];
+      items.forEach(x => x.classList.remove("sel"));
+      next.classList.add("sel");
+      q.value = next.dataset.term;
+    }
+  });
+  q.addEventListener("focus", openHist);
+  q.addEventListener("focusout", () => setTimeout(closeHist, 150));
+
+  $("#histBtn").addEventListener("click", () => $("#histpop").classList.toggle("open"));
+  $("#themeBtn").addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    toast(`Theme → ${next}`);
+  });
+  $("#grp").addEventListener("change", () => toast(`Group → ${$("#grp").value} (mock)`));
+  $("#setBtn").addEventListener("click", () => toast("Settings — native Qt dialog in the real addon"));
+  $("#totop").addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+  window.addEventListener("scroll", () => {
+    $("#totop").classList.toggle("show", window.scrollY > 600);
+  }, { passive: true });
+
+  $("#swPrev").addEventListener("click", () => cycle(-1));
+  $("#swNext").addEventListener("click", () => cycle(1));
+  document.addEventListener("keydown", (e) => {
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if (typing) return;
+    if (e.key === "ArrowLeft") cycle(-1);
+    if (e.key === "ArrowRight") cycle(1);
+  });
+}
+function cycle(dir) {
+  const i = VARIANTS.findIndex(v => v.key === current().key);
+  setVariant(VARIANTS[(i + dir + VARIANTS.length) % VARIANTS.length]);
+}
+
+render();
+wireChrome();
+</script>
+</body>
+</html>

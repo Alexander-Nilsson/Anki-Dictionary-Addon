@@ -21,6 +21,7 @@
 <div
   class="tabContent"
   class:active
+  class:doc-mode={!!tab.doc}
   style:display={active ? "block" : "none"}
   data-index={tab.id}
 >

@@ -48,6 +48,11 @@ export const CMD = {
   saveSidebarWidth: (width: number) => `saveSidebarWidth:${Math.round(width)}`,
   /** Open the dictionary settings window (contains the usage guide). */
   openSettings: () => "openSettings",
+  // In-web search chrome (Phase 2.5): search + history + group switching.
+  searchTerm: (term: string) => `searchTerm:${term}`,
+  getSearchHistory: () => "getSearchHistory:",
+  getGroups: () => "getGroups:",
+  setGroup: (name: string) => `setGroup:${name}`,
 } as const;
 
 /**

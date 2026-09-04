@@ -201,24 +201,33 @@ export function scaleFont(increase: boolean): void {
 
 // ── layout ──────────────────────────────────────────
 
-/** Recompute #defBox / sidebar heights (mirrors legacy `resizer()`). */
+/** Recompute #defBox / sidebar heights (mirrors legacy `resizer()`).
+
+Scoping note: #defArea is `position: relative` (app.css), so an absolute
+#defBox must be offset from #defArea's own top — which already sits below the
+tab strip. The legacy math (`top: tabsHeight`) double-counted that offset once
+app.css introduced the relative container; it also predates the in-web chrome
+strip. Both are corrected here: defBox starts at #defArea's top edge and the
+chrome + tab-strip heights are subtracted from the available window height.
+ */
 export function resizer(): void {
   const tabsElement = document.getElementById("tabs");
+  const chromeBar = document.getElementById("chromeBar");
   const defBox = document.getElementById("defBox");
   if (!tabsElement || !defBox) return;
 
-  let height = 0;
-  if (tabsElement.offsetHeight !== undefined && tabsElement.offsetHeight !== null) {
-    height = tabsElement.offsetHeight;
-  }
+  const chromeH = chromeBar ? chromeBar.offsetHeight || 0 : 0;
+  const tabsH = tabsElement.offsetHeight || 0;
   const wHeight = window.innerHeight || 600;
-  defBox.style.top = `${height}px`;
-  defBox.style.height = `${Math.max(wHeight - height, 100)}px`;
+
+  defBox.style.top = "0px";
+  defBox.style.height = `${Math.max(wHeight - chromeH - tabsH, 100)}px`;
 
   for (const sb of Array.from(
     document.getElementsByClassName("definitionSideBar"),
   ) as HTMLElement[]) {
-    sb.style.height = `${Math.max(wHeight - 14 - height, 100)}px`;
+    sb.style.top = `${chromeH + tabsH}px`;
+    sb.style.height = `${Math.max(wHeight - 14 - chromeH - tabsH, 100)}px`;
   }
 }
 

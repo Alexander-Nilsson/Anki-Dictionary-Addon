@@ -135,3 +135,46 @@ def test_built_bundle_script_runs_to_mount():
     if js_files:
         raw = js_files[0].read_text(encoding="utf-8")
         assert raw in bundle
+
+
+def test_chrome_component_source_present():
+    """The in-web chrome (search + history + group switcher) ships in the UI."""
+    chrome = web_dir / "src" / "components" / "Chrome.svelte"
+    if not chrome.exists():
+        import pytest
+
+        pytest.skip("web/src/components/Chrome.svelte missing — chrome not built")
+    text = chrome.read_text(encoding="utf-8")
+    # Shell id measured by resizer(), and the Python evaled callbacks.
+    assert 'id="chromeBar"' in text
+    assert "setSearchHistory" in text
+    assert "setGroups" in text
+    # Registers the Ctrl/Cmd+K global focus shortcut.
+    assert '.toLowerCase() === "k"' in text
+
+
+def test_built_bundle_has_chrome_and_bridge_commands():
+    """The compiled bundle must still carry the chrome + new bridge commands.
+
+    Guards against the command-string contract between ``pycmd.ts`` and
+    ``MIDict.handleDictAction`` drifting apart (each ``CMDtoCommand`` prefix
+    has a matching Python branch).
+    """
+    if not built_html.exists():
+        import pytest
+
+        pytest.skip("web/dist/dictionary.html not built")
+    html = built_html.read_text(encoding="utf-8")
+    for marker in (
+        "chromeBar",
+        # window callbacks Python evals (minified into assignment form)
+        "setSearchHistory=",
+        "setGroups=",
+        # CMD -> Python command prefixes (must match handleDictAction branches)
+        "searchTerm:",
+        "getSearchHistory:",
+        "getGroups:",
+        "setGroup:",
+        "Search the dictionary",
+    ):
+        assert marker in html, f"bundle lost chrome/bridge marker: {marker}"
