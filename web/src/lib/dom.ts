@@ -28,6 +28,21 @@ export function scrollToElement(el: HTMLElement): void {
   w.scrollTop = offsetTopRelative(el, w);
 }
 
+/** Extract a font-family from Python's font attribute (`" "` when unset). */
+export function fontFamilyFromAttr(font: string): string | undefined {
+  const m = /font-family:\s*([^;"']+);?/.exec(font);
+  if (!m) return undefined;
+  const family = m[1].trim();
+  return family || undefined;
+}
+
+/** Main words (max 2, ", "-joined) parsed from a headword HTML fragment. */
+export function getMainWordsFromFragment(headerHtml: string): string {
+  const div = document.createElement("div");
+  div.innerHTML = headerHtml;
+  return getMainWords(div);
+}
+
 /** Selected text in the page (false when nothing is selected). */
 export function getSelectionText(): string | false {
   let text = "";

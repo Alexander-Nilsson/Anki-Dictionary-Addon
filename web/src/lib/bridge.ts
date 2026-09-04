@@ -13,6 +13,7 @@ import {
   toggleSidebar,
 } from "./tabs.svelte";
 import { addCustomFont } from "./compat";
+import type { DictDocument } from "./types";
 
 /** Convert a Python "true"/"false" string or boolean to a boolean. */
 function asBoolean(value: unknown): boolean {
@@ -28,9 +29,14 @@ export function initBridge(): void {
 
   const w = window as unknown as Record<string, unknown>;
   Object.assign(w, {
-    // Shell-level API called by Python.
-    addNewTab: (html: unknown, term: unknown, singleTab: unknown, _id: unknown) => {
-      addTab(String(term ?? ""), String(html ?? ""), asBoolean(singleTab));
+    // Shell-level API called by Python. In Svelte mode the payload is a
+    // structured search document; the legacy fallback page sends an HTML blob.
+    addNewTab: (payload: unknown, term: unknown, singleTab: unknown, _id: unknown) => {
+      if (payload && typeof payload === "object") {
+        addTab(String(term ?? ""), payload as DictDocument, asBoolean(singleTab));
+      } else {
+        addTab(String(term ?? ""), String(payload ?? ""), asBoolean(singleTab));
+      }
     },
     loadImageHtml,
     appendNewImages,

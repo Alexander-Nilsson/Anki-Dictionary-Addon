@@ -52,22 +52,35 @@ class SearchPipeline:
             self._inject_font(selected_group["font"])
 
         id_name = f"llm-loader-{int(time.time() * 1000)}"
-        html, cleaned, single_tab = self.getHTMLResult(term, selected_group, id_name)
+        js_single = "true" if self._get_tab_mode() == "true" else "false"
+        js_id = json.dumps(id_name)
 
+        if self._uses_svelte_shell():
+            # Phase 2: the Svelte shell renders a structured search document.
+            doc, cleaned, _ = self.getStructuredResult(term, selected_group, id_name)
+            self.midict.eval(
+                f"addNewTab({json.dumps(doc)}, {json.dumps(cleaned)},"
+                f" {js_single}, {js_id});"
+            )
+            return
+
+        # Legacy fallback page: inject the pre-rendered HTML blob.
+        html, cleaned, single_tab = self.getHTMLResult(term, selected_group, id_name)
         js_html = json.dumps(html.replace("\r", "").replace("\n", ""))
         js_cleaned = json.dumps(cleaned)
         js_single = "true" if single_tab == "true" else "false"
-        js_id = json.dumps(id_name)
         self.midict.eval(f"addNewTab({js_html}, {js_cleaned}, {js_single}, {js_id});")
 
     # ── search + render ────────────────────────────
 
-    def getHTMLResult(
+    def _uses_svelte_shell(self) -> bool:
+        """True when the AnkiWebView loaded the Svelte bundle (vs. legacy page)."""
+        return bool(getattr(self.midict.dictInt, "svelte_shell", False))
+
+    def _search(
         self, term: str, selected_group: dict[str, Any], id_name: str = ""
-    ) -> tuple[str, str, str]:
-        single_tab = self._get_tab_mode()
-        cleaned = clean_term(term)
-        font = get_font_family(selected_group)
+    ) -> tuple[dict[str, Any], str]:
+        """Run the DB search and fire LLM/Forvo triggers. Returns (results, forvo_id)."""
         dict_defs = self.midict.config.get("dictSearch", 50)
         max_defs = self.midict.config.get("maxSearch", 1000)
 
@@ -93,7 +106,7 @@ class SearchPipeline:
                     lang = d.get("lang")
                     if lang:
                         info = self.midict.db.get_term_frequency_info(
-                            cleaned, lang, self.midict.config
+                            clean_term(term), lang, self.midict.config
                         )
                         if info.get("starCount"):
                             star_count = info["starCount"]
@@ -117,7 +130,7 @@ class SearchPipeline:
                 )
 
             self._trigger_llm(
-                cleaned,
+                clean_term(term),
                 star_count,
                 level_labels,
                 id_name,
@@ -135,11 +148,31 @@ class SearchPipeline:
                     forvo_lang = d["lang"]
                     break
             forvo_id = f"forvo-loader-{int(time.time() * 1000)}"
-            self._trigger_forvo(cleaned, forvo_id, forvo_lang)
+            self._trigger_forvo(clean_term(term), forvo_id, forvo_lang)
 
+        return results, forvo_id
+
+    def getHTMLResult(
+        self, term: str, selected_group: dict[str, Any], id_name: str = ""
+    ) -> tuple[str, str, str]:
+        single_tab = self._get_tab_mode()
+        cleaned = clean_term(term)
+        results, forvo_id = self._search(term, selected_group, id_name)
+        font = get_font_family(selected_group)
         html = self._prepare_results(results, cleaned, font, id_name, forvo_id)
         html = html.replace("\n", "")
         return html, cleaned, single_tab
+
+    def getStructuredResult(
+        self, term: str, selected_group: dict[str, Any], id_name: str = ""
+    ) -> tuple[dict[str, Any], str, str]:
+        """Structured search document for the Svelte shell (Phase 2)."""
+        single_tab = self._get_tab_mode()
+        cleaned = clean_term(term)
+        results, forvo_id = self._search(term, selected_group, id_name)
+        font = get_font_family(selected_group)
+        doc = self._prepare_document(results, cleaned, font, id_name, forvo_id)
+        return doc, cleaned, single_tab
 
     # ── result preparation ─────────────────────────
 
@@ -267,6 +300,160 @@ class SearchPipeline:
 
         html += "</div>"
         return html
+
+    def _prepare_document(
+        self,
+        results: dict[str, Any],
+        term: str,
+        font: str,
+        id_name: str = "",
+        forvo_id: str = "",
+    ) -> dict[str, Any]:
+        """Assemble the structured search document consumed by the Svelte shell.
+
+        Mirrors ``_prepare_results`` (same resolution rules, counters and
+        service triggers) but produces typed blocks instead of one HTML string.
+        Images/LLM/Forvo stay opaque ``*Loader`` blocks whose ``html`` is the
+        existing placeholder markup — the async result flows
+        (``loadImageHtml`` / ``loadLLMResults`` / ``onForvoResult``) inject into
+        them unchanged.
+        """
+        config = self.midict.config
+        front_b = config.get("frontBracket", "\u3010")
+        back_b = config.get("backBracket", "\u3011")
+        term_headers = getattr(self.midict, "termHeaders", None)
+        is_dark = self.midict.dictInt.theme_manager.is_dark
+
+        group = self.midict.dictInt.getSelectedDictGroup()
+        group_dicts = [d["dict"] for d in group.get("dictionaries", [])]
+        has_special = any(d in ("Images", "LLM", "Forvo") for d in group_dicts)
+
+        if not results and not has_special:
+            return {
+                "font": font,
+                "sidebar": [],
+                "blocks": [
+                    {
+                        "type": "noResults",
+                        "term": term,
+                        "icon": self.renderer.get_base64_icon("search.svg", is_dark),
+                    }
+                ],
+            }
+
+        sidebar = self.renderer.build_sidebar_data(
+            results, term, front_b, back_b, config, term_headers
+        )
+        blocks: list[dict[str, Any]] = []
+        anki_icon = self.renderer.get_base64_icon("anki.svg", is_dark)
+        dict_count = 0
+
+        for d_info in group.get("dictionaries", []):
+            dict_name = d_info["dict"]
+
+            if dict_name == "Images":
+                image_id = f"gcon{int(time.time() * 1000)}".replace(".", "")
+                blocks.append(
+                    {
+                        "type": "imageLoader",
+                        "id": image_id,
+                        "html": self.renderer.render_image_search_html(
+                            term,
+                            font,
+                            front_b,
+                            back_b,
+                            config,
+                            term_headers,
+                            image_id,
+                            is_dark,
+                            settings_html=(
+                                self._get_overwrite_html(dict_count, dict_name)
+                                + self._get_field_html(dict_name)
+                            ),
+                        ),
+                    }
+                )
+                self._trigger_image_search(term, image_id)
+                dict_count += 1
+                continue
+
+            if dict_name == "LLM":
+                if self.midict.config.get("llm_enabled", False):
+                    loader = id_name if id_name else "llm-loader"
+                    blocks.append(
+                        {
+                            "type": "llmLoader",
+                            "id": loader,
+                            "html": self._render_llm_placeholder(
+                                dict_count, font, loader
+                            ),
+                        }
+                    )
+                dict_count += 1
+                continue
+
+            if dict_name == "Forvo":
+                if self.midict.config.get("forvo_enabled", False):
+                    loader = forvo_id if forvo_id else "forvo-loader"
+                    blocks.append(
+                        {
+                            "type": "forvoLoader",
+                            "id": loader,
+                            "html": self._render_forvo_placeholder(
+                                dict_count, font, loader
+                            ),
+                        }
+                    )
+                dict_count += 1
+                continue
+
+            clean_name = self.midict.db.cleanDictName(dict_name)
+            normalized = self.midict.db.normalize_dict_name(dict_name)
+            dict_results = (
+                results.get(dict_name)
+                or results.get(clean_name)
+                or results.get(normalized)
+            )
+            if dict_results is None:
+                continue
+
+            overwrite = self._get_overwrite_html(dict_count, dict_name)
+            field_select = self._get_field_html(dict_name)
+            blocks.append(
+                self.renderer.build_title_block(
+                    dict_count, clean_name, font, overwrite, field_select
+                )
+            )
+            dict_count += 1
+
+            for entry in dict_results:
+                definition, extracted_freq = self.renderer.clean_definition(entry)
+                entry["definition"] = definition
+                def_block = self.renderer.build_definition_block(
+                    definition, font, term, config
+                )
+                blocks.append(
+                    self.renderer.build_term_pronunciation_block(
+                        entry,
+                        dict_name,
+                        clean_name,
+                        font,
+                        front_b,
+                        back_b,
+                        extracted_freq,
+                        config,
+                        term_headers,
+                        definition_html=def_block["html"],
+                    )
+                )
+                blocks.append(def_block)
+
+        return {
+            "font": font,
+            "sidebar": sidebar,
+            "blocks": blocks,
+            "ankiIcon": anki_icon,
+        }
 
     # ── LLM result injection ───────────────────────
 

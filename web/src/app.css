@@ -50,6 +50,32 @@
   animation: tabContentFadeIn 160ms ease;
 }
 
+/* No-results state — the legacy renderer inlined these rules per-tab; the
+   componentized `<NoResults />` uses the same selectors globally. */
+.tabContent {
+  position: relative;
+}
+
+.vertical-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.noresults {
+  color: #888;
+}
+
+.noresults img {
+  margin-bottom: 20px;
+}
+
+.noresults h3 {
+  margin: 0;
+  font-weight: normal;
+}
+
 /* Tab strip overflow edge fades + sticky "settings & guide" button. The
    sticky items stay pinned while `#tabs` scrolls horizontally. */
 .tabs-fade {
