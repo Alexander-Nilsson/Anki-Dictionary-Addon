@@ -454,21 +454,21 @@ class ResultRenderer:
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"
             + clean_name
-            + '\')" class="ankiExportButton"><img '
+            + '\')" role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img_tooltip
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip_tooltip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
             + send_tooltip
             + " onclick=\"sendToField(event, '"
             + clean_name
-            + '\')" class="sendToField">\u279e</div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
             + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
             + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDef">\u25bc</div></div></div></div>'
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">\u25bc</div></div></div></div>'
         )
 
     def render_definition_block(
@@ -579,21 +579,21 @@ class ResultRenderer:
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"
             + dict_name
-            + '\')" class="ankiExportButton"><img '
+            + '\')" role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
             + send
             + " onclick=\"sendToField(event, '"
             + dict_name
-            + '\')" class="sendToField">\u279e</div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
             + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
             + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDict">\u25bc</div></div></div></div>'
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDict">\u25bc</div></div></div></div>'
         )
 
     def render_llm_definition_block(
@@ -621,9 +621,9 @@ class ResultRenderer:
             + dict_name
             + '</div><div class="dictionarySettings">'
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" '
-            + 'class="prevDict">\u25b2</div>'
+            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">\u25b2</div>'
             + '<div onclick="navigateDict(event, true)" '
-            + 'class="nextDict">\u25bc</div></div></div></div>'
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">\u25bc</div></div></div></div>'
         )
 
         stars = str(result.get("starCount", ""))
@@ -654,21 +654,21 @@ class ResultRenderer:
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"
             + dict_name
-            + '\')" class="ankiExportButton"><img '
+            + '\')" role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
             + send
             + " onclick=\"sendToField(event, '"
             + dict_name
-            + '\')" class="sendToField">\u279e</div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
             + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
             + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDef">\u25bc</div></div></div></div>'
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">\u25bc</div></div></div></div>'
         )
 
         definition = result.get("definition", "")
@@ -711,9 +711,9 @@ class ResultRenderer:
             + settings_html
             + '<div class="dictNav">'
             + '<div onclick="navigateDict(event, false)" '
-            + 'class="prevDict">\u25b2</div>'
+            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">\u25b2</div>'
             + '<div onclick="navigateDict(event, true)" '
-            + 'class="nextDict">\u25bc</div>'
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">\u25bc</div>'
             + "</div></div></div>"
             + '<div class="termPronunciation"><span '
             + font
@@ -721,24 +721,24 @@ class ResultRenderer:
             + prepared
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, 'Images')\" "
-            + 'class="ankiExportButton"><img '
+            + 'role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
             + send
             + " onclick=\"sendToField(event, 'Images'\") "
-            + 'class="sendToField">\u279e</div>'
+            + 'role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
             + '<div class="defNav">'
             + '<div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
             + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDict">\u25bc</div>'
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">\u25bc</div>'
             + "</div></div></div>"
             + '<div class="definitionBlock">'
-            + '<div class="imageBlock" id="'
+            + '<div class="imageBlock is-loading" id="'
             + id_name
             + '">Loading...</div></div>'
         )
