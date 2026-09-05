@@ -23,6 +23,22 @@
   let open = $state(false);
   let sel = $state(-1);
   let input: HTMLInputElement | undefined = $state();
+  // U2: where the last search came from + clipboard-monitor pause state.
+  let source = $state("manual");
+  let clipboardPaused = $state(false);
+
+  const sourceLabel = $derived.by(() => {
+    switch (source) {
+      case "clipboard":
+        return "From clipboard";
+      case "browser":
+        return "From browser";
+      case "extension":
+        return "From extension";
+      default:
+        return "Manual";
+    }
+  });
 
   const filtered = $derived(
     query.trim()
@@ -116,17 +132,46 @@
         : [];
       if (typeof data.current === "string" && data.current) group = data.current;
     };
+    w.setSearchSource = (payload: unknown) => {
+      // Pushed on every search (initSearch) so the pill tracks the latest
+      // trigger (clipboard/browser/extension/manual) live.
+      if (typeof payload === "string") source = payload;
+    };
+    w.setSearchStatus = (payload: unknown) => {
+      const data = (payload ?? {}) as {
+        source?: unknown;
+        clipboardPaused?: unknown;
+      };
+      if (typeof data.source === "string") source = data.source;
+      if (typeof data.clipboardPaused === "boolean") {
+        clipboardPaused = data.clipboardPaused;
+      }
+    };
     requestGroups();
+    requestSearchStatus();
     document.addEventListener("keydown", onGlobalKey);
     return () => {
       delete (w as Record<string, unknown>).setSearchHistory;
       delete (w as Record<string, unknown>).setGroups;
+      delete (w as Record<string, unknown>).setSearchSource;
+      delete (w as Record<string, unknown>).setSearchStatus;
       document.removeEventListener("keydown", onGlobalKey);
     };
   });
 
   function requestGroups(): void {
     pycmd(CMD.getGroups());
+  }
+
+  function requestSearchStatus(): void {
+    pycmd(CMD.requestSearchStatus());
+  }
+
+  /** Toggle clipboard-monitor snooping (one-click pause/resume pill). */
+  function toggleClipboardPause(): void {
+    const next = !clipboardPaused;
+    clipboardPaused = next;
+    pycmd(CMD.setClipboardPaused(next));
   }
 
   function onFocus(): void {
@@ -198,6 +243,38 @@
       <option value={g}>{g}</option>
     {/each}
   </select>
+
+  <!-- U2: search-source chip + clipboard-monitor pause pill. -->
+  <div class="sourcePill" class:clipboard={source === "clipboard"} title={source === "clipboard" ? "Searched from the global clipboard hotkey" : "Search source"}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      {#if source === "clipboard"}
+        <rect x="8" y="2" width="8" height="4" rx="1" />
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+        <path d="M9 12h6M9 16h4" />
+      {:else}
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+      {/if}
+    </svg>
+    <span>{sourceLabel}</span>
+  </div>
+  <button
+    class="chromeBtn pauseBtn"
+    class:paused={clipboardPaused}
+    type="button"
+    title={clipboardPaused ? "Clipboard monitoring paused — click to resume" : "Clipboard monitoring active — click to pause"}
+    aria-label={clipboardPaused ? "Resume clipboard monitoring" : "Pause clipboard monitoring"}
+    aria-pressed={clipboardPaused}
+    onclick={toggleClipboardPause}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      {#if clipboardPaused}
+        <rect x="6" y="4" width="4" height="16" rx="1" />
+        <rect x="14" y="4" width="4" height="16" rx="1" />
+      {:else}
+        <path d="M7 6v12M11 6v12M15 6v12" />
+      {/if}
+    </svg>
+  </button>
 
   <button
     class="chromeBtn"

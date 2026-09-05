@@ -248,6 +248,44 @@
   border-color: transparent;
 }
 
+/* U2: search-source chip + clipboard-monitor pause pill. */
+#chromeBar .sourcePill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 150px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chromeBar .sourcePill svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+/* Clipboard-sourced searches get a touch of accent so the most surprising
+   trigger (a global hotkey fired a lookup) is the most noticeable. */
+#chromeBar .sourcePill.clipboard {
+  color: var(--search_term);
+  border-color: var(--search_term);
+  background: color-mix(in srgb, var(--search_term) 10%, var(--background));
+}
+
+#chromeBar .pauseBtn.paused {
+  color: var(--search_term);
+  border-color: var(--search_term);
+  background: color-mix(in srgb, var(--search_term) 10%, var(--background));
+}
+
 /* History dropdown (bright above the results pane). */
 #chromeBar .chromeHist {
   position: absolute;

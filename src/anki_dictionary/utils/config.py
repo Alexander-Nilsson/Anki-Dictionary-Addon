@@ -111,6 +111,7 @@ def get_addon_config() -> dict[str, Any]:
         "language_defaults": {},
         "last_seen_version": "",
         "hide_release_notes": False,
+        "clipboard_monitor_enabled": True,
     }
 
 

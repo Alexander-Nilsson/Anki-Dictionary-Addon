@@ -219,7 +219,7 @@ def searchTermList(terms):
         dictionaryInit(terms)
     else:
         for term in terms:
-            mw.ankiDictionary.initSearch(term)  # ty:ignore[unresolved-attribute]
+            mw.ankiDictionary.initSearch(term, source="extension")  # ty:ignore[unresolved-attribute]
         showAfterGlobalSearch()
 
 
@@ -267,7 +267,7 @@ def searchTerm(webview):
         if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
             dictionaryInit([text])
         mw.ankiDictionary.ensureVisible()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.initSearch(text)  # ty:ignore[unresolved-attribute]
+        mw.ankiDictionary.initSearch(text, source="browser")  # ty:ignore[unresolved-attribute]
         if webview.title == "main webview":
             if mw.state == "review":
                 mw.ankiDictionary.dict.setReviewer(mw.reviewer)  # ty:ignore[unresolved-attribute]
@@ -298,9 +298,15 @@ def exportSentence(sentence):
 
 
 def trySearch(text):
-    """Try to search text in the dictionary."""
-    if mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.initSearch(text)  # ty:ignore[unresolved-attribute]
+    """Try to search text in the dictionary (clipboard/global-hotkey path)."""
+    if not mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
+        return
+    # U2: honour the one-click clipboard-monitor pause (in-web pill). When
+    # paused, ignore clipboard-derived searches so users can stop hotkey-
+    # triggered lookups without disabling the addon.
+    if not mw.ankiDictionary.config.get("clipboard_monitor_enabled", True):  # ty:ignore[unresolved-attribute]
+        return
+    mw.ankiDictionary.initSearch(text, source="clipboard")  # ty:ignore[unresolved-attribute]
 
 
 def exportImage(path, name):

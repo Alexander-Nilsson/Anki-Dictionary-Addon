@@ -174,6 +174,52 @@ class TestAddonImports:
         aqt.mw = None  # restore
 
 
+class TestTrySearchClipboardPause:
+    """U2: ``main_window.trySearch`` labels clipboard searches and honours the
+    one-click clipboard-monitor pause pill.
+
+    Lives here (not in the unit suite) because importing ``main_window`` pulls
+    in ``clip_thread`` → ``aqt.qt`` (``QObject``/``pyqtSignal``), which some
+    unit tests stub out of ``sys.modules`` at collection time.
+    """
+
+    @staticmethod
+    def _main_window():
+        import aqt
+
+        aqt.mw = MagicMock()
+        import anki_dictionary.ui.main_window as module
+
+        aqt.mw = None  # restore
+        return module
+
+    def test_resumes_search_sources_clipboard(self):
+        module = self._main_window()
+        anki = MagicMock()
+        anki.config.get.return_value = True  # clipboard_monitor_enabled
+        with patch.object(module, "mw") as mock_mw:
+            mock_mw.ankiDictionary = anki
+            module.trySearch("\u98df\u3079\u308b")
+        anki.initSearch.assert_called_once_with(
+            "\u98df\u3079\u308b", source="clipboard"
+        )
+
+    def test_skipped_when_clipboard_paused(self):
+        module = self._main_window()
+        anki = MagicMock()
+        anki.config.get.return_value = False  # clipboard_monitor_enabled
+        with patch.object(module, "mw") as mock_mw:
+            mock_mw.ankiDictionary = anki
+            module.trySearch("\u98df\u3079\u308b")
+        anki.initSearch.assert_not_called()
+
+    def test_noop_when_dictionary_closed(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            mock_mw.ankiDictionary = None
+            module.trySearch("\u98df\u3079\u308b")  # must not raise
+
+
 class TestDictInterface:
     """DictInterface instantiation tests."""
 

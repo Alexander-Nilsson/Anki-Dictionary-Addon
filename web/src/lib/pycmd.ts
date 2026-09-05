@@ -53,6 +53,10 @@ export const CMD = {
   getSearchHistory: () => "getSearchHistory:",
   getGroups: () => "getGroups:",
   setGroup: (name: string) => `setGroup:${name}`,
+  // U2: search-source chip + clipboard-monitor pause pill.
+  requestSearchStatus: () => "requestSearchStatus:",
+  setClipboardPaused: (paused: boolean) =>
+    `setClipboardPaused:${paused ? "true" : "false"}`,
 } as const;
 
 /**

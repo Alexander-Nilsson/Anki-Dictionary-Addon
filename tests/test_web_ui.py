@@ -149,6 +149,11 @@ def test_chrome_component_source_present():
     assert 'id="chromeBar"' in text
     assert "setSearchHistory" in text
     assert "setGroups" in text
+    # U2: search-source chip + clipboard-monitor pause pill.
+    assert "setSearchSource" in text
+    assert "setSearchStatus" in text
+    assert "sourcePill" in text
+    assert "pauseBtn" in text
     # Registers the Ctrl/Cmd+K global focus shortcut.
     assert '.toLowerCase() === "k"' in text
 
@@ -170,11 +175,15 @@ def test_built_bundle_has_chrome_and_bridge_commands():
         # window callbacks Python evals (minified into assignment form)
         "setSearchHistory=",
         "setGroups=",
+        "setSearchSource=",
+        "setSearchStatus=",
         # CMD -> Python command prefixes (must match handleDictAction branches)
         "searchTerm:",
         "getSearchHistory:",
         "getGroups:",
         "setGroup:",
+        "setClipboardPaused:",
+        "requestSearchStatus:",
         "Search the dictionary",
     ):
         assert marker in html, f"bundle lost chrome/bridge marker: {marker}"

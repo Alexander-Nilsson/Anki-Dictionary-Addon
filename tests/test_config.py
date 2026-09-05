@@ -35,6 +35,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(result["maxHeight"], 400)
         self.assertEqual(result["currentGroup"], "All")
         self.assertEqual(result["forvo_enabled"], True)
+        self.assertEqual(result["clipboard_monitor_enabled"], True)
 
     @patch("anki_dictionary.utils.config.aqt.mw")
     @patch("anki_dictionary.utils.config.get_addon_root")

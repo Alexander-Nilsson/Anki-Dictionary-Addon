@@ -97,7 +97,7 @@ class MIDict(AnkiWebView):
     def maybeSearchTerms(self, terms: str) -> None:
         if self.terms:
             for t in self.terms:  # ty:ignore[not-iterable]
-                self.dictInt.initSearch(t)
+                self.dictInt.initSearch(t, source="extension")
             self.terms = False
 
     def handleDictAction(self, dAct):
@@ -196,6 +196,15 @@ class MIDict(AnkiWebView):
             idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
             if idx >= 0:
                 combo.setCurrentIndex(idx)
+        elif dAct.startswith("setClipboardPaused:"):
+            # U2: one-click pause/resume of clipboard-monitored searches.
+            raw = dAct[len("setClipboardPaused:") :].strip()
+            paused = raw.lower() in ("true", "1", "yes")
+            self.dictInt.setClipboardPaused(paused)
+        elif dAct.startswith("requestSearchStatus:"):
+            # Chrome requests the current search source + pause state on mount
+            # (mirrors how getSearchHistory / getGroups are fetched on demand).
+            self.dictInt.pushSearchStatus()
 
     def setCurrentEditor(self, editor, target=""):
         if editor != self.currentEditor:
@@ -394,6 +403,7 @@ class DictInterface(QWidget):
         #     self.refresh_application_theme()
         # else:
         #     self.refresh_application_theme()
+        self.search_source = "manual"
         html, url = self.getHTMLURL(willSearch)
         self.dict.loadHTMLURL(html, url)
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
@@ -1084,7 +1094,7 @@ class DictInterface(QWidget):
             term,
         )[:30]
 
-    def initSearch(self, term=False):
+    def initSearch(self, term=False, source="manual"):
         self.ensureVisible()
         if term is False:
             term = self.search.text()
@@ -1093,6 +1103,8 @@ class DictInterface(QWidget):
         term = self.cleanTermBrackets(term)
         if term == "":
             return
+
+        self.setSearchSource(source)
 
         if self.config.get("auto_select_dict_group", True):
             from anki_dictionary.utils.script_detector import find_matching_group
@@ -1119,6 +1131,49 @@ class DictInterface(QWidget):
         self.addToHistory(term)
         self.dict.addNewTab(term, selectedGroup)
         self.search.setFocus()
+
+    # ── search source + clipboard-monitor pause (U2) ─────────────────────
+
+    def setSearchSource(self, source: str) -> None:
+        """Record where the last search came from and reflect it in the web UI.
+
+        ``source`` is one of ``"manual"`` (in-app field/browser text),
+        ``"clipboard"`` (global hotkey / system clipboard), ``"browser"``
+        (selected text in the Anki browser/editor) or ``"extension"`` (browser
+        extension). Pushed to the Svelte chrome via ``setSearchSource``.
+        """
+        self.search_source = source
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setSearchSource(" + json.dumps(source, ensure_ascii=False) + ");"
+            )
+        except Exception:
+            logger.debug("Web view not ready to receive search source")
+
+    def setClipboardPaused(self, paused: bool) -> None:
+        """Persist and apply the clipboard-monitor pause state."""
+        self.writeConfig("clipboard_monitor_enabled", not paused)
+
+    def clipboardPaused(self) -> bool:
+        return not bool(self.config.get("clipboard_monitor_enabled", True))
+
+    def pushSearchStatus(self) -> None:
+        """Push the current search source + clipboard-pause state to the web UI."""
+        if not getattr(self, "svelte_shell", False):
+            return
+        status = json.dumps(
+            {
+                "source": getattr(self, "search_source", "manual"),
+                "clipboardPaused": self.clipboardPaused(),
+            },
+            ensure_ascii=False,
+        )
+        try:
+            self.dict.eval("setSearchStatus(" + status + ");")
+        except Exception:
+            logger.debug("Web view not ready to receive search status")
 
     def addToHistory(self, term):
         date = str(datetime.date.today())
