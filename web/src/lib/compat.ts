@@ -223,6 +223,9 @@ export function loadImageHtml(html: string, idName: string): void {
     target.innerHTML = html;
     // The "Loading..." state is over once real content arrives.
     target.classList.remove("is-loading");
+    // Async image tiles are entry blocks too — re-arm the scrollspy so the
+    // sidebar highlight tracks them once they exist.
+    document.dispatchEvent(new Event("tabChanged"));
   } else {
     console.warn("Target element not found:", idName);
   }

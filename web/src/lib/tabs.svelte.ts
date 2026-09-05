@@ -7,7 +7,8 @@
  */
 import { CMD, pycmd } from "./pycmd";
 import { offsetTopRelative } from "./dom";
-import type { DictDocument, Tab } from "./types";
+import type { DictDocument, HistoryEntry, Tab } from "./types";
+import { showToast } from "./toast.svelte";
 
 /**
  * Module-scope shared store. A class instance is the idiomatic Svelte 5 way to
@@ -21,11 +22,28 @@ class DictionaryUIStore {
   fefs = $state(12);
   dbfs = $state(22);
   welcomeHtml = $state("");
+  /** Tabs that have been mounted at least once (lazy-render, A3). */
+  mounted = $state(new Set<number>());
+  /** Toast id most recently announced when a tab was auto-closed by pruning. */
+  lastPrunedNotice = $state("");
+  /** Persisted search history (`_searchHistory.json`), shared by the chrome
+   *  dropdown and the sidebar "Recent searches" section (U3). */
+  history = $state<HistoryEntry[]>([]);
+  /** Keyboard-map cheat sheet overlay visible (U5). */
+  showKeymap = $state(false);
+  /** The currently-highlighted entry (scrollspy), target for E/C keys (U5).
+   *  Plain field on purpose — DOM elements don't belong in reactive state. */
+  activeEntry: HTMLElement | null = null;
 }
 
 export const ui = new DictionaryUIStore();
 
 let nextId = 1;
+
+/** Ask Python for the persisted search history (`setSearchHistory` reply). */
+export function refreshHistory(): void {
+  pycmd(CMD.getSearchHistory());
+}
 
 /** Per-tab scroll positions of the shared #defBox scroller. */
 const scrollPositions = new Map<number, number>();
@@ -78,7 +96,58 @@ export function addTab(
   rememberActiveScroll();
   ui.tabs.push(tab);
   ui.activeId = tab.id;
+  ui.mounted.add(tab.id);
+  touch(tab.id);
+  pruneToCap();
   restoreScroll(tab.id);
+  notifyTabChanged();
+  persistSession();
+}
+
+/**
+ * LRU cap (A3): keep at most `MAX_TABS` open tabs, closing the least-recently
+ * used one (never the active tab). Reduces memory creep from image grids / LLM
+ * text that otherwise stay live in hidden tabs. Purely additive — the user can
+ * still close tabs manually, and single-tab mode never adds more than one.
+ */
+const MAX_TABS = 10;
+
+function pruneToCap(): void {
+  if (ui.tabs.length <= MAX_TABS) return;
+  // Sort by last-used ascending — the oldest goes first. The active tab is
+  // always skipped (closing it while in use is never desirable).
+  const [oldest, ...rest] = [...ui.tabs].sort(
+    (a, b) => (a.lastUsed ?? 0) - (b.lastUsed ?? 0),
+  );
+  if (!oldest || oldest.id === ui.activeId) {
+    // Active is the stalest — drop the next one instead.
+    if (rest.length) closeTab(rest[0].id);
+    return;
+  }
+  const term = oldest.term;
+  closeTab(oldest.id);
+  showToast(`Closed "${term}" to keep at most ${MAX_TABS} tabs open`);
+}
+
+/** Stamp a tab as recently used (LRU bookkeeping, A3). */
+function touch(id: number): void {
+  const tab = ui.tabs.find((t) => t.id === id);
+  if (tab) tab.lastUsed = Date.now();
+}
+
+/** Notify the scrollspy observer that the visible tab's content changed. */
+function notifyTabChanged(): void {
+  document.dispatchEvent(new Event("tabChanged"));
+}
+
+/** Persist the current open-tab terms so A5 can restore the session. */
+function persistSession(): void {
+  const terms = ui.tabs.map((t) => t.term).filter(Boolean);
+  try {
+    pycmd(CMD.saveSession(terms));
+  } catch {
+    /* non-critical — session restore is best-effort */
+  }
 }
 
 export function closeTab(id: number): void {
@@ -86,6 +155,7 @@ export function closeTab(id: number): void {
   if (idx === -1) return;
   const wasActive = id === ui.activeId;
   ui.tabs.splice(idx, 1);
+  ui.mounted.delete(id);
   scrollPositions.delete(id);
   if (wasActive) {
     if (ui.tabs.length === 0) {
@@ -95,13 +165,23 @@ export function closeTab(id: number): void {
       ui.activeId = ui.tabs[Math.max(idx - 1, 0)].id;
     }
   }
+  notifyTabChanged();
+  persistSession();
+}
+
+/** True once a tab's content has been mounted (drives A3 lazy rendering). */
+export function isMounted(id: number): boolean {
+  return ui.mounted.has(id);
 }
 
 export function activate(id: number): void {
   if (id === ui.activeId) return;
   rememberActiveScroll();
   ui.activeId = id;
+  ui.mounted.add(id);
+  touch(id);
   restoreScroll(id);
+  notifyTabChanged();
 }
 
 /** Save the outgoing tab's scroll before the shared #defBox is repurposed. */
@@ -333,6 +413,10 @@ function syncSidebarActive(): void {
   }
   if (!current) return;
 
+  // U5: remember the highlighted entry so global E/C keys and arrow nav can
+  // act on it (the scrollspy highlight doubles as the "current entry").
+  ui.activeEntry = current.block;
+
   const listTitles = Array.from(
     activeTab.querySelectorAll<HTMLElement>(".definitionSideBar .listTitle"),
   );
@@ -350,9 +434,39 @@ function syncSidebarActive(): void {
   if (!target.classList.contains("active")) target.classList.add("active");
 }
 
-/** Track the scroll position of the results pane to sync the sidebar. */
+/** Track the visible entry in the results pane to sync the sidebar. */
 export function initSidebarSync(): void {
-  // Attach on document (capture) so the listener exists before the app
-  // mounts and survives #defBox appearing/disappearing.
-  document.addEventListener("scroll", syncSidebarActive, true);
+  // A3: an IntersectionObserver on the entry blocks replaces the document-level
+  // scroll listener (which fired on every scroll event). When the active tab
+  // changes or new results arrive, the observer is re-armed against the new doc.
+  const observer = new IntersectionObserver(
+    (entries) => {
+      // The entry whose top is nearest/above the viewport top wins.
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          syncSidebarActive();
+          break;
+        }
+      }
+    },
+    { root: null, threshold: 0 },
+  );
+
+  document.addEventListener("tabChanged", () => {
+    for (const el of Array.from(document.querySelectorAll(".tabContent"))) {
+      observer.unobserve(el);
+    }
+    const activeTab = document.querySelector<HTMLElement>(
+      `.tabContent[data-index="${ui.activeId}"]`,
+    );
+    if (activeTab) {
+      activeTab
+        .querySelectorAll<HTMLElement>(".termPronunciation")
+        .forEach((el) => observer.observe(el));
+    }
+  });
+
+  window.addEventListener("load", () => {
+    document.dispatchEvent(new Event("tabChanged"));
+  });
 }

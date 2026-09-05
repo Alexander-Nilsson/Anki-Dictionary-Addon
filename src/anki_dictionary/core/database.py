@@ -682,6 +682,51 @@ class DictDB:
         )
         self.commitChanges()
 
+    def get_terms_for_suggestions(self, dict_name: str, limit: int = 40) -> list[str]:
+        """Return a small sample of terms for the fuzzy "did you mean" (U4).
+
+        Queries the dictionary's data table for its most frequent terms
+        (``frequency`` ordering, NULLs trailing) so the no-results suggestion
+        rank has something cheap to compare against. Both ``term`` and
+        ``altterm`` columns are included; duplicates are dropped.
+        """
+        if not self._ensure_connection():
+            return []
+        mapping = self.getDictToTable()
+        table = ""
+        for key, info in mapping.items():
+            if key == dict_name or (info or {}).get("dict") == dict_name:
+                table = info["dict"]
+                break
+        if not table:
+            return []
+        safe_table = self._quote_identifier(table)
+        cursor = self._get_cursor()
+        out: list[str] = []
+        seen: set[str] = set()
+        for col in ("term", "altterm"):
+            try:
+                cursor.execute(
+                    "SELECT DISTINCT "
+                    + col
+                    + " FROM "
+                    + safe_table
+                    + " WHERE "
+                    + col
+                    + " != '' ORDER BY frequency DESC LIMIT ?;",
+                    (limit,),
+                )
+                for row in cursor.fetchall():
+                    if not row[0]:
+                        continue
+                    key = row[0].lower()
+                    if key not in seen:
+                        seen.add(key)
+                        out.append(row[0])
+            except Exception:
+                continue
+        return out[:limit]
+
     def getTermHeaders(self) -> dict[str, list[str]] | None:
         """Get term headers for all dictionaries."""
         if not self._ensure_connection():

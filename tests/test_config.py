@@ -11,6 +11,7 @@ if _src not in sys.path:
 
 from anki_dictionary.utils.config import (
     get_addon_config,
+    get_session_terms,
     refresh_anki_dict_config,
     save_addon_config,
 )
@@ -36,6 +37,9 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(result["currentGroup"], "All")
         self.assertEqual(result["forvo_enabled"], True)
         self.assertEqual(result["clipboard_monitor_enabled"], True)
+        # A4/A5 defaults: session restore is opt-in, history cap is app-side.
+        self.assertEqual(result["restore_session"], False)
+        self.assertEqual(result["session_terms"], [])
 
     @patch("anki_dictionary.utils.config.aqt.mw")
     @patch("anki_dictionary.utils.config.get_addon_root")
@@ -55,6 +59,29 @@ class TestConfig(unittest.TestCase):
         config = {"key": "value"}
         refresh_anki_dict_config(config)
         mock_mw.ankiDictionary.resetConfiguration.assert_called_once()
+
+    def test_get_session_terms_opt_in(self):
+        # A5: restore is opt-in — a saved list is ignored until enabled.
+        self.assertEqual(get_session_terms({}), [])
+        self.assertEqual(
+            get_session_terms({"restore_session": False, "session_terms": ["a"]}),
+            [],
+        )
+        # Empty/whitespace rows and duplicates are dropped, order preserved.
+        self.assertEqual(
+            get_session_terms(
+                {
+                    "restore_session": True,
+                    "session_terms": ["a", "", "  ", "b", "a"],
+                }
+            ),
+            ["a", "b"],
+        )
+        # Stale non-list payloads degrade to [].
+        self.assertEqual(
+            get_session_terms({"restore_session": True, "session_terms": "nope"}),
+            [],
+        )
 
     @patch("anki_dictionary.utils.config.aqt.mw")
     def test_get_addon_config_from_state(self, mock_mw):

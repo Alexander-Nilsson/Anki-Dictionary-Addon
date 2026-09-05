@@ -51,12 +51,16 @@ export const CMD = {
   // In-web search chrome (Phase 2.5): search + history + group switching.
   searchTerm: (term: string) => `searchTerm:${term}`,
   getSearchHistory: () => "getSearchHistory:",
+  deleteSearchHistory: (term: string) => `deleteSearchHistory:${term}`,
   getGroups: () => "getGroups:",
   setGroup: (name: string) => `setGroup:${name}`,
   // U2: search-source chip + clipboard-monitor pause pill.
   requestSearchStatus: () => "requestSearchStatus:",
   setClipboardPaused: (paused: boolean) =>
     `setClipboardPaused:${paused ? "true" : "false"}`,
+  // A5: persist open-tab terms so the session can be restored on reopen.
+  saveSession: (terms: string[]) =>
+    `saveSession:${JSON.stringify(terms)}`,
 } as const;
 
 /**

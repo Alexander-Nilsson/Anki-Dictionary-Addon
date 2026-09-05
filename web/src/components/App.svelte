@@ -1,14 +1,19 @@
 <script lang="ts">
   import Chrome from "./Chrome.svelte";
+  import KeymapOverlay from "./KeymapOverlay.svelte";
   import TabBar from "./TabBar.svelte";
   import TabContent from "./TabContent.svelte";
   import Toaster from "./Toaster.svelte";
   import WelcomeScreen from "./WelcomeScreen.svelte";
+  import { onMount } from "svelte";
+  import { installKeymap } from "../lib/keymap";
   import {
     applySidebarState,
     resizer,
     ui,
   } from "../lib/tabs.svelte";
+
+  onMount(() => installKeymap());
 
   // Keep injected-content sidebar/layout state in sync whenever the active
   // tab or the sidebar toggle changes.
@@ -84,4 +89,5 @@
     </svg>
   </button>
   <Toaster />
+  <KeymapOverlay />
 </div>

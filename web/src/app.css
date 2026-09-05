@@ -76,6 +76,183 @@
   font-weight: normal;
 }
 
+/* U4: no-results "did you mean" + deinflection hint. */
+.noresults .deinflect-hint {
+  margin: 14px 0 0;
+  color: #666;
+}
+
+.noresults .suggestion-label {
+  margin: 14px 0 4px;
+  color: #888;
+}
+
+.noresults .suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.suggestion-chip {
+  appearance: none;
+  border: 1px solid var(--pill-border, #ccc);
+  background: var(--pill-bg, rgba(127, 127, 127, 0.1));
+  color: var(--text-color, #222);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.suggestion-chip:hover {
+  border-color: var(--accent, #4a90d9);
+  color: var(--accent, #4a90d9);
+}
+
+/* U3: "Recent searches" section inside the sidebar (theme variables from
+   legacy.css). */
+.sidebarHistory {
+  margin-top: 8px;
+}
+
+.sidebarHistory .listTitle {
+  cursor: default;
+}
+
+.historyList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyEntry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: clamp(5px, 0.9vw, 8px) clamp(10px, 1.8vw, 16px);
+  font-size: var(--font-size-sm);
+  color: var(--definition_text);
+  border-left: 3px solid transparent;
+  transition: background-color var(--transition-base);
+}
+
+.historyEntry:hover {
+  background-color: var(--tab_hover);
+  border-left-color: var(--search_term);
+}
+
+.historyTerm {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyDate {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  color: var(--definition_text);
+  opacity: 0.6;
+}
+
+.historyPrune {
+  flex-shrink: 0;
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 0.9em;
+  color: var(--definition_text);
+  opacity: 0.5;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.historyPrune:hover {
+  opacity: 1;
+  color: #e05c5c;
+}
+
+/* U5: keyboard-map cheat sheet overlay. */
+.keymap-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.keymap-card {
+  background: var(--background_color, #fff);
+  color: var(--definition_text, #333);
+  border-radius: 10px;
+  padding: 20px 26px;
+  min-width: 340px;
+  max-width: 90vw;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.keymap-card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.keymap-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.keymap-card td {
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+}
+
+.keymap-card td.keys {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 14px;
+}
+
+.keymap-card kbd {
+  font-family: inherit;
+  background: rgba(127, 127, 127, 0.12);
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+
+.keymap-close {
+  margin-top: 14px;
+  float: right;
+  appearance: none;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: none;
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+
+.keymap-close:hover {
+  border-color: var(--accent, #4a90d9);
+  color: var(--accent, #4a90d9);
+}
+
 /* Tab strip overflow edge fades + sticky "settings & guide" button. The
    sticky items stay pinned while `#tabs` scrolls horizontally. */
 .tabs-fade {

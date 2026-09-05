@@ -10,14 +10,10 @@
    */
   import { onMount } from "svelte";
   import { CMD, pycmd } from "../lib/pycmd";
-
-  interface HistoryItem {
-    term: string;
-    date: string;
-  }
+  import { ui } from "../lib/tabs.svelte";
+  import type { HistoryEntry } from "../lib/types";
 
   let query = $state("");
-  let history = $state<HistoryItem[]>([]);
   let groups = $state<string[]>([]);
   let group = $state("");
   let open = $state(false);
@@ -42,10 +38,10 @@
 
   const filtered = $derived(
     query.trim()
-      ? history.filter((h) =>
+      ? ui.history.filter((h) =>
           h.term.toLowerCase().includes(query.trim().toLowerCase()),
         )
-      : history,
+      : ui.history,
   );
 
   function today(): string {
@@ -60,13 +56,17 @@
     const q = (value ?? query).trim();
     if (!q) return;
     pycmd(CMD.searchTerm(q));
-    // Optimistically prepend the search locally (Python persists the real one).
-    history = [{ term: q, date: today() }, ...history.filter((h) => h.term !== q)].slice(0, 50);
+    // Optimistically prepend the search (Python persists the real one); the
+    // shared store keeps the chrome dropdown + sidebar list in sync.
+    ui.history = [
+      { term: q, date: today() },
+      ...ui.history.filter((h) => h.term !== q),
+    ].slice(0, 50);
     open = false;
     sel = -1;
   }
 
-  function pick(h: HistoryItem): void {
+  function pick(h: HistoryEntry): void {
     query = h.term;
     submit(h.term);
   }
@@ -105,26 +105,8 @@
 
   onMount(() => {
     const w = window as unknown as Record<string, unknown>;
-    w.setSearchHistory = (payload: unknown) => {
-      // Python ships history as [[term, date], …] (the model rows persisted to
-      // _searchHistory.json). Tolerate {term, date} objects too.
-      const list = Array.isArray(payload) ? (payload as unknown[]) : [];
-      history = list
-        .map((h): HistoryItem | null => {
-          if (Array.isArray(h) && typeof h[0] === "string") {
-            return { term: h[0], date: typeof h[1] === "string" ? h[1] : "" };
-          }
-          if (h && typeof (h as HistoryItem).term === "string") {
-            return {
-              term: (h as HistoryItem).term,
-              date: (h as HistoryItem).date ?? "",
-            };
-          }
-          return null;
-        })
-        .filter((h): h is HistoryItem => h !== null)
-        .slice(0, 50);
-    };
+    // setSearchHistory now lives in bridge.ts (shared store) — the sidebar
+    // "Recent searches" section reads the same list as this dropdown.
     w.setGroups = (payload: unknown) => {
       const data = (payload ?? {}) as { groups?: unknown[]; current?: string };
       groups = Array.isArray(data.groups)

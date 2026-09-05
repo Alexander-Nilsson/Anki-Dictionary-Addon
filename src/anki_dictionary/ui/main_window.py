@@ -23,6 +23,7 @@ from ..core.clip_thread import ClipThread
 from ..core.dictionary import DictInterface
 from ..ui.settings.settings_gui import SettingsGui
 from ..utils.common import miInfo
+from ..utils.config import get_session_terms
 from ..utils.paths import get_addon_root, get_templates_dir
 
 # Global variables
@@ -183,6 +184,14 @@ def dictionaryInit(terms=False):
         welcomeScreen = getWelcomeScreen()
 
     if not mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
+        # A5: when no explicit search terms were given and session restore is
+        # enabled, reopen the tabs from the previous session. The config is read
+        # directly (like ``searchTermList``) because the instance does not exist
+        # at this point.
+        if not terms:
+            restored = get_session_terms(mw.AnkiDictConfig)  # ty:ignore[unresolved-attribute]
+            if restored:
+                terms = restored
         mw.ankiDictionary = DictInterface(  # ty:ignore[unresolved-attribute]
             mw.miDictDB,  # ty:ignore[unresolved-attribute]
             mw,

@@ -252,3 +252,111 @@ class TestDictInterface:
 
             assert instance is not None
             assert isinstance(instance, _d.DictInterface)
+
+
+class TestHistoryAndSessionActions:
+    """U3/A4/A5: history prune/delete + session restore on DictInterface.
+
+    ``DictInterface`` is built without ``__init__`` (Qt-free) and given fake
+    ``historyModel``/``dict`` handles, so these bridge-facing methods are
+    exercised without a full widget tree.
+    """
+
+    @staticmethod
+    def _dict_interface():
+        import anki_dictionary.core.dictionary as _d
+
+        instance = _d.DictInterface.__new__(_d.DictInterface)
+        instance.dict = MagicMock()
+        instance.config = {}
+        instance.writeConfig = MagicMock()
+        instance.historyModel = MagicMock()
+        instance.historyModel.history = [["a", "2026-01-01"], ["b", "2026-01-02"]]
+        instance.historyModel.justTerms = ["a", "b"]
+        instance.historyModel.removeRows.side_effect = lambda pos, rows=1: (
+            instance.historyModel.history.__delitem__(slice(pos, pos + rows))
+        )
+        return instance
+
+    def test_delete_history_entry_removes_row_and_pushes(self):
+        inst = self._dict_interface()
+        inst.deleteHistoryEntry("a")
+        assert [row[0] for row in inst.historyModel.history] == ["b"]
+        assert inst.historyModel.justTerms == ["b"]
+        inst.dict.eval.assert_called_once()
+        payload = inst.dict.eval.call_args[0][0]
+        assert payload.startswith("setSearchHistory(")
+        assert '"b"' in payload
+
+    def test_delete_history_entry_unknown_term_is_noop(self):
+        inst = self._dict_interface()
+        inst.deleteHistoryEntry("missing")
+        assert len(inst.historyModel.history) == 2
+        # A refresh is still pushed (idempotent).
+        inst.dict.eval.assert_called_once()
+
+    def test_prune_history_caps_rows(self):
+        inst = self._dict_interface()
+        inst.pruneHistory(limit=1)
+        assert [row[0] for row in inst.historyModel.history] == ["b"]
+
+    def test_save_session_caps_and_persists(self):
+        inst = self._dict_interface()
+        inst.saveSession(["   ", "a", "b", "c"] * 10)
+        write_cfg = inst.writeConfig.call_args
+        assert write_cfg[0][0] == "session_terms"
+        assert len(write_cfg[0][1]) <= 20
+        assert write_cfg[0][1][:3] == ["a", "b", "c"]
+
+    def test_restore_session_opt_in(self):
+        inst = self._dict_interface()
+        assert inst.restoreSession() == []
+        inst.config = {"restore_session": True, "session_terms": ["a", "", "b"]}
+        assert inst.restoreSession() == ["a", "b"]
+
+
+class TestDictionaryInitSessionRestore:
+    """A5: ``dictionaryInit`` reopens the persisted session when enabled.
+
+    The restore terms are read from ``mw.AnkiDictConfig`` *before* the instance
+    exists (a previous version called ``restoreSession`` on the still-``None``
+    ``mw.ankiDictionary`` — dead code, always swallowed by the except).
+    """
+
+    @staticmethod
+    def _run(terms, anki_dict_config):
+        import aqt
+
+        aqt.mw = MagicMock()
+        import anki_dictionary.ui.main_window as module
+
+        aqt.mw = None  # restore
+        with (
+            patch.object(module, "mw") as mock_mw,
+            patch.object(module, "DictInterface") as mock_cls,
+            patch.object(module, "showAfterGlobalSearch"),
+            patch.object(module, "getWelcomeScreen", return_value="<welcome>"),
+            patch.object(module, "getMacWelcomeScreen", return_value="<welcome>"),
+        ):
+            mock_mw.ankiDictionary = None
+            mock_mw.AnkiDictConfig = anki_dict_config
+            module.dictionaryInit(terms)
+        return mock_cls
+
+    def test_restore_terms_used_when_enabled(self):
+        mock_cls = self._run(
+            False, {"restore_session": True, "session_terms": ["cat", "", "dog"]}
+        )
+        assert mock_cls.call_args.kwargs["terms"] == ["cat", "dog"]
+
+    def test_restore_skipped_when_disabled(self):
+        mock_cls = self._run(
+            False, {"restore_session": False, "session_terms": ["cat"]}
+        )
+        assert mock_cls.call_args.kwargs["terms"] is False
+
+    def test_restore_skipped_when_explicit_terms(self):
+        mock_cls = self._run(
+            ["explicit"], {"restore_session": True, "session_terms": ["cat"]}
+        )
+        assert mock_cls.call_args.kwargs["terms"] == ["explicit"]

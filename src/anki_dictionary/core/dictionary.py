@@ -172,11 +172,11 @@ class MIDict(AnkiWebView):
             # In-web search box (Svelte chrome) -> same path as the Qt field.
             self.dictInt.initSearch(dAct[len("searchTerm:") :])
         elif dAct.startswith("getSearchHistory:"):
-            self.eval(
-                "setSearchHistory("
-                + json.dumps(self.dictInt.getHistory(), ensure_ascii=False)
-                + ");"
-            )
+            self.dictInt.pushSearchHistory()
+        elif dAct.startswith("deleteSearchHistory:"):
+            # U3: the sidebar's per-entry prune button removed one history row.
+            term = dAct[len("deleteSearchHistory:") :]
+            self.dictInt.deleteHistoryEntry(term)
         elif dAct.startswith("getGroups:"):
             combo = self.dictInt.dictGroups
             names = [
@@ -205,6 +205,15 @@ class MIDict(AnkiWebView):
             # Chrome requests the current search source + pause state on mount
             # (mirrors how getSearchHistory / getGroups are fetched on demand).
             self.dictInt.pushSearchStatus()
+        elif dAct.startswith("saveSession:"):
+            # A5: the web shell reported its open-tab terms; persist them so the
+            # session can be restored when the dictionary reopens.
+            try:
+                terms = json.loads(dAct[len("saveSession:") :])
+                if isinstance(terms, list):
+                    self.dictInt.saveSession(terms)
+            except Exception:
+                logger.debug("Could not parse session terms")
 
     def setCurrentEditor(self, editor, target=""):
         if editor != self.currentEditor:
@@ -1180,7 +1189,19 @@ class DictInterface(QWidget):
         self.historyModel.insertRows(term=term, date=date)
         self.saveHistory()
 
+    def pruneHistory(self, limit: int = 200) -> None:
+        """Trim the in-memory history to the most recent ``limit`` entries (A4).
+
+        Called after writing history JSON so the file never grows unbounded
+        (the live web chrome already slices its dropdown to 50; this caps the
+        persisted model that backs it).
+        """
+        if len(self.historyModel.history) > limit:
+            self.historyModel.removeRows(0, len(self.historyModel.history) - limit)
+
     def saveHistory(self):
+        # A4: keep the persisted history from growing without bound.
+        self.pruneHistory()
         path = join(self.mw.col.media.dir(), "_searchHistory.json")
         with codecs.open(path, "w", "utf-8") as outfile:  # ty:ignore[deprecated]
             json.dump(self.historyModel.history, outfile, ensure_ascii=False)
@@ -1201,6 +1222,45 @@ class DictInterface(QWidget):
         except Exception as e:
             logger.warning(f"Could not load search history: {e}")
             return []
+
+    def pushSearchHistory(self) -> None:
+        """Push the current history to the web shell (chrome dropdown + sidebar)."""
+        try:
+            self.dict.eval(
+                "setSearchHistory("
+                + json.dumps(self.historyModel.history, ensure_ascii=False)
+                + ");"
+            )
+        except Exception:
+            logger.debug("Web view not ready to receive search history")
+
+    def deleteHistoryEntry(self, term: str) -> None:
+        """Remove one search-history entry (U3 sidebar prune; old Qt dialog).
+
+        Mirrors the Qt history dialog's remove: the model row is dropped, the
+        file is saved (``removeRows`` persists) and the web shell receives the
+        refreshed list so the sidebar/chrome update immediately.
+        """
+        for i, item in enumerate(self.historyModel.history):
+            if item and item[0] == term:
+                self.historyModel.removeRows(i)
+                if i < len(self.historyModel.justTerms):
+                    del self.historyModel.justTerms[i]
+                break
+        self.pushSearchHistory()
+
+    # ── session restore (A5) ────────────────────────
+
+    def saveSession(self, terms: list) -> None:
+        """Persist the open-tab terms so the session survives a reopen (A5)."""
+        capped = [str(t).strip() for t in terms if str(t).strip()][:20]
+        self.writeConfig("session_terms", capped)
+
+    def restoreSession(self) -> list:
+        """Return the saved session terms (empty when none / disabled)."""
+        from anki_dictionary.utils.config import get_session_terms
+
+        return get_session_terms(self.config)
 
     def updateFieldsSetting(self, dictName, fields):
         clean_name = self.db.cleanDictName(dictName)

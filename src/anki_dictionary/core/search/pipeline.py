@@ -337,6 +337,8 @@ class SearchPipeline:
                         "type": "noResults",
                         "term": term,
                         "icon": self.renderer.get_base64_icon("search.svg", is_dark),
+                        "suggestions": self._build_suggestions(term),
+                        "deinflected": self._deinflect_hint(term),
                     }
                 ],
             }
@@ -454,6 +456,87 @@ class SearchPipeline:
             "blocks": blocks,
             "ankiIcon": anki_icon,
         }
+
+    # ── no-results helpers (U4) ────────────────────
+
+    def _deinflect_hint(self, term: str) -> str:
+        """Best-effort deinflection hint for the no-results state (U4).
+
+        Returns a plausible dictionary form ('' when none found), using the
+        conjugation data that the live search already loads. Purely a hint —
+        the actual term is always preferred.
+        """
+        conj = self.midict.conjugations or {}
+        for _lang, rules in conj.items():
+            for c in rules:
+                inflected = c.get("inflected") or ""
+                if inflected and term.endswith(inflected):
+                    for base in c.get("dict") or []:
+                        candidate = term[: -len(inflected)] + base
+                        if candidate and candidate != term and len(candidate) > 1:
+                            return candidate
+        return ""
+
+    def _build_suggestions(self, term: str) -> list[str]:
+        """Fuzzy 'did you mean' suggestions from the loaded dictionaries (U4).
+
+        Compares the cleaned term against terms already present in the
+        dictionaries (closest edit-distance / prefix neighbours), returning up
+        to 4 suggestions. Uses only the selected group's dictionaries and a
+        rough Levenshtein so it stays cheap on a normal search.
+        """
+        suggestions: list[str] = []
+        cleaned = clean_term(term).strip().lower()
+        if not cleaned:
+            return suggestions
+        try:
+            group = self.midict.dictInt.getSelectedDictGroup()
+        except Exception:
+            return suggestions
+        dict_names = [d["dict"] for d in group.get("dictionaries", [])]
+        seen: set[str] = set()
+        scored: list[tuple[int, str]] = []
+        for d_name in dict_names:
+            if d_name in ("Images", "LLM", "Forvo"):
+                continue
+            try:
+                candidates = self.midict.db.get_terms_for_suggestions(d_name, limit=40)
+            except Exception:
+                candidates = []
+            for cand in candidates:
+                c = cand.lower()
+                if c == cleaned or c in seen:
+                    continue
+                seen.add(c)
+                dist = self._levenshtein(cleaned, c)
+                # Only entertain reasonably close neighbours.
+                if dist <= max(2, len(cleaned) // 3):
+                    scored.append((dist, cand))
+        scored.sort(key=lambda x: (x[0], len(x[1])))
+        return [c for _, c in scored[:4]]
+
+    @staticmethod
+    def _levenshtein(a: str, b: str) -> int:
+        """Classic edit-distance for the fuzzy suggestion rank (U4)."""
+        if a == b:
+            return 0
+        if not a:
+            return len(b)
+        if not b:
+            return len(a)
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            for j, cb in enumerate(b, 1):
+                cur.append(
+                    min(
+                        prev[j] + 1,
+                        cur[j - 1] + 1,
+                        prev[j - 1] + (ca != cb),
+                    )
+                )
+            prev = cur
+        return prev[-1]
 
     # ── LLM result injection ───────────────────────
 

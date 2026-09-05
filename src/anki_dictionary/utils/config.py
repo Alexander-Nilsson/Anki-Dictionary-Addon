@@ -112,7 +112,29 @@ def get_addon_config() -> dict[str, Any]:
         "last_seen_version": "",
         "hide_release_notes": False,
         "clipboard_monitor_enabled": True,
+        "restore_session": False,
+        "session_terms": [],
     }
+
+
+def get_session_terms(config: dict[str, Any] | None) -> list[str]:
+    """
+    Return the persisted open-tab terms when session restore is enabled (A5).
+    """
+    if not config or not config.get("restore_session"):
+        return []
+    terms = config.get("session_terms", [])
+    if not isinstance(terms, list):
+        return []
+    # Drop stale empty/whitespace entries and duplicates in display order so a
+    # saved session can't reopen blank or repeated tabs.
+    seen: set[str] = set()
+    out: list[str] = []
+    for term in terms:
+        if isinstance(term, str) and term.strip() and term not in seen:
+            seen.add(term)
+            out.append(term)
+    return out
 
 
 def refresh_anki_dict_config(

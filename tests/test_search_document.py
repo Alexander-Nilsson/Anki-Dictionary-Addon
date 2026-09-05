@@ -238,3 +238,47 @@ class TestAddNewTabDualMode:
         assert call.startswith('addNewTab("<div'), call[:80]
         assert "definitionSideBar" in call
         assert "dictionaryTitleBlock" in call
+
+
+class TestNoResultsSuggestions:
+    """U4: the empty-result block carries fuzzy + deinflection hints."""
+
+    def test_no_results_block_carries_suggestions_and_deinflected(self, db_and_midict):
+        db, midict, selected_group = db_and_midict
+
+        pipeline = SearchPipeline(midict)
+        # "食べり" is edit-distance 1 from the dictionary's "食べる", but is not
+        # a row of its own — the (UTF-8) test uses real Japanese text.
+        doc, _, _ = pipeline.getStructuredResult("\u98df\u3079\u308a", selected_group)
+
+        assert [b["type"] for b in doc["blocks"]] == ["noResults"]
+        block = doc["blocks"][0]
+        assert block["term"] == "\u98df\u3079\u308a"
+        assert isinstance(block["suggestions"], list)
+        assert "\u98df\u3079\u308b" in block["suggestions"]
+        assert block["deinflected"] == ""
+
+    def test_deinflect_hint_uses_conjugations(self, db_and_midict):
+        db, midict, selected_group = db_and_midict
+        midict.conjugations = {
+            "Japanese": [{"inflected": "\u307e\u3057\u305f", "dict": ["\u307e\u3059"]}]
+        }
+
+        pipeline = SearchPipeline(midict)
+        assert pipeline._deinflect_hint("\u98df\u3079\u307e\u3057\u305f") == (
+            "\u98df\u3079\u307e\u3059"
+        )
+
+    def test_deinflect_hint_empty_without_conjugations(self, db_and_midict):
+        db, midict, selected_group = db_and_midict
+        pipeline = SearchPipeline(midict)
+        assert pipeline._deinflect_hint("\u98df\u3079\u307e\u3057\u305f") == ""
+
+    def test_levenshtein(self):
+        assert SearchPipeline._levenshtein("", "") == 0
+        assert SearchPipeline._levenshtein("abc", "abc") == 0
+        assert SearchPipeline._levenshtein("kitten", "sitting") == 3
+        # 食べり vs 食べる — a single-character substitution.
+        assert (
+            SearchPipeline._levenshtein("\u98df\u3079\u308a", "\u98df\u3079\u308b") == 1
+        )

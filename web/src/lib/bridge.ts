@@ -11,13 +11,34 @@ import {
   resizer,
   scaleFont,
   toggleSidebar,
+  ui,
 } from "./tabs.svelte";
 import { addCustomFont } from "./compat";
-import type { DictDocument } from "./types";
+import type { DictDocument, HistoryEntry } from "./types";
 
 /** Convert a Python "true"/"false" string or boolean to a boolean. */
 function asBoolean(value: unknown): boolean {
   return value === true || value === "true";
+}
+
+/** Coerce Python's [[term, date], …] payload into HistoryEntry objects. */
+function toHistory(payload: unknown): HistoryEntry[] {
+  const list = Array.isArray(payload) ? (payload as unknown[]) : [];
+  return list
+    .map((h): HistoryEntry | null => {
+      if (Array.isArray(h) && typeof h[0] === "string") {
+        return { term: h[0], date: typeof h[1] === "string" ? h[1] : "" };
+      }
+      if (h && typeof (h as HistoryEntry).term === "string") {
+        return {
+          term: (h as HistoryEntry).term,
+          date: (h as HistoryEntry).date ?? "",
+        };
+      }
+      return null;
+    })
+    .filter((h): h is HistoryEntry => h !== null)
+    .slice(0, 50);
 }
 
 /**
@@ -37,6 +58,12 @@ export function initBridge(): void {
       } else {
         addTab(String(term ?? ""), String(payload ?? ""), asBoolean(singleTab));
       }
+    },
+    // Shared search history: Python ships [[term, date], …] (the model rows
+    // persisted to _searchHistory.json). Drives the chrome dropdown autocomplete
+    // and the sidebar "Recent searches" section together (U3).
+    setSearchHistory: (payload: unknown) => {
+      ui.history = toHistory(payload);
     },
     loadImageHtml,
     appendNewImages,

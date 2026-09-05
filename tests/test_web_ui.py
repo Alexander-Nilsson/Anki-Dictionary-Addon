@@ -147,15 +147,58 @@ def test_chrome_component_source_present():
     text = chrome.read_text(encoding="utf-8")
     # Shell id measured by resizer(), and the Python evaled callbacks.
     assert 'id="chromeBar"' in text
-    assert "setSearchHistory" in text
     assert "setGroups" in text
+    assert "setSearchStatus" in text
+    assert "getSearchHistory" in text
     # U2: search-source chip + clipboard-monitor pause pill.
     assert "setSearchSource" in text
-    assert "setSearchStatus" in text
     assert "sourcePill" in text
     assert "pauseBtn" in text
+    # U3: the chrome dropdown reads the shared history store (the prune
+    # command itself lives in Sidebar.svelte; covered by the sidebar test).
+    assert "ui.history" in text
+    assert "getSearchHistory" in text
     # Registers the Ctrl/Cmd+K global focus shortcut.
     assert '.toLowerCase() === "k"' in text
+
+
+def test_bridge_and_sidebar_sources_present():
+    """U3/U4/U5 sources: shared history, sidebar prune, keymap, suggestions."""
+    bridge = web_dir / "src" / "lib" / "bridge.ts"
+    sidebar = web_dir / "src" / "components" / "Sidebar.svelte"
+    keymap = web_dir / "src" / "components" / "KeymapOverlay.svelte"
+    keymap_lib = web_dir / "src" / "lib" / "keymap.ts"
+    noresults = web_dir / "src" / "components" / "NoResults.svelte"
+    for p in (bridge, sidebar, keymap, keymap_lib, noresults):
+        if not p.exists():
+            import pytest
+
+            pytest.skip(f"{p.name} missing — UI slice sources not present")
+
+    bridge_text = bridge.read_text(encoding="utf-8")
+    # setSearchHistory was promoted to the shared bridge so sidebar + chrome
+    # stay in sync over one callback.
+    assert "setSearchHistory" in bridge_text
+    assert "ui.history" in bridge_text
+
+    sidebar_text = sidebar.read_text(encoding="utf-8")
+    assert "Recent searches" in sidebar_text
+    assert "deleteSearchHistory" in sidebar_text
+    assert "historyPrune" in sidebar_text
+
+    keymap_text = keymap.read_text(encoding="utf-8")
+    assert "Keyboard shortcuts" in keymap_text
+    assert "showKeymap" in keymap_text
+
+    keymap_lib_text = keymap_lib.read_text(encoding="utf-8")
+    assert '".ankiExportButton"' in keymap_lib_text
+    assert '".clipper"' in keymap_lib_text
+    assert "moveDict" in keymap_lib_text
+
+    noresults_text = noresults.read_text(encoding="utf-8")
+    assert "Did you mean" in noresults_text
+    assert "suggestion-chip" in noresults_text
+    assert "deinflect-hint" in noresults_text
 
 
 def test_built_bundle_has_chrome_and_bridge_commands():
@@ -173,7 +216,7 @@ def test_built_bundle_has_chrome_and_bridge_commands():
     for marker in (
         "chromeBar",
         # window callbacks Python evals (minified into assignment form)
-        "setSearchHistory=",
+        "setSearchHistory:",
         "setGroups=",
         "setSearchSource=",
         "setSearchStatus=",
@@ -184,6 +227,12 @@ def test_built_bundle_has_chrome_and_bridge_commands():
         "setGroup:",
         "setClipboardPaused:",
         "requestSearchStatus:",
+        "saveSession:",
+        "deleteSearchHistory:",
         "Search the dictionary",
+        # U3/U4/U5 user-facing strings survive minification
+        "Recent searches",
+        "Keyboard shortcuts",
+        "Did you mean",
     ):
         assert marker in html, f"bundle lost chrome/bridge marker: {marker}"

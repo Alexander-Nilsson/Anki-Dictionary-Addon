@@ -24,11 +24,19 @@ export interface Tab {
   html: string;
   /** Structured search document (Phase 2, Svelte shell). */
   doc: DictDocument | null;
+  /** Timestamp (ms) of the last activation, used for LRU pruning (A3). */
+  lastUsed?: number;
 }
 
 export interface FontSizes {
   fefs: number;
   dbfs: number;
+}
+
+/** One entry of the persisted search history (`_searchHistory.json`). */
+export interface HistoryEntry {
+  term: string;
+  date: string;
 }
 
 // ── Phase-2 structured search document ──────────────────────────────────────
@@ -114,6 +122,10 @@ export interface NoResultsBlockData {
   type: "noResults";
   term: string;
   icon: string;
+  /** Fuzzy "did you mean" candidates (U4), click-to-search. */
+  suggestions?: string[];
+  /** Best-effort dictionary-form hint when the term looks inflected (U4). */
+  deinflected?: string;
 }
 
 export type ContentBlock =
