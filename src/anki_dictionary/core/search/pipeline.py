@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
-import re
+import os
+import shutil
 import time
-from os.path import exists, join
+from os.path import abspath, basename, exists, isabs, join
 from typing import Any
+from urllib.parse import quote
 
 from ...integrations import llm as llm_integration
 from ...utils.logger import get_logger
@@ -12,6 +14,7 @@ from .coordinator import ExternalServiceCoordinator
 from .renderer import (
     ResultRenderer,
     clean_term,
+    custom_font_family,
     get_font_family,
 )
 
@@ -1093,8 +1096,55 @@ class SearchPipeline:
         return fields
 
     def _inject_font(self, font: str) -> None:
-        name = re.sub(r"\..*$", "", font)
-        self.midict.eval(f"addCustomFont({json.dumps(font)}, {json.dumps(name)});")
+        """Install a group's custom font into the page.
+
+        The shell is served from Anki's local media server, so an
+        ``@font-face`` ``src`` cannot point at the filesystem: an http page
+        may not load ``file://`` subresources. The font is therefore copied
+        into ``user_files/fonts/`` (exported to the media server in the
+        addon's ``__init__``) and referenced by its ``/_addons/...`` URL.
+        """
+        served = self._served_font_url(font)
+        if not served:
+            return
+        name = custom_font_family(font)
+        self.midict.eval(f"addCustomFont({json.dumps(served)}, {json.dumps(name)});")
+
+    def _served_font_url(self, font: str) -> str | None:
+        """Return the media-server URL for ``font``, copying it in if needed.
+
+        ``font`` is whatever the settings font picker stored: usually an
+        absolute path to a file anywhere on disk, but older configs may hold
+        a bare filename already living in ``user_files/fonts``.
+        """
+        addon_root = getattr(self.midict, "addon_root", None)
+        if not addon_root:
+            logger.debug("No addon root; cannot serve custom font %s", font)
+            return None
+
+        fonts_dir = join(addon_root, "user_files", "fonts")
+        filename = basename(font)
+        if not filename:
+            return None
+        target = join(fonts_dir, filename)
+
+        try:
+            os.makedirs(fonts_dir, exist_ok=True)
+            source = font if isabs(font) else target
+            if isabs(font) and abspath(font) != abspath(target):
+                if not exists(source):
+                    logger.debug("Custom font not found on disk: %s", source)
+                    return None
+                shutil.copyfile(source, target)
+            elif not exists(target):
+                logger.debug("Custom font not found in user_files/fonts: %s", target)
+                return None
+        except OSError:
+            logger.exception("Could not stage custom font %s", font)
+            return None
+
+        addon_dir = basename(addon_root.rstrip("/"))
+        return f"/_addons/{quote(addon_dir)}/user_files/fonts/{quote(filename)}"
 
     def _base64_icon(self, name: str) -> str:
         return self.renderer.get_base64_icon(

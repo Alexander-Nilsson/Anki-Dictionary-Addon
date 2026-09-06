@@ -14,6 +14,7 @@ can keep configuring the UI identically.
 """
 
 import re
+import tempfile
 from pathlib import Path
 
 repo_root = Path(__file__).parent.parent
@@ -279,3 +280,123 @@ def test_built_bundle_has_chrome_and_bridge_commands():
         "Did you mean",
     ):
         assert marker in html, f"bundle lost chrome/bridge marker: {marker}"
+
+
+def test_group_names_skips_disabled_separator_rows():
+    """``_group_names`` must read enablement from the combo's model.
+
+    ``QComboBox`` has no ``itemEnabled()``; an earlier version called it and
+    every ``pushHeaderState`` raised ``AttributeError`` inside a broad
+    ``except``, so the unified header silently never received its groups,
+    modes or toggle states.
+
+    Run in a subprocess: other test modules in this suite install stub
+    ``anki``/``aqt`` modules in ``sys.modules``, and importing the real
+    dictionary module afterwards fails depending on collection order.
+    """
+    import os
+    import subprocess
+    import sys
+
+    import pytest
+
+    script = """
+import sys
+sys.path.insert(0, {src!r})
+
+from PyQt6.QtWidgets import QApplication, QComboBox
+
+from anki_dictionary.core.dictionary import DictInterface
+
+app = QApplication.instance() or QApplication([])
+
+combo = QComboBox()
+combo.addItems(["Japanese", "Chinese"])
+combo.addItem("\u2500" * 6)
+combo.model().item(combo.count() - 1).setEnabled(False)
+combo.addItems(["All", "Images"])
+
+stub = type("Stub", (), {{"dictGroups": combo}})()
+assert DictInterface._group_names(stub) == ["Japanese", "Chinese", "All", "Images"]
+print("OK")
+""".format(src=str(repo_root / "src"))
+
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if proc.returncode != 0 and "ModuleNotFoundError" in proc.stderr:
+        pytest.skip(f"Qt/anki not importable in this environment: {proc.stderr[-200:]}")
+    assert proc.returncode == 0, proc.stderr
+    assert "OK" in proc.stdout
+
+
+def test_inlined_bundles_do_not_touch_the_qt_global():
+    """The inlined page bundle must not declare anything at global scope.
+
+    Each page is inlined into a plain ``<script>`` — a classic script, not
+    ``type="module"`` — so every top-level declaration becomes a property of
+    ``window``. Built with ``format: "es"``, the minifier's ``function qt``
+    landed on ``window.qt``, clobbering the object QtWebEngine injects to
+    carry ``qt.webChannelTransport``. Anki's bridge script then found no
+    transport, its QWebChannel handshake never completed, and
+    ``window.pycmd`` stayed undefined: the UI rendered and still received
+    results (Python -> JS ``eval`` does not use the channel) while every
+    button, menu entry and search silently did nothing.
+
+    Rather than blocklisting identifiers a future minifier run might change,
+    this evaluates the real bundle with a sentinel ``qt`` in place and
+    checks it survives. Function declarations are hoisted when the script is
+    entered, so a leak shows up even though the bundle then throws on the
+    stub DOM.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not available")
+
+    for page in (built_html, web_dir / "dist" / "settings.html"):
+        if not page.exists():
+            pytest.skip(f"{page.name} not built — run `npm run build` in web/")
+
+        html = page.read_text(encoding="utf-8")
+        bundle = html[
+            html.rindex("<script>") + len("<script>") : html.rindex("</script>")
+        ]
+
+        harness = """
+const vm = require("vm");
+const bundle = require("fs").readFileSync(process.argv[2], "utf8");
+const ctx = { qt: { webChannelTransport: "SENTINEL" }, console };
+ctx.window = ctx;
+ctx.globalThis = ctx;
+vm.createContext(ctx);
+try { vm.runInContext(bundle, ctx); } catch (e) { /* stub DOM throws; fine */ }
+const t = ctx.qt && ctx.qt.webChannelTransport;
+console.log(JSON.stringify({ transport: t === undefined ? null : t }));
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle_path = Path(tmp) / "bundle.js"
+            bundle_path.write_text(bundle, encoding="utf-8")
+            harness_path = Path(tmp) / "harness.js"
+            harness_path.write_text(harness, encoding="utf-8")
+            proc = subprocess.run(
+                [node, str(harness_path), str(bundle_path)],
+                capture_output=True,
+                text=True,
+            )
+
+        assert proc.returncode == 0, proc.stderr
+        result = json.loads(proc.stdout.strip().splitlines()[-1])
+        assert result["transport"] == "SENTINEL", (
+            f"{page.name}: the bundle overwrote the global `qt`, which carries "
+            "qt.webChannelTransport — Anki's pycmd bridge will never come up"
+        )

@@ -46,7 +46,18 @@ function pageConfig(pageKey, htmlName, clearOutDir) {
       rollupOptions: {
         input: { [pageKey]: resolve(webDir, htmlName) },
         output: {
-          format: "es",
+          // IIFE, not "es": each page's bundle is inlined into a plain
+          // <script> (a classic script, not type="module"), where every
+          // top-level declaration becomes a property of `window`. The
+          // minifier names a function `qt`, which clobbered the `qt` object
+          // QtWebEngine injects to carry `qt.webChannelTransport` — so
+          // Anki's bridge script found no transport, its QWebChannel
+          // handshake never completed, `window.pycmd` stayed undefined, and
+          // nothing the user clicked could reach Python. An IIFE keeps the
+          // bundle's names in its own scope.
+          format: "iife",
+          // Required for "iife": a single chunk with no code splitting.
+          inlineDynamicImports: true,
           entryFileNames: "assets/[name].js",
           chunkFileNames: "assets/[name]-[hash].js",
           // Content-hashed asset names keep the two builds' CSS distinct

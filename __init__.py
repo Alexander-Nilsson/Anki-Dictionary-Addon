@@ -117,6 +117,15 @@ def initialize_addon() -> None:
 
     state.config["addon_path"] = addon_root  # Store the actual addon path
     state.config["addon_name"] = addon_name  # Store the addon name
+
+    # The dictionary shell is served from Anki's local media server, so it
+    # cannot pull resources off the filesystem with file:// URLs. Exporting
+    # the font directory lets the page load custom fonts over
+    # /_addons/<addon>/user_files/fonts/<file> instead.
+    try:
+        mw.addonManager.setWebExports(__name__, r"user_files/fonts/.*")
+    except Exception as e:  # noqa: BLE001 - never block startup on this
+        print(f"Anki Dictionary: could not register web exports: {e}")
     state.exporting_definitions = False
     state.settings_open = False
     state.dictionary_instance = False

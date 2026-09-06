@@ -29,7 +29,7 @@ from aqt.utils import (
     ensureWidgetInScreenBoundaries,
 )
 from aqt.webview import AnkiWebView
-from PyQt6.QtCore import QThreadPool, QUrl
+from PyQt6.QtCore import QThreadPool, QTimer, QUrl
 
 from ..utils.history import HistoryBrowser, HistoryModel
 from ..utils.logger import get_logger
@@ -76,6 +76,14 @@ class MIDict(AnkiWebView):
         self.threadpool = QThreadPool()
         self.customFontsLoaded = []
 
+        page = self.page()
+        if page is not None:
+            page.loadFinished.connect(
+                lambda ok: logger.debug(
+                    "page loadFinished ok=%s url=%s", ok, page.url().toString()
+                )
+            )
+
         self.search_pipeline = SearchPipeline(self)
         self.card_handler = CardCreationHandler(self)
 
@@ -85,7 +93,69 @@ class MIDict(AnkiWebView):
         self.conjugations = self.search_pipeline.loadConjugations()
 
     def loadHTMLURL(self, html, url):
-        self.page().setHtml(html, url)
+        """Load the dictionary shell into the webview.
+
+        This goes through ``AnkiWebView.setHtml``, which serves the page from
+        Anki's local media server, rather than ``page().setHtml()``. Anki
+        stopped using ``QWebEnginePage.setHtml`` itself because it loads the
+        content as a ``data:`` URL, which caps the page at 2MB and is on its
+        way out of QtWebEngine. Serving over ``http://127.0.0.1`` also gives
+        the page a real origin, which is what lets it pull resources such as
+        custom fonts from ``/_addons/`` (see ``SearchPipeline._inject_font``).
+
+        ``url`` is unused: both shells (the built Svelte bundle and the
+        legacy template) are fully self-contained after inlining, so they
+        need no base URL for relative resources.
+        """
+        del url  # kept for call-site compatibility; see docstring
+        self.setHtml(html)
+        self._logBridgeDiagnostics()
+
+    def _logBridgeDiagnostics(self) -> None:
+        """Warn if the JS -> Python bridge did not come up after a page load.
+
+        Anki injects ``window.pycmd`` through a QWebChannel handshake started
+        by a profile-level user script, which reads the transport off the
+        ``qt`` object QtWebEngine injects. Anything the page defines as a
+        global named ``qt`` shadows it, the handshake never completes, and
+        ``pycmd`` stays undefined — a silent failure in which the UI renders
+        and still receives results (``eval`` does not use the channel) while
+        every button, menu entry and search silently does nothing. This
+        turns that into a log line.
+
+        It deliberately uses ``page().runJavaScript`` rather than
+        ``AnkiWebView.evalWithCallback``: the latter queues behind
+        ``_domDone``, which the page can only report over the very bridge
+        being checked, so a broken bridge would silence the check.
+        """
+        probe = (
+            "JSON.stringify({"
+            "pycmd: typeof window.pycmd,"
+            "transport: typeof (window.qt && window.qt.webChannelTransport),"
+            "readyState: document.readyState"
+            "})"
+        )
+
+        def report(value):
+            if isinstance(value, str) and '"pycmd":"function"' in value:
+                logger.debug("bridge ready: %s", value)
+            else:
+                logger.warning(
+                    "JS -> Python bridge is not available (%s); the web UI's "
+                    "buttons and search box cannot reach Python",
+                    value,
+                )
+
+        def run():
+            page = self.page()
+            if page is None:
+                return
+            try:
+                page.runJavaScript(probe, report)
+            except Exception:
+                logger.exception("Could not check the JS -> Python bridge")
+
+        QTimer.singleShot(3000, run)
 
     def setSType(self, sType):
         self.sType = sType
@@ -100,6 +170,21 @@ class MIDict(AnkiWebView):
             self.terms = False
 
     def handleDictAction(self, dAct):
+        """Entry point for every JS -> Python bridge command.
+
+        Handler failures are logged rather than propagated: an exception
+        raised inside a Qt slot escapes into C++, where it is easy to lose,
+        and one broken command should not take the rest of the header with it.
+        """
+        # Logging every command makes a dead bridge (nothing arriving at all)
+        # distinguishable from a handler that arrives and then fails.
+        logger.debug("bridge cmd: %s", dAct[:200])
+        try:
+            self._dispatchDictAction(dAct)
+        except Exception:
+            logger.exception("Bridge command failed: %s", dAct[:200])
+
+    def _dispatchDictAction(self, dAct):
         if dAct.startswith("AnkiDictionaryLoaded"):
             self.maybeSearchTerms(dAct)
         elif dAct.startswith("updateTerm:"):
@@ -1132,7 +1217,7 @@ class DictInterface(QWidget):
                 "setSearchSource(" + json.dumps(source, ensure_ascii=False) + ");"
             )
         except Exception:
-            logger.debug("Web view not ready to receive search source")
+            logger.exception("Failed to push search source to the web view")
 
     def setClipboardPaused(self, paused: bool) -> None:
         """Persist and apply the clipboard-monitor pause state."""
@@ -1156,15 +1241,28 @@ class DictInterface(QWidget):
         try:
             self.dict.eval("setSearchStatus(" + status + ");")
         except Exception:
-            logger.debug("Web view not ready to receive search status")
+            logger.exception("Failed to push search status to the web view")
         # The unified header reads the same payload via setHeaderState.
         self.pushHeaderState()
 
     # ── unified web header (single chrome, no Qt toolbar) ──────────────
 
     def _group_names(self) -> list[str]:
+        """Selectable group names, skipping the disabled "──────" separators.
+
+        ``QComboBox`` has no ``itemEnabled()``; enablement lives on the
+        underlying model item (that is also how ``setupDictGroups`` disables
+        the separator rows).
+        """
         combo = self.dictGroups
-        return [combo.itemText(i) for i in range(combo.count()) if combo.itemEnabled(i)]
+        model = combo.model()
+        names = []
+        for i in range(combo.count()):
+            item = model.item(i) if hasattr(model, "item") else None
+            if item is not None and not item.isEnabled():
+                continue
+            names.append(combo.itemText(i))
+        return names
 
     def getHeaderState(self) -> dict:
         """Full header state for the unified in-web chrome.
@@ -1210,7 +1308,7 @@ class DictInterface(QWidget):
                 + ");"
             )
         except Exception:
-            logger.debug("Web view not ready to receive groups")
+            logger.exception("Failed to push groups to the web view")
 
     def pushSearchModes(self) -> None:
         if not getattr(self, "svelte_shell", False):
@@ -1228,7 +1326,7 @@ class DictInterface(QWidget):
                 + ");"
             )
         except Exception:
-            logger.debug("Web view not ready to receive search modes")
+            logger.exception("Failed to push search modes to the web view")
 
     def pushHeaderState(self) -> None:
         """Push the unified header state (groups, modes, toggles) to the web UI."""
@@ -1241,7 +1339,7 @@ class DictInterface(QWidget):
                 + ");"
             )
         except Exception:
-            logger.debug("Web view not ready to receive header state")
+            logger.exception("Failed to push header state to the web view")
         # Keep the legacy per-slice callbacks in sync for older bundles.
         try:
             self.dict.eval(

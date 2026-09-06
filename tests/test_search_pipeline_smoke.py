@@ -195,3 +195,61 @@ class TestSearchPipelineSmoke:
         assert len(html) > 0
         assert "\u2022" in html, "Bullet character should appear in output"
         assert "definitionBlock" in html
+
+
+class TestCustomFontServing:
+    """The dictionary shell is served over http, so fonts need a served URL.
+
+    An ``@font-face`` whose ``src`` points at the filesystem cannot load from
+    an http origin, so a picked font is staged into ``user_files/fonts`` and
+    referenced through Anki's ``/_addons/`` route.
+    """
+
+    def _pipeline(self, tmp_path):
+        midict = MagicMock()
+        midict.addon_root = str(tmp_path / "Anki-Dictionary")
+        os.makedirs(midict.addon_root, exist_ok=True)
+        return SearchPipeline(midict), midict
+
+    def test_family_name_is_basename_without_extension(self):
+        from anki_dictionary.core.search.renderer import custom_font_family
+
+        assert custom_font_family("/home/u/.fonts/Takao Mincho.ttf") == "Takao Mincho"
+
+    def test_group_style_quotes_the_family(self):
+        from anki_dictionary.core.search.renderer import get_font_family
+
+        style = get_font_family({"font": "/home/u/My.Font.ttf", "customFont": True})
+        assert "font-family:'My.Font'" in style
+
+    def test_absolute_path_is_copied_and_served(self, tmp_path):
+        pipeline, midict = self._pipeline(tmp_path)
+        source = tmp_path / "Takao.ttf"
+        source.write_bytes(b"fake-font")
+
+        url = pipeline._served_font_url(str(source))
+
+        assert url == "/_addons/Anki-Dictionary/user_files/fonts/Takao.ttf"
+        staged = Path(midict.addon_root) / "user_files" / "fonts" / "Takao.ttf"
+        assert staged.read_bytes() == b"fake-font"
+
+    def test_missing_font_is_skipped_rather_than_injected(self, tmp_path):
+        pipeline, midict = self._pipeline(tmp_path)
+
+        assert pipeline._served_font_url(str(tmp_path / "nope.ttf")) is None
+
+        pipeline._inject_font(str(tmp_path / "nope.ttf"))
+        midict.eval.assert_not_called()
+
+    def test_inject_font_uses_served_url_and_clean_family(self, tmp_path):
+        pipeline, midict = self._pipeline(tmp_path)
+        source = tmp_path / "Takao.ttf"
+        source.write_bytes(b"fake-font")
+
+        pipeline._inject_font(str(source))
+
+        (call,) = midict.eval.call_args_list
+        js = call.args[0]
+        assert "/_addons/Anki-Dictionary/user_files/fonts/Takao.ttf" in js
+        assert '"Takao"' in js
+        assert str(tmp_path) not in js

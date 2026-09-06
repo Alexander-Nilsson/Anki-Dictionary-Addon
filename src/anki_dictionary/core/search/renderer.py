@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from os.path import exists, join
+from os.path import basename, exists, join, splitext
 from typing import Any
 
 from ...utils.logger import get_logger
@@ -19,11 +19,23 @@ def clean_term(term: str) -> str:
     )
 
 
+def custom_font_family(font: str) -> str:
+    r"""CSS family name for a custom font file.
+
+    The stored value is a path (the settings font picker returns an absolute
+    one), so the family name is the file's base name without its extension.
+    Deriving it with ``re.sub(r"\..*$", "", font)`` on a full path produced
+    things like ``/home/user/`` — an unquoted, slash-bearing name that no
+    browser would match against the injected ``@font-face``.
+    """
+    return splitext(basename(font))[0]
+
+
 def get_font_family(group: dict[str, Any]) -> str:
     if not group.get("font"):
         return " "
     if group.get("customFont"):
-        return ' style="font-family:' + re.sub(r"\..*$", "", group["font"]) + ';" '
+        return ' style="font-family:\'' + custom_font_family(group["font"]) + '\';" '
     return ' style="font-family:' + group["font"] + ';" '
 
 
