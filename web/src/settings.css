@@ -39,12 +39,13 @@ body {
   min-height: 100vh;
 }
 
-/* ── Top-level chrome ─────────────────────────────── */
-.settings-chrome {
+/* ── Unified header (title + tabs + status in one bar) ─ */
+.settings-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 18px;
+  gap: 16px;
+  padding: 0 18px;
+  min-height: 52px;
   background: var(--settings-panel);
   border-bottom: 1px solid var(--settings-border);
 }
@@ -52,37 +53,44 @@ body {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
-}
-.settings-chrome .spacer {
-  flex: 1;
+  white-space: nowrap;
 }
 
-/* ── Tabs ─────────────────────────────────────────── */
 .settings-tabs {
   display: flex;
-  gap: 4px;
-  padding: 10px 16px 0;
-  background: var(--settings-bg);
+  align-items: stretch;
+  align-self: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.settings-tabs::-webkit-scrollbar {
+  display: none;
 }
 .settings-tabs button {
-  border: 1px solid transparent;
-  border-bottom: none;
+  border: none;
+  border-bottom: 3px solid transparent;
   background: transparent;
-  padding: 9px 16px;
+  padding: 0 14px;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--settings-muted);
-  border-radius: 8px 8px 0 0;
   cursor: pointer;
+  white-space: nowrap;
 }
 .settings-tabs button:hover {
   color: var(--settings-text);
-  background: var(--settings-accent-soft);
 }
 .settings-tabs button.active {
   color: var(--settings-accent);
-  background: var(--settings-panel);
-  border-color: var(--settings-border);
+  border-bottom-color: var(--settings-accent);
+}
+
+.settings-header .status {
+  white-space: nowrap;
 }
 
 /* ── Scrollable body ──────────────────────────────── */

@@ -69,30 +69,28 @@
   });
 </script>
 
-<div class="settings-chrome">
+<header class="settings-header">
   <h2 class="settings-title">Anki Dictionary Settings</h2>
-  <div class="spacer"></div>
+  <div class="settings-tabs" role="tablist" aria-label="Settings sections" tabindex="-1" onkeydown={onTabKeydown}>
+    {#each TABS as tab (tab.id)}
+      <button
+        type="button"
+        role="tab"
+        id={`tab-${tab.id}`}
+        aria-selected={active === tab.id}
+        aria-controls="settings-body"
+        tabindex={active === tab.id ? 0 : -1}
+        class:active={active === tab.id}
+        onclick={() => (active = tab.id)}
+      >
+        {tab.label}
+      </button>
+    {/each}
+  </div>
   <span class="status ok">
     {settings.configLoaded ? "Configuration loaded" : "Loading…"}
   </span>
-</div>
-
-<div class="settings-tabs" role="tablist" aria-label="Settings sections" tabindex="-1" onkeydown={onTabKeydown}>
-  {#each TABS as tab (tab.id)}
-    <button
-      type="button"
-      role="tab"
-      id={`tab-${tab.id}`}
-      aria-selected={active === tab.id}
-      aria-controls="settings-body"
-      tabindex={active === tab.id ? 0 : -1}
-      class:active={active === tab.id}
-      onclick={() => (active = tab.id)}
-    >
-      {tab.label}
-    </button>
-  {/each}
-</div>
+</header>
 
 <div class="settings-body" id="settings-body" role="tabpanel">
   {#if !settings.configLoaded}
