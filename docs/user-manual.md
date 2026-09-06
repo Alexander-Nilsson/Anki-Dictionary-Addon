@@ -693,19 +693,21 @@ Manage installed dictionaries and languages:
 
 The add-on supports full custom theming — not just dark/light mode but any colour scheme.
 
-The active theme is stored in `user_files/themes/active.json`. You can create and edit themes visually using the **Theme Editor**.
+The active theme is stored in `user_files/themes/active.json`. You can browse, create and edit themes visually in the **Appearance** tab of the settings window, where every theme is shown as a live miniature of the dictionary window.
 
-To open the theme editor: click the theme icon in the dictionary window toolbar.
-
-### Creating a Theme
-
-1. Open the Theme Editor
-2. Start from a preset or customise each UI element's colour
-3. Save the theme
+To open the theme gallery: click the theme icon in the dictionary window toolbar (opens the settings window on the Appearance tab), or choose **Appearance** in the settings window directly.
 
 ### Applying a Theme
 
-Saved themes appear in the theme dropdown in the dictionary window. Select one to apply it immediately.
+Click a theme card to apply it immediately — the dictionary window repaints instantly. A notice at the bottom of the gallery offers one-press **Undo** in case you picked the wrong theme. Themes can be filtered by light/dark/custom and searched by name.
+
+### Creating a Theme
+
+1. In the Appearance tab, click **New theme** (or **Customize**/**Duplicate** on an existing card)
+2. Adjust the fourteen colours — grouped by the part of the window they affect — while the live preview and the readability audit update as you type
+3. **Save** the theme, or **Save & Apply** to start using it right away
+
+The editor also includes a two-colour generator (pick a background + accent, everything else is derived with WCAG-contrast-safe text) and JSON copy/paste for sharing themes.
 
 ### Theme Components
 
@@ -716,5 +718,3 @@ Themes control colours for:
 - Search bar and sidebar
 - Buttons and icons
 - Links and highlighted text
-
-![Theme editor](images/theme-editor.png)

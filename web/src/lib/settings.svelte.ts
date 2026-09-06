@@ -9,6 +9,7 @@
 
 import { SETTINGS_CMD } from "./settings-bridge";
 import { pycmd } from "./pycmd";
+import { coerceTheme, type ThemeColors } from "./theme";
 
 export interface WordListFile {
   lang: string;
@@ -56,6 +57,18 @@ class SettingsStore {
   saving = $state(false);
   /** Path picked by the native font browser (one-shot, cleared on open). */
   fontFile = $state("");
+  /** Every stored theme, keyed by its id (the pseudo-theme "active" is dropped
+   * by Python before it reaches us). */
+  themes = $state<Record<string, ThemeColors>>({});
+  /** Id of the theme currently painted on the dictionary window. */
+  activeTheme = $state("light");
+  /** Ids that ship with the addon — these cannot be renamed or deleted. */
+  builtinThemes = $state<string[]>([]);
+  themesLoaded = $state(false);
+  /** Bumped whenever Python confirms a theme write, so the UI can toast. */
+  themeRevision = $state(0);
+  /** Tab Python asked us to show (e.g. "appearance"), "" when unrequested. */
+  requestedTab = $state("");
 }
 
 export const settings = new SettingsStore();
@@ -69,6 +82,29 @@ export function loadSettings(): void {
   pycmd(SETTINGS_CMD.getNoteTypes());
   pycmd(SETTINGS_CMD.getLanguagesDicts());
   pycmd(SETTINGS_CMD.getForvoLanguages());
+  pycmd(SETTINGS_CMD.getThemes());
+}
+
+/** Persist `name` as the active theme and repaint the dictionary window. */
+export function applyTheme(name: string): void {
+  settings.activeTheme = name;
+  pycmd(SETTINGS_CMD.applyTheme(name));
+}
+
+/** Create or update a theme; `apply` also makes it active. */
+export function saveTheme(
+  name: string,
+  colors: ThemeColors,
+  apply = true,
+): void {
+  settings.themes = { ...settings.themes, [name]: colors };
+  if (apply) settings.activeTheme = name;
+  pycmd(SETTINGS_CMD.saveTheme({ name, colors, apply }));
+}
+
+/** Delete a user theme (Python refuses for built-ins). */
+export function deleteTheme(name: string): void {
+  pycmd(SETTINGS_CMD.deleteTheme(name));
 }
 
 /** Replace the whole staged config (from Python or after Save). */
@@ -164,5 +200,26 @@ export function wireSettingsReplies(): void {
   };
   replies.setFontFile = (path: unknown) => {
     settings.fontFile = typeof path === "string" ? path : "";
+  };
+  replies.setActiveTab = (tab: unknown) => {
+    if (typeof tab === "string" && tab) settings.requestedTab = tab;
+  };
+  replies.setThemes = (data: unknown) => {
+    const d = (data ?? {}) as {
+      themes?: Record<string, unknown>;
+      active?: unknown;
+      builtins?: unknown;
+    };
+    const themes: Record<string, ThemeColors> = {};
+    for (const [name, colors] of Object.entries(d.themes ?? {})) {
+      themes[name] = coerceTheme(colors);
+    }
+    settings.themes = themes;
+    if (typeof d.active === "string" && d.active) settings.activeTheme = d.active;
+    settings.builtinThemes = Array.isArray(d.builtins)
+      ? (d.builtins as string[])
+      : [];
+    settings.themesLoaded = true;
+    settings.themeRevision += 1;
   };
 }

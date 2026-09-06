@@ -8,13 +8,21 @@
   import ForvoTab from "./ForvoTab.svelte";
   import FrequencyTab from "./FrequencyTab.svelte";
   import DictionariesTab from "./DictionariesTab.svelte";
+  import AppearanceTab from "./AppearanceTab.svelte";
 
-  type TabId = "general" | "llm" | "forvo" | "frequency" | "dictionaries";
+  type TabId =
+    | "general"
+    | "appearance"
+    | "llm"
+    | "forvo"
+    | "frequency"
+    | "dictionaries";
 
   let active: TabId = $state("general");
 
   const TABS: { id: TabId; label: string }[] = [
     { id: "general", label: "Settings" },
+    { id: "appearance", label: "Appearance" },
     { id: "llm", label: "LLM" },
     { id: "forvo", label: "Forvo" },
     { id: "frequency", label: "Frequency Lists" },
@@ -62,6 +70,16 @@
     document.getElementById(`tab-${TABS[next].id}`)?.focus();
   }
 
+  // Python can steer the page to a tab (the dictionary's theme button opens
+  // the gallery this way); ignore anything that isn't a real tab id.
+  $effect(() => {
+    const requested = settings.requestedTab;
+    if (requested && TABS.some((t) => t.id === requested)) {
+      active = requested as TabId;
+      settings.requestedTab = "";
+    }
+  });
+
   onMount(() => {
     loadSettings();
     // Handshake with Python — lets the bridge know the page is ready.
@@ -100,6 +118,8 @@
   {:else}
     {#if active === "general"}
       <GeneralTab />
+    {:else if active === "appearance"}
+      <AppearanceTab />
     {:else if active === "llm"}
       <LlmTab />
     {:else if active === "forvo"}

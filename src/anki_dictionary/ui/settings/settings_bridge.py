@@ -52,6 +52,9 @@ class SettingsBridge(AnkiWebView):
         self.mw = mw
         self.addon_path = addon_path
         self.onBridgeCmd = self.handleSettingsAction
+        # Tab requested before the page announced itself (see focus_tab).
+        self._pending_tab: str | None = None
+        self._page_ready = False
         self.loadSettingsPage()
 
     def loadSettingsPage(self) -> None:
@@ -74,6 +77,13 @@ class SettingsBridge(AnkiWebView):
             self.eval(f"SETTINGS.{name}({json.dumps(payload, ensure_ascii=False)})")
         except Exception as e:
             logger.error(f"settings bridge eval({name}) failed: {e}")
+
+    def focus_tab(self, tab_id: str) -> None:
+        """Ask the web UI to select a tab, buffering until the page is ready."""
+        if self._page_ready:
+            self._push("setActiveTab", tab_id)
+        else:
+            self._pending_tab = tab_id
 
     # ── data providers ─────────────────────────────────────
 
@@ -216,6 +226,110 @@ class SettingsBridge(AnkiWebView):
             logger.debug("Could not load Forvo language list", exc_info=True)
             return []
 
+    # ── themes ─────────────────────────────────────────────
+
+    def _theme_manager(self) -> Any:
+        """The dictionary window's manager when it exists, else a fresh one.
+
+        Reusing the open window's instance matters: applying a theme has to
+        mutate the same object the window repaints from.
+        """
+        dict_int = getattr(self.mw, "ankiDictionary", None)
+        manager = getattr(dict_int, "theme_manager", None)
+        if manager is not None:
+            return manager
+        from ..themes import ThemeManager
+
+        return ThemeManager(self.addon_path)
+
+    def _push_themes(self, manager: Any | None = None) -> None:
+        tm = manager or self._theme_manager()
+        try:
+            themes = {
+                name: vars(colors) for name, colors in tm.selectable_themes().items()
+            }
+            self._push(
+                "setThemes",
+                {
+                    "themes": themes,
+                    "active": tm.current_theme,
+                    "builtins": tm.builtin_names,
+                },
+            )
+        except Exception:
+            logger.exception("Could not enumerate themes")
+            self._push("setThemes", {"themes": {}, "active": "light", "builtins": []})
+
+    def _repaint_dictionary(self) -> None:
+        """Repaint the dictionary window if it is open; a no-op otherwise."""
+        dict_int = getattr(self.mw, "ankiDictionary", None)
+        if dict_int is None:
+            return
+        try:
+            dict_int.refresh_application_theme()
+        except Exception:
+            logger.debug("Could not repaint the dictionary window", exc_info=True)
+
+    def _apply_theme(self, raw: str) -> None:
+        try:
+            name = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.error("settings:applyTheme received invalid JSON payload")
+            return
+        tm = self._theme_manager()
+        if not isinstance(name, str) or name not in tm.themes:
+            logger.warning("settings:applyTheme unknown theme %r", name)
+            self._push_themes(tm)
+            return
+        tm.set_active_theme(name)
+        self._repaint_dictionary()
+        self._push_themes(tm)
+
+    def _save_theme(self, raw: str) -> None:
+        from ..themes import ThemeColors
+
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.error("settings:saveTheme received invalid JSON payload")
+            return
+        if not isinstance(payload, dict):
+            return
+        name = str(payload.get("name") or "").strip()
+        colors = payload.get("colors")
+        if not name or not isinstance(colors, dict):
+            logger.warning("settings:saveTheme ignored: missing name or colors")
+            return
+
+        tm = self._theme_manager()
+        fields = set(ThemeColors.__dataclass_fields__)
+        missing = fields - colors.keys()
+        if missing:
+            logger.warning("settings:saveTheme missing colors: %s", sorted(missing))
+            return
+        try:
+            theme = ThemeColors(**{k: str(colors[k]) for k in fields})
+        except TypeError:
+            logger.exception("settings:saveTheme rejected malformed colors")
+            return
+
+        tm.save_theme(name, theme)
+        if payload.get("apply", True):
+            tm.set_active_theme(name)
+            self._repaint_dictionary()
+        self._push_themes(tm)
+
+    def _delete_theme(self, raw: str) -> None:
+        try:
+            name = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.error("settings:deleteTheme received invalid JSON payload")
+            return
+        tm = self._theme_manager()
+        if isinstance(name, str) and tm.delete_theme(name):
+            self._repaint_dictionary()
+        self._push_themes(tm)
+
     # ── command handler ────────────────────────────────────
 
     def handleSettingsAction(self, dAct: str) -> None:
@@ -226,6 +340,10 @@ class SettingsBridge(AnkiWebView):
 
     def _handle_settings_action(self, dAct: str) -> None:
         if dAct == "settingsLoaded":
+            self._page_ready = True
+            if self._pending_tab:
+                self._push("setActiveTab", self._pending_tab)
+                self._pending_tab = None
             return
         if dAct == "settings:getConfig":
             self._push("setConfig", self.settings_gui.config or {})
@@ -239,6 +357,14 @@ class SettingsBridge(AnkiWebView):
             self._push("setLanguagesDicts", self._languages_dicts())
         elif dAct == "settings:getForvoLanguages":
             self._push("setForvoLanguages", self._forvo_languages())
+        elif dAct == "settings:getThemes":
+            self._push_themes()
+        elif dAct.startswith("settings:applyTheme:"):
+            self._apply_theme(dAct[len("settings:applyTheme:") :])
+        elif dAct.startswith("settings:saveTheme:"):
+            self._save_theme(dAct[len("settings:saveTheme:") :])
+        elif dAct.startswith("settings:deleteTheme:"):
+            self._delete_theme(dAct[len("settings:deleteTheme:") :])
         elif dAct.startswith("settings:save:"):
             raw = dAct[len("settings:save:") :]
             try:

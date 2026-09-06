@@ -90,6 +90,14 @@ class SettingsGui(QWidget):
         self.mw.dictSettings = None
         event.accept()
 
+    def show_tab(self, tab_id: str) -> None:
+        """Select one of the web UI's tabs (e.g. the theme gallery).
+
+        Safe to call before the page has finished loading — the bridge holds
+        the request until the Svelte app announces itself.
+        """
+        self._bridge.focus_tab(tab_id)
+
     # ── config lifecycle (called by the bridge) ───────────────
 
     def after_save(self) -> None:

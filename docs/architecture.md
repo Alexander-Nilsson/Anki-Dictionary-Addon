@@ -19,7 +19,6 @@ src/anki_dictionary/
 │   │   ├── dict_import.py
 │   │   ├── dictionary_manager.py
 │   │   ├── language_manager_widget.py
-│   │   ├── theme_editor.py
 │   │   ├── tree_manager_widget.py
 │   │   └── wizard.py
 │   └── settings/

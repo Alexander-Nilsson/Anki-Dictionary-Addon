@@ -35,7 +35,7 @@ def get_font_family(group: dict[str, Any]) -> str:
     if not group.get("font"):
         return " "
     if group.get("customFont"):
-        return ' style="font-family:\'' + custom_font_family(group["font"]) + '\';" '
+        return " style=\"font-family:'" + custom_font_family(group["font"]) + "';\" "
     return ' style="font-family:' + group["font"] + ';" '
 
 

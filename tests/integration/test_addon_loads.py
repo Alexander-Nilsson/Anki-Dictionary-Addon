@@ -226,9 +226,9 @@ class TestDictInterface:
     def test_dictinterface_instantiation(self, qapp):
         """Verify DictInterface can be constructed with a QApplication.
 
-        Patches heavy dependencies (ThemeManager, ThemeEditorDialog, startUp)
-        so we only verify the QApplication requirement is satisfied, not the
-        full widget tree creation.
+        Patches heavy dependencies (ThemeManager, startUp) so we only verify
+        the QApplication requirement is satisfied, not the full widget tree
+        creation.
         """
         from unittest.mock import MagicMock
 
@@ -240,7 +240,6 @@ class TestDictInterface:
 
         with (
             patch.object(_d, "ThemeManager", return_value=MagicMock()),
-            patch.object(_d, "ThemeEditorDialog", return_value=MagicMock()),
             patch.object(_d.DictInterface, "startUp"),
             patch.object(_d.DictInterface, "setHotkeys"),
         ):

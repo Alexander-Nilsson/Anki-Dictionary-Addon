@@ -21,6 +21,13 @@
  *    settings:webInstallDicts | settings:importDicts
  *    settings:webInstallFreq   | settings:importFreq
  *    settings:browseFontFile   ->  SETTINGS.setFontFile(path)
+ *    settings:getThemes        ->  SETTINGS.setThemes({themes,active,builtins})
+ *    settings:applyTheme:<json>   -> persists the theme, repaints, setThemes
+ *    settings:saveTheme:<json>    -> {name, colors, apply} -> setThemes
+ *    settings:deleteTheme:<json>  -> setThemes
+ *
+ * Python can also push `SETTINGS.setActiveTab("appearance")` unprompted, which
+ * is how the dictionary window's theme button lands on the theme gallery.
  */
 
 export const SETTINGS_CMD = {
@@ -39,6 +46,10 @@ export const SETTINGS_CMD = {
   close: () => "settings:close",
   removeLanguage: (lang: string) =>
     `settings:removeLanguage:${JSON.stringify(lang)}`,
+  getThemes: () => "settings:getThemes",
+  applyTheme: (name: string) => `settings:applyTheme:${JSON.stringify(name)}`,
+  saveTheme: (payload: unknown) => `settings:saveTheme:${JSON.stringify(payload)}`,
+  deleteTheme: (name: string) => `settings:deleteTheme:${JSON.stringify(name)}`,
 } as const;
 
 /** Install the `window.SETTINGS` reply surface used by Python. */
@@ -54,6 +65,8 @@ export function initSettingsBridge(): void {
     setLLMTest: () => undefined,
     setSaved: () => undefined,
     setFontFile: () => undefined,
+    setThemes: () => undefined,
+    setActiveTab: () => undefined,
   };
   w.SETTINGS = replies;
 }

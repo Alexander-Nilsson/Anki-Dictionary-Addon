@@ -44,7 +44,6 @@ import datetime
 from PyQt6.QtSvgWidgets import QSvgWidget
 
 from ..ui import theme_controller
-from ..ui.dialogs.theme_editor import ThemeEditorDialog
 from ..ui.settings.settings_gui import SettingsGui
 from ..ui.themes import ThemeManager
 
@@ -387,8 +386,6 @@ class DictInterface(QWidget):
             self.addonPath, "user_files/themes", "active.json"
         )
         self.theme_manager = ThemeManager(self.addonPath)
-        self.theme_editor = ThemeEditorDialog(self.theme_manager, mw, path, self)
-        self.theme_editor.applied.connect(self.refresh_application_theme)
 
         self.startUp(terms)
         self.setHotkeys()
@@ -955,11 +952,17 @@ class DictInterface(QWidget):
         self.pushHeaderState()
 
     def setTheme(self):
-        self.theme_editor.exec()
-        # The theme editor might have already triggered a refresh,
-        # but we call it here to be sure, with reload_html=True
-        # because the user actually changed the theme.
-        self.refresh_application_theme(reload_html=True)
+        """Open the theme gallery (Appearance tab of the settings window).
+
+        Themes used to be edited in a Qt colour-field dialog; the gallery in
+        the Svelte settings UI previews every theme on a miniature of this
+        window and repaints it live through the settings bridge, so the theme
+        button opens that instead.
+        """
+        self.openDictionarySettings()
+        settings_window = getattr(self.mw, "dictSettings", None)
+        if settings_window is not None:
+            settings_window.show_tab("appearance")
 
     def setSvg(self, widget, name):
         theme_color = theme_controller.load_color(self.theme_manager, "header_text")

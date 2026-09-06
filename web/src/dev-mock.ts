@@ -205,6 +205,151 @@ const MOCK_FORVO_LANGUAGES = [
   { code: "zh", name: "Chinese" },
 ];
 
+/** Mirrors the built-in themes in src/anki_dictionary/ui/themes.py. */
+const MOCK_THEMES: Record<string, Record<string, string>> = {
+  light: {
+    header_background: "#FFFFFF",
+    selector: "#F8F9FA",
+    header_text: "#212529",
+    search_term: "#007BFF",
+    border: "#DEE2E6",
+    anki_button_background: "#F8F9FA",
+    anki_button_text: "#212529",
+    tab_hover: "#E9ECEF",
+    current_tab_gradient_top: "#FFFFFF",
+    current_tab_gradient_bottom: "#E9ECEF",
+    example_highlight: "#FFF3CD",
+    definition_background: "#FFFFFF",
+    definition_text: "#212529",
+    pitch_accent_color: "#DC3545",
+  },
+  dark: {
+    header_background: "#1A1B1E",
+    selector: "#25262B",
+    header_text: "#C1C2C5",
+    search_term: "#4DABF7",
+    border: "#373A40",
+    anki_button_background: "#25262B",
+    anki_button_text: "#C1C2C5",
+    tab_hover: "#2C2E33",
+    current_tab_gradient_top: "#2C2E33",
+    current_tab_gradient_bottom: "#1A1B1E",
+    example_highlight: "#2C2E33",
+    definition_background: "#1A1B1E",
+    definition_text: "#C1C2C5",
+    pitch_accent_color: "#FF6B6B",
+  },
+  catppuccin_mocha: {
+    header_background: "#1e1e2e",
+    selector: "#181825",
+    header_text: "#cdd6f4",
+    search_term: "#89b4fa",
+    border: "#b4befe",
+    anki_button_background: "#313244",
+    anki_button_text: "#cdd6f4",
+    tab_hover: "#45475a",
+    current_tab_gradient_top: "#585b70",
+    current_tab_gradient_bottom: "#1e1e2e",
+    example_highlight: "#313244",
+    definition_background: "#1e1e2e",
+    definition_text: "#cdd6f4",
+    pitch_accent_color: "#f38ba8",
+  },
+  nord: {
+    header_background: "#3b4252",
+    selector: "#434c5e",
+    header_text: "#eceff4",
+    search_term: "#88c0d0",
+    border: "#4c566a",
+    anki_button_background: "#81a1c1",
+    anki_button_text: "#2e3440",
+    tab_hover: "#4c566a",
+    current_tab_gradient_top: "#434c5e",
+    current_tab_gradient_bottom: "#3b4252",
+    example_highlight: "#ebcb8b",
+    definition_background: "#2e3440",
+    definition_text: "#d8dee9",
+    pitch_accent_color: "#bf616a",
+  },
+  solarized_light: {
+    header_background: "#eee8d5",
+    selector: "#fdf6e3",
+    header_text: "#586e75",
+    search_term: "#268bd2",
+    border: "#93a1a1",
+    anki_button_background: "#859900",
+    anki_button_text: "#fdf6e3",
+    tab_hover: "#eee8d5",
+    current_tab_gradient_top: "#fdf6e3",
+    current_tab_gradient_bottom: "#eee8d5",
+    example_highlight: "#b58900",
+    definition_background: "#fdf6e3",
+    definition_text: "#657b83",
+    pitch_accent_color: "#dc322f",
+  },
+  tokyo_night: {
+    header_background: "#1f2335",
+    selector: "#24283b",
+    header_text: "#c0caf5",
+    search_term: "#7aa2f7",
+    border: "#414868",
+    anki_button_background: "#bb9af7",
+    anki_button_text: "#1a1b26",
+    tab_hover: "#3b4261",
+    current_tab_gradient_top: "#24283b",
+    current_tab_gradient_bottom: "#1f2335",
+    example_highlight: "#e0af68",
+    definition_background: "#1a1b26",
+    definition_text: "#a9b1d6",
+    pitch_accent_color: "#f7768e",
+  },
+  gruvbox: {
+    header_background: "#3c3836",
+    selector: "#504945",
+    header_text: "#ebdbb2",
+    search_term: "#fabd2f",
+    border: "#665c54",
+    anki_button_background: "#b8bb26",
+    anki_button_text: "#282828",
+    tab_hover: "#504945",
+    current_tab_gradient_top: "#504945",
+    current_tab_gradient_bottom: "#3c3836",
+    example_highlight: "#d65d0e",
+    definition_background: "#282828",
+    definition_text: "#ebdbb2",
+    pitch_accent_color: "#fb4934",
+  },
+};
+
+/** Built-ins are everything Python ships; anything else is a user theme. */
+const MOCK_BUILTIN_THEMES = Object.keys(MOCK_THEMES);
+
+MOCK_THEMES["My Sepia"] = {
+  header_background: "#f4ecd8",
+  selector: "#e9dcc0",
+  header_text: "#43382b",
+  search_term: "#9c5b25",
+  border: "#d3c3a3",
+  anki_button_background: "#e2d3b3",
+  anki_button_text: "#3b3125",
+  tab_hover: "#e9dcc0",
+  current_tab_gradient_top: "#fbf5e7",
+  current_tab_gradient_bottom: "#e9dcc0",
+  example_highlight: "#d9c48f",
+  definition_background: "#fbf5e7",
+  definition_text: "#3f362a",
+  pitch_accent_color: "#a33a2b",
+};
+let MOCK_ACTIVE_THEME = "light";
+
+function pushMockThemes(): void {
+  callSettingsReply("setThemes", {
+    themes: MOCK_THEMES,
+    active: MOCK_ACTIVE_THEME,
+    builtins: MOCK_BUILTIN_THEMES,
+  });
+}
+
 // ── canned dictionary data ───────────────────────────────────────────────────
 
 
@@ -283,6 +428,26 @@ function handleSettingsCommand(cmd: string): void {
     callSettingsReply("setConfig", MOCK_CONFIG);
   } else if (cmd === "settings:browseFontFile") {
     callSettingsReply("setFontFile", "/mock/fonts/TakaoMincho.ttf");
+  } else if (cmd === "settings:getThemes") {
+    pushMockThemes();
+  } else if (cmd.startsWith("settings:applyTheme:")) {
+    const name = JSON.parse(cmd.slice("settings:applyTheme:".length)) as string;
+    if (MOCK_THEMES[name]) MOCK_ACTIVE_THEME = name;
+    pushMockThemes();
+  } else if (cmd.startsWith("settings:saveTheme:")) {
+    const payload = JSON.parse(cmd.slice("settings:saveTheme:".length)) as {
+      name: string;
+      colors: Record<string, string>;
+      apply?: boolean;
+    };
+    MOCK_THEMES[payload.name] = payload.colors;
+    if (payload.apply !== false) MOCK_ACTIVE_THEME = payload.name;
+    pushMockThemes();
+  } else if (cmd.startsWith("settings:deleteTheme:")) {
+    const name = JSON.parse(cmd.slice("settings:deleteTheme:".length)) as string;
+    if (!MOCK_BUILTIN_THEMES.includes(name)) delete MOCK_THEMES[name];
+    if (MOCK_ACTIVE_THEME === name) MOCK_ACTIVE_THEME = "light";
+    pushMockThemes();
   } else if (cmd === "settings:close") {
     console.log("[dev-mock] settings:close (no-op in browser)");
   } else {
