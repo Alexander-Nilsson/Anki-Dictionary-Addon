@@ -1,8 +1,12 @@
 """Regression tests for Issue #17: Qt disconnect warnings on Windows 10.
 
-Tests verify that cell-widget signals are properly disconnected before
-table clearing, regardless of platform.  Uses the real code paths but
-mocks Qt so tests can run headless.
+The old settings tables disconnected cell-widget signals before clearing them,
+and a missed disconnect produced noisy Qt warnings at runtime. That PyQt table
+UI is gone — the settings UI is now a web view. These tests guard the
+replacement teardown contract: closing/hiding the web settings window must
+cleanly release the window reference (the analog of a disconnect-on-close
+crash), and every bridge command the web page can send must be routed to a
+handler so the JS<->Python protocol never silently drops updates.
 """
 
 from __future__ import annotations
@@ -33,36 +37,67 @@ class _QtMockBase(metaclass=_QtMockMeta):
         return self._mock_attrs[name]
 
 
+def _make_signal(*_types):
+    """Functional stand-in for Qt's pyqtSignal: emit() dispatches to the
+    handlers connected via connect(). See tests/test_settings.py for why this
+    matters (module collection order + shared aqt.qt mock)."""
+    handlers: list = []
+
+    def _connect(handler):
+        handlers.append(handler)
+        return signal
+
+    def _emit(*args, **kwargs):
+        for handler in list(handlers):
+            handler(*args, **kwargs)
+        return signal
+
+    signal = MagicMock()
+    signal.connect.side_effect = _connect
+    signal.emit.side_effect = _emit
+    return signal
+
+
 _QT_CLASSES = [
-    "QAbstractItemView",
-    "QCheckBox",
-    "QComboBox",
-    "QDialog",
     "QEvent",
     "QFileDialog",
-    "QFontDatabase",
-    "QFormLayout",
-    "QFrame",
-    "QGroupBox",
-    "QHBoxLayout",
-    "QHeaderView",
     "QIcon",
+    "QInputDialog",
     "QKeySequence",
-    "QLabel",
-    "QLineEdit",
     "QMessageBox",
-    "QPushButton",
-    "QRadioButton",
-    "QScrollArea",
+    "QProgressDialog",
     "QShortcut",
-    "QSize",
-    "QSpinBox",
-    "QTabWidget",
-    "QTableWidget",
-    "QTableWidgetItem",
-    "QTextEdit",
+    "QUrl",
     "QVBoxLayout",
     "QWidget",
+    # Superset shared with tests/test_settings.py and
+    # tests/test_issue18_blank_icons.py: pytest imports every test module
+    # during collection, and the last mock preamble written to sys.modules
+    # wins for the whole session. Keeping the identical superset in each file
+    # makes test behaviour independent of collection/CLI order.
+    # Used by anki_dictionary.integrations.llm.
+    "QObject",
+    "QRunnable",
+    # Used by anki_dictionary.web.installer + ui.dialogs.wizard (native
+    # delegates reachable from the bridge).
+    "QCheckBox",
+    "QDialog",
+    "QFrame",
+    "QHBoxLayout",
+    "QLabel",
+    "QLayout",
+    "QLineEdit",
+    "QPalette",
+    "QPlainTextEdit",
+    "QProgressBar",
+    "QPushButton",
+    "QSizePolicy",
+    "QStyle",
+    "QTextCursor",
+    "QTextEdit",
+    "QThread",
+    "QTreeWidget",
+    "QTreeWidgetItem",
 ]
 
 _saved_modules = {}
@@ -81,6 +116,7 @@ _mock_aqt_qt = types.ModuleType("aqt.qt")
 for _name in _QT_CLASSES:
     setattr(_mock_aqt_qt, _name, type(_name, (_QtMockBase,), {}))
 _mock_aqt_qt.Qt = MagicMock()
+_mock_aqt_qt.pyqtSignal = _make_signal
 sys.modules["aqt.qt"] = _mock_aqt_qt
 
 _mock_aqt = types.ModuleType("aqt")
@@ -92,8 +128,9 @@ for _n in ("tooltip", "showInfo", "openLink", "askUser"):
     setattr(_mock_aqt_utils, _n, MagicMock())
 sys.modules["aqt.utils"] = _mock_aqt_utils
 
+# AnkiWebView must be a *class* (SettingsBridge subclasses it).
 _mock_aqt_webview = types.ModuleType("aqt.webview")
-_mock_aqt_webview.AnkiWebView = MagicMock()
+_mock_aqt_webview.AnkiWebView = type("AnkiWebView", (_QtMockBase,), {})
 sys.modules["aqt.webview"] = _mock_aqt_webview
 
 _mock_anki_utils = types.ModuleType("anki.utils")
@@ -110,154 +147,122 @@ _mock_anki_lang = types.ModuleType("anki.lang")
 _mock_anki_lang._ = lambda x: x
 sys.modules["anki.lang"] = _mock_anki_lang
 
-_mock_dict_mgr = types.ModuleType("anki_dictionary.ui.dialogs.dictionary_manager")
-_mock_dict_mgr.DictionaryManagerWidget = MagicMock()
-sys.modules["anki_dictionary.ui.dialogs.dictionary_manager"] = _mock_dict_mgr
-
 atexit.register(lambda: None)
 
-from anki_dictionary.ui.settings.dict_groups_tab import (
-    DictionaryGroupsTab,
-)  # noqa: E402
-from anki_dictionary.ui.settings.export_templates_tab import (
-    ExportTemplatesTab,
-)  # noqa: E402
+from anki_dictionary.ui.settings.settings_bridge import SettingsBridge  # noqa: E402
+from anki_dictionary.ui.settings.settings_gui import SettingsGui  # noqa: E402
 
 
-def _make_mock_button() -> MagicMock:
-    btn = MagicMock()
-    btn.clicked = MagicMock()
-    return btn
+def _make_gui():
+    mw = MagicMock()
+    mw.miDictDB.getAllDictsWithLang.return_value = []
+    mw.col.models.all.return_value = []
+    with patch(
+        "anki_dictionary.ui.settings.settings_gui.get_addon_config",
+        return_value={"llm_enabled": False, "forvo_enabled": True},
+    ):
+        gui = SettingsGui(mw, "/tmp", MagicMock())
+    return gui, mw
 
 
-class TestDisconnectBeforeTableClear(unittest.TestCase):
-    """Verify cell-widget signals are disconnected before setRowCount(0)."""
+class TestSettingsWindowTeardown(unittest.TestCase):
+    """Closing/hiding the web settings window must release it cleanly."""
 
-    def setUp(self):
-        self.mw = MagicMock()
-        self.parent = MagicMock()
-        self.config = {
-            "DictionaryGroups": {
-                "g1": {"dictionaries": ["a"], "customFont": False, "font": "A"},
-            },
-            "ExportTemplates": {
-                "t1": {"noteType": "Basic", "sentence": "S", "word": "W"},
-            },
-        }
-        self.names = ["a", "Images"]
+    def test_close_clears_window_reference(self):
+        gui, mw = _make_gui()
+        event = MagicMock()
 
-    def _disconnect_and_reload(self, tab, mod_path):
-        """Simulate a reload that triggers disconnect then setRowCount(0)."""
-        old_lang = _make_mock_button()
-        old_edit = _make_mock_button()
-        old_del = _make_mock_button()
-        tab.table.cellWidget.side_effect = lambda r, c: {
-            (0, 1): old_lang,
-            (0, 2): old_edit,
-            (0, 3): old_del,
-        }.get((r, c))
-        tab.table.rowCount = MagicMock(return_value=1)
-        tab.table.columnCount = MagicMock(return_value=4)
+        gui.closeEvent(event)
 
-        with patch(f"{mod_path}.QPushButton") as mock_btn_cls:
-            mock_btn_cls.side_effect = lambda text: _make_mock_button()
-            tab.loadGroupTable()
+        self.assertIsNone(mw.dictSettings)
+        event.accept.assert_called_once()
 
-        return old_edit, old_del
+    def test_hide_clears_window_reference(self):
+        gui, mw = _make_gui()
+        event = MagicMock()
 
-    def test_dict_groups_tab_disconnects(self):
-        tab = DictionaryGroupsTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        tab.loadGroupTable()
-        old_edit, old_del = self._disconnect_and_reload(
-            tab, "anki_dictionary.ui.settings.dict_groups_tab"
-        )
-        old_edit.clicked.disconnect.assert_called_once()
-        old_del.clicked.disconnect.assert_called_once()
+        gui.hideEvent(event)
 
-    def test_export_templates_tab_disconnects(self):
-        tab = ExportTemplatesTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        tab.loadTemplateTable()
-        old_edit = _make_mock_button()
-        old_del = _make_mock_button()
-        tab.table.cellWidget.side_effect = lambda r, c: {
-            (0, 1): old_edit,
-            (0, 2): old_del,
-        }.get((r, c))
-        tab.table.rowCount = MagicMock(return_value=1)
-        tab.table.columnCount = MagicMock(return_value=3)
+        self.assertIsNone(mw.dictSettings)
+        event.accept.assert_called_once()
 
-        with patch(
-            "anki_dictionary.ui.settings.export_templates_tab.QPushButton"
-        ) as mock_btn_cls:
-            mock_btn_cls.side_effect = lambda text: _make_mock_button()
-            tab.loadTemplateTable()
 
-        old_edit.clicked.disconnect.assert_called_once()
-        old_del.clicked.disconnect.assert_called_once()
+class TestBridgeRoutesEveryCommand(unittest.TestCase):
+    """Every command the JS page can send has a Python handler (no dropped
+    updates — the analog of the old unbounded signal wiring)."""
 
-    def test_disable_buttons_in_remove_group(self):
-        tab = DictionaryGroupsTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        tab.loadGroupTable()
+    # settings:save / settings:testLLM / settings:deleteWordList /
+    # settings:removeLanguage carry payloads; test them with a JSON payload.
+    PAYLOAD_CMDS = {
+        "settings:save:{}",
+        "settings:testLLM:{}",
+        'settings:deleteWordList:"f.json"',
+        'settings:removeLanguage:"ja"',
+    }
 
-        old_lang = _make_mock_button()
-        old_edit = _make_mock_button()
-        old_del = _make_mock_button()
-        tab.table.cellWidget.side_effect = lambda r, c: {
-            (0, 1): old_lang,
-            (0, 2): old_edit,
-            (0, 3): old_del,
-        }.get((r, c))
-        tab.table.rowCount = MagicMock(return_value=1)
-        tab.table.columnCount = MagicMock(return_value=4)
+    def _bridge(self):
+        mw = MagicMock()
+        mw.miDictDB.getAllDictsWithLang.return_value = []
+        gui = MagicMock()
+        gui.config = {"llm_enabled": False, "forvo_enabled": True}
+        bridge = SettingsBridge(gui, mw, "/tmp")
+        bridge._push = MagicMock()
+        return bridge, gui, mw
 
+    def test_known_commands_are_all_handled(self):
+        bridge, gui, mw = self._bridge()
+        plain_cmds = [
+            "settingsLoaded",
+            "settings:getConfig",
+            "settings:getDictionaryNames",
+            "settings:getWordListData",
+            "settings:getNoteTypes",
+            "settings:getLanguagesDicts",
+            "settings:getForvoLanguages",
+            "settings:restoreDefaults",
+            "settings:close",
+            "settings:webInstallDicts",
+            "settings:importDicts",
+            "settings:webInstallFreq",
+            "settings:importFreq",
+            "settings:browseFontFile",
+        ]
         with (
-            patch("anki_dictionary.ui.settings.dict_groups_tab.miAsk") as ask,
-            patch("anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"),
-            patch("anki_dictionary.ui.settings.dict_groups_tab.QPushButton"),
+            patch("anki_dictionary.ui.settings.settings_bridge.save_addon_config"),
+            patch.object(gui, "after_save"),
         ):
-            ask.return_value = True
-            mock_item = MagicMock()
-            mock_item.text.return_value = "g1"
-            tab.table.item.return_value = mock_item
-            tab.removeGroup(0)
+            for cmd in plain_cmds + sorted(self.PAYLOAD_CMDS):
+                bridge._push.reset_mock()
+                gui.reset_mock()
+                bridge.handleSettingsAction(cmd)
 
-        old_edit.clicked.disconnect.assert_called_once()
-        old_del.clicked.disconnect.assert_called_once()
+                if cmd == "settingsLoaded":
+                    # Intentional handshake no-op: must not emit replies.
+                    bridge._push.assert_not_called()
+                    continue
 
-    def test_disable_buttons_in_remove_template(self):
-        tab = ExportTemplatesTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        tab.loadTemplateTable()
+                # A handler ran for this command: a JS reply was pushed, a GUI
+                # native delegate fired, or (testLLM) the background taskman
+                # picked up the blocking HTTP test.
+                handled = (
+                    bridge._push.call_count > 0
+                    or any(c[0] != "reset" for c in gui.mock_calls)
+                    or mw.taskman.run_in_background.called
+                )
+                self.assertTrue(handled, f"no handler observed for {cmd}")
 
-        old_edit = _make_mock_button()
-        old_del = _make_mock_button()
-        tab.table.cellWidget.side_effect = lambda r, c: {
-            (0, 1): old_edit,
-            (0, 2): old_del,
-        }.get((r, c))
-        tab.table.rowCount = MagicMock(return_value=1)
-        tab.table.columnCount = MagicMock(return_value=3)
+    def test_unknown_command_does_not_crash(self):
+        bridge, _, _ = self._bridge()
+        bridge.handleSettingsAction("settings:doesNotExist")
+        bridge._push.assert_not_called()
 
-        with (
-            patch("anki_dictionary.ui.settings.export_templates_tab.miAsk") as ask,
-            patch("anki_dictionary.ui.settings.export_templates_tab.save_addon_config"),
-            patch("anki_dictionary.ui.settings.export_templates_tab.QPushButton"),
-        ):
-            ask.return_value = True
-            mock_item = MagicMock()
-            mock_item.text.return_value = "t1"
-            tab.table.item.return_value = mock_item
-            tab.removeTemplate(0)
-
-        old_edit.clicked.disconnect.assert_called_once()
-        old_del.clicked.disconnect.assert_called_once()
+    def test_delegate_with_missing_method_does_not_crash(self):
+        # A future command could reference a native method that the shell no
+        # longer provides — the bridge must degrade gracefully, not raise.
+        bridge, gui, _ = self._bridge()
+        del gui.web_install_dicts
+        bridge.handleSettingsAction("settings:webInstallDicts")
+        bridge._push.assert_not_called()
 
 
 if __name__ == "__main__":

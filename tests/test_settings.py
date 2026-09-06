@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import atexit
+import json
+import os
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import MagicMock, patch
@@ -23,7 +26,7 @@ from unittest.mock import MagicMock, patch
 
 class _QtMockMeta(type):
     """Metaclass for mock Qt classes – returns a MagicMock for any
-    class-level attribute access (e.g. ``QHeaderView.ResizeMode``)."""
+    class-level attribute access (e.g. ``Qt.WindowType.Window``)."""
 
     def __getattr__(cls, name: str):
         if name.startswith("__") and name.endswith("__"):
@@ -35,7 +38,7 @@ class _QtMockBase(metaclass=_QtMockMeta):
     """Base for every mock Qt widget/object.
 
     ``__init__`` swallows all arguments so that any Qt parent/flags
-    arguments never reach Mock's spec-setting machinery.
+    arguments never reach Mock's setting machinery.
     Instance-level attribute access is cached so that
     ``instance.foo`` returns the *same* MagicMock every time.
     """
@@ -51,38 +54,70 @@ class _QtMockBase(metaclass=_QtMockMeta):
         return self._mock_attrs[name]
 
 
+def _make_signal(*_types):
+    """A functional stand-in for Qt's pyqtSignal.
+
+    ``emit`` dispatches synchronously to every ``connect``-ed handler,
+    matching the behaviour real ``test_llm`` tests rely on. This matters
+    because pytest imports every test module during collection and the last
+    module-level mock preamble written to ``sys.modules['aqt.qt']`` wins for
+    the whole session: if ``pyqtSignal`` were a plain no-op MagicMock, the
+    ``LLMWorker`` signal emissions in tests/test_llm.py would silently drop
+    their connected handlers and those tests would fail depending on file
+    collection order.
+    """
+    handlers: list = []
+
+    def _connect(handler):
+        handlers.append(handler)
+        return signal
+
+    def _emit(*args, **kwargs):
+        for handler in list(handlers):
+            handler(*args, **kwargs)
+        return signal
+
+    signal = MagicMock()
+    signal.connect.side_effect = _connect
+    signal.emit.side_effect = _emit
+    return signal
+
+
 _QT_CLASSES = [
-    "QAbstractItemView",
-    "QCheckBox",
-    "QComboBox",
-    "QDialog",
-    "QDoubleSpinBox",
     "QEvent",
     "QFileDialog",
-    "QFontDatabase",
-    "QFormLayout",
-    "QFrame",
-    "QGroupBox",
-    "QHBoxLayout",
-    "QHeaderView",
     "QIcon",
+    "QInputDialog",
     "QKeySequence",
-    "QLabel",
-    "QLineEdit",
     "QMessageBox",
-    "QPushButton",
-    "QRadioButton",
-    "QScrollArea",
+    "QProgressDialog",
     "QShortcut",
-    "QSize",
-    "QSpinBox",
-    "QTabWidget",
-    "QTableWidget",
-    "QTableWidgetItem",
-    "QTextEdit",
     "QUrl",
     "QVBoxLayout",
     "QWidget",
+    # Used by anki_dictionary.integrations.llm (imported lazily by the bridge).
+    "QObject",
+    "QRunnable",
+    # Used by anki_dictionary.web.installer + ui.dialogs.wizard (imported
+    # lazily by native delegates like web_install_dicts).
+    "QCheckBox",
+    "QDialog",
+    "QFrame",
+    "QHBoxLayout",
+    "QLabel",
+    "QLayout",
+    "QLineEdit",
+    "QPalette",
+    "QPlainTextEdit",
+    "QProgressBar",
+    "QPushButton",
+    "QSizePolicy",
+    "QStyle",
+    "QTextCursor",
+    "QTextEdit",
+    "QThread",
+    "QTreeWidget",
+    "QTreeWidgetItem",
 ]
 
 # Save original modules so we can restore them at exit
@@ -102,6 +137,7 @@ _mock_aqt_qt = types.ModuleType("aqt.qt")
 for _name in _QT_CLASSES:
     setattr(_mock_aqt_qt, _name, type(_name, (_QtMockBase,), {}))
 _mock_aqt_qt.Qt = MagicMock()
+_mock_aqt_qt.pyqtSignal = _make_signal
 sys.modules["aqt.qt"] = _mock_aqt_qt
 
 # -- aqt root module --
@@ -115,9 +151,10 @@ for _n in ("tooltip", "showInfo", "openLink", "askUser"):
     setattr(_mock_aqt_utils, _n, MagicMock())
 sys.modules["aqt.utils"] = _mock_aqt_utils
 
-# -- aqt.webview --
+# -- aqt.webview -- AnkiWebView must be a *class* so SettingsBridge can
+# subclass it (a MagicMock instance cannot be inherited from).
 _mock_aqt_webview = types.ModuleType("aqt.webview")
-_mock_aqt_webview.AnkiWebView = MagicMock()
+_mock_aqt_webview.AnkiWebView = type("AnkiWebView", (_QtMockBase,), {})
 sys.modules["aqt.webview"] = _mock_aqt_webview
 
 # -- anki sub-modules --
@@ -135,11 +172,6 @@ _mock_anki_lang = types.ModuleType("anki.lang")
 _mock_anki_lang._ = lambda x: x
 sys.modules["anki.lang"] = _mock_anki_lang
 
-# -- anki_dictionary.ui.dialogs.dictionary_manager (deep import chain) --
-_mock_dict_mgr = types.ModuleType("anki_dictionary.ui.dialogs.dictionary_manager")
-_mock_dict_mgr.DictionaryManagerWidget = MagicMock()
-sys.modules["anki_dictionary.ui.dialogs.dictionary_manager"] = _mock_dict_mgr
-
 
 def _restore_modules():
     for _mod_name, _mod in _saved_modules.items():
@@ -154,689 +186,415 @@ atexit.register(_restore_modules)
 # ---------------------------------------------------------------------------
 # Import modules under test
 # ---------------------------------------------------------------------------
-from anki_dictionary.ui.settings.dict_groups import DictGroupEditor
-from anki_dictionary.ui.settings.dict_groups_tab import DictionaryGroupsTab
-from anki_dictionary.ui.settings.export_templates_tab import ExportTemplatesTab
-from anki_dictionary.ui.settings.settings_gui import SettingsGui
-from anki_dictionary.ui.settings.templates import TemplateEditor
+from anki_dictionary.ui.settings.settings_bridge import SettingsBridge  # noqa: E402
+from anki_dictionary.ui.settings.settings_gui import SettingsGui  # noqa: E402
 
-
-# ===================================================================
-# DictionaryGroupsTab
-# ===================================================================
-class TestDictionaryGroupsTab(unittest.TestCase):
-    def setUp(self):
-        self.mw = MagicMock()
-        self.parent = MagicMock()
-        self.config = {
-            "DictionaryGroups": {
-                "group1": {
-                    "dictionaries": ["dict_a"],
-                    "customFont": False,
-                    "font": "Arial",
-                },
-                "group2": {
-                    "dictionaries": ["dict_b", "dict_c"],
-                    "customFont": True,
-                    "font": "Custom.ttf",
-                },
-            }
-        }
-        self.dict_names = ["dict_a", "dict_b", "dict_c", "Images"]
-        self.tab = DictionaryGroupsTab(
-            self.mw,
-            self.parent,
-            lambda: self.config,
-            lambda: self.dict_names,
-        )
-
-    def test_loadGroupTable_populates_table(self):
-        self.tab.loadGroupTable()
-
-        self.tab.table.setRowCount.assert_called()
-        count = self.tab.table.setItem.call_count
-        self.assertEqual(
-            count,
-            len(self.config["DictionaryGroups"]),
-            f"Expected {len(self.config['DictionaryGroups'])} setItem calls, got {count}",
-        )
-
-    def test_addGroup_opens_editor(self):
-        with patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.DictGroupEditor"
-        ) as mock_editor_cls:
-            mock_editor = MagicMock()
-            mock_editor_cls.return_value = mock_editor
-
-            self.tab.addGroup()
-
-            mock_editor_cls.assert_called_once_with(
-                self.mw, self.parent, self.dict_names
-            )
-            mock_editor.clearGroupEditor.assert_called_once_with(True)
-            mock_editor.exec.assert_called_once()
-
-    def test_editGroup_opens_editor_with_existing_data(self):
-        with patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.DictGroupEditor"
-        ) as mock_editor_cls:
-            mock_editor = MagicMock()
-            mock_editor_cls.return_value = mock_editor
-
-            mock_item = MagicMock()
-            mock_item.text.return_value = "group1"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.editGroup(0)
-
-            mock_editor_cls.assert_called_once_with(
-                self.mw,
-                self.parent,
-                self.dict_names,
-                self.config["DictionaryGroups"]["group1"],
-                "group1",
-            )
-            mock_editor.exec.assert_called_once()
-
-    def test_editGroup_skips_when_group_not_in_config(self):
-        with patch(
-            "anki_dictionary.ui.settings.dict_groups_tab.DictGroupEditor"
-        ) as mock_editor_cls:
-            mock_item = MagicMock()
-            mock_item.text.return_value = "nonexistent_group"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.editGroup(0)
-
-            mock_editor_cls.assert_not_called()
-
-    def test_removeGroup_removes_and_saves(self):
-        with (
-            patch("anki_dictionary.ui.settings.dict_groups_tab.miAsk") as mock_miAsk,
-            patch(
-                "anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"
-            ) as mock_save,
-        ):
-            mock_miAsk.return_value = True
-
-            mock_item = MagicMock()
-            mock_item.text.return_value = "group1"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.removeGroup(0)
-
-            mock_miAsk.assert_called_once()
-            mock_save.assert_called_once()
-            self.assertNotIn("group1", self.config["DictionaryGroups"])
-            self.tab.table.removeRow.assert_called_with(0)
-
-    def test_removeGroup_skipped_when_cancelled(self):
-        with (
-            patch("anki_dictionary.ui.settings.dict_groups_tab.miAsk") as mock_miAsk,
-            patch(
-                "anki_dictionary.ui.settings.dict_groups_tab.save_addon_config"
-            ) as mock_save,
-        ):
-            mock_miAsk.return_value = False
-
-            mock_item = MagicMock()
-            mock_item.text.return_value = "group1"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.removeGroup(0)
-
-            mock_save.assert_not_called()
-
-    def test_editGroupRow_returns_lambda(self):
-        fn = self.tab.editGroupRow(2)
-        self.assertTrue(callable(fn))
-
-    def test_removeGroupRow_returns_lambda(self):
-        fn = self.tab.removeGroupRow(2)
-        self.assertTrue(callable(fn))
-
-
-# ===================================================================
-# ExportTemplatesTab
-# ===================================================================
-class TestExportTemplatesTab(unittest.TestCase):
-    def setUp(self):
-        self.mw = MagicMock()
-        self.parent = MagicMock()
-        self.config = {
-            "ExportTemplates": {
-                "template1": {
-                    "noteType": "Basic",
-                    "sentence": "Sentence",
-                    "word": "Word",
-                },
-                "template2": {
-                    "noteType": "Basic (and reversed card)",
-                    "sentence": "Sentence",
-                    "word": "Expression",
-                },
-            }
-        }
-        self.dict_names = ["dict_a", "Images"]
-        self.tab = ExportTemplatesTab(
-            self.mw,
-            self.parent,
-            lambda: self.config,
-            lambda: self.dict_names,
-        )
-
-    def test_loadTemplateTable_populates_table(self):
-        self.tab.loadTemplateTable()
-
-        self.tab.table.setRowCount.assert_called()
-        count = self.tab.table.setItem.call_count
-        self.assertEqual(
-            count,
-            len(self.config["ExportTemplates"]),
-            f"Expected {len(self.config['ExportTemplates'])} setItem calls, got {count}",
-        )
-
-    def test_addTemplate_opens_editor(self):
-        with patch(
-            "anki_dictionary.ui.settings.export_templates_tab.TemplateEditor"
-        ) as mock_editor_cls:
-            mock_editor = MagicMock()
-            mock_editor_cls.return_value = mock_editor
-
-            self.tab.addTemplate()
-
-            mock_editor_cls.assert_called_once_with(
-                self.mw, self.parent, self.dict_names
-            )
-            mock_editor.exec.assert_called_once()
-
-    def test_editTemplate_opens_editor_with_existing_data(self):
-        with patch(
-            "anki_dictionary.ui.settings.export_templates_tab.TemplateEditor"
-        ) as mock_editor_cls:
-            mock_editor = MagicMock()
-            mock_editor_cls.return_value = mock_editor
-
-            mock_item = MagicMock()
-            mock_item.text.return_value = "template1"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.editTemplate(0)
-
-            mock_editor_cls.assert_called_once_with(
-                self.mw,
-                self.parent,
-                self.dict_names,
-                self.config["ExportTemplates"]["template1"],
-                "template1",
-            )
-            mock_editor.loadTemplateEditor.assert_called_once_with(
-                self.config["ExportTemplates"]["template1"], "template1"
-            )
-            mock_editor.exec.assert_called_once()
-
-    def test_editTemplate_skips_when_not_in_config(self):
-        with patch(
-            "anki_dictionary.ui.settings.export_templates_tab.TemplateEditor"
-        ) as mock_editor_cls:
-            mock_item = MagicMock()
-            mock_item.text.return_value = "nonexistent"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.editTemplate(0)
-
-            mock_editor_cls.assert_not_called()
-
-    def test_removeTemplate_removes_and_saves(self):
-        with (
-            patch(
-                "anki_dictionary.ui.settings.export_templates_tab.miAsk"
-            ) as mock_miAsk,
-            patch(
-                "anki_dictionary.ui.settings.export_templates_tab.save_addon_config"
-            ) as mock_save,
-        ):
-            mock_miAsk.return_value = True
-
-            mock_item = MagicMock()
-            mock_item.text.return_value = "template1"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.removeTemplate(0)
-
-            mock_miAsk.assert_called_once()
-            mock_save.assert_called_once()
-            self.assertNotIn("template1", self.config["ExportTemplates"])
-            self.tab.table.removeRow.assert_called_with(0)
-
-    def test_removeTemplate_skipped_when_cancelled(self):
-        with (
-            patch(
-                "anki_dictionary.ui.settings.export_templates_tab.miAsk"
-            ) as mock_miAsk,
-            patch(
-                "anki_dictionary.ui.settings.export_templates_tab.save_addon_config"
-            ) as mock_save,
-        ):
-            mock_miAsk.return_value = False
-
-            mock_item = MagicMock()
-            mock_item.text.return_value = "template1"
-            self.tab.table.item.return_value = mock_item
-
-            self.tab.removeTemplate(0)
-
-            mock_save.assert_not_called()
-
-    def test_removeTempRow_returns_lambda(self):
-        fn = self.tab.removeTempRow(1)
-        self.assertTrue(callable(fn))
-
-    def test_editTempRow_returns_lambda(self):
-        fn = self.tab.editTempRow(1)
-        self.assertTrue(callable(fn))
-
-
-# ===================================================================
-# DictGroupEditor
-# ===================================================================
-class TestDictGroupEditor(unittest.TestCase):
-    def test_init_creates_expected_widgets(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        editor = DictGroupEditor(mw, parent, ["dict_a", "dict_b"])
-
-        self.assertIsNotNone(editor.groupName)
-        self.assertIsNotNone(editor.fontFromDropdown)
-        self.assertIsNotNone(editor.fontFromFile)
-        self.assertIsNotNone(editor.fontDropDown)
-        self.assertIsNotNone(editor.fontFileName)
-        self.assertIsNotNone(editor.browseFontFile)
-        self.assertIsNotNone(editor.dictionaries)
-        self.assertIsNotNone(editor.selectAll)
-        self.assertIsNotNone(editor.removeAll)
-        self.assertIsNotNone(editor.cancelButton)
-        self.assertIsNotNone(editor.saveButton)
-
-    def test_init_with_group_loads_existing(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        group = {
-            "dictionaries": ["dict_a"],
-            "customFont": True,
-            "font": "Custom.ttf",
-        }
-        editor = DictGroupEditor(mw, parent, ["dict_a"], group, "mygroup")
-
-        self.assertFalse(editor.new)
-        editor.setWindowTitle.assert_any_call("Edit Dictionary Group")
-        editor.groupName.setText.assert_called_with("mygroup")
-        editor.groupName.setEnabled.assert_called_with(False)
-
-    def test_getSelectedDictionaries_returns_correct_format(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        editor = DictGroupEditor(mw, parent, ["dict_a", "dict_b"])
-
-        editor.dictionaries.rowCount.return_value = 2
-
-        items = {}
-        for row in range(2):
-            for col in range(3):
-                item = MagicMock()
-                item.text.return_value = ""
-                items[(row, col)] = item
-
-        items[(0, 0)].text.return_value = "dict_a"
-        items[(0, 1)].text.return_value = "1"
-        items[(1, 0)].text.return_value = "dict_b"
-        items[(1, 1)].text.return_value = "2"
-
-        def item_side(row, col):
-            return items.get((row, col), MagicMock())
-
-        editor.dictionaries.item.side_effect = item_side
-
-        result = editor.getSelectedDictionaries()
-        self.assertEqual(result, [[0, 1, "dict_a"], [1, 2, "dict_b"]])
-
-        result_names = editor.getSelectedDictionaries(onlyNames=True)
-        self.assertEqual(result_names, ["dict_a", "dict_b"])
-
-    def test_clearGroupEditor_resets_state(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        editor = DictGroupEditor(mw, parent, ["dict_a"])
-
-        editor.groupName.reset_mock()
-        editor.groupName.setEnabled.reset_mock()
-        editor.setWindowTitle.reset_mock()
-        editor.fontFromDropdown.setChecked.reset_mock()
-        editor.fontFileName.setText.reset_mock()
-        editor.fontDropDown.setCurrentIndex.reset_mock()
-
-        editor.clearGroupEditor(True)
-
-        self.assertTrue(editor.groupName.clear.called)
-        editor.groupName.setEnabled.assert_called_with(True)
-        editor.fontFromDropdown.setChecked.assert_called_with(True)
-        editor.fontFileName.setText.assert_called_with("None Selected")
-        editor.fontDropDown.setCurrentIndex.assert_called_with(0)
-
-    def test_toggleFontType_from_file(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        editor = DictGroupEditor(mw, parent, ["dict_a"])
-
-        editor.toggleFontType(True)
-
-        editor.fontDropDown.setEnabled.assert_called_with(False)
-        editor.browseFontFile.setEnabled.assert_called_with(True)
-        editor.fontFileName.setEnabled.assert_called_with(True)
-
-    def test_toggleFontType_from_dropdown(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        editor = DictGroupEditor(mw, parent, ["dict_a"])
-
-        editor.toggleFontType(False)
-
-        editor.fontDropDown.setEnabled.assert_called_with(True)
-        editor.browseFontFile.setEnabled.assert_called_with(False)
-        editor.fontFileName.setEnabled.assert_called_with(False)
-
-    def test_resetNew(self):
-        mw = MagicMock()
-        parent = MagicMock()
-        editor = DictGroupEditor(mw, parent, ["dict_a"])
-        editor.resetNew()
-        self.assertTrue(editor.new)
-
-
-# ===================================================================
-# TemplateEditor
-# ===================================================================
-class TestTemplateEditor(unittest.TestCase):
-    def test_init_creates_expected_widgets(self):
-        mw = MagicMock()
-        mw.col.models.all.return_value = [
-            {
-                "name": "Basic",
-                "flds": [{"name": "Front"}, {"name": "Back"}],
-            }
-        ]
-        editor = TemplateEditor(mw, MagicMock(), ["dict_a", "Images"])
-
-        self.assertIsNotNone(editor.templateName)
-        self.assertIsNotNone(editor.noteType)
-        self.assertIsNotNone(editor.wordField)
-        self.assertIsNotNone(editor.sentenceField)
-        self.assertIsNotNone(editor.secondaryField)
-        self.assertIsNotNone(editor.notesField)
-        self.assertIsNotNone(editor.imageField)
-        self.assertIsNotNone(editor.audioField)
-        self.assertIsNotNone(editor.otherDictsField)
-        self.assertIsNotNone(editor.dictionaries)
-        self.assertIsNotNone(editor.fields)
-        self.assertIsNotNone(editor.addDictField)
-        self.assertIsNotNone(editor.dictFieldsTable)
-        self.assertIsNotNone(editor.entrySeparator)
-        self.assertIsNotNone(editor.cancelButton)
-        self.assertIsNotNone(editor.saveButton)
-
-    def test_init_with_existing_template(self):
-        mw = MagicMock()
-        mw.col.models.all.return_value = [
-            {
-                "name": "Basic",
-                "flds": [{"name": "Front"}, {"name": "Back"}],
-            }
-        ]
-        template_data = {
-            "noteType": "Basic",
-            "sentence": "Front",
-            "word": "Back",
-            "secondary": "Don't Export",
-            "notes": "Don't Export",
-            "image": "Don't Export",
-            "audio": "Don't Export",
-            "unspecified": "Back",
-            "specific": {},
-            "separator": "<br><br>",
-        }
-        editor = TemplateEditor(
-            mw, MagicMock(), ["dict_a"], template_data, "mytemplate"
-        )
-
-        editor.setWindowTitle.assert_any_call("Edit Export Template")
-
-
-# ===================================================================
-# SettingsGui
-# ===================================================================
-_CONFIG_WITH_EMPTY_GROUPS = {
+_BASE_CONFIG: dict = {
     "DictionaryGroups": {},
     "ExportTemplates": {},
+    "maxSearch": 1000,
+    "dictSearch": 50,
+    "highlightTarget": True,
+    "showTarget": False,
+    "tooltips": True,
+    "dictAlwaysOnTop": False,
+    "llm_enabled": False,
+    "forvo_enabled": True,
+    "forvo_language": "ja",
+    "frontBracket": "【",
+    "backBracket": "】",
 }
 
 
-class TestSettingsGui(unittest.TestCase):
-    def setUp(self):
-        # FrequencySettingsTab._build_ui() calls _refresh_installed_files()
-        # which calls _clear_layout() — a `while layout.count():` loop.
-        # With mock Qt layouts, count() returns a truthy MagicMock, so the
-        # loop never terminates.  These tests exercise SettingsGui, not the
-        # frequency tab's file listing, so skip the refresh entirely.
-        self._refresh_patch = patch(
-            "anki_dictionary.ui.settings.frequency_settings_tab."
-            "FrequencySettingsTab._refresh_installed_files"
-        )
-        self._refresh_patch.start()
-        self.addCleanup(self._refresh_patch.stop)
+def _make_mw() -> MagicMock:
+    mw = MagicMock()
+    mw.miDictDB.getAllDictsWithLang.return_value = []
+    mw.col.models.all.return_value = []
+    return mw
 
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_init_creates_tabs(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        mw = MagicMock()
+
+def _make_gui(mw: MagicMock | None = None, config: dict | None = None) -> SettingsGui:
+    mw = mw or _make_mw()
+    if config is not None:
         mw.miDictDB.getAllDictsWithLang.return_value = []
+    with patch(
+        "anki_dictionary.ui.settings.settings_gui.get_addon_config",
+        return_value=config if config is not None else _BASE_CONFIG,
+    ):
         gui = SettingsGui(mw, "/tmp", MagicMock())
+    # Spy on the bridge's real _push method so GUI tests can assert replies.
+    gui._bridge._push = MagicMock()
+    return gui
 
-        self.assertIsNotNone(gui.dictGroupsTab)
-        self.assertIsNotNone(gui.exportTemplatesTab)
-        self.assertIsNotNone(gui.llmTab)
-        self.assertIsNotNone(gui.forvoTab)
-        self.assertIsNotNone(gui.frequencyTab)
 
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_getConfig_returns_config(self, mock_get_config):
-        expected = {"key": "value", "ExportTemplates": {}, "DictionaryGroups": {}}
-        mock_get_config.return_value = expected
-        mw = MagicMock()
-        mw.miDictDB.getAllDictsWithLang.return_value = []
-        gui = SettingsGui(mw, "/tmp", MagicMock())
+def _make_bridge(settings_gui: MagicMock | None = None, mw: MagicMock | None = None):
+    """Build a SettingsBridge with a stub settings_gui (no Qt window)."""
+    gui = settings_gui or MagicMock()
+    if not isinstance(gui, MagicMock):
+        gui = MagicMock()
+    gui.config = dict(_BASE_CONFIG)
+    mw = mw or _make_mw()
+    bridge = SettingsBridge(gui, mw, "/tmp")
+    bridge._push = MagicMock()  # spy on replies
+    return bridge, gui, mw
 
-        result = gui.getConfig()
-        self.assertEqual(result, expected)
 
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_getDictionaryNames_returns_sorted_list(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        mw = MagicMock()
+# ===================================================================
+# SettingsGui — the Qt shell
+# ===================================================================
+class TestSettingsGuiShell(unittest.TestCase):
+    def test_init_loads_config_and_creates_bridge(self):
+        gui = _make_gui()
+        self.assertEqual(gui.config["maxSearch"], 1000)
+        self.assertIsInstance(gui._bridge, SettingsBridge)
+        gui._bridge.setHtml.assert_called()  # web page loaded
+
+    def test_init_sets_window_chrome(self):
+        gui = _make_gui()
+        gui.setMinimumSize.assert_called_with(500, 500)
+        gui.setWindowTitle.assert_called_once()
+        gui.setContextMenuPolicy.assert_called_once()
+        # Non-Windows default size (is_win is False in the mock env).
+        gui.resize.assert_called_with(1034, 650)
+
+    def test_close_clears_mw_dict_settings(self):
+        mw = _make_mw()
+        gui = _make_gui(mw)
+        event = MagicMock()
+        gui.closeEvent(event)
+        mw.dictSettings = None
+        event.accept.assert_called_once()
+
+    def test_hide_clears_mw_dict_settings(self):
+        mw = _make_mw()
+        gui = _make_gui(mw)
+        event = MagicMock()
+        gui.hideEvent(event)
+        mw.dictSettings = None
+        event.accept.assert_called_once()
+
+    def test_after_save_pushes_derived_data(self):
+        mw = _make_mw()
+        mw.miDictDB.getAllDictsWithLang.return_value = [{"dict": "l1nameEnglish"}]
+        mw.miDictDB.cleanDictName.side_effect = lambda n: n.replace("l1name", "")
+        gui = _make_gui(mw)
+
+        gui.after_save()
+
+        gui._bridge._push.assert_called()
+        names = [
+            c.args[1]
+            for c in gui._bridge._push.call_args_list
+            if c.args[0] == "setDictionaryNames"
+        ][0]
+        self.assertIn("English", names)
+        self.assertIn("Images", names)
+
+    def test_browse_font_file_pushes_selected_path(self):
+        gui = _make_gui()
+        with patch("anki_dictionary.ui.settings.settings_gui.QFileDialog") as qfd:
+            qfd.getOpenFileName.return_value = ("/fonts/Custom.ttf", "")
+            gui.browse_font_file()
+            gui._bridge._push.assert_called_with("setFontFile", "/fonts/Custom.ttf")
+
+    def test_browse_font_file_cancelled_pushes_nothing(self):
+        gui = _make_gui()
+        with patch("anki_dictionary.ui.settings.settings_gui.QFileDialog") as qfd:
+            qfd.getOpenFileName.return_value = ("", "")
+            gui.browse_font_file()
+            gui._bridge._push.assert_not_called()
+
+    def test_remove_language_confirmed(self):
+        mw = _make_mw()
+        gui = _make_gui(mw)
+        wl_dir = tempfile.mkdtemp()
+        with open(os.path.join(wl_dir, "English_freq.json"), "w") as f:
+            f.write("{}")
+        with (
+            patch("anki_dictionary.ui.settings.settings_gui.QMessageBox") as qmb,
+            patch(
+                "anki_dictionary.ui.settings.settings_gui.get_word_lists_dir",
+                return_value=wl_dir,
+            ),
+            patch(
+                "anki_dictionary.ui.settings.settings_gui.get_db_dir",
+                return_value=tempfile.mkdtemp(),
+            ),
+        ):
+            dlg = MagicMock()
+            qmb.StandardButton.Yes = 1
+            qmb.StandardButton.No = 2
+            dlg.exec.return_value = qmb.StandardButton.Yes
+            qmb.side_effect = lambda *a, **k: dlg
+
+            gui.remove_language("English")
+
+            mw.miDictDB.deleteLanguage.assert_called_once_with("English")
+            self.assertFalse(os.path.isfile(os.path.join(wl_dir, "English_freq.json")))
+
+    def test_remove_language_cancelled(self):
+        mw = _make_mw()
+        gui = _make_gui(mw)
+        with (
+            patch("anki_dictionary.ui.settings.settings_gui.QMessageBox") as qmb,
+            patch("anki_dictionary.ui.settings.settings_gui.get_word_lists_dir"),
+        ):
+            dlg = MagicMock()
+            dlg.exec.return_value = 2
+            qmb.StandardButton.Yes = 1
+            qmb.side_effect = lambda *a, **k: dlg
+
+            gui.remove_language("English")
+
+            mw.miDictDB.deleteLanguage.assert_not_called()
+
+    def test_select_language_uses_existing_languages(self):
+        mw = _make_mw()
+        mw.miDictDB.getCurrentDbLangs.return_value = ["English", "Japanese"]
+        gui = _make_gui(mw)
+        with patch("anki_dictionary.ui.settings.settings_gui.QInputDialog") as qid:
+            qid.getItem.return_value = ("Japanese", True)
+            self.assertEqual(gui._select_language(), "Japanese")
+
+    def test_select_language_prompts_when_no_languages(self):
+        mw = _make_mw()
+        mw.miDictDB.getCurrentDbLangs.return_value = []
+        gui = _make_gui(mw)
+        with patch("anki_dictionary.ui.settings.settings_gui.QInputDialog") as qid:
+            qid.getText.return_value = ("German", True)
+            self.assertEqual(gui._select_language(), "German")
+
+    def test_web_install_dicts_runs_wizard_and_refreshes(self):
+        mw = _make_mw()
+        gui = _make_gui(mw)
+        with (
+            patch("anki_dictionary.web.installer.DictionaryWebInstallWizard") as wizard,
+            patch.object(gui, "_after_native_change") as refresh,
+        ):
+            gui.web_install_dicts()
+            wizard.execute_modal.assert_called_once()
+            refresh.assert_called_once()
+
+    def test_import_freq_copies_file_and_refreshes(self):
+        mw = _make_mw()
+        gui = _make_gui(mw)
+        src_dir = tempfile.mkdtemp()
+        src = os.path.join(src_dir, "English_freq.json")
+        with open(src, "w") as f:
+            json.dump({"term": 1}, f)
+        with (
+            patch("anki_dictionary.ui.settings.settings_gui.get_word_lists_dir") as wld,
+            patch("anki_dictionary.ui.settings.settings_gui.QFileDialog") as qfd,
+            patch.object(gui, "_select_language", return_value="English"),
+            patch.object(gui, "_after_native_change") as refresh,
+            patch("anki_dictionary.ui.settings.settings_gui.QMessageBox"),
+        ):
+            wld.return_value = tempfile.mkdtemp()
+            qfd.getOpenFileName.return_value = (src, "")
+            gui.import_freq()
+            refresh.assert_called_once()
+            target = os.path.join(wld.return_value, "English_freq.json")
+            self.assertTrue(os.path.isfile(target))
+
+
+# ===================================================================
+# SettingsBridge — the pycmd<->eval command protocol
+# ===================================================================
+class TestSettingsBridge(unittest.TestCase):
+    def test_settingsLoaded_is_noop(self):
+        bridge, _, _ = _make_bridge()
+        bridge.handleSettingsAction("settingsLoaded")
+        bridge._push.assert_not_called()
+
+    def test_getConfig_pushes_staged_config(self):
+        bridge, gui, _ = _make_bridge()
+        gui.config = {"key": "value", "maxSearch": 500}
+        bridge.handleSettingsAction("settings:getConfig")
+        bridge._push.assert_called_with("setConfig", {"key": "value", "maxSearch": 500})
+
+    def test_save_persists_config_and_refreshes(self):
+        bridge, gui, mw = _make_bridge()
+        payload = {"maxSearch": 123, "frontBracket": "["}
+        with (
+            patch(
+                "anki_dictionary.ui.settings.settings_bridge.save_addon_config",
+                return_value=True,
+            ) as save,
+            patch.object(gui, "after_save") as after_save,
+        ):
+            bridge.handleSettingsAction("settings:save:" + json.dumps(payload))
+
+            save.assert_called_once_with(payload)
+            self.assertEqual(gui.config, payload)
+            after_save.assert_called_once()
+            mw.refreshAnkiDictConfig.assert_called_with(payload)
+        bridge._push.assert_called_with("setSaved", True)
+
+    def test_save_invalid_json_does_not_crash(self):
+        bridge, gui, _ = _make_bridge()
+        with (
+            patch(
+                "anki_dictionary.ui.settings.settings_bridge.save_addon_config"
+            ) as save,
+            patch.object(gui, "after_save") as after_save,
+        ):
+            bridge.handleSettingsAction("settings:save:not-json{")
+            save.assert_not_called()
+            after_save.assert_not_called()
+        bridge._push.assert_called_with("setSaved", True)
+
+    def test_getDictionaryNames_includes_images_llm_forvo(self):
+        bridge, gui, mw = _make_bridge()
         mw.miDictDB.getAllDictsWithLang.return_value = [
             {"dict": "l1nameEnglish"},
             {"dict": "l2nameFrench"},
         ]
-        gui = SettingsGui(mw, "/tmp", MagicMock())
+        mw.miDictDB.cleanDictName.side_effect = lambda n: n.replace(
+            "l1name", ""
+        ).replace("l2name", "")
+        gui.config = {"llm_enabled": True, "forvo_enabled": True}
 
-        gui.llmTab.llmEnabled.isChecked.return_value = True
-        gui.forvoTab.forvoEnabled.isChecked.return_value = True
+        bridge.handleSettingsAction("settings:getDictionaryNames")
 
-        names = gui.getDictionaryNames()
-        self.assertIn("English", names)
-        self.assertIn("French", names)
-        self.assertIn("Images", names)
-        self.assertIn("LLM", names)
-        self.assertIn("Forvo", names)
-        self.assertEqual(names, sorted(names, key=str.casefold))
-
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_getDictionaryNames_without_llm_forvo(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        mw = MagicMock()
-        mw.miDictDB.getAllDictsWithLang.return_value = []
-        gui = SettingsGui(mw, "/tmp", MagicMock())
-
-        gui.llmTab.llmEnabled.isChecked.return_value = False
-        gui.forvoTab.forvoEnabled.isChecked.return_value = False
-
-        names = gui.getDictionaryNames()
-        self.assertIn("Images", names)
-        self.assertNotIn("LLM", names)
-        self.assertNotIn("Forvo", names)
-
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_cleanDictName_removes_pattern(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        gui = SettingsGui(MagicMock(), "/tmp", MagicMock())
-
-        self.assertEqual(gui.cleanDictName("l1nameEnglish"), "English")
-        self.assertEqual(gui.cleanDictName("l42nameHello"), "Hello")
-        self.assertEqual(gui.cleanDictName("NoPattern"), "NoPattern")
-        self.assertEqual(gui.cleanDictName("l1name"), "")
-        self.assertEqual(gui.cleanDictName(""), "")
-
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_wrapInScrollArea(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        gui = SettingsGui(MagicMock(), "/tmp", MagicMock())
-        mock_widget = MagicMock()
-        scroll = gui.wrapInScrollArea(mock_widget)
-
-        scroll.setWidget.assert_called_with(mock_widget)
-        scroll.setWidgetResizable.assert_called_with(True)
-
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_restoreDefaults_with_confirmation(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        mw = MagicMock()
-        mw.addonManager.addonConfigDefaults.return_value = {"default": "config"}
-        gui = SettingsGui(mw, "/tmp", MagicMock())
-
-        with (
-            patch("anki_dictionary.ui.settings.settings_gui.miAsk") as mock_miAsk,
-            patch(
-                "anki_dictionary.ui.settings.settings_gui.save_addon_config"
-            ) as mock_save,
-        ):
-            mock_miAsk.return_value = True
-            gui.restoreDefaults()
-            mock_save.assert_called_once_with({"default": "config"})
-            gui.reboot.assert_called_once()
-
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_restoreDefaults_without_confirmation(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        mw = MagicMock()
-        gui = SettingsGui(mw, "/tmp", MagicMock())
-
-        with (
-            patch("anki_dictionary.ui.settings.settings_gui.miAsk") as mock_miAsk,
-            patch(
-                "anki_dictionary.ui.settings.settings_gui.save_addon_config"
-            ) as mock_save,
-        ):
-            mock_miAsk.return_value = False
-            gui.restoreDefaults()
-            mock_save.assert_not_called()
-
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_loadConfig_sets_widgets(self, mock_get_config):
-        full_cfg = {
-            **_CONFIG_WITH_EMPTY_GROUPS,
-            "highlightTarget": False,
-            "maxSearch": 500,
-            "dictSearch": 25,
-            "imageSearchRegion": "Japan",
-            "maxWidth": 800,
-            "maxHeight": 300,
-            "frontBracket": "(",
-            "backBracket": ")",
-            "showTarget": True,
-            "tooltips": False,
-            "dictAlwaysOnTop": True,
-            "jReadingCards": True,
-        }
-        mock_get_config.return_value = full_cfg
-        mw = MagicMock()
-        mw.miDictDB.getAllDictsWithLang.return_value = []
-        gui = SettingsGui(mw, "/tmp", MagicMock())
-
-        gui.loadConfig()
-
-        gui.highlightTarget.setChecked.assert_called_with(full_cfg["highlightTarget"])
-        gui.totalDefs.setValue.assert_called_with(full_cfg["maxSearch"])
-        gui.dictDefs.setValue.assert_called_with(full_cfg["dictSearch"])
-        gui.imageSearchCountry.setCurrentText.assert_called_with(
-            full_cfg["imageSearchRegion"]
+        names = bridge._push.call_args[0][1]
+        self.assertEqual(
+            names,
+            sorted(["English", "French", "Images", "LLM", "Forvo"], key=str.casefold),
         )
-        gui.maxImgWidth.setValue.assert_called_with(full_cfg["maxWidth"])
-        gui.maxImgHeight.setValue.assert_called_with(full_cfg["maxHeight"])
-        gui.frontBracket.setText.assert_called_with(full_cfg["frontBracket"])
-        gui.backBracket.setText.assert_called_with(full_cfg["backBracket"])
-        gui.showTarget.setChecked.assert_called_with(full_cfg["showTarget"])
-        gui.tooltipCB.setChecked.assert_called_with(full_cfg["tooltips"])
-        gui.dictOnTop.setChecked.assert_called_with(full_cfg["dictAlwaysOnTop"])
-        gui.genJSExport.setChecked.assert_called_with(full_cfg["jReadingCards"])
 
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_saveConfig_saves_widgets(self, mock_get_config):
-        mock_get_config.return_value = {
-            "ExportTemplates": {},
-            "DictionaryGroups": {},
-        }
-        mw = MagicMock()
+    def test_getDictionaryNames_skips_disabled_providers(self):
+        bridge, gui, mw = _make_bridge()
         mw.miDictDB.getAllDictsWithLang.return_value = []
-        gui = SettingsGui(mw, "/tmp", MagicMock())
+        gui.config = {"llm_enabled": False, "forvo_enabled": False}
 
-        gui.highlightTarget.isChecked.return_value = True
-        gui.totalDefs.value.return_value = 100
-        gui.dictDefs.value.return_value = 10
-        gui.imageSearchCountry.currentText.return_value = "United States"
-        gui.maxImgWidth.value.return_value = 500
-        gui.maxImgHeight.value.return_value = 200
-        gui.frontBracket.text.return_value = "【"
-        gui.backBracket.text.return_value = "】"
-        gui.showTarget.isChecked.return_value = False
-        gui.tooltipCB.isChecked.return_value = True
-        gui.dictOnTop.isChecked.return_value = False
-        gui.genJSExport.isChecked.return_value = False
+        bridge.handleSettingsAction("settings:getDictionaryNames")
 
+        names = bridge._push.call_args[0][1]
+        self.assertEqual(names, ["Images"])
+
+    def test_getNoteTypes(self):
+        bridge, _, mw = _make_bridge()
+        mw.col.models.all.return_value = [
+            {"name": "Basic", "flds": [{"name": "Front"}, {"name": "Back"}]}
+        ]
+        bridge.handleSettingsAction("settings:getNoteTypes")
+        bridge._push.assert_called_with("setNoteTypes", {"Basic": ["Front", "Back"]})
+
+    def test_getLanguagesDicts(self):
+        bridge, _, mw = _make_bridge()
+        mw.miDictDB.getAllDictsWithLang.return_value = [
+            {"dict": "l1nameEnglish", "lang": "English"},
+            {"dict": "l2nameFrench", "lang": "French"},
+        ]
+        mw.miDictDB.cleanDictName.side_effect = lambda n: n.replace(
+            "l1name", ""
+        ).replace("l2name", "")
+        bridge.handleSettingsAction("settings:getLanguagesDicts")
+        bridge._push.assert_called_with(
+            "setLanguagesDicts", {"English": ["English"], "French": ["French"]}
+        )
+
+    def test_getWordListData_groups_files(self):
+        bridge, _, mw = _make_bridge()
+        tmp = tempfile.mkdtemp()
+        with open(os.path.join(tmp, "English_freq.json"), "w") as f:
+            json.dump({"term": [[1, 2]]}, f)
         with patch(
-            "anki_dictionary.ui.settings.settings_gui.save_addon_config"
-        ) as mock_save:
-            gui.saveConfig()
+            "anki_dictionary.ui.settings.settings_bridge.get_word_lists_dir",
+            return_value=tmp,
+        ):
+            bridge.handleSettingsAction("settings:getWordListData")
+        payload = bridge._push.call_args[0][1]
+        self.assertEqual(payload["files"][0]["lang"], "English")
+        self.assertEqual(payload["files"][0]["files"][0]["name"], "English_freq.json")
+        self.assertIsInstance(payload["providers"], list)
 
-            config = mock_save.call_args[0][0]
-            self.assertTrue(config["highlightTarget"])
-            self.assertEqual(config["maxSearch"], 100)
-            self.assertEqual(config["dictSearch"], 10)
-            self.assertEqual(config["imageSearchRegion"], "United States")
-            self.assertEqual(config["maxWidth"], 500)
-            self.assertEqual(config["maxHeight"], 200)
-            self.assertEqual(config["frontBracket"], "【")
-            self.assertEqual(config["backBracket"], "】")
-            self.assertFalse(config["showTarget"])
-            self.assertTrue(config["tooltips"])
-            self.assertFalse(config["dictAlwaysOnTop"])
-            self.assertFalse(config["jReadingCards"])
+    def test_deleteWordList_removes_file_and_refreshes(self):
+        bridge, _, mw = _make_bridge()
+        tmp = tempfile.mkdtemp()
+        target = os.path.join(tmp, "English_freq.json")
+        with open(target, "w") as f:
+            f.write("{}")
+        with (
+            patch(
+                "anki_dictionary.ui.settings.settings_bridge.get_word_lists_dir",
+                return_value=tmp,
+            ),
+            patch.object(bridge, "_word_list_data", return_value={"files": []}),
+        ):
+            bridge.handleSettingsAction(
+                "settings:deleteWordList:" + json.dumps("English_freq.json")
+            )
+        self.assertFalse(os.path.isfile(target))
+        bridge._push.assert_called_with("setWordListData", {"files": []})
 
-    @patch("anki_dictionary.ui.settings.settings_gui.get_addon_config")
-    def test_miQLabel_creates_label(self, mock_get_config):
-        mock_get_config.return_value = _CONFIG_WITH_EMPTY_GROUPS
-        gui = SettingsGui(MagicMock(), "/tmp", MagicMock())
-        label = gui.miQLabel("Test", 100)
-        label.setFixedHeight.assert_called_with(30)
-        label.setFixedWidth.assert_called_with(100)
+    def test_restoreDefaults_saves_defaults_and_pushes(self):
+        bridge, gui, mw = _make_bridge()
+        with (
+            patch(
+                "anki_dictionary.ui.settings.settings_bridge.save_addon_config"
+            ) as save,
+            patch.object(gui, "after_save") as after_save,
+        ):
+            from aqt import mw as aqt_mw
+
+            aqt_mw.addonManager.addonConfigDefaults.return_value = {"defaults": True}
+            bridge.handleSettingsAction("settings:restoreDefaults")
+
+            save.assert_called_once_with({"defaults": True})
+            self.assertEqual(gui.config, {"defaults": True})
+            after_save.assert_called_once()
+        bridge._push.assert_called_with("setConfig", {"defaults": True})
+
+    def test_removeLanguage_delegates_and_refreshes(self):
+        bridge, gui, _ = _make_bridge()
+        with patch.object(bridge, "_languages_dicts", return_value={"English": []}):
+            bridge.handleSettingsAction(
+                "settings:removeLanguage:" + json.dumps("Japanese")
+            )
+            gui.remove_language.assert_called_once_with("Japanese")
+        bridge._push.assert_called_with("setLanguagesDicts", {"English": []})
+
+    def test_close_delegates_to_gui(self):
+        bridge, gui, _ = _make_bridge()
+        bridge.handleSettingsAction("settings:close")
+        gui.close.assert_called_once()
+
+    def test_testLLM_runs_in_background(self):
+        bridge, _, mw = _make_bridge()
+        config = {"llm_api_key": "k", "llm_base_url": "http://x", "llm_model": "m"}
+        bridge.handleSettingsAction("settings:testLLM:" + json.dumps(config))
+
+        mw.taskman.run_in_background.assert_called_once()
+        run_fn, done_fn = mw.taskman.run_in_background.call_args[0]
+        self.assertTrue(callable(run_fn))
+        self.assertTrue(callable(done_fn))
+
+        # Simulate task completion: on_done must push the result to the UI.
+        future = MagicMock()
+        future.result.return_value = {"success": True, "message": "OK"}
+        done_fn(future)
+        bridge._push.assert_called_with(
+            "setLLMTest", {"success": True, "message": "OK"}
+        )
+
+    def test_native_delegate_routes_to_settings_gui(self):
+        bridge, gui, _ = _make_bridge()
+        for cmd, attr in [
+            ("settings:webInstallDicts", "web_install_dicts"),
+            ("settings:importDicts", "import_dicts"),
+            ("settings:webInstallFreq", "web_install_freq"),
+            ("settings:importFreq", "import_freq"),
+            ("settings:browseFontFile", "browse_font_file"),
+        ]:
+            getattr(gui, attr).reset_mock()
+            bridge.handleSettingsAction(cmd)
+            getattr(gui, attr).assert_called_once()
+
+    def test_unknown_command_is_ignored(self):
+        bridge, _, _ = _make_bridge()
+        bridge.handleSettingsAction("settings:notACommand")
+        bridge._push.assert_not_called()
 
 
 if __name__ == "__main__":

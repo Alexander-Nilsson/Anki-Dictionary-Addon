@@ -6,7 +6,7 @@
   "description": "Svelte UI for the Anki Dictionary Addon (rendered in AnkiWebView)",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/inline.mjs",
+    "build": "node scripts/build-pages.mjs && node scripts/inline.mjs",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },

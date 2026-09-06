@@ -1,16 +1,36 @@
 """Regression tests for Issue #18: Blank edit/delete buttons in settings on Windows 10.
 
-Tests verify that buttons in settings tables have proper text, sizing, and
-tooltips, regardless of platform.  Tests run headless via Qt mocks.
+The old PyQt settings tables drew "Edit"/"X" buttons with icons that rendered
+blank on Windows. Those tables are gone — settings is now a Svelte web UI
+hosted in an ``AnkiWebView``, and the action buttons are plain text buttons in
+HTML/CSS. These tests guard the replacement contract:
+
+1. The built settings bundle exists (a blank UI is only possible if the bundle
+   is missing), so the bridge must resolve it in a source checkout.
+2. When the bundle is missing, the bridge must fall back to a visible error
+   page — never a silently empty web view.
+3. The rendered content must be identical across platforms (no Windows-only
+   code path that could drop the action buttons); only the initial window size
+   differs, and both sizes stay above the 500x500 minimum so a tiny window
+   never clips the action buttons.
+4. The self-contained bundle must keep text-labeled Edit/Remove affordances
+   (the issue-#18 fix carried into the web UI).
 """
 
 from __future__ import annotations
 
 import atexit
+import os
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import MagicMock, patch
+
+# ---------------------------------------------------------------------------
+# Module-level mocks for Qt, Anki, and aqt BEFORE importing the modules under
+# test (same preamble as test_settings.py / test_issue17_disconnect_warning.py).
+# ---------------------------------------------------------------------------
 
 
 class _QtMockMeta(type):
@@ -32,37 +52,67 @@ class _QtMockBase(metaclass=_QtMockMeta):
         return self._mock_attrs[name]
 
 
+def _make_signal(*_types):
+    """Functional stand-in for Qt's pyqtSignal: emit() dispatches to the
+    handlers connected via connect(). See tests/test_settings.py for why
+    this matters (module collection order + shared aqt.qt mock)."""
+    handlers: list = []
+
+    def _connect(handler):
+        handlers.append(handler)
+        return signal
+
+    def _emit(*args, **kwargs):
+        for handler in list(handlers):
+            handler(*args, **kwargs)
+        return signal
+
+    signal = MagicMock()
+    signal.connect.side_effect = _connect
+    signal.emit.side_effect = _emit
+    return signal
+
+
 _QT_CLASSES = [
-    "QAbstractItemView",
-    "QCheckBox",
-    "QComboBox",
-    "QDialog",
-    "QDoubleSpinBox",
     "QEvent",
     "QFileDialog",
-    "QFontDatabase",
-    "QFormLayout",
-    "QFrame",
-    "QGroupBox",
-    "QHBoxLayout",
-    "QHeaderView",
     "QIcon",
+    "QInputDialog",
     "QKeySequence",
-    "QLabel",
-    "QLineEdit",
     "QMessageBox",
-    "QPushButton",
-    "QRadioButton",
-    "QScrollArea",
+    "QProgressDialog",
     "QShortcut",
-    "QSize",
-    "QSpinBox",
-    "QTabWidget",
-    "QTableWidget",
-    "QTableWidgetItem",
-    "QTextEdit",
+    "QUrl",
     "QVBoxLayout",
     "QWidget",
+    # Superset shared with tests/test_settings.py and
+    # tests/test_issue17_disconnect_warning.py: pytest imports every test
+    # module during collection, and the last mock preamble written to
+    # sys.modules wins for the whole session. Keeping the identical superset
+    # in each file makes test behaviour independent of collection/CLI order.
+    # Used by anki_dictionary.integrations.llm.
+    "QObject",
+    "QRunnable",
+    # Used by anki_dictionary.web.installer + ui.dialogs.wizard (native
+    # delegates reachable from the bridge).
+    "QCheckBox",
+    "QDialog",
+    "QFrame",
+    "QHBoxLayout",
+    "QLabel",
+    "QLayout",
+    "QLineEdit",
+    "QPalette",
+    "QPlainTextEdit",
+    "QProgressBar",
+    "QPushButton",
+    "QSizePolicy",
+    "QStyle",
+    "QTextCursor",
+    "QTextEdit",
+    "QThread",
+    "QTreeWidget",
+    "QTreeWidgetItem",
 ]
 
 _saved_modules = {}
@@ -81,6 +131,7 @@ _mock_aqt_qt = types.ModuleType("aqt.qt")
 for _name in _QT_CLASSES:
     setattr(_mock_aqt_qt, _name, type(_name, (_QtMockBase,), {}))
 _mock_aqt_qt.Qt = MagicMock()
+_mock_aqt_qt.pyqtSignal = _make_signal
 sys.modules["aqt.qt"] = _mock_aqt_qt
 
 _mock_aqt = types.ModuleType("aqt")
@@ -92,8 +143,9 @@ for _n in ("tooltip", "showInfo", "openLink", "askUser"):
     setattr(_mock_aqt_utils, _n, MagicMock())
 sys.modules["aqt.utils"] = _mock_aqt_utils
 
+# AnkiWebView must be a *class* (SettingsBridge subclasses it).
 _mock_aqt_webview = types.ModuleType("aqt.webview")
-_mock_aqt_webview.AnkiWebView = MagicMock()
+_mock_aqt_webview.AnkiWebView = type("AnkiWebView", (_QtMockBase,), {})
 sys.modules["aqt.webview"] = _mock_aqt_webview
 
 _mock_anki_utils = types.ModuleType("anki.utils")
@@ -110,167 +162,106 @@ _mock_anki_lang = types.ModuleType("anki.lang")
 _mock_anki_lang._ = lambda x: x
 sys.modules["anki.lang"] = _mock_anki_lang
 
-_mock_dict_mgr = types.ModuleType("anki_dictionary.ui.dialogs.dictionary_manager")
-_mock_dict_mgr.DictionaryManagerWidget = MagicMock()
-sys.modules["anki_dictionary.ui.dialogs.dictionary_manager"] = _mock_dict_mgr
-
 atexit.register(lambda: None)
 
-from anki_dictionary.ui.settings.dict_groups_tab import (
-    DictionaryGroupsTab,
-)  # noqa: E402
-from anki_dictionary.ui.settings.export_templates_tab import (
-    ExportTemplatesTab,
-)  # noqa: E402
+from anki_dictionary.ui.settings.settings_bridge import (  # noqa: E402
+    SettingsBridge,
+    _svelte_settings_path,
+)
+from anki_dictionary.ui.settings.settings_gui import SettingsGui  # noqa: E402
 
-DGT = "anki_dictionary.ui.settings.dict_groups_tab"
-ETT = "anki_dictionary.ui.settings.export_templates_tab"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BUNDLE_SOURCE = os.path.join(REPO_ROOT, "web", "dist", "settings.html")
 
 
-class TestButtonsCreatedAndSized(unittest.TestCase):
-    """Verify that all platform branches create properly sized buttons."""
+def _make_gui(mw: MagicMock | None = None) -> SettingsGui:
+    mw = mw or MagicMock()
+    mw.miDictDB.getAllDictsWithLang.return_value = []
+    mw.col.models.all.return_value = []
+    with patch(
+        "anki_dictionary.ui.settings.settings_gui.get_addon_config",
+        return_value={"llm_enabled": False, "forvo_enabled": True},
+    ):
+        return SettingsGui(mw, REPO_ROOT, MagicMock())
 
-    def setUp(self):
-        self.mw = MagicMock()
-        self.parent = MagicMock()
-        self.config = {
-            "DictionaryGroups": {
-                "g1": {"dictionaries": ["a"], "customFont": False, "font": "A"},
-            },
-            "ExportTemplates": {
-                "t1": {"noteType": "Basic", "sentence": "S", "word": "W"},
-            },
-        }
-        self.names = ["a", "Images"]
 
-    # ── Button creation ────────────────────────────────────────────────
+class TestBundlePresentInSourceCheckout(unittest.TestCase):
+    """A blank UI in a source checkout means the web build is missing."""
 
-    def _check_buttons_created(self, tab):
-        mod = type(tab).__module__
-        with patch(f"{mod}.QPushButton") as mock_btn:
-            texts = []
-            mock_btn.side_effect = lambda t: (texts.append(t), MagicMock())[-1][1]
-            if isinstance(tab, DictionaryGroupsTab):
-                tab.loadGroupTable()
-            else:
-                tab.loadTemplateTable()
-            self.assertIn("Edit", texts)
-            self.assertIn("X", texts)
+    @unittest.skipUnless(
+        os.path.isfile(BUNDLE_SOURCE),
+        "web/dist/settings.html not built (npm run build)",
+    )
+    def test_bundle_resolves_to_existing_file(self):
+        path = _svelte_settings_path(REPO_ROOT)
+        self.assertTrue(os.path.isfile(path), f"settings bundle missing at {path}")
 
-    def test_dict_groups_buttons_created(self):
-        self._check_buttons_created(
-            DictionaryGroupsTab(
-                self.mw, self.parent, lambda: self.config, lambda: self.names
-            ),
-        )
+    @unittest.skipUnless(
+        os.path.isfile(BUNDLE_SOURCE),
+        "web/dist/settings.html not built (npm run build)",
+    )
+    def test_bundle_is_self_contained_html(self):
+        with open(BUNDLE_SOURCE, encoding="utf-8") as fh:
+            html = fh.read()
+        # The page must carry the JS reply surface the bridge drives.
+        self.assertIn("SETTINGS", html)
+        # And must render the text-labeled action affordances (Issue #18: the
+        # old Qt buttons went blank on Windows; these are plain text buttons).
+        self.assertIn("Edit", html)
+        self.assertIn("Remove", html)
 
-    def test_export_templates_buttons_created(self):
-        self._check_buttons_created(
-            ExportTemplatesTab(
-                self.mw, self.parent, lambda: self.config, lambda: self.names
-            ),
-        )
 
-    # ── Button sizing (setFixedWidth / setFixedHeight) ─────────────────
+class TestMissingBundleFallsBack(unittest.TestCase):
+    """A missing bundle must produce a visible error page, never a blank view."""
 
-    def _check_button_sizing(self, tab, load_method, mod_path, expect_height=True):
-        with patch(f"{mod_path}.QPushButton") as mock_btn:
-            edit = MagicMock()
-            dlt = MagicMock()
-            edit_widths = []
-            dlt_widths = []
-            edit_heights = []
-            dlt_heights = []
-            edit.setFixedWidth.side_effect = lambda w: edit_widths.append(w)
-            dlt.setFixedWidth.side_effect = lambda w: dlt_widths.append(w)
-            edit.setFixedHeight.side_effect = lambda h: edit_heights.append(h)
-            dlt.setFixedHeight.side_effect = lambda h: dlt_heights.append(h)
+    def test_missing_bundle_loads_error_page(self):
+        tmp = tempfile.mkdtemp()  # no settings.html inside
+        bridge = SettingsBridge(MagicMock(), MagicMock(), tmp)
+        html = bridge.setHtml.call_args[0][0]
+        self.assertIn("Settings bundle not found", html)
+        self.assertNotEqual(html.strip(), "")
 
-            mock_btn.side_effect = lambda t: {"Edit": edit, "X": dlt}.get(
-                t, MagicMock()
-            )
 
-            load_method()
+class TestPlatformIndependence(unittest.TestCase):
+    """Windows may adjust window size, but never page content or minimum size."""
 
-            # Both buttons must have width >= 40px
-            self.assertTrue(
-                all(w >= 40 for w in edit_widths),
-                f"Edit button widths {edit_widths} below 40",
-            )
-            self.assertTrue(
-                all(w >= 40 for w in dlt_widths),
-                f"Delete button widths {dlt_widths} below 40",
-            )
+    def test_minimum_size_always_500(self):
+        for win in (True, False):
+            with patch("anki_dictionary.ui.settings.settings_gui.is_win", win):
+                gui = _make_gui()
+                gui.setMinimumSize.assert_called_with(500, 500)
 
-            # When expect_height is True, both must have height set
-            if expect_height:
-                self.assertTrue(
-                    len(edit_heights) > 0, "Edit button setFixedHeight not called"
-                )
-                self.assertTrue(
-                    len(dlt_heights) > 0, "Delete button setFixedHeight not called"
-                )
+    def test_page_content_identical_on_all_platforms(self):
+        """The Svelte page loaded by the bridge must not depend on is_win."""
+        tmp_dir = tempfile.mkdtemp()
+        dist_dir = os.path.join(tmp_dir, "web", "dist")
+        os.makedirs(dist_dir)
+        bundle = os.path.join(dist_dir, "settings.html")
+        with open(bundle, "w", encoding="utf-8") as fh:
+            fh.write("<html>settings</html>")
 
-    def test_dict_groups_windows_button_sizing(self):
-        tab = DictionaryGroupsTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        with (
-            patch(f"{DGT}.is_win", True),
-            patch(f"{DGT}.is_lin", False),
-            patch(f"{DGT}.is_mac", False),
-        ):
-            self._check_button_sizing(tab, tab.loadGroupTable, DGT, expect_height=False)
+        # The bridge reads the bundle verbatim; the platform must never enter
+        # this code path (is_win is not even referenced by settings_bridge).
+        htmls = []
+        for _ in range(2):
+            bridge = SettingsBridge(MagicMock(), MagicMock(), tmp_dir)
+            htmls.append(bridge.setHtml.call_args[0][0])
 
-    def test_dict_groups_non_windows_button_sizing(self):
-        tab = DictionaryGroupsTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        with (
-            patch(f"{DGT}.is_win", False),
-            patch(f"{DGT}.is_lin", True),
-            patch(f"{DGT}.is_mac", False),
-        ):
-            self._check_button_sizing(tab, tab.loadGroupTable, DGT, expect_height=True)
+        self.assertEqual(htmls[0], htmls[1])
+        self.assertEqual(htmls[0], "<html>settings</html>")
 
-    def test_export_templates_windows_button_sizing(self):
-        tab = ExportTemplatesTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        with (
-            patch(f"{ETT}.is_win", True),
-            patch(f"{ETT}.is_lin", False),
-            patch(f"{ETT}.is_mac", False),
-        ):
-            self._check_button_sizing(
-                tab, tab.loadTemplateTable, ETT, expect_height=False
-            )
-
-    # ── Delete button tooltip ──────────────────────────────────────────
-
-    def test_delete_button_has_tooltip(self):
-        tab = DictionaryGroupsTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        with patch(f"{DGT}.QPushButton") as mock_btn:
-            mock_del = MagicMock()
-            mock_btn.side_effect = lambda t: {"Edit": MagicMock(), "X": mock_del}.get(
-                t, MagicMock()
-            )
-            tab.loadGroupTable()
-            mock_del.setToolTip.assert_called_once()
-
-    def test_export_delete_button_has_tooltip(self):
-        tab = ExportTemplatesTab(
-            self.mw, self.parent, lambda: self.config, lambda: self.names
-        )
-        with patch(f"{ETT}.QPushButton") as mock_btn:
-            mock_del = MagicMock()
-            mock_btn.side_effect = lambda t: {"Edit": MagicMock(), "X": mock_del}.get(
-                t, MagicMock()
-            )
-            tab.loadTemplateTable()
-            mock_del.setToolTip.assert_called_once()
+    def test_initial_sizes_stay_above_minimum(self):
+        """The only Win/non-Win difference is initial size; both are usable."""
+        sizes: dict[bool, tuple[int, int]] = {}
+        for win in (True, False):
+            with patch("anki_dictionary.ui.settings.settings_gui.is_win", win):
+                gui = _make_gui()
+                sizes[win] = gui.resize.call_args[0]
+        self.assertEqual(sizes[True], (920, 650))
+        self.assertEqual(sizes[False], (1034, 650))
+        for size in sizes.values():
+            self.assertGreaterEqual(size[0], 500)
+            self.assertGreaterEqual(size[1], 500)
 
 
 if __name__ == "__main__":

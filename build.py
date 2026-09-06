@@ -243,13 +243,14 @@ def generate_manifest():
 
 
 def build_web_ui(addon_dir: Path):
-    """Build the Svelte UI and copy the bundled dictionary.html into the addon.
+    """Build the Svelte UI and copy the bundled HTML pages into the addon.
 
-    The Svelte app lives in ``web/`` and is compiled with Vite into a single
-    self-contained ``web/dist/dictionary.html`` (inlined JS + CSS). That file
-    is copied to ``assets/web/dictionary.html`` inside the addon package so
-    ``MIDict._svelte_dictionary_path`` can find it at runtime. Skips (with a
-    warning) when Node.js / npm are unavailable or the web build fails.
+    The Svelte apps live in ``web/`` and are compiled with Vite into single
+    self-contained HTML files (inlined JS + CSS): ``web/dist/dictionary.html``
+    (results shell) and ``web/dist/settings.html`` (settings window). They are
+    copied to ``assets/web/`` inside the addon package so the Python side can
+    find them at runtime. Skips (with a warning) when Node.js / npm are
+    unavailable or the web build fails.
     """
     print("🌐 Building Svelte web UI...")
 
@@ -275,16 +276,20 @@ def build_web_ui(addon_dir: Path):
             print(f"      stderr: {e.stderr.decode(errors='replace')[:2000]}")
         return False
 
-    bundled = web_dir / "dist" / "dictionary.html"
-    if not bundled.exists():
-        print("   ⚠️  Bundled dictionary.html not found after build - skipping")
-        return False
-
     target_dir = addon_dir / "assets" / "web"
     target_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(bundled, target_dir / "dictionary.html")
-    print(f"   ✓ Copied Svelte bundle to {target_dir / 'dictionary.html'}")
-    return True
+
+    pages = {"dictionary.html": "dictionary.html", "settings.html": "settings.html"}
+    copied = False
+    for src_name, dst_name in pages.items():
+        bundled = web_dir / "dist" / src_name
+        if not bundled.exists():
+            print(f"   ⚠️  Bundled {src_name} not found after build - skipping")
+            continue
+        shutil.copy2(bundled, target_dir / dst_name)
+        print(f"   ✓ Copied Svelte bundle to {target_dir / dst_name}")
+        copied = True
+    return copied
 
 
 def build_addon():

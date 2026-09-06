@@ -1,145 +1,86 @@
-#
-#
+"""
+Settings window — thin PyQt shell hosting the Svelte settings web UI.
+
+All settings UI (the five tabs plus the dictionary-group and export-template
+editors) lives in the Svelte app built into ``settings.html`` and hosted by
+:class:`SettingsBridge`. This widget provides the native Qt surface (window
+chrome, escape-to-close, ``mw.dictSettings`` teardown) plus the native flows a
+web page cannot drive itself: file dialogs, the dictionary/frequency web
+installers, language removal, and font browsing.
+
+Native commands start with ``settings:<name>``, arrive via the bridge's
+``handleSettingsAction``, and are delegated here; config editing/saving is
+handled entirely by the web UI + bridge.
+"""
+
 from __future__ import annotations
 
-import re
+import json
+import os
+import shutil
+import zipfile
 from collections.abc import Callable
-from os.path import dirname, join
+from os.path import join
 from typing import Any
 
 from anki.utils import is_win
 from aqt.qt import (
-    QCheckBox,
-    QComboBox,
     QEvent,
-    QFormLayout,
-    QFrame,
-    QGroupBox,
-    QHBoxLayout,
+    QFileDialog,
     QIcon,
+    QInputDialog,
     QKeySequence,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QScrollArea,
+    QMessageBox,
+    QProgressDialog,
     QShortcut,
-    QSpinBox,
     Qt,
-    QTabWidget,
-    QUrl,
     QVBoxLayout,
     QWidget,
 )
 
-from ...utils.common import miAsk
-from ...utils.config import get_addon_config, save_addon_config
-from ...utils.constants import COUNTRY_LIST
-from ..dialogs.dictionary_manager import DictionaryManagerWidget
-from .dict_groups_tab import DictionaryGroupsTab
-from .export_templates_tab import ExportTemplatesTab
-from .forvo_settings_tab import ForvoSettingsTab
-from .frequency_settings_tab import FrequencySettingsTab
-from .llm_settings_tab import LLMSettingsTab
+from ...utils.config import get_addon_config
+from ...utils.logger import get_logger
+from ...utils.paths import get_db_dir, get_word_lists_dir
+from .settings_bridge import SettingsBridge
+
+logger = get_logger(__name__.split(".")[-1])
 
 verNumber = "0.1"
 
 
 class SettingsGui(QWidget):
-    def __init__(self, mw: Any, path: str, reboot: Callable[[], None]) -> None:
+    """Qt window around the Svelte settings page + native settings flows."""
+
+    def __init__(
+        self, mw: Any, path: str, reboot: Callable[[], None] | None = None
+    ) -> None:
         super().__init__()
         self.mw = mw
         self.reboot = reboot
         self.addonPath = path
-        self.imageSearchCountries = COUNTRY_LIST
+        self.config = get_addon_config()
+
         self.setMinimumSize(500, 500)
-        if not is_win:
-            self.resize(1034, 650)
-        else:
+        if is_win:
             self.resize(920, 650)
+        else:
+            self.resize(1034, 650)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setWindowTitle("Anki Dictionary Settings (Ver. " + verNumber + ")")
         self.setWindowIcon(QIcon(join(self.addonPath, "assets", "icons", "anki.svg")))
 
-        self.dictGroupsTab = DictionaryGroupsTab(
-            mw, self, self.getConfig, self.getDictionaryNames
-        )
-        self.exportTemplatesTab = ExportTemplatesTab(
-            mw, self, self.getConfig, self.getDictionaryNames
-        )
-        self.addDictGroup = self.dictGroupsTab.add_button
-        self.addExportTemplate = self.exportTemplatesTab.add_button
-        self.dictGroups = self.dictGroupsTab.table
-        self.exportTemplates = self.exportTemplatesTab.table
-        self.tooltipCB = QCheckBox()
-        self.tooltipCB.setFixedHeight(30)
-        self.maxImgWidth = QSpinBox()
-        self.maxImgWidth.setRange(0, 9999)
-        self.maxImgHeight = QSpinBox()
-        self.maxImgHeight.setRange(0, 9999)
-        self.imageSearchCountry = QComboBox()
-        self.imageSearchCountry.addItems(self.imageSearchCountries)
-        self.dictOnTop = QCheckBox()
-        self.showTarget = QCheckBox()
-        self.totalDefs = QSpinBox()
-        self.totalDefs.setRange(0, 1000)
-        self.dictDefs = QSpinBox()
-        self.dictDefs.setRange(0, 100)
-        self.frontBracket = QLineEdit()
-        self.backBracket = QLineEdit()
-        self.highlightTarget = QCheckBox()
-        self.genJSExport = QCheckBox()
-        self.imageAutoConvert = QCheckBox()
-        self.autoSelectGroupCB = QCheckBox()
+        self._bridge = SettingsBridge(self, mw, path)
 
-        self.restoreButton = QPushButton("Restore Defaults")
-        self.cancelButton = QPushButton("Cancel")
-        self.applyButton = QPushButton("Apply")
-        self._tab_widget = QTabWidget()
-        self.settingsTab = QWidget()
-        self.llmTab = LLMSettingsTab(mw, path, self)
-        self.forvoTab = ForvoSettingsTab(mw, path, self)
-        self.frequencyTab = FrequencySettingsTab(mw, path, self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._bridge)
 
-        self.setupLayout()
-
-        # ── Outer layout: tab widget (above) + button bar (below, on every tab) ──
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(self._tab_widget)
-
-        buttons_layout = QHBoxLayout()
-        buttons_layout.addWidget(self.restoreButton)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.cancelButton)
-        buttons_layout.addWidget(self.applyButton)
-        outer.addLayout(buttons_layout)
-
-        self._tab_widget.addTab(self.wrapInScrollArea(self.settingsTab), "Settings")
-        self._tab_widget.addTab(self.wrapInScrollArea(self.llmTab), "LLM")
-        self._tab_widget.addTab(self.wrapInScrollArea(self.forvoTab), "Forvo")
-        self._tab_widget.addTab(
-            self.wrapInScrollArea(self.frequencyTab), "Frequency Lists"
-        )
-        self._tab_widget.addTab(
-            self.wrapInScrollArea(DictionaryManagerWidget(self.mw)), "Dictionaries"
-        )
-
-        self.loadTemplateTable()
-        self.loadGroupTable()
-        self.initHandlers()
-        self.loadConfig()
-        self.initTooltips()
         self.hotkeyEsc = QShortcut(QKeySequence("Esc"), self)
         self.hotkeyEsc.activated.connect(self.close)
 
         self.show()
 
-    def wrapInScrollArea(self, widget: QWidget) -> QScrollArea:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(widget)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        return scroll
+    # ── teardown ─────────────────────────────────────────────
 
     def hideEvent(self, event: QEvent) -> None:  # ty:ignore[invalid-method-override]
         self.mw.dictSettings = None
@@ -149,249 +90,221 @@ class SettingsGui(QWidget):
         self.mw.dictSettings = None
         event.accept()
 
-    def initTooltips(self) -> None:
-        self.dictGroupsTab.init_tooltips()
-        self.exportTemplatesTab.init_tooltips()
-        self.tooltipCB.setToolTip(
-            "Enable/disable tooltips within the dictionary and its sub-windows."
+    # ── config lifecycle (called by the bridge) ───────────────
+
+    def after_save(self) -> None:
+        """Refresh web-side data after the config is persisted (bridge-driven).
+
+        The bridge persists the staged config itself; here we re-push the
+        derived data sets so editors (dictionary defaults in groups, per-dict
+        field overrides, language list) reflect post-save state.
+        """
+        bridge = self._bridge
+        bridge._push("setDictionaryNames", bridge._dictionary_names())
+        bridge._push("setWordListData", bridge._word_list_data())
+        bridge._push("setLanguagesDicts", bridge._languages_dicts())
+
+    # ── language removal (no tree UI in the web page) ─────────
+
+    def remove_language(self, lang: str) -> None:
+        """Remove a language, its dictionaries, word lists and conjugation data."""
+        db = self.mw.miDictDB
+        dlg = QMessageBox(
+            QMessageBox.Icon.Question,
+            "Anki Dictionary",
+            f'Do you really want to remove the language "{lang}"?\n\n'
+            "All settings and dictionaries for it will be removed.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            self,
         )
-        self.maxImgWidth.setToolTip("Images will be scaled according to this width.")
-        self.maxImgHeight.setToolTip("Images will be scaled according to this height.")
-        self.imageSearchCountry.setToolTip(
-            "Select the country or region for image search, the search region\ngreatly impacts search results so choose a location where your target language is spoken."
+        if dlg.exec() != QMessageBox.StandardButton.Yes:
+            return
+
+        db.deleteLanguage(lang)
+
+        try:
+            wl_dir = get_word_lists_dir()
+            if os.path.isdir(wl_dir):
+                for filename in os.listdir(wl_dir):
+                    if filename.lower().startswith(lang.lower().replace(" ", "_")):
+                        os.remove(os.path.join(wl_dir, filename))
+        except OSError:
+            logger.debug("Could not clear word lists for %s", lang, exc_info=True)
+
+        try:
+            os.remove(os.path.join(get_db_dir(), "conjugation", f"{lang}.json"))
+        except OSError:
+            pass
+
+        self._after_native_change()
+
+    # ── native delegates (file dialogs / web installers) ─────
+
+    def web_install_dicts(self) -> None:
+        """Open the dictionary web-install wizard (creates languages itself)."""
+        from ...web.installer import DictionaryWebInstallWizard
+
+        DictionaryWebInstallWizard.execute_modal()
+        self._after_native_change()
+
+    def import_dicts(self) -> None:
+        """Import dictionaries from ZIP files into a user-chosen language."""
+        from ..dialogs.dict_import import importDict
+
+        lang = self._select_language()
+        if lang is None:
+            return
+
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select the dictionaries you want to import",
+            os.path.expanduser("~"),
+            "ZIP Files (*.zip);;All Files (*.*)",
         )
-        self.showTarget.setToolTip(
-            "Show/Hide the Target Identifier from the dictionary window. The Target Identifier\nlets you know which window is currently selected and will be used when sending\ndefinitions to a target field."
-        )
-        self.totalDefs.setToolTip(
-            "This is the total maximum number of definitions which the dictionary will output."
-        )
-        self.dictDefs.setToolTip(
-            "This is the maximum number of definitions which the dictionary will output for any given dictionary."
-        )
-        self.imageAutoConvert.setToolTip(
-            "When enabled, images are resized and converted to AVIF format (may cause a small delay). "
-            "Disable to use original images without processing."
-        )
-        self.genJSExport.setToolTip(
-            "If this is enabled and you have Anki Japanese With Pitch Accent installed in Anki,\nthen when a card is exported, readings and accent information will automatically be generated for all\nactive fields. This generation is based on your Anki Japanese With Pitch Accent Sentence Button (文) settings."
-        )
-        self.frontBracket.setToolTip(
-            "This is the text that will be placed in front of each term\n in the dictionary."
-        )
-        self.backBracket.setToolTip(
-            "This is the text that will be placed after each term\nin the dictionary."
-        )
-        self.highlightTarget.setToolTip(
-            "The dictionary will highlight the searched term in\nthe search results."
-        )
-        self.autoSelectGroupCB.setToolTip(
-            "Auto-switch dictionary group based on the script of the searched term.\n"
-            "Configure language→group defaults in the Dictionary Group editor."
+        if not paths:
+            return
+
+        use_default_names = (
+            QMessageBox.question(
+                self,
+                "Use Default Names?",
+                "Do you want to use default names for the imported dictionaries?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            == QMessageBox.StandardButton.Yes
         )
 
-        self.llmTab.init_tooltips()
-
-    def getConfig(self) -> dict[str, Any]:
-        return get_addon_config()
-
-    def loadConfig(self) -> None:
-        config = self.getConfig()
-        self.highlightTarget.setChecked(config.get("highlightTarget", True))
-        self.totalDefs.setValue(config.get("maxSearch", 1000))
-        self.dictDefs.setValue(config.get("dictSearch", 50))
-        self.imageSearchCountry.setCurrentText(
-            config.get("imageSearchRegion", "United States")
+        progress = QProgressDialog(
+            "Importing dictionaries...", "Cancel", 0, len(paths), self
         )
-        self.maxImgWidth.setValue(config.get("maxWidth", 1500))
-        self.maxImgHeight.setValue(config.get("maxHeight", 400))
-        self.frontBracket.setText(config.get("frontBracket", "【"))
-        self.backBracket.setText(config.get("backBracket", "】"))
-        self.showTarget.setChecked(config.get("showTarget", False))
-        self.tooltipCB.setChecked(config.get("tooltips", True))
-        self.dictOnTop.setChecked(config.get("dictAlwaysOnTop", False))
-        self.genJSExport.setChecked(config.get("jReadingCards", False))
-        self.imageAutoConvert.setChecked(config.get("imageAutoConvert", True))
-        self.autoSelectGroupCB.setChecked(config.get("auto_select_dict_group", True))
+        progress.setWindowTitle("Progress")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setValue(0)
 
-        self.llmTab.load_config(config)
-        self.forvoTab.load_config(config)
-        self.frequencyTab.load_config(config)
+        for i, path in enumerate(paths):
+            if progress.wasCanceled():
+                break
 
-    def saveConfig(self) -> None:
-        nc = self.getConfig()
-        nc["highlightTarget"] = self.highlightTarget.isChecked()
-        nc["maxSearch"] = self.totalDefs.value()
-        nc["dictSearch"] = self.dictDefs.value()
-        nc["imageSearchRegion"] = self.imageSearchCountry.currentText()
-        nc["maxWidth"] = self.maxImgWidth.value()
-        nc["maxHeight"] = self.maxImgHeight.value()
-        nc["frontBracket"] = self.frontBracket.text()
-        nc["backBracket"] = self.backBracket.text()
-        nc["showTarget"] = self.showTarget.isChecked()
-        nc["tooltips"] = self.tooltipCB.isChecked()
-        nc["dictAlwaysOnTop"] = self.dictOnTop.isChecked()
-        nc["jReadingCards"] = self.genJSExport.isChecked()
-        nc["imageAutoConvert"] = self.imageAutoConvert.isChecked()
-        nc["auto_select_dict_group"] = self.autoSelectGroupCB.isChecked()
+            dict_name = os.path.splitext(os.path.basename(path))[0]
 
-        self.llmTab.save_config(nc)
-        self.forvoTab.save_config(nc)
-        self.frequencyTab.save_config(nc)
+            if not use_default_names:
+                dict_name, ok = QInputDialog.getText(
+                    self, "Anki Dictionary", "Set name of dictionary", text=dict_name
+                )
+                if not ok:
+                    continue
 
-        save_addon_config(nc)
-        self.hide()
+            try:
+                importDict(lang, path, dict_name, parent=self)
+            except ValueError as e:
+                if "Creating dictionary failed" in str(e) and "duplicate" in str(e):
+                    progress.setValue(i + 1)
+                    continue
+                QMessageBox.information(self, "Anki Dictionary", str(e))
+                continue
 
+            progress.setValue(i + 1)
+
+        progress.close()
+        if paths:
+            self._after_native_change()
+
+    def web_install_freq(self) -> None:
+        """Open the frequency-data web wizard for a user-chosen language."""
+        from ...web.windows import FreqConjWebWindow
+
+        lang = self._select_language()
+        if lang is None:
+            return
+
+        FreqConjWebWindow.execute_modal(lang, FreqConjWebWindow.Mode.Freq)
+        self._after_native_change()
+
+    def import_freq(self) -> None:
+        """Import a frequency/level JSON (or ZIP) file for a user-chosen language."""
+        lang = self._select_language()
+        if lang is None:
+            return
+
+        path = QFileDialog.getOpenFileName(
+            self,
+            "Select the frequency or level data you want to import",
+            os.path.expanduser("~"),
+            "JSON Files (*.json);;All Files (*.*)",
+        )[0]
+        if not path:
+            return
+
+        filename = os.path.basename(path)
+        wl_dir = get_word_lists_dir()
+        os.makedirs(wl_dir, exist_ok=True)
+
+        dst_path = os.path.join(wl_dir, filename)
+
+        try:
+            shutil.copy(path, dst_path)
+        except shutil.Error:
+            QMessageBox.information(self, "Anki Dictionary", "Importing data failed.")
+            return
+
+        # Extract ZIP word lists (Anki-dictionary format)
+        try:
+            with zipfile.ZipFile(dst_path) as zf:
+                data_files = [
+                    f
+                    for f in zf.namelist()
+                    if f.startswith("term_meta_bank_") or f.startswith("term_bank_")
+                ]
+                if data_files:
+                    with zf.open(data_files[0]) as df:
+                        real_data = json.load(df)
+                    with open(dst_path, "w", encoding="utf-8") as f:
+                        json.dump(real_data, f, ensure_ascii=False)
+        except (zipfile.BadZipFile, Exception):  # noqa: BLE001 - plain JSON, skip
+            pass
+
+        self._after_native_change()
+        QMessageBox.information(
+            self, "Anki Dictionary", f'Imported data as "{filename}" for "{lang}".'
+        )
+
+    def browse_font_file(self) -> None:
+        """Open a native font picker and send the path back to the web page."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Font File",
+            os.path.expanduser("~"),
+            "Font Files (*.ttf *.otf *.ttc);;All Files (*.*)",
+        )
+        if path:
+            self._bridge._push("setFontFile", path)
+
+    # ── helpers ───────────────────────────────────────────────
+
+    def _select_language(self) -> str | None:
+        """Ask which language to install into; None if the user cancels."""
+        langs: list[str] = []
+        try:
+            langs = list(self.mw.miDictDB.getCurrentDbLangs())
+        except Exception:  # noqa: BLE001
+            logger.debug("Could not list languages", exc_info=True)
+
+        if langs:
+            choice, ok = QInputDialog.getItem(
+                self, "Anki Dictionary", "Select language:", langs, 0, False
+            )
+            return choice if ok else None
+
+        text, ok = QInputDialog.getText(self, "Anki Dictionary", "Language name:")
+        return text.strip() or None if ok else None
+
+    def _after_native_change(self) -> None:
+        """Refresh the addon + re-push web-side data after a native flow."""
         if hasattr(self.mw, "refreshAnkiDictConfig"):
-            self.mw.refreshAnkiDictConfig(nc)
-
-    def loadGroupTable(self) -> None:
-        self.dictGroupsTab.loadGroupTable()
-
-    def loadTemplateTable(self) -> None:
-        self.exportTemplatesTab.loadTemplateTable()
-
-    def getDictionaryNames(self) -> list[str]:
-        dictList = self.mw.miDictDB.getAllDictsWithLang()
-        dictionaryList = []
-        for dictionary in dictList:
-            dictName = self.cleanDictName(dictionary["dict"]).replace("_", " ")
-            if dictName not in dictionaryList:
-                dictionaryList.append(dictName)
-
-        if "Images" not in dictionaryList:
-            dictionaryList.append("Images")
-
-        if self.llmTab.llmEnabled.isChecked() and "LLM" not in dictionaryList:
-            dictionaryList.append("LLM")
-
-        if self.forvoTab.is_enabled() and "Forvo" not in dictionaryList:
-            dictionaryList.append("Forvo")
-
-        dictionaryList = sorted(dictionaryList, key=str.casefold)
-        return dictionaryList
-
-    def initHandlers(self) -> None:
-        self.addDictGroup.clicked.connect(self.dictGroupsTab.addGroup)
-        self.addExportTemplate.clicked.connect(self.exportTemplatesTab.addTemplate)
-        self.restoreButton.clicked.connect(self.restoreDefaults)
-        self.cancelButton.clicked.connect(self.close)
-        self.applyButton.clicked.connect(self.saveConfig)
-
-    def restoreDefaults(self) -> None:
-        if miAsk(
-            "This will remove any export templates and dictionary groups you have created, and is not undoable. Are you sure you would like to restore the default settings?"
-        ):
-            conf = self.mw.addonManager.addonConfigDefaults(dirname(__file__))
-            save_addon_config(conf)
-            # self.userGuideTab.close()
-            # self.userGuideTab.deleteLater()
-            self.close()
-            self.reboot()
-
-    def miQLabel(self, text: str, width: int) -> QLabel:
-        label = QLabel(text)
-        label.setFixedHeight(30)
-        label.setFixedWidth(width)
-        return label
-
-    def getLineSeparator(self) -> QFrame:
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.VLine)
-        line.setFrameShadow(QFrame.Shadow.Plain)
-        line.setStyleSheet('QFrame[frameShape="5"]{color: #D5DFE5;}')
-        return line
-
-    def setupLayout(self) -> None:
-        layout = QVBoxLayout(self.settingsTab)
-
-        groupLayout = QVBoxLayout()
-        dictsLayout = QVBoxLayout()
-        exportsLayout = QVBoxLayout()
-
-        groupsHeader = QHBoxLayout()
-        groupsHeader.addWidget(QLabel("Dictionary Groups"))
-        self.autoSelectGroupCB.setText("Auto-Select")
-        groupsHeader.addWidget(self.autoSelectGroupCB)
-        groupsHeader.addStretch()
-        dictsLayout.addLayout(groupsHeader)
-        dictsLayout.addWidget(self.addDictGroup)
-        dictsLayout.addWidget(self.dictGroups)
-
-        exportsLayout.addWidget(QLabel("Export Templates"))
-        exportsLayout.addWidget(self.addExportTemplate)
-        exportsLayout.addWidget(self.exportTemplates)
-
-        groupLayout.addLayout(dictsLayout)
-        groupLayout.addLayout(exportsLayout)
-        layout.addLayout(groupLayout)
-
-        # 2. Options in categorized groups
-        optionsLayout = QVBoxLayout()
-
-        # --- Search & Behavior Group ---
-        searchGroup = QGroupBox("Search & Behavior")
-        searchForm = QFormLayout()
-        searchForm.addRow("Max Total Results:", self.totalDefs)
-        searchForm.addRow("Max per Dictionary:", self.dictDefs)
-        searchForm.addRow("Image Search Region:", self.imageSearchCountry)
-
-        bracketLayout = QHBoxLayout()
-        bracketLayout.addWidget(self.frontBracket)
-        bracketLayout.addWidget(QLabel("Term"))
-        bracketLayout.addWidget(self.backBracket)
-        searchForm.addRow("Surround Term:", bracketLayout)
-
-        searchGroup.setLayout(searchForm)
-        optionsLayout.addWidget(searchGroup)
-
-        # --- Display & UI Group ---
-        displayGroup = QGroupBox("Display & UI")
-        displayLayout = QVBoxLayout()
-
-        self.highlightTarget.setText("Highlight Searched Term")
-        displayLayout.addWidget(self.highlightTarget)
-
-        self.showTarget.setText("Show Export Target Identifier")
-        displayLayout.addWidget(self.showTarget)
-
-        self.tooltipCB.setText("Enable Tooltips")
-        displayLayout.addWidget(self.tooltipCB)
-
-        self.dictOnTop.setText("Keep Dictionary Always on Top")
-        displayLayout.addWidget(self.dictOnTop)
-
-        displayGroup.setLayout(displayLayout)
-        optionsLayout.addWidget(displayGroup)
-
-        # --- Media & Integration Group ---
-        mediaGroup = QGroupBox("Media & Integration")
-        mediaForm = QFormLayout()
-        mediaForm.addRow("Max Image Width:", self.maxImgWidth)
-        mediaForm.addRow("Max Image Height:", self.maxImgHeight)
-
-        self.imageAutoConvert.setText("Auto-convert images (resize + AVIF)")
-        mediaForm.addRow(self.imageAutoConvert)
-
-        self.genJSExport.setText("Generate Japanese Readings (Export)")
-        mediaForm.addRow(self.genJSExport)
-
-        mediaGroup.setLayout(mediaForm)
-        optionsLayout.addWidget(mediaGroup)
-
-        # --- Auto-Select Group (moved next to Dictionary Groups header above) ---
-
-        layout.addLayout(optionsLayout)
-        layout.addStretch()
-
-        # Buttons are now in the outer window layout (visible on every tab)
-
-    def cleanDictName(self, name: str) -> str:
-        return re.sub(r"l\d+name", "", name)
-
-    def getHTML(self) -> tuple:
-        htmlPath = join(self.addonPath, "guide.html")
-        url = QUrl.fromLocalFile(htmlPath)
-        with open(htmlPath, encoding="utf-8") as fh:
-            html = fh.read()
-        return html, url
+            try:
+                self.mw.refreshAnkiDictConfig(force=True)
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "Could not refresh config after native change", exc_info=True
+                )
+        self.after_save()

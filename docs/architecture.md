@@ -23,14 +23,8 @@ src/anki_dictionary/
 │   │   ├── tree_manager_widget.py
 │   │   └── wizard.py
 │   └── settings/
-│       ├── dict_groups.py
-│       ├── dict_groups_tab.py
-│       ├── export_templates_tab.py
-│       ├── forvo_settings_tab.py
-│       ├── frequency_settings_tab.py
-│       ├── llm_settings_tab.py
-│       ├── settings_gui.py
-│       └── templates.py
+│       ├── settings_bridge.py  # AnkiWebView hosting the Svelte settings page
+│       └── settings_gui.py     # Thin Qt window + native flows (dialogs/installers)
 ├── integrations/
 │   ├── forvo.py             # Forvo audio scraping
 │   ├── image_search.py      # DuckDuckGo image search
