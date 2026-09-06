@@ -13,8 +13,42 @@
  * runs inside the addon.
  */
 import type { DictDocument } from "./lib/types";
+import { showToast } from "./lib/toast.svelte";
 
 const MOCK_BANNER_ID = "dev-mock-banner";
+
+/** In-browser mirror of Python-side header/tab state. */
+const MOCK_STATE = {
+  groups: ["All", "Japanese"],
+  currentGroup: "All",
+  searchModes: ["Forward", "Reverse"],
+  searchMode: "Forward",
+  deinflect: false,
+  singleTab: true,
+  clipboardPaused: false,
+  source: "manual",
+  showTarget: false,
+  target: "",
+};
+
+/** Mirrors the persisted search history an Anki user would have. */
+let MOCK_HISTORY: string[][] = [["example", "2026-09-06"], ["こんにちは", "2026-09-05"]];
+
+function pushHeaderState(): void {
+  callReply("setHeaderState", {
+    ...MOCK_STATE,
+    current: MOCK_STATE.currentGroup,
+  });
+}
+
+function pushMockHistory(): void {
+  callReply("setSearchHistory", MOCK_HISTORY);
+}
+
+/** Internal notes: simulate toggles, log what can't be simulated. */
+function pushNote(msg: string): void {
+  console.info("[dev-mock]", msg);
+}
 
 /** Call a Python->JS reply global if it has been installed. */
 function callReply(name: string, ...args: unknown[]): void {
@@ -173,18 +207,7 @@ const MOCK_FORVO_LANGUAGES = [
 
 // ── canned dictionary data ───────────────────────────────────────────────────
 
-const MOCK_HEADER_STATE = {
-  groups: ["All", "Japanese"],
-  current: "All",
-  searchModes: ["Forward", "Reverse"],
-  searchMode: "Forward",
-  deinflect: false,
-  singleTab: true,
-  source: "manual",
-  clipboardPaused: false,
-  target: "",
-  showTarget: false,
-};
+
 
 /** A believable search document so the dictionary page renders a result. */
 function mockDocument(term: string): DictDocument {
@@ -269,31 +292,99 @@ function handleSettingsCommand(cmd: string): void {
 }
 
 function handleDictionaryCommand(cmd: string): void {
+  // Header state / data fetch commands.
   if (cmd === "AnkiDictionaryLoaded") {
-    console.log("[dev-mock] dictionary page loaded");
-  } else if (cmd === "getHeaderState:") {
-    callReply("setHeaderState", MOCK_HEADER_STATE);
-  } else if (cmd === "getGroups:") {
-    callReply("setGroups", { groups: MOCK_HEADER_STATE.groups, current: MOCK_HEADER_STATE.current });
-  } else if (cmd === "getSearchModes:") {
-    callReply("setSearchModes", {
-      modes: MOCK_HEADER_STATE.searchModes,
-      current: MOCK_HEADER_STATE.searchMode,
-    });
+    pushNote("page loaded");
+  } else if (cmd === "getHeaderState:" || cmd === "getGroups:" || cmd === "getSearchModes:") {
+    if (cmd === "getGroups:")
+      callReply("setGroups", {
+        groups: MOCK_STATE.groups,
+        current: MOCK_STATE.currentGroup,
+      });
+    if (cmd === "getSearchModes:")
+      callReply("setSearchModes", {
+        modes: MOCK_STATE.searchModes,
+        current: MOCK_STATE.searchMode,
+      });
+    pushHeaderState();
   } else if (cmd === "getSearchHistory:") {
-    callReply("setSearchHistory", [["example", "2026-09-06"]]);
+    pushMockHistory();
   } else if (cmd === "requestSearchStatus:") {
     callReply("setSearchStatus", {
-      source: MOCK_HEADER_STATE.source,
-      clipboardPaused: MOCK_HEADER_STATE.clipboardPaused,
+      source: MOCK_STATE.source,
+      clipboardPaused: MOCK_STATE.clipboardPaused,
     });
-  } else if (cmd.startsWith("searchTerm:")) {
+  }
+  // In-web chrome actions: toggle state and reflect it back via setHeaderState.
+  else if (cmd === "setClipboardPaused:true") {
+    MOCK_STATE.clipboardPaused = true;
+    pushHeaderState();
+  } else if (cmd === "setClipboardPaused:false") {
+    MOCK_STATE.clipboardPaused = false;
+    pushHeaderState();
+  } else if (cmd === "setDeinflect:true") {
+    MOCK_STATE.deinflect = true;
+    pushHeaderState();
+  } else if (cmd === "setDeinflect:false") {
+    MOCK_STATE.deinflect = false;
+    pushHeaderState();
+  } else if (cmd.startsWith("setTabMode:")) {
+    MOCK_STATE.singleTab = cmd === "setTabMode:single";
+    pushHeaderState();
+  } else if (cmd.startsWith("setGroup:")) {
+    MOCK_STATE.currentGroup = cmd.slice("setGroup:".length);
+    pushHeaderState();
+  } else if (cmd.startsWith("setSearchMode:")) {
+    MOCK_STATE.searchMode = cmd.slice("setSearchMode:".length);
+    pushHeaderState();
+  }
+  // Content interactions on a result document. The block components
+  // (TermPronunciation etc.) show their own toasts, so only log here.
+  else if (
+    cmd.startsWith("clipped") ||
+    cmd.startsWith("addDef") ||
+    cmd.startsWith("sendToField") ||
+    cmd.startsWith("sendImgToField") ||
+    cmd.startsWith("sendAudioToField")
+  ) {
+    pushNote(`content action (${cmd.slice(0, 30)}…)`);
+  } else if (cmd.startsWith("fieldsSetting") || cmd.startsWith("overwriteSetting")) {
+    pushNote(`field / overwrite updated (${cmd.slice(0, 30)}…)`);
+  } else if (cmd.startsWith("playAudio:") || cmd.startsWith("audioExport")) {
+    pushNote("audio play/export simulated; no audio in browser preview");
+  } else if (cmd.startsWith("getMoreImages:")) {
+    pushNote("image fetch simulated (no Anki image provider in browser)");
+  }
+  // Search: add a mock tab + push a mock history entry.
+  else if (cmd.startsWith("searchTerm:")) {
     const term = cmd.slice("searchTerm:".length) || "example";
+    MOCK_HISTORY = [[term, new Date().toISOString().slice(0, 10)], ...MOCK_HISTORY];
+    pushMockHistory();
     setTimeout(() => {
-      callReply("addNewTab", mockDocument(term), term, true, 1);
+      callReply("addNewTab", mockDocument(term), term, MOCK_STATE.singleTab, 1);
     }, 250);
+  } else if (cmd.startsWith("updateTerm:")) {
+    // Tab term renamed (from a new search on an existing tab).
+  }
+  // Actions that open native Anki windows: acknowledge them so clicks register.
+  else if (cmd === "openHistory") {
+    showToast("Anki search-history window would open");
+  } else if (cmd === "openTheme") {
+    showToast("Anki theme editor would open");
+  } else if (cmd === "openSettings") {
+    showToast("Anki settings window would open");
+  }
+  // History row actions.
+  else if (cmd.startsWith("deleteSearchHistory:")) {
+    const term = cmd.slice("deleteSearchHistory:".length);
+    MOCK_HISTORY = MOCK_HISTORY.filter(([t]) => t !== term);
+    pushMockHistory();
+  }
+  // Persistence writes Python silently accepts.
+  else if (cmd.startsWith("saveSession:") || cmd.startsWith("saveFS:")) {
+    pushNote("session / font sizes persisted (in-memory)");
   } else {
-    console.log("[dev-mock] dictionary command (no-op):", cmd);
+    pushNote(`unhandled command: ${cmd}`);
   }
 }
 
@@ -309,12 +400,11 @@ function showBanner(): void {
   if (document.getElementById(MOCK_BANNER_ID)) return;
   const el = document.createElement("div");
   el.id = MOCK_BANNER_ID;
-  el.textContent = "dev mock active — click to dismiss";
+  el.textContent = "dev mock active";
   el.style.cssText =
     "position:fixed;right:8px;bottom:8px;z-index:99999;padding:6px 12px;border-radius:12px;" +
-    "background:#334155;color:#e2e8f0;font:12px/1.4 system-ui,sans-serif;cursor:pointer;" +
-    "box-shadow:0 2px 8px rgba(0,0,0,.35)";
-  el.addEventListener("click", () => el.remove());
+    "background:#334155;color:#e2e8f0;font:12px/1.4 system-ui,sans-serif;" +
+    "box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none";
   document.body.appendChild(el);
 }
 
