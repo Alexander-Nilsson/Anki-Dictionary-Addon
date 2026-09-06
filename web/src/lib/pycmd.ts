@@ -54,6 +54,16 @@ export const CMD = {
   deleteSearchHistory: (term: string) => `deleteSearchHistory:${term}`,
   getGroups: () => "getGroups:",
   setGroup: (name: string) => `setGroup:${name}`,
+  // Unified header (single chrome): groups + search modes + toggles in one
+  // payload so the Qt toolbar can stay removed and the standalone web
+  // preview still shows every capability.
+  getHeaderState: () => "getHeaderState:",
+  getSearchModes: () => "getSearchModes:",
+  setSearchMode: (mode: string) => `setSearchMode:${mode}`,
+  setDeinflect: (enabled: boolean) => `setDeinflect:${enabled ? "true" : "false"}`,
+  setTabMode: (single: boolean) => `setTabMode:${single ? "single" : "multi"}`,
+  openHistory: () => "openHistory",
+  openTheme: () => "openTheme",
   // U2: search-source chip + clipboard-monitor pause pill.
   requestSearchStatus: () => "requestSearchStatus:",
   setClipboardPaused: (paused: boolean) =>

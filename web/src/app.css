@@ -339,12 +339,14 @@
    so Python-generated *legacy* HTML tabs keep rendering pixel-identical.
    ──────────────────────────────────────────────────────────────────────── */
 
-/* In-web chrome strip: search box + dictionary group + settings. Sits above
-   the tab strip; `flex: none` so `resizer()` (which measures #chromeBar)
-   keeps the #defBox math correct. */
+/* Unified header: the single chrome strip (search + groups + modes +
+   toggles). Sits above the tab strip; `flex: none` so `resizer()` (which
+   measures #chromeBar) keeps the #defBox math correct. Wraps on narrow
+   windows instead of overflowing. */
 #chromeBar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   flex: none;
   padding: 6px 12px;
@@ -354,8 +356,8 @@
 
 #chromeBar .chromeSearch {
   position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 180px;
+  min-width: 140px;
   display: flex;
   align-items: center;
 }
@@ -387,7 +389,8 @@
   outline-offset: -1px;
 }
 
-#chromeBar select {
+#chromeBar select,
+#chromeBar .chromeSelect {
   flex: none;
   max-width: 140px;
   padding: 5px 8px;
@@ -397,6 +400,18 @@
   color: var(--text);
   font-size: 13px;
   font-family: inherit;
+}
+
+#chromeBar .chromeMode {
+  max-width: 120px;
+}
+
+#chromeBar .chromeDiv {
+  flex: none;
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  opacity: 0.6;
 }
 
 #chromeBar .chromeBtn {
@@ -423,6 +438,12 @@
   background: var(--button-bg-hover);
   color: var(--button-text);
   border-color: transparent;
+}
+
+#chromeBar .chromeBtn.active {
+  color: var(--search_term);
+  border-color: var(--search_term);
+  background: color-mix(in srgb, var(--search_term) 10%, var(--background));
 }
 
 /* U2: search-source chip + clipboard-monitor pause pill. */
@@ -461,6 +482,10 @@
   color: var(--search_term);
   border-color: var(--search_term);
   background: color-mix(in srgb, var(--search_term) 10%, var(--background));
+}
+
+#chromeBar .targetPill {
+  max-width: 200px;
 }
 
 /* History dropdown (bright above the results pane). */

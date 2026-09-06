@@ -9,7 +9,6 @@ from anki.utils import is_mac
 from aqt.qt import (
     QColor,  # noqa: F401 — needed at runtime by downstream importers
     QComboBox,
-    QFrame,
     QHBoxLayout,
     QIcon,
     QImage,
@@ -178,24 +177,30 @@ class MIDict(AnkiWebView):
             term = dAct[len("deleteSearchHistory:") :]
             self.dictInt.deleteHistoryEntry(term)
         elif dAct.startswith("getGroups:"):
-            combo = self.dictInt.dictGroups
-            names = [
-                combo.itemText(i) for i in range(combo.count()) if combo.itemEnabled(i)
-            ]
-            self.eval(
-                "setGroups("
-                + json.dumps(
-                    {"groups": names, "current": combo.currentText()},
-                    ensure_ascii=False,
-                )
-                + ");"
-            )
+            self.dictInt.pushGroups()
         elif dAct.startswith("setGroup:"):
             name = dAct[len("setGroup:") :]
-            combo = self.dictInt.dictGroups
-            idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
-            if idx >= 0:
-                combo.setCurrentIndex(idx)
+            self.dictInt.setDictGroup(name)
+        elif dAct.startswith("getSearchModes:"):
+            self.dictInt.pushSearchModes()
+        elif dAct.startswith("setSearchMode:"):
+            name = dAct[len("setSearchMode:") :]
+            self.dictInt.setSearchMode(name)
+        elif dAct.startswith("getHeaderState:"):
+            # Unified web header: one call returns groups + modes + toggles.
+            self.dictInt.pushHeaderState()
+        elif dAct.startswith("setDeinflect:"):
+            raw = dAct[len("setDeinflect:") :].strip()
+            self.dictInt.setDeinflect(raw.lower() in ("true", "1", "yes"))
+        elif dAct.startswith("setTabMode:"):
+            raw = dAct[len("setTabMode:") :].strip()
+            # Accepts "single"/"multi"/"true"/"false"/"onetab"/"tabs".
+            single = raw.lower() in ("single", "true", "1", "onetab", "yes")
+            self.dictInt.setTabMode(single)
+        elif dAct.startswith("openHistory"):
+            self.dictInt.openHistory()
+        elif dAct.startswith("openTheme"):
+            self.dictInt.setTheme()
         elif dAct.startswith("setClipboardPaused:"):
             # U2: one-click pause/resume of clipboard-monitored searches.
             raw = dAct[len("setClipboardPaused:") :].strip()
@@ -220,11 +225,13 @@ class MIDict(AnkiWebView):
             self.currentEditor = editor
             self.reviewer = False
             self.dictInt.currentTarget.setText(target)
+            self.dictInt.pushHeaderState()
 
     def setReviewer(self, reviewer):
         self.reviewer = reviewer
         self.currentEditor = False
         self.dictInt.currentTarget.setText("Reviewer")
+        self.dictInt.pushHeaderState()
 
     def checkEditorClose(self, editor):
         if self.currentEditor == editor:
@@ -234,6 +241,7 @@ class MIDict(AnkiWebView):
         self.reviewer = False
         self.currentEditor = False
         self.dictInt.currentTarget.setText("")
+        self.dictInt.pushHeaderState()
 
 
 class HoverButton(QPushButton):
@@ -406,7 +414,7 @@ class DictInterface(QWidget):
         self.restoreSizePos()
         self.initTooltips()
         self.show()
-        self.search.setFocus()
+        self.dict.setFocus()
         self.refresh_application_theme()
         # if self.nightModeToggler.day:
         #     self.refresh_application_theme()
@@ -629,47 +637,38 @@ class DictInterface(QWidget):
         self.defaultGroups = self.db.getDefaultGroups()
         self.userGroups = self.getUserGroups()
 
-        # Update dictionary groups combo box
+        # Refresh the hidden state holders (no Qt toolbar anymore — the
+        # unified web header reads these via pushHeaderState).
         if hasattr(self, "dictGroups"):
             self.dictGroups.blockSignals(True)
             newDictGroupsCombo = self.setupDictGroups()
-            if hasattr(self, "toolbar"):
-                self.toolbar.replaceWidget(self.dictGroups, newDictGroupsCombo)
+            newDictGroupsCombo.setParent(self)
+            newDictGroupsCombo.hide()
             self.dictGroups.deleteLater()
             self.dictGroups = newDictGroupsCombo
         else:
             self.dictGroups = self.setupDictGroups()
+            self.dictGroups.setParent(self)
+            self.dictGroups.hide()
 
         # Update search type combo box (to reflect any language-specific search options if they were added)
         if hasattr(self, "sType"):
             self.sType.blockSignals(True)
             newSType = self.setupSearchType()
-            if hasattr(self, "toolbar"):
-                self.toolbar.replaceWidget(self.sType, newSType)
+            newSType.setParent(self)
+            newSType.hide()
             self.sType.deleteLater()
             self.sType = newSType
         else:
             self.sType = self.setupSearchType()
-
-        # Fixed sizes for header elements
-        header_height = 36
-        for widget in [self.dictGroups, self.sType]:
-            widget.setFixedHeight(header_height)
-        self.dictGroups.setFixedWidth(120)
-        self.sType.setFixedWidth(100)
+            self.sType.setParent(self)
+            self.sType.hide()
 
         previouslyOnTop = self.alwaysOnTop
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
         if previouslyOnTop != self.alwaysOnTop:
             self.setAlwaysOnTop()
         self.setAlwaysOnTop()
-
-        if not self.config["showTarget"]:
-            self.currentTarget.hide()
-            self.targetLabel.hide()
-        else:
-            self.targetLabel.show()
-            self.currentTarget.show()
 
         if self.config["tooltips"]:
             self.dictGroups.setToolTip("Select the dictionary group.")
@@ -733,75 +732,42 @@ class DictInterface(QWidget):
         return config
 
     def setupView(self):
+        """Build the main layout.
+
+        The header is unified in the web shell (Svelte ``Chrome``): the old
+        Qt toolbar was removed because it duplicated the in-web search box
+        and never showed up in the standalone web preview. The Qt combo
+        boxes / line edit are kept as hidden state holders (search pipeline
+        and history logic read them) so existing behaviour is unchanged.
+        """
         layoutV = QVBoxLayout()
 
-        # Unified Toolbar
-        self.toolbar = QHBoxLayout()
-        self.toolbar.setContentsMargins(10, 10, 10, 10)
-        self.toolbar.setSpacing(8)
-
-        # Left side: Combo boxes and Search
-        self.toolbar.addWidget(self.dictGroups)
-        self.toolbar.addWidget(self.sType)
-        self.toolbar.addWidget(self.search)
-
-        # Action buttons
-        self.toolbar.addWidget(self.searchButton)
-        self.toolbar.addWidget(self.openSB)
-
-        # Divider
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.VLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.toolbar.addWidget(line)
-
-        # Utility buttons
-        self.toolbar.addWidget(self.minusB)
-        self.toolbar.addWidget(self.plusB)
-        self.toolbar.addWidget(self.tabB)
-        self.toolbar.addWidget(self.histB)
-        self.toolbar.addWidget(self.conjToggler)
-        self.toolbar.addWidget(self.themeSettings)
-        self.toolbar.addWidget(self.setB)
-
-        # Target Info (if enabled)
-        if self.config["showTarget"]:
-            self.toolbar.addSpacing(10)
-            self.targetLabel.setStyleSheet("font-weight: bold; opacity: 0.7;")
-            self.toolbar.addWidget(self.targetLabel)
-            self.currentTarget.setStyleSheet("font-weight: medium;")
-            self.toolbar.addWidget(self.currentTarget)
-
-        self.toolbar.addStretch()
-
-        # Fixed sizes for header elements
-        header_height = 36
-        for widget in [self.dictGroups, self.sType, self.search]:
-            widget.setFixedHeight(header_height)
-
-        self.dictGroups.setFixedWidth(120)
-        self.sType.setFixedWidth(100)
-        self.search.setMinimumWidth(100)
-        self.search.setMaximumWidth(250)
-
-        # Set fixed size for all toolbar buttons
-        btn_size = 36
-        for btn in [
-            self.searchButton,
-            self.openSB,
-            self.minusB,
-            self.plusB,
-            self.tabB,
-            self.histB,
-            self.conjToggler,
-            self.themeSettings,
-            self.setB,
+        # Keep the former toolbar widgets alive but hidden — they remain the
+        # source of truth for group / search-mode / target state.
+        for widget in [
+            getattr(self, "dictGroups", None),
+            getattr(self, "sType", None),
+            getattr(self, "search", None),
+            getattr(self, "searchButton", None),
+            getattr(self, "openSB", None),
+            getattr(self, "minusB", None),
+            getattr(self, "plusB", None),
+            getattr(self, "tabB", None),
+            getattr(self, "histB", None),
+            getattr(self, "conjToggler", None),
+            getattr(self, "themeSettings", None),
+            getattr(self, "setB", None),
+            getattr(self, "currentTarget", None),
+            getattr(self, "targetLabel", None),
         ]:
-            btn.setFixedSize(btn_size, btn_size)
+            if widget is not None:
+                try:
+                    widget.setParent(self)
+                    widget.hide()
+                except Exception:
+                    pass
 
-        layoutV.addLayout(self.toolbar)
-
-        # Content Area
+        # Content Area (the unified web header lives inside the webview).
         layoutV.addWidget(self.dict)
 
         layoutV.setContentsMargins(0, 0, 0, 0)
@@ -861,6 +827,7 @@ class DictInterface(QWidget):
                 self.tabB.singleTab = True
                 self.setSvg(self.tabB, "onetab")
                 self.writeConfig("onetab", True)
+            self.pushHeaderState()
 
         except Exception as e:
             logger.error(f"Error in toggleTabMode: {e}")
@@ -900,6 +867,7 @@ class DictInterface(QWidget):
             self.setSvg(self.conjToggler, "closedcube")
             self.dict.deinflect = False
             self.writeConfig("deinflect", False)
+        self.pushHeaderState()
 
     def setTheme(self):
         self.theme_editor.exec()
@@ -1106,7 +1074,7 @@ class DictInterface(QWidget):
     def initSearch(self, term=False, source="manual"):
         self.ensureVisible()
         if term is False:
-            term = self.search.text()
+            term = self.search.text() if hasattr(self, "search") else ""
             term = term.strip()
         term = term.strip()
         term = self.cleanTermBrackets(term)
@@ -1136,10 +1104,15 @@ class DictInterface(QWidget):
                     self.dictGroups.blockSignals(False)
 
         selectedGroup = self.getSelectedDictGroup()
-        self.search.setText(term.strip())
+        if hasattr(self, "search"):
+            try:
+                self.search.setText(term.strip())
+            except Exception:
+                pass
         self.addToHistory(term)
         self.dict.addNewTab(term, selectedGroup)
-        self.search.setFocus()
+        self.pushHeaderState()
+        self.pushSearchHistory()
 
     # ── search source + clipboard-monitor pause (U2) ─────────────────────
 
@@ -1164,6 +1137,7 @@ class DictInterface(QWidget):
     def setClipboardPaused(self, paused: bool) -> None:
         """Persist and apply the clipboard-monitor pause state."""
         self.writeConfig("clipboard_monitor_enabled", not paused)
+        self.pushHeaderState()
 
     def clipboardPaused(self) -> bool:
         return not bool(self.config.get("clipboard_monitor_enabled", True))
@@ -1183,6 +1157,132 @@ class DictInterface(QWidget):
             self.dict.eval("setSearchStatus(" + status + ");")
         except Exception:
             logger.debug("Web view not ready to receive search status")
+        # The unified header reads the same payload via setHeaderState.
+        self.pushHeaderState()
+
+    # ── unified web header (single chrome, no Qt toolbar) ──────────────
+
+    def _group_names(self) -> list[str]:
+        combo = self.dictGroups
+        return [combo.itemText(i) for i in range(combo.count()) if combo.itemEnabled(i)]
+
+    def getHeaderState(self) -> dict:
+        """Full header state for the unified in-web chrome.
+
+        The Qt toolbar was removed; the Svelte ``Chrome`` is the single
+        header, so it needs groups + search modes + toggle states in one
+        payload (also used for the standalone web preview fallback).
+        """
+        single_tab = bool(getattr(getattr(self, "tabB", None), "singleTab", True))
+        if "onetab" in self.config:
+            # Config is authoritative across restarts; the button mirrors it.
+            single_tab = bool(self.config.get("onetab", single_tab))
+        return {
+            "groups": self._group_names(),
+            "current": self.dictGroups.currentText(),
+            "searchModes": list(getattr(self, "searchOptions", [])),
+            "searchMode": self.sType.currentText()
+            if hasattr(self, "sType")
+            else self.config.get("searchMode", "Forward"),
+            "deinflect": bool(getattr(getattr(self, "dict", None), "deinflect", False)),
+            "singleTab": single_tab,
+            "source": getattr(self, "search_source", "manual"),
+            "clipboardPaused": self.clipboardPaused(),
+            "target": self.currentTarget.text()
+            if hasattr(self, "currentTarget")
+            else "",
+            "showTarget": bool(self.config.get("showTarget", False)),
+        }
+
+    def pushGroups(self) -> None:
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setGroups("
+                + json.dumps(
+                    {
+                        "groups": self._group_names(),
+                        "current": self.dictGroups.currentText(),
+                    },
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        except Exception:
+            logger.debug("Web view not ready to receive groups")
+
+    def pushSearchModes(self) -> None:
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setSearchModes("
+                + json.dumps(
+                    {
+                        "modes": list(getattr(self, "searchOptions", [])),
+                        "current": self.sType.currentText(),
+                    },
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        except Exception:
+            logger.debug("Web view not ready to receive search modes")
+
+    def pushHeaderState(self) -> None:
+        """Push the unified header state (groups, modes, toggles) to the web UI."""
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setHeaderState("
+                + json.dumps(self.getHeaderState(), ensure_ascii=False)
+                + ");"
+            )
+        except Exception:
+            logger.debug("Web view not ready to receive header state")
+        # Keep the legacy per-slice callbacks in sync for older bundles.
+        try:
+            self.dict.eval(
+                "setGroups("
+                + json.dumps(
+                    {
+                        "groups": self._group_names(),
+                        "current": self.dictGroups.currentText(),
+                    },
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        except Exception:
+            pass
+
+    def setDictGroup(self, name: str) -> None:
+        combo = self.dictGroups
+        idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+            self.pushHeaderState()
+
+    def setSearchMode(self, name: str) -> None:
+        combo = self.sType
+        idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+            self.pushHeaderState()
+
+    def setDeinflect(self, enabled: bool) -> None:
+        self.dict.deinflect = bool(enabled)
+        self.writeConfig("deinflect", bool(enabled))
+        self.pushHeaderState()
+
+    def setTabMode(self, single: bool) -> None:
+        single = bool(single)
+        if hasattr(self, "tabB"):
+            self.tabB.singleTab = single
+        self.writeConfig("onetab", single)
+        self.pushHeaderState()
 
     def addToHistory(self, term):
         date = str(datetime.date.today())

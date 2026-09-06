@@ -138,7 +138,7 @@ def test_built_bundle_script_runs_to_mount():
 
 
 def test_chrome_component_source_present():
-    """The in-web chrome (search + history + group switcher) ships in the UI."""
+    """The unified in-web chrome (single header) ships in the UI."""
     chrome = web_dir / "src" / "components" / "Chrome.svelte"
     if not chrome.exists():
         import pytest
@@ -149,11 +149,22 @@ def test_chrome_component_source_present():
     assert 'id="chromeBar"' in text
     assert "setGroups" in text
     assert "setSearchStatus" in text
+    assert "setHeaderState" in text
+    assert "setSearchModes" in text
     assert "getSearchHistory" in text
+    assert "getHeaderState" in text
     # U2: search-source chip + clipboard-monitor pause pill.
     assert "setSearchSource" in text
     assert "sourcePill" in text
     assert "pauseBtn" in text
+    # Unified header: every old Qt toolbar capability lives in the web chrome.
+    assert "setSearchMode" in text
+    assert "setDeinflect" in text
+    assert "setTabMode" in text
+    assert "openHistory" in text
+    assert "openTheme" in text
+    assert "toggleSidebar" in text
+    assert "scaleFont" in text
     # U3: the chrome dropdown reads the shared history store (the prune
     # command itself lives in Sidebar.svelte; covered by the sidebar test).
     assert "ui.history" in text
@@ -218,6 +229,8 @@ def test_built_bundle_has_chrome_and_bridge_commands():
         # window callbacks Python evals (minified into assignment form)
         "setSearchHistory:",
         "setGroups=",
+        "setHeaderState=",
+        "setSearchModes=",
         "setSearchSource=",
         "setSearchStatus=",
         # CMD -> Python command prefixes (must match handleDictAction branches)
@@ -225,6 +238,12 @@ def test_built_bundle_has_chrome_and_bridge_commands():
         "getSearchHistory:",
         "getGroups:",
         "setGroup:",
+        "getHeaderState:",
+        "setSearchMode:",
+        "setDeinflect:",
+        "setTabMode:",
+        "openHistory",
+        "openTheme",
         "setClipboardPaused:",
         "requestSearchStatus:",
         "saveSession:",

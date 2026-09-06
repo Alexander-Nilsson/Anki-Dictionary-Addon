@@ -1,27 +1,51 @@
 <script lang="ts">
   /**
-   * In-web chrome: search box + history + dictionary-group switcher + settings.
+   * Unified in-web header: the single chrome for the dictionary.
    *
-   * Search runs through the same Python path as the Qt toolbar field
-   * (`searchTerm:` -> `initSearch`), so the two input surfaces stay in sync.
-   * Search history (`_searchHistory.json`) and the group list are fetched on
-   * demand over the bridge and pushed back in via the `setSearchHistory` /
-   * `setGroups` window callbacks that Python evals.
+   * The old Qt toolbar was removed (it duplicated this strip and never
+   * showed up in the standalone web preview), so every capability lives
+   * here: search + history, dictionary-group + search-mode selects, sidebar
+   * toggle, font sizing, single/multi-tab, history viewer, deinflection,
+   * theme editor, clipboard pause + search-source chip, settings.
+   *
+   * Search runs through the same Python path as before
+   * (`searchTerm:` -> `initSearch`). All other controls go through the
+   * matching `CMD.*` bridge calls; Python pushes the combined state back
+   * via the `setHeaderState` window callback that `pushHeaderState` evals
+   * (legacy `setGroups` / `setSearchStatus` / `setSearchModes` still work).
    */
   import { onMount } from "svelte";
   import { CMD, pycmd } from "../lib/pycmd";
-  import { ui } from "../lib/tabs.svelte";
+  import { scaleFont, toggleSidebar, ui } from "../lib/tabs.svelte";
   import type { HistoryEntry } from "../lib/types";
 
+  const FALLBACK_GROUPS = ["All", "Images"];
+  const FALLBACK_MODES = [
+    "Forward",
+    "Backward",
+    "Exact",
+    "Anywhere",
+    "Definition",
+    "Example",
+    "Pronunciation",
+  ];
+
   let query = $state("");
-  let groups = $state<string[]>([]);
-  let group = $state("");
+  let groups = $state<string[]>([...FALLBACK_GROUPS]);
+  let group = $state("All");
+  let modes = $state<string[]>([...FALLBACK_MODES]);
+  let mode = $state("Forward");
+  let deinflect = $state(false);
+  let singleTab = $state(true);
   let open = $state(false);
   let sel = $state(-1);
   let input: HTMLInputElement | undefined = $state();
   // U2: where the last search came from + clipboard-monitor pause state.
   let source = $state("manual");
   let clipboardPaused = $state(false);
+  // Editor target (showTarget): e.g. "Reviewer" or a field name.
+  let target = $state("");
+  let showTarget = $state(false);
 
   const sourceLabel = $derived.by(() => {
     switch (source) {
@@ -48,8 +72,16 @@
     return new Date().toISOString().slice(0, 10);
   }
 
+  function hasBridge(): boolean {
+    return typeof window.pycmd === "function";
+  }
+
   function requestHistory(): void {
     pycmd(CMD.getSearchHistory());
+  }
+
+  function requestHeaderState(): void {
+    pycmd(CMD.getHeaderState());
   }
 
   function submit(value?: string): void {
@@ -103,16 +135,64 @@
     }
   }
 
+  type HeaderState = {
+    groups?: unknown;
+    current?: unknown;
+    searchModes?: unknown;
+    searchMode?: unknown;
+    deinflect?: unknown;
+    singleTab?: unknown;
+    source?: unknown;
+    clipboardPaused?: unknown;
+    target?: unknown;
+    showTarget?: unknown;
+  };
+
+  function applyHeaderState(data: HeaderState): void {
+    if (Array.isArray(data.groups)) {
+      const gs = data.groups.filter((g): g is string => typeof g === "string");
+      if (gs.length > 0) groups = gs;
+    }
+    if (typeof data.current === "string" && data.current) group = data.current;
+    if (Array.isArray(data.searchModes)) {
+      const ms = data.searchModes.filter(
+        (m): m is string => typeof m === "string",
+      );
+      if (ms.length > 0) modes = ms;
+    }
+    if (typeof data.searchMode === "string" && data.searchMode)
+      mode = data.searchMode;
+    if (typeof data.deinflect === "boolean") deinflect = data.deinflect;
+    if (typeof data.singleTab === "boolean") singleTab = data.singleTab;
+    if (typeof data.source === "string") source = data.source;
+    if (typeof data.clipboardPaused === "boolean")
+      clipboardPaused = data.clipboardPaused;
+    if (typeof data.target === "string") target = data.target;
+    if (typeof data.showTarget === "boolean") showTarget = data.showTarget;
+  }
+
   onMount(() => {
     const w = window as unknown as Record<string, unknown>;
-    // setSearchHistory now lives in bridge.ts (shared store) — the sidebar
+    // setSearchHistory lives in bridge.ts (shared store) — the sidebar
     // "Recent searches" section reads the same list as this dropdown.
     w.setGroups = (payload: unknown) => {
       const data = (payload ?? {}) as { groups?: unknown[]; current?: string };
-      groups = Array.isArray(data.groups)
-        ? data.groups.filter((g): g is string => typeof g === "string")
-        : [];
+      if (Array.isArray(data.groups)) {
+        const gs = data.groups.filter((g): g is string => typeof g === "string");
+        if (gs.length > 0) groups = gs;
+      }
       if (typeof data.current === "string" && data.current) group = data.current;
+    };
+    w.setSearchModes = (payload: unknown) => {
+      const data = (payload ?? {}) as { modes?: unknown[]; current?: string };
+      if (Array.isArray(data.modes)) {
+        const ms = data.modes.filter((m): m is string => typeof m === "string");
+        if (ms.length > 0) modes = ms;
+      }
+      if (typeof data.current === "string" && data.current) mode = data.current;
+    };
+    w.setHeaderState = (payload: unknown) => {
+      applyHeaderState((payload ?? {}) as HeaderState);
     };
     w.setSearchSource = (payload: unknown) => {
       // Pushed on every search (initSearch) so the pill tracks the latest
@@ -129,31 +209,47 @@
         clipboardPaused = data.clipboardPaused;
       }
     };
-    requestGroups();
-    requestSearchStatus();
+    requestHeaderState();
+    requestHistory();
     document.addEventListener("keydown", onGlobalKey);
     return () => {
-      delete (w as Record<string, unknown>).setSearchHistory;
-      delete (w as Record<string, unknown>).setGroups;
-      delete (w as Record<string, unknown>).setSearchSource;
-      delete (w as Record<string, unknown>).setSearchStatus;
+      delete w.setGroups;
+      delete w.setSearchModes;
+      delete w.setHeaderState;
+      delete w.setSearchSource;
+      delete w.setSearchStatus;
       document.removeEventListener("keydown", onGlobalKey);
     };
   });
-
-  function requestGroups(): void {
-    pycmd(CMD.getGroups());
-  }
-
-  function requestSearchStatus(): void {
-    pycmd(CMD.requestSearchStatus());
-  }
 
   /** Toggle clipboard-monitor snooping (one-click pause/resume pill). */
   function toggleClipboardPause(): void {
     const next = !clipboardPaused;
     clipboardPaused = next;
     pycmd(CMD.setClipboardPaused(next));
+  }
+
+  function toggleDeinflect(): void {
+    const next = !deinflect;
+    deinflect = next;
+    pycmd(CMD.setDeinflect(next));
+  }
+
+  function toggleTabMode(): void {
+    const next = !singleTab;
+    singleTab = next;
+    pycmd(CMD.setTabMode(next));
+  }
+
+  function openHistoryViewer(): void {
+    if (hasBridge()) {
+      pycmd(CMD.openHistory());
+    } else {
+      // Standalone web preview: no Qt dialog — show the inline history.
+      requestHistory();
+      open = true;
+      input?.focus();
+    }
   }
 
   function onFocus(): void {
@@ -214,8 +310,23 @@
     {/if}
   </div>
 
+  <button
+    class="chromeBtn"
+    type="button"
+    title="Search"
+    aria-label="Search"
+    onclick={() => submit()}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  </button>
+
   <select
+    class="chromeSelect"
     aria-label="Dictionary group"
+    title="Dictionary group"
     bind:value={group}
     onchange={() => {
       if (group) pycmd(CMD.setGroup(group));
@@ -225,6 +336,125 @@
       <option value={g}>{g}</option>
     {/each}
   </select>
+
+  <select
+    class="chromeSelect chromeMode"
+    aria-label="Search mode"
+    title="Search mode: how the term is matched"
+    bind:value={mode}
+    onchange={() => {
+      if (mode) pycmd(CMD.setSearchMode(mode));
+    }}
+  >
+    {#each modes as m (m)}
+      <option value={m}>{m}</option>
+    {/each}
+  </select>
+
+  <button
+    class="chromeBtn"
+    class:active={ui.sidebarOpened}
+    type="button"
+    title={ui.sidebarOpened ? "Close definition sidebar" : "Open definition sidebar"}
+    aria-label={ui.sidebarOpened ? "Close definition sidebar" : "Open definition sidebar"}
+    aria-pressed={ui.sidebarOpened}
+    onclick={() => toggleSidebar()}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+    </svg>
+  </button>
+
+  <span class="chromeDiv" aria-hidden="true"></span>
+
+  <button
+    class="chromeBtn"
+    type="button"
+    title="Decrease font size"
+    aria-label="Decrease font size"
+    onclick={() => scaleFont(false)}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M5 12h14" />
+    </svg>
+  </button>
+  <button
+    class="chromeBtn"
+    type="button"
+    title="Increase font size"
+    aria-label="Increase font size"
+    onclick={() => scaleFont(true)}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  </button>
+
+  <button
+    class="chromeBtn"
+    class:active={!singleTab}
+    type="button"
+    title={singleTab ? "Single-tab mode — click for multi-tab" : "Multi-tab mode — click for single-tab"}
+    aria-label={singleTab ? "Switch to multi-tab mode" : "Switch to single-tab mode"}
+    aria-pressed={!singleTab}
+    onclick={toggleTabMode}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      {#if singleTab}
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+      {:else}
+        <rect x="7" y="7" width="13" height="13" rx="2" />
+        <path d="M4 16V6a2 2 0 0 1 2-2h10" />
+      {/if}
+    </svg>
+  </button>
+
+  <button
+    class="chromeBtn"
+    type="button"
+    title="Open search history"
+    aria-label="Open search history"
+    onclick={openHistoryViewer}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  </button>
+
+  <button
+    class="chromeBtn"
+    class:active={deinflect}
+    type="button"
+    title={deinflect ? "Deinflection on — click to turn off" : "Deinflection off — click to turn on"}
+    aria-label={deinflect ? "Turn deinflection off" : "Turn deinflection on"}
+    aria-pressed={deinflect}
+    onclick={toggleDeinflect}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" />
+      <path d="M12 22V12" />
+      <path d="m3 7 9 5 9-5" />
+    </svg>
+  </button>
+
+  <button
+    class="chromeBtn"
+    type="button"
+    title="Theme editor"
+    aria-label="Theme editor"
+    onclick={() => pycmd(CMD.openTheme())}
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-1 1.5-2-.5-1.2.2-2.5 1.5-2.5H17a4 4 0 0 0 4-4c0-5-4-9.5-9-9.5Z" />
+      <circle cx="8.5" cy="10.5" r="1" fill="currentColor" />
+      <circle cx="12" cy="7.5" r="1" fill="currentColor" />
+      <circle cx="15.5" cy="10.5" r="1" fill="currentColor" />
+    </svg>
+  </button>
 
   <!-- U2: search-source chip + clipboard-monitor pause pill. -->
   <div class="sourcePill" class:clipboard={source === "clipboard"} title={source === "clipboard" ? "Searched from the global clipboard hotkey" : "Search source"}>
@@ -257,6 +487,12 @@
       {/if}
     </svg>
   </button>
+
+  {#if showTarget && target}
+    <div class="sourcePill targetPill" title="Anki editor target">
+      <span>Target: {target}</span>
+    </div>
+  {/if}
 
   <button
     class="chromeBtn"
