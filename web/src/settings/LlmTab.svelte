@@ -97,9 +97,19 @@
   </p>
   {#each rows as row, i (i)}
     <div class="field">
-      <input type="checkbox" checked={row.active} onchange={(e) => { rows[i] = { ...row, active: e.currentTarget.checked }; }} />
-      <textarea rows="3" value={row.text} oninput={(e) => { rows[i] = { ...row, text: e.currentTarget.value }; }}></textarea>
-      <button type="button" class="btn danger" onclick={() => removeRow(i)}>&#x2715;</button>
+      <input
+        type="checkbox"
+        aria-label="Enable prompt"
+        checked={row.active}
+        onchange={(e) => { rows[i] = { ...row, active: e.currentTarget.checked }; }}
+      />
+      <textarea
+        rows="3"
+        value={row.text}
+        placeholder={"Prompt text — use {term} as the placeholder for the word being searched"}
+        oninput={(e) => { rows[i] = { ...row, text: e.currentTarget.value }; }}
+      ></textarea>
+      <button type="button" class="btn danger" onclick={() => removeRow(i)} title="Remove prompt">&#x2715;</button>
     </div>
   {/each}
   <button type="button" class="btn" onclick={addRow}>+ Add Prompt</button>

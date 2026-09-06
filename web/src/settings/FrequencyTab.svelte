@@ -230,7 +230,7 @@
     <span class="field-label" id="threshLabel">Rank Thresholds</span>
     <div style="flex:1;display:flex;gap:6px" role="group" aria-labelledby="threshLabel">
       {#each thresh as t, i (i)}
-        <input type="number" style="flex:1" value={t} oninput={(e) => setThreshold(i, Number(e.currentTarget.value))} />
+        <input type="number" min="0" style="flex:1" value={t} oninput={(e) => setThreshold(i, Number(e.currentTarget.value))} />
       {/each}
     </div>
   </div>

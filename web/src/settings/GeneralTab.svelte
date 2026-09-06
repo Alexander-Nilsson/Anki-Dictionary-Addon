@@ -74,6 +74,11 @@
     cfg.set("language_defaults", langDefaults);
   }
 
+  function dictionaryCount(group: Group): string {
+    const n = (group.dictionaries ?? []).length;
+    return `${n} ${n === 1 ? "dictionary" : "dictionaries"}`;
+  }
+
   function addTemplateEditor(): void {
     editingTemplateName = null;
     editingTemplate = null;
@@ -102,9 +107,10 @@
     Auto-Select (switch group by term script)
   </label>
   <div class="list">
-    {#each Object.entries(groups()) as [name, _g] (name)}
+    {#each Object.entries(groups()) as [name, g] (name)}
       <div class="list-row">
         <span class="name">{name}</span>
+        <span class="sub">{dictionaryCount(g)}</span>
         <button type="button" class="btn" onclick={() => editGroupEditor(name)}>Edit</button>
         <button type="button" class="btn danger" onclick={() => removeGroup(name)}>Remove</button>
       </div>
@@ -139,11 +145,11 @@
   <h3>Search &amp; Behavior</h3>
   <div class="field">
     <label for="maxSearch">Max Total Results</label>
-    <input id="maxSearch" type="number" value={cfg.get("maxSearch", 1000)} oninput={(e) => cfg.set("maxSearch", Number(e.currentTarget.value))} />
+    <input id="maxSearch" type="number" min="0" value={cfg.get("maxSearch", 1000)} oninput={(e) => cfg.set("maxSearch", Number(e.currentTarget.value))} />
   </div>
   <div class="field">
     <label for="dictSearch">Max per Dictionary</label>
-    <input id="dictSearch" type="number" value={cfg.get("dictSearch", 50)} oninput={(e) => cfg.set("dictSearch", Number(e.currentTarget.value))} />
+    <input id="dictSearch" type="number" min="0" value={cfg.get("dictSearch", 50)} oninput={(e) => cfg.set("dictSearch", Number(e.currentTarget.value))} />
   </div>
   <div class="field">
     <label for="imageSearchRegion">Image Search Region</label>
@@ -185,11 +191,11 @@
   <h3>Media &amp; Integration</h3>
   <div class="field">
     <label for="maxWidth">Max Image Width</label>
-    <input id="maxWidth" type="number" value={cfg.get("maxWidth", 1500)} oninput={(e) => cfg.set("maxWidth", Number(e.currentTarget.value))} />
+    <input id="maxWidth" type="number" min="0" value={cfg.get("maxWidth", 1500)} oninput={(e) => cfg.set("maxWidth", Number(e.currentTarget.value))} />
   </div>
   <div class="field">
     <label for="maxHeight">Max Image Height</label>
-    <input id="maxHeight" type="number" value={cfg.get("maxHeight", 400)} oninput={(e) => cfg.set("maxHeight", Number(e.currentTarget.value))} />
+    <input id="maxHeight" type="number" min="0" value={cfg.get("maxHeight", 400)} oninput={(e) => cfg.set("maxHeight", Number(e.currentTarget.value))} />
   </div>
   <label class="check">
     <input type="checkbox" checked={!!cfg.get("imageAutoConvert", true)} onchange={(e) => cfg.set("imageAutoConvert", e.currentTarget.checked)} />

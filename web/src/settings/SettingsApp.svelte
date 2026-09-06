@@ -49,6 +49,19 @@
     pycmd(SETTINGS_CMD.close());
   }
 
+  function onTabKeydown(e: KeyboardEvent): void {
+    const idx = TABS.findIndex((t) => t.id === active);
+    let next: number | null = null;
+    if (e.key === "ArrowRight") next = (idx + 1) % TABS.length;
+    else if (e.key === "ArrowLeft") next = (idx - 1 + TABS.length) % TABS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = TABS.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    active = TABS[next].id;
+    document.getElementById(`tab-${TABS[next].id}`)?.focus();
+  }
+
   onMount(() => {
     loadSettings();
     // Handshake with Python — lets the bridge know the page is ready.
@@ -64,11 +77,15 @@
   </span>
 </div>
 
-<div class="settings-tabs" role="tablist">
+<div class="settings-tabs" role="tablist" aria-label="Settings sections" tabindex="-1" onkeydown={onTabKeydown}>
   {#each TABS as tab (tab.id)}
     <button
       type="button"
       role="tab"
+      id={`tab-${tab.id}`}
+      aria-selected={active === tab.id}
+      aria-controls="settings-body"
+      tabindex={active === tab.id ? 0 : -1}
       class:active={active === tab.id}
       onclick={() => (active = tab.id)}
     >
@@ -77,7 +94,7 @@
   {/each}
 </div>
 
-<div class="settings-body">
+<div class="settings-body" id="settings-body" role="tabpanel">
   {#if !settings.configLoaded}
     <div class="card">
       <p class="hint">Loading settings…</p>

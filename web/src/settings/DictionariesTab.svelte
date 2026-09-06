@@ -22,8 +22,8 @@
     Manage the languages and dictionaries the addon loads. Installing
     dictionaries opens the addon's native import flow.
   </p>
-  <div style="display:flex;gap:8px;margin-bottom:12px">
-    <button type="button" class="btn" onclick={installFromWeb}>Install Dictionaries (Web Wizard)</button>
+  <div class="install-grid">
+    <button type="button" class="btn" onclick={installFromWeb}>Install Dictionaries (Web)</button>
     <button type="button" class="btn" onclick={importFromFiles}>Install Dictionaries (Files)</button>
     <button type="button" class="btn" onclick={installFreqFromWeb}>Install Frequency Data (Web)</button>
     <button type="button" class="btn" onclick={importFreqFromFiles}>Install Frequency Data (Files)</button>

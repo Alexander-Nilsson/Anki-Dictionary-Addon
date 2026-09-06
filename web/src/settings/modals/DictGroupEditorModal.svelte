@@ -134,7 +134,7 @@
 
       <div style="display:flex;gap:8px;justify-content:flex-end;margin:10px 0">
         <button type="button" class="btn" onclick={() => toggleAll(true)}>Select All</button>
-        <button type="button" class="btn" onclick={() => toggleAll(false)}>Remove All</button>
+        <button type="button" class="btn" onclick={() => toggleAll(false)}>Deselect All</button>
       </div>
 
       <div class="list" style="max-height:240px;overflow-y:auto">
