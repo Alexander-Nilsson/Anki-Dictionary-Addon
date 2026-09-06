@@ -9,16 +9,72 @@
  */
 import type { FontSizes } from "./types";
 
-/** Send a raw command to Python via the Anki bridge. */
+/**
+ * Commands issued before Anki injected the bridge. Anki's bridge script assigns
+ * `window.pycmd` only inside the async QWebChannel handshake, so it is
+ * ``undefined`` (the ``var`` is hoisted) during early page load. Any command
+ * sent then would be silently dropped — which left the settings page stuck on
+ * "Loading…" because its whole initial data burst fires from ``onMount``,
+ * before the handshake completes.
+ */
+let pending: string[] = [];
+let flushWatch: ReturnType<typeof setInterval> | null = null;
+
+function flushPending(): void {
+  if (!pending.length || typeof window.pycmd !== "function") return;
+  const cmds = pending;
+  pending = [];
+  for (const cmd of cmds) {
+    try {
+      window.pycmd(cmd);
+    } catch (err) {
+      console.error("pycmd failed:", cmd, err);
+    }
+  }
+}
+
+/** Poll until the injected bridge appears, then flush queued commands. */
+function ensureFlushWatch(): void {
+  if (flushWatch !== null) return;
+  flushWatch = setInterval(() => {
+    if (typeof window.pycmd === "function") {
+      if (flushWatch !== null) {
+        clearInterval(flushWatch);
+        flushWatch = null;
+      }
+      flushPending();
+    }
+  }, 5);
+  // Safety: if the bridge never appears (e.g. a plain browser without the dev
+  // mock), stop polling after a few seconds instead of spinning forever.
+  setTimeout(() => {
+    if (flushWatch !== null) {
+      clearInterval(flushWatch);
+      flushWatch = null;
+    }
+    if (pending.length) {
+      console.warn("pycmd still unavailable; dropping queued commands:", pending);
+      pending = [];
+    }
+  }, 5000);
+}
+
+/**
+ * Send a raw command to Python via the Anki bridge. If the bridge is not
+ * injected yet (early page load), the command is queued and flushed as soon as
+ * it appears.
+ */
 export function pycmd(command: string): void {
   if (typeof window.pycmd === "function") {
+    flushPending();
     try {
       window.pycmd(command);
     } catch (err) {
       console.error("pycmd failed:", command, err);
     }
   } else {
-    console.warn("pycmd not available yet:", command);
+    pending.push(command);
+    ensureFlushWatch();
   }
 }
 
@@ -81,6 +137,7 @@ export function awaitPycmdToLoad(): void {
   const timer = setInterval(() => {
     if (typeof window.pycmd === "function") {
       clearInterval(timer);
+      flushPending();
       pycmd(CMD.pageLoaded());
     }
   }, 5);
