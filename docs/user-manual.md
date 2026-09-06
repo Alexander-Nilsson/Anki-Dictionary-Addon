@@ -110,27 +110,19 @@ Fields:
 
 #### Installing Dictionaries
 
-##### Using the Wizard
+##### From the Dictionary Server (Web)
 
-1. Open **Anki Dictionary → Dictionary Settings → Dictionaries**
-2. Click **Install Languages in Wizard**
-3. Select a server (default: the add-on's dictionary server)
-4. Click **Next**, choose a target language and translation language
-5. Check the dictionaries you want, optionally enable frequency and conjugation data
-6. Click **Next**, review your selection, then **Confirm**
+1. Open **Anki Dictionary → Settings → Dictionaries**
+2. Click **Install Dictionaries (Web)**
+3. Pick a server (default: the add-on's dictionary server) and click **Connect**
+4. Check the languages and dictionaries you want, optionally enable frequency and conjugation data
+5. Click **Install** and watch the progress log
 
 ##### From a ZIP File
 
-1. In the Dictionaries tab, select a language on the left
-2. Click **Install Dictionary From File**
-3. Select a dictionary ZIP and optionally rename it
-4. Click **OK**
-
-##### By Adding a Language
-
-1. In the Dictionaries tab, click **Add a Language**
-2. Enter a name and click **OK**
-3. Select the new language and use the wizard or file installer to add dictionaries
+1. Open **Anki Dictionary → Settings → Dictionaries**
+2. Click **Install Dictionaries (Files)**, choose a language, then select the dictionary ZIPs
+3. Optionally rename each dictionary
 
 #### Removing Dictionaries
 
@@ -163,9 +155,8 @@ List with readings (for Japanese, Chinese):
 
 Frequency lists can be installed:
 
-- **Automatically** via the wizard (when available for your language)
-- **From file** — select a language, click **Install Frequency Data From File**
-- **From server** — select a language, click **Install Frequency Data in Wizard**
+- **From the server** — open **Settings → Dictionaries** (or **Frequency Lists**) and click **Install Frequency Data (Web)**
+- **From file** — click **Install Frequency Data (Files)**
 
 > Install the frequency list **before** installing dictionaries for that language, or uninstall and reinstall dictionaries afterward.
 

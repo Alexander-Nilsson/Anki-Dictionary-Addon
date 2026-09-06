@@ -84,6 +84,7 @@ def _make_signal(*_types):
 
 
 _QT_CLASSES = [
+    "QColor",
     "QEvent",
     "QFileDialog",
     "QIcon",
@@ -98,8 +99,8 @@ _QT_CLASSES = [
     # Used by anki_dictionary.integrations.llm (imported lazily by the bridge).
     "QObject",
     "QRunnable",
-    # Used by anki_dictionary.web.installer + ui.dialogs.wizard (imported
-    # lazily by native delegates like web_install_dicts).
+    # Used by anki_dictionary.web.install_service (imported lazily by the
+    # bridge's web-install commands).
     "QCheckBox",
     "QDialog",
     "QFrame",
@@ -186,6 +187,9 @@ atexit.register(_restore_modules)
 # ---------------------------------------------------------------------------
 # Import modules under test
 # ---------------------------------------------------------------------------
+import io  # noqa: E402
+
+import anki_dictionary.web.install_service as install_service  # noqa: E402
 from anki_dictionary.ui.settings.settings_bridge import SettingsBridge  # noqa: E402
 from anki_dictionary.ui.settings.settings_gui import SettingsGui  # noqa: E402
 
@@ -363,17 +367,6 @@ class TestSettingsGuiShell(unittest.TestCase):
         with patch("anki_dictionary.ui.settings.settings_gui.QInputDialog") as qid:
             qid.getText.return_value = ("German", True)
             self.assertEqual(gui._select_language(), "German")
-
-    def test_web_install_dicts_runs_wizard_and_refreshes(self):
-        mw = _make_mw()
-        gui = _make_gui(mw)
-        with (
-            patch("anki_dictionary.web.installer.DictionaryWebInstallWizard") as wizard,
-            patch.object(gui, "_after_native_change") as refresh,
-        ):
-            gui.web_install_dicts()
-            wizard.execute_modal.assert_called_once()
-            refresh.assert_called_once()
 
     def test_import_freq_copies_file_and_refreshes(self):
         mw = _make_mw()
@@ -581,9 +574,7 @@ class TestSettingsBridge(unittest.TestCase):
     def test_native_delegate_routes_to_settings_gui(self):
         bridge, gui, _ = _make_bridge()
         for cmd, attr in [
-            ("settings:webInstallDicts", "web_install_dicts"),
             ("settings:importDicts", "import_dicts"),
-            ("settings:webInstallFreq", "web_install_freq"),
             ("settings:importFreq", "import_freq"),
             ("settings:browseFontFile", "browse_font_file"),
         ]:
@@ -595,6 +586,200 @@ class TestSettingsBridge(unittest.TestCase):
         bridge, _, _ = _make_bridge()
         bridge.handleSettingsAction("settings:notACommand")
         bridge._push.assert_not_called()
+
+    # ── web install (new modals) ──────────────────────────
+
+    def test_getWebIndex_runs_in_background_and_pushes(self):
+        bridge, _, mw = _make_bridge()
+        mw.taskman.run_in_background.assert_not_called()
+        bridge.handleSettingsAction(
+            "settings:getWebIndex:" + json.dumps("https://example.com")
+        )
+        mw.taskman.run_in_background.assert_called_once()
+        run_fn, done_fn = mw.taskman.run_in_background.call_args[0]
+
+        with patch(
+            "anki_dictionary.ui.settings.settings_bridge.webConfig.download_index",
+            return_value={"languages": []},
+        ) as dl:
+            future = MagicMock()
+            future.result.return_value = run_fn()
+            dl.assert_called_once_with("https://example.com")
+        done_fn(future)
+        bridge._push.assert_called_with(
+            "setWebIndex",
+            {"ok": True, "server": "https://example.com", "index": {"languages": []}},
+        )
+
+    def test_getWebIndex_failure_pushes_ok_false(self):
+        bridge, _, mw = _make_bridge()
+        bridge.handleSettingsAction("settings:getWebIndex:" + json.dumps("x"))
+        run_fn, done_fn = mw.taskman.run_in_background.call_args[0]
+        with patch(
+            "anki_dictionary.ui.settings.settings_bridge.webConfig.download_index",
+            return_value=None,
+        ):
+            future = MagicMock()
+            future.result.return_value = run_fn()
+        done_fn(future)
+        bridge._push.assert_called_with("setWebIndex", {"ok": False, "server": "x"})
+
+    def test_webInstall_starts_worker_and_pushes_state(self):
+        bridge, _, _ = _make_bridge()
+        selection = {
+            "server": "https://example.com",
+            "install_dictionaries": True,
+            "languages": [{"name": "Japanese", "dictionaries": []}],
+        }
+        with patch(
+            "anki_dictionary.web.install_service.WebInstallWorker"
+        ) as worker_cls:
+            worker = worker_cls.return_value
+            worker.isRunning.return_value = False
+            bridge.handleSettingsAction("settings:webInstall:" + json.dumps(selection))
+            worker_cls.assert_called_once_with(selection)
+            worker.log_line.connect.assert_called_once()
+            worker.start.assert_called_once()
+        first = bridge._push.call_args_list[0]
+        self.assertEqual(first.args[0], "setWebInstall")
+        self.assertFalse(first.args[1].get("log"))
+
+    def test_webInstall_ignores_while_running(self):
+        bridge, _, _ = _make_bridge()
+        with patch(
+            "anki_dictionary.web.install_service.WebInstallWorker"
+        ) as worker_cls:
+            worker = worker_cls.return_value
+            worker.isRunning.return_value = True
+            bridge._install_worker = worker
+            bridge.handleSettingsAction(
+                "settings:webInstall:" + json.dumps({"languages": []})
+            )
+            worker_cls.assert_not_called()
+
+    def test_webInstallCancel_sets_flag(self):
+        bridge, _, _ = _make_bridge()
+        worker = MagicMock()
+        worker.isRunning.return_value = True
+        bridge._install_worker = worker
+        bridge.handleSettingsAction("settings:webInstallCancel")
+        self.assertTrue(worker.cancel_requested)
+
+    def test_install_done_clears_caches_and_refreshes(self):
+        bridge, gui, mw = _make_bridge()
+        bridge._web_install_log = ["a", "b"]
+        with (
+            patch.object(bridge, "_push"),
+            patch.object(gui, "_after_native_change") as refresh,
+        ):
+            bridge._on_install_done(True)
+            mw.miDictDB._registry.clear_cache.assert_called_once()
+            refresh.assert_called_once()
+            self.assertIsNone(bridge._install_worker)
+            push = bridge._push.call_args
+            self.assertEqual(push.args[0], "setWebInstall")
+            self.assertFalse(push.args[1]["running"])
+
+    # ── theme injection ───────────────────────────────────
+
+    def test_load_settings_page_injects_theme_css(self):
+        theme = {
+            "header_background": "#1e1e2e",
+            "selector": "#181825",
+            "header_text": "#cdd6f4",
+            "search_term": "#89b4fa",
+            "border": "#b4befe",
+            "anki_button_background": "#313244",
+            "anki_button_text": "#cdd6f4",
+            "tab_hover": "#45475a",
+            "current_tab_gradient_top": "#585b70",
+            "current_tab_gradient_bottom": "#1e1e2e",
+            "example_highlight": "#313244",
+            "definition_background": "#313244",
+            "definition_text": "#cdd6f4",
+            "pitch_accent_color": "#f38ba8",
+        }
+        with patch(
+            "anki_dictionary.ui.theme_controller.get_theme_dict",
+            return_value=theme,
+        ):
+            repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            gui = MagicMock()
+            gui.config = dict(_BASE_CONFIG)
+            bridge = SettingsBridge(gui, _make_mw(), repo_root)
+            bridge._push = MagicMock()
+        bridge.setHtml.assert_called_once()  # type: ignore[attr-defined]
+        html = bridge.setHtml.call_args[0][0]  # type: ignore[attr-defined]
+        self.assertIn("html:root", html)
+        self.assertIn("--settings-accent: #89b4fa", html)
+        self.assertIn("--settings-panel: #313244", html)
+
+
+class TestWebInstallService(unittest.TestCase):
+    """Pure helpers of the headless web install service."""
+
+    def test_sanitize_accepts_valid_json(self):
+        raw = json.dumps({"term": 1}).encode()
+        self.assertEqual(
+            install_service.sanitize_json_bytes(raw, "x.json", lambda m: None), raw
+        )
+
+    def test_sanitize_rejects_lfs_pointer(self):
+        logs = []
+        raw = b"version https://git-lfs.github.com/spec/v1"
+        self.assertIsNone(
+            install_service.sanitize_json_bytes(raw, "x.json", logs.append)
+        )
+        self.assertIn("LFS", logs[0])
+
+    def test_sanitize_rejects_metadata_only_header(self):
+        logs = []
+        raw = json.dumps(
+            {"title": "t", "revision": "r", "format": 3, "url": "u"}
+        ).encode()
+        self.assertIsNone(
+            install_service.sanitize_json_bytes(raw, "x.json", logs.append)
+        )
+
+    def test_sanitize_rejects_invalid_json(self):
+        logs = []
+        self.assertIsNone(
+            install_service.sanitize_json_bytes(b"not json", "x.json", logs.append)
+        )
+
+    def test_extract_zipped_json_pulls_first_json_entry(self):
+        import zipfile as zf
+
+        buf = io.BytesIO()
+        with zf.ZipFile(buf, "w") as z:
+            z.writestr("meta.txt", "hello")
+            z.writestr("data.json", json.dumps({"term": 1}))
+        out = install_service.extract_zipped_json(buf.getvalue(), lambda m: None)
+        self.assertEqual(json.loads(out), {"term": 1})
+
+    def test_extract_passthrough_non_zip(self):
+        raw = json.dumps({"term": 1}).encode()
+        self.assertEqual(install_service.extract_zipped_json(raw, lambda m: None), raw)
+
+    def test_worker_filters_unknown_keys(self):
+        selection = {
+            "server": "https://example.com",
+            "languages": [{"name": "Japanese", "dictionaries": []}],
+            "junk": "ignored",
+        }
+        worker = install_service.WebInstallWorker(selection)
+        self.assertNotIn("junk", worker.selection)
+        self.assertEqual(worker.selection["server"], "https://example.com")
+
+    def test_construct_url_joins_server_root(self):
+        worker = install_service.WebInstallWorker({"server": "https://example.com//"})
+        self.assertEqual(
+            worker.construct_url("/ja/JMdict.zip"),
+            "https://example.com/ja/JMdict.zip",
+        )
+        self.assertEqual(
+            worker.construct_url("https://other.com/x.zip"), "https://other.com/x.zip"
+        )
 
 
 if __name__ == "__main__":

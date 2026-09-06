@@ -27,6 +27,7 @@ from ...utils.config import get_addon_config, save_addon_config
 from ...utils.constants import FORVO_LANGUAGES
 from ...utils.logger import get_logger
 from ...utils.paths import get_addon_root, get_word_lists_dir
+from ...web import config as webConfig
 
 logger = get_logger(__name__.split(".")[-1])
 
@@ -55,6 +56,9 @@ class SettingsBridge(AnkiWebView):
         # Tab requested before the page announced itself (see focus_tab).
         self._pending_tab: str | None = None
         self._page_ready = False
+        # Web install (install modals): one worker at a time + streamed log.
+        self._install_worker: Any = None
+        self._web_install_log: list[str] = []
         self.loadSettingsPage()
 
     def loadSettingsPage(self) -> None:
@@ -67,7 +71,20 @@ class SettingsBridge(AnkiWebView):
             html = "<html><body><h1>Settings bundle not found</h1></body></html>"
         # The bundle is fully self-contained (JS + CSS inlined), so no base
         # URL is needed — matching release_notes.py's AnkiWebView usage.
+        # The active theme is injected into the page's customThemeCss hook so
+        # the settings window matches the dictionary window.
+        html = html.replace('<style id="customThemeCss"></style>', self._settings_css())
         self.setHtml(html)
+
+    def _settings_css(self) -> str:
+        """Theme CSS for the settings page (falls back to bundled defaults)."""
+        try:
+            from ..theme_controller import generate_settings_css, get_theme_dict
+
+            return generate_settings_css(get_theme_dict(self._theme_manager()))
+        except Exception:
+            logger.debug("Could not generate settings theme css", exc_info=True)
+            return '<style id="customThemeCss"></style>'
 
     # ── reply helpers ──────────────────────────────────────
 
@@ -270,6 +287,10 @@ class SettingsBridge(AnkiWebView):
         except Exception:
             logger.debug("Could not repaint the dictionary window", exc_info=True)
 
+    def _repaint_settings(self) -> None:
+        """Re-push the theme CSS so the settings page follows theme changes."""
+        self._push("setThemeCss", self._settings_css())
+
     def _apply_theme(self, raw: str) -> None:
         try:
             name = json.loads(raw)
@@ -284,6 +305,7 @@ class SettingsBridge(AnkiWebView):
         tm.set_active_theme(name)
         self._repaint_dictionary()
         self._push_themes(tm)
+        self._repaint_settings()
 
     def _save_theme(self, raw: str) -> None:
         from ..themes import ThemeColors
@@ -318,6 +340,7 @@ class SettingsBridge(AnkiWebView):
             tm.set_active_theme(name)
             self._repaint_dictionary()
         self._push_themes(tm)
+        self._repaint_settings()
 
     def _delete_theme(self, raw: str) -> None:
         try:
@@ -329,6 +352,7 @@ class SettingsBridge(AnkiWebView):
         if isinstance(name, str) and tm.delete_theme(name):
             self._repaint_dictionary()
         self._push_themes(tm)
+        self._repaint_settings()
 
     # ── command handler ────────────────────────────────────
 
@@ -387,13 +411,19 @@ class SettingsBridge(AnkiWebView):
             raw = dAct[len("settings:removeLanguage:") :]
             self._remove_language(raw)
         elif dAct in (
-            "settings:webInstallDicts",
             "settings:importDicts",
-            "settings:webInstallFreq",
             "settings:importFreq",
             "settings:browseFontFile",
         ):
             self._delegate_native(dAct)
+        elif dAct.startswith("settings:getWebIndex:"):
+            raw = dAct[len("settings:getWebIndex:") :]
+            self._fetch_web_index(raw)
+        elif dAct.startswith("settings:webInstall:"):
+            raw = dAct[len("settings:webInstall:") :]
+            self._start_web_install(raw)
+        elif dAct == "settings:webInstallCancel":
+            self._cancel_web_install()
         else:
             logger.debug("Unhandled settings command: %s", dAct[:80])
 
@@ -502,11 +532,9 @@ class SettingsBridge(AnkiWebView):
         self._push("setLanguagesDicts", self._languages_dicts())
 
     def _delegate_native(self, dAct: str) -> None:
-        """Route native Qt flows (file dialogs / web installers) to the GUI."""
+        """Route native Qt flows (file dialogs) to the GUI."""
         method_map = {
-            "settings:webInstallDicts": "web_install_dicts",
             "settings:importDicts": "import_dicts",
-            "settings:webInstallFreq": "web_install_freq",
             "settings:importFreq": "import_freq",
             "settings:browseFontFile": "browse_font_file",
         }
@@ -515,3 +543,94 @@ class SettingsBridge(AnkiWebView):
             method()
         else:
             logger.debug("No native handler for %s", dAct)
+
+    # ── web install (settings install modals) ──────────────
+
+    def _fetch_web_index(self, raw: str) -> None:
+        """Download the dictionary server index off the UI thread."""
+        try:
+            server = json.loads(raw)
+        except json.JSONDecodeError:
+            server = ""
+        if not isinstance(server, str) or not server.strip():
+            server = webConfig.DEFAULT_SERVER
+
+        def run() -> dict[str, Any]:
+            index = webConfig.download_index(server)
+            if index is None:
+                return {"ok": False, "server": server}
+            return {"ok": True, "server": server, "index": index}
+
+        def on_done(future: Any) -> None:
+            try:
+                self._push("setWebIndex", future.result())
+            except Exception:  # noqa: BLE001
+                logger.exception("Web index fetch failed")
+                self._push("setWebIndex", {"ok": False, "server": server})
+
+        taskman = getattr(self.mw, "taskman", None)
+        if taskman is not None:
+            taskman.run_in_background(run, on_done)
+        else:
+            self._push("setWebIndex", run())
+
+    def _start_web_install(self, raw: str) -> None:
+        """Kick off a WebInstallWorker for the modal's selection."""
+        if self._install_worker is not None and self._install_worker.isRunning():
+            logger.warning("Web install already running; ignoring new request")
+            return
+        try:
+            selection = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.error("settings:webInstall received invalid JSON payload")
+            return
+        if not isinstance(selection, dict):
+            return
+
+        from ...web.install_service import WebInstallWorker
+
+        self._web_install_log = []
+        worker = WebInstallWorker(selection)
+        worker.log_line.connect(self._on_install_log)
+        worker.progress.connect(
+            lambda pct: self._push("setWebInstall", {"percent": pct, "running": True})
+        )
+        worker.done.connect(self._on_install_done)
+        self._install_worker = worker
+        self._push("setWebInstall", {"percent": 0, "running": True, "log": []})
+        worker.start()
+
+    def _cancel_web_install(self) -> None:
+        if self._install_worker is not None and self._install_worker.isRunning():
+            self._install_worker.cancel_requested = True
+
+    def _on_install_log(self, line: str) -> None:
+        self._web_install_log.append(line)
+        self._push(
+            "setWebInstall",
+            {"log": self._web_install_log[-400:], "running": True},
+        )
+
+    def _on_install_done(self, completed: bool) -> None:
+        if self._install_worker is not None:
+            self._install_worker.wait()
+            self._install_worker = None
+        # Invalidate caches so installed data is picked up immediately.
+        db = getattr(self.mw, "miDictDB", None)
+        if db is not None:
+            try:
+                if db._registry is not None:
+                    db._registry.clear_cache()
+                db._extra_data_cache.clear()
+            except Exception:
+                logger.debug("Could not clear db caches after install", exc_info=True)
+        self._push(
+            "setWebInstall",
+            {
+                "percent": 100 if completed else 0,
+                "running": False,
+                "completed": completed,
+            },
+        )
+        if hasattr(self.settings_gui, "_after_native_change"):
+            self.settings_gui._after_native_change()

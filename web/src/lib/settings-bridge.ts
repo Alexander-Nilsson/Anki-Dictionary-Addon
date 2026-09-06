@@ -26,8 +26,14 @@
  *    settings:saveTheme:<json>    -> {name, colors, apply} -> setThemes
  *    settings:deleteTheme:<json>  -> setThemes
  *
+ *    settings:getWebIndex:<server>  -> SETTINGS.setWebIndex({ok,server,index?})
+ *    settings:webInstall:<selection> -> SETTINGS.setWebInstall({percent,running,log?})
+ *    settings:webInstallCancel
+ *
  * Python can also push `SETTINGS.setActiveTab("appearance")` unprompted, which
  * is how the dictionary window's theme button lands on the theme gallery.
+ * `SETTINGS.setThemeCss(<style element html>)` re-themes the settings window
+ * in place when a theme is applied from the gallery.
  */
 
 export const SETTINGS_CMD = {
@@ -50,6 +56,9 @@ export const SETTINGS_CMD = {
   applyTheme: (name: string) => `settings:applyTheme:${JSON.stringify(name)}`,
   saveTheme: (payload: unknown) => `settings:saveTheme:${JSON.stringify(payload)}`,
   deleteTheme: (name: string) => `settings:deleteTheme:${JSON.stringify(name)}`,
+  getWebIndex: (server: string) => `settings:getWebIndex:${JSON.stringify(server)}`,
+  webInstall: (selection: unknown) => `settings:webInstall:${JSON.stringify(selection)}`,
+  webInstallCancel: () => "settings:webInstallCancel",
 } as const;
 
 /** Install the `window.SETTINGS` reply surface used by Python. */
@@ -67,6 +76,9 @@ export function initSettingsBridge(): void {
     setFontFile: () => undefined,
     setThemes: () => undefined,
     setActiveTab: () => undefined,
+    setThemeCss: () => undefined,
+    setWebIndex: () => undefined,
+    setWebInstall: () => undefined,
   };
   w.SETTINGS = replies;
 }

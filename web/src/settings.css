@@ -83,6 +83,7 @@ body {
 }
 .settings-tabs button:hover {
   color: var(--settings-text);
+  background: var(--settings-hover);
 }
 .settings-tabs button.active {
   color: var(--settings-accent);
@@ -163,6 +164,13 @@ textarea {
   color: var(--settings-text);
   font-size: 13.5px;
 }
+
+/* Themed native widgets (checkboxes, radio, selects). */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--settings-accent);
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -190,12 +198,12 @@ button.btn {
   cursor: pointer;
 }
 button.btn:hover {
-  background: var(--settings-accent-soft);
+  background: var(--settings-hover);
 }
 button.btn.primary {
   background: var(--settings-accent);
   border-color: var(--settings-accent);
-  color: #fff;
+  color: var(--settings-accent-text);
 }
 button.btn.primary:hover {
   opacity: 0.92;
@@ -297,8 +305,8 @@ button.btn:disabled {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1f2430;
-  color: #fff;
+  background: var(--settings-text);
+  color: var(--settings-bg);
   padding: 10px 18px;
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
@@ -345,6 +353,74 @@ button.btn:disabled {
   gap: 10px;
   padding: 12px 18px;
   border-top: 1px solid var(--settings-border);
+}
+
+/* ── Web install modal ─────────────────────────────── */
+.install-modal {
+  max-width: 560px;
+}
+.install-lang-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.install-lang {
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.install-lang > .check {
+  margin-bottom: 4px;
+}
+.install-lang .sub {
+  color: var(--settings-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.install-dicts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 24px;
+}
+.install-dicts .check {
+  margin-bottom: 0;
+  font-weight: 400;
+  padding: 2px 0;
+}
+.install-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.install-progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--settings-bg);
+  border: 1px solid var(--settings-border);
+  overflow: hidden;
+}
+.install-progress-bar > div {
+  height: 100%;
+  background: var(--settings-accent);
+  transition: width 200ms ease;
+}
+.install-log {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--settings-bg);
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--settings-text);
 }
 
 /* ── Appearance tab: theme gallery + editor ───────── */
@@ -476,7 +552,7 @@ button.btn.small {
   height: 20px;
   border-radius: 50%;
   background: var(--settings-accent);
-  color: #fff;
+  color: var(--settings-accent-text);
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
@@ -515,7 +591,7 @@ button.btn.small {
   border-color: var(--settings-accent);
 }
 .badge.dirty {
-  color: #fff;
+  color: var(--settings-accent-text);
   background: var(--settings-accent);
   border-color: var(--settings-accent);
 }

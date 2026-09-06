@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DictDocument, TermPronunciationBlockData } from "../lib/types";
+  import { CLIP_ICON, NEXT_DEF_ICON, PREV_DEF_ICON, SEND_ICON } from "../lib/icons";
   import {
     cleanTermDef,
     fontFamilyFromAttr,
@@ -98,14 +99,8 @@
     }
   }
 
-  // QW1: crisp inline SVG action icons (the legacy glyph set ✂➞▲▼ doesn't
-  // scale on HiDPI). Scissors/copy, send, and chevron nav.
-  const ICONS = {
-    clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
-    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>',
-    next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
-    prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
-  };
+  // Tool icons come from lib/icons.ts — the same markup Python injects for
+  // the blocks it renders (LLM/Images/Forvo), so every entry matches.
 </script>
 
 <div class="termPronunciation" data-index={block.dataIndex}>
@@ -143,7 +138,7 @@
       data-key-handled
       onclick={(e) => handleClip(e, block)}
       onkeydown={(e) => onToolKey(e, (ev) => handleClip(ev, block))}
-    >{@html ICONS.clip}</div>
+    >{@html CLIP_ICON}</div>
     <div
       role="button"
       tabindex="0"
@@ -152,7 +147,7 @@
       data-key-handled
       onclick={(e) => handleSend(e, block)}
       onkeydown={(e) => onToolKey(e, (ev) => handleSend(ev, block))}
-    >{@html ICONS.send}</div>
+    >{@html SEND_ICON}</div>
     <div class="defNav">
       <div
         role="button"
@@ -162,7 +157,7 @@
         data-key-handled
         onclick={(e) => navigateDef(e, false)}
         onkeydown={(e) => onNavKey(e, false)}
-      >{@html ICONS.prev}</div>
+      >{@html PREV_DEF_ICON}</div>
       <div
         role="button"
         tabindex="0"
@@ -171,7 +166,7 @@
         data-key-handled
         onclick={(e) => navigateDef(e, true)}
         onkeydown={(e) => onNavKey(e, true)}
-      >{@html ICONS.next}</div>
+      >{@html NEXT_DEF_ICON}</div>
     </div>
   </div>
 </div>

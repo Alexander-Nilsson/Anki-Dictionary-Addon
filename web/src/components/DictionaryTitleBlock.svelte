@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DictionaryTitleBlockData } from "../lib/types";
+  import { NEXT_DICT_ICON, PREV_DICT_ICON } from "../lib/icons";
   import { fontFamilyFromAttr, navigate } from "../lib/dom";
 
   const { block }: { block: DictionaryTitleBlockData } = $props();
@@ -40,17 +41,7 @@
         data-key-handled
         onclick={(e) => navigateDict(e, false)}
         onkeydown={(e) => onNavKey(e, false)}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        ><path d="M15 18l-6-6 6-6" /></svg>
-      </div>
+      >{@html PREV_DICT_ICON}</div>
       <div
         role="button"
         tabindex="0"
@@ -59,17 +50,7 @@
         data-key-handled
         onclick={(e) => navigateDict(e, true)}
         onkeydown={(e) => onNavKey(e, true)}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        ><path d="M9 6l6 6-6 6" /></svg>
-      </div>
+      >{@html NEXT_DICT_ICON}</div>
     </div>
   </div>
 </div>

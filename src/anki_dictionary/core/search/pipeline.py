@@ -11,6 +11,7 @@ from urllib.parse import quote
 from ...integrations import llm as llm_integration
 from ...utils.logger import get_logger
 from .coordinator import ExternalServiceCoordinator
+from .icons import action_icon
 from .renderer import (
     ResultRenderer,
     clean_term,
@@ -271,8 +272,10 @@ class SearchPipeline:
                 + overwrite
                 + field_select
                 + '<div class="dictNav">'
-                + '<div onclick="navigateDict(event, false)" class="prevDict">\u25b2</div>'
-                + '<div onclick="navigateDict(event, true)" class="nextDict">\u25bc</div>'
+                + '<div onclick="navigateDict(event, false)" class="prevDict">'
+                + action_icon("prev_dict")
+                + '</div><div onclick="navigateDict(event, true)" class="nextDict">'
+                + action_icon("next_dict")
                 + "</div></div></div>"
             )
             dict_count += 1
@@ -662,13 +665,14 @@ class SearchPipeline:
                 '<div onclick="animateForvoPlay(this);'
                 f" playAudio('{audio_url}')\" "
                 'style="cursor:pointer; font-size: 20px; '
-                "margin-right: var(--spacing-md); color: var(--primary); "
+                "margin-right: var(--spacing-md); color: var(--search_term); "
                 "width: 32px; height: 32px; "
                 "display: flex; align-items: center; justify-content: center; "
                 "border-radius: 50%; "
-                'background: var(--primary-light, rgba(33,150,243,0.1));">'
-                '<span class="forvo-icon">\u25b6</span>'
-                "</div>"
+                'background: var(--tab_hover);">'
+                '<span class="forvo-icon" style="display:flex;width:14px;height:14px">'
+                + action_icon("play")
+                + "</span></div>"
                 f"<div><b>{user}</b> "
                 f'<span style="font-size:0.85em">{origin}</span>'
                 f'<div style="font-size:0.8em">Votes: {votes}</div></div>'
@@ -684,8 +688,8 @@ class SearchPipeline:
             content += (
                 '<div onclick="showMoreForvo(this)" class="forvo-load-more" '
                 'style="text-align:center;padding:var(--spacing-sm);cursor:pointer;'
-                "color:var(--primary);font-weight:bold;"
-                'border:1px dashed var(--primary);border-radius:var(--border-radius-sm);">'
+                "color:var(--search_term);font-weight:bold;"
+                'border:1px dashed var(--search_term);border-radius:var(--radius-sm);">'
                 f"Load more ({more})</div>"
             )
         content += "</div></div>"
@@ -706,7 +710,7 @@ class SearchPipeline:
         id_name = result.get("idName") or "forvo-loader"
         esc = json.dumps(
             '<div class="definitionBlock forvo-error" '
-            'style="color:var(--danger,#ff5555);padding:12px;'
+            'style="color:var(--definition_text);padding:12px;'
             'border-radius:8px;">'
             f"<div>{error_msg}</div></div>"
         )
@@ -930,9 +934,11 @@ class SearchPipeline:
             + overwrite
             + field_sel
             + '<div class="dictNav">'
-            '<div onclick="navigateDict(event,false)" class="prevDict">\u25b2</div>'
-            '<div onclick="navigateDict(event,true)" class="nextDict">\u25bc</div>'
-            "</div></div></div>"
+            '<div onclick="navigateDict(event,false)" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event,true)" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div>"
             '<div class="definitionBlock llm-loading-placeholder">'
             "<i>Loading LLM definition...</i></div></div>"
         )
@@ -952,9 +958,11 @@ class SearchPipeline:
             + overwrite
             + field_sel
             + '<div class="dictNav">'
-            '<div onclick="navigateDict(event,false)" class="prevDict">\u25b2</div>'
-            '<div onclick="navigateDict(event,true)" class="nextDict">\u25bc</div>'
-            "</div></div></div>"
+            '<div onclick="navigateDict(event,false)" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event,true)" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div>"
             '<div class="definitionBlock"><i>Loading Forvo pronunciations...</i>'
             "</div></div>"
         )

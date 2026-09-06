@@ -17,6 +17,14 @@
   min-height: 0;
 }
 
+/* Pin the results pane to the pane's height so `overflow-y: auto` actually
+   scrolls (the absolute + `top: 0` rules alone let it grow past #defArea,
+   which left the page unscrollable — nav arrows and back-to-top did nothing
+   because scrollTop could never change). */
+#defBox {
+  bottom: 0;
+}
+
 /* Welcome screen fills the available space (legacy CSS hides it by default
    and shows it under `.no-tabs`; we render it conditionally instead). */
 #welcomeBackground {

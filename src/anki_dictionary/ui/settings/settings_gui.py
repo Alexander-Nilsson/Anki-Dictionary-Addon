@@ -5,8 +5,9 @@ All settings UI (the five tabs plus the dictionary-group and export-template
 editors) lives in the Svelte app built into ``settings.html`` and hosted by
 :class:`SettingsBridge`. This widget provides the native Qt surface (window
 chrome, escape-to-close, ``mw.dictSettings`` teardown) plus the native flows a
-web page cannot drive itself: file dialogs, the dictionary/frequency web
-installers, language removal, and font browsing.
+web page cannot drive itself: file dialogs, language removal, and font
+browsing. Web installs (dictionaries / frequency lists) run inside the page's
+install modal via the bridge.
 
 Native commands start with ``settings:<name>``, arrive via the bridge's
 ``handleSettingsAction``, and are delegated here; config editing/saving is
@@ -146,14 +147,7 @@ class SettingsGui(QWidget):
 
         self._after_native_change()
 
-    # ── native delegates (file dialogs / web installers) ─────
-
-    def web_install_dicts(self) -> None:
-        """Open the dictionary web-install wizard (creates languages itself)."""
-        from ...web.installer import DictionaryWebInstallWizard
-
-        DictionaryWebInstallWizard.execute_modal()
-        self._after_native_change()
+    # ── native delegates (file dialogs) ──────────────────────
 
     def import_dicts(self) -> None:
         """Import dictionaries from ZIP files into a user-chosen language."""
@@ -216,17 +210,6 @@ class SettingsGui(QWidget):
         progress.close()
         if paths:
             self._after_native_change()
-
-    def web_install_freq(self) -> None:
-        """Open the frequency-data web wizard for a user-chosen language."""
-        from ...web.windows import FreqConjWebWindow
-
-        lang = self._select_language()
-        if lang is None:
-            return
-
-        FreqConjWebWindow.execute_modal(lang, FreqConjWebWindow.Mode.Freq)
-        self._after_native_change()
 
     def import_freq(self) -> None:
         """Import a frequency/level JSON (or ZIP) file for a user-chosen language."""

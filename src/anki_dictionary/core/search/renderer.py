@@ -6,6 +6,7 @@ from os.path import basename, exists, join, splitext
 from typing import Any
 
 from ...utils.logger import get_logger
+from .icons import action_icon
 
 logger = get_logger(__name__.split(".")[-1])
 
@@ -529,15 +530,21 @@ class ResultRenderer:
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip_tooltip
-            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send_tooltip
             + " onclick=\"sendToField(event, '"
             + clean_name
-            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
-            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">\u25bc</div></div></div></div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">'
+            + action_icon("next_def")
+            + "</div></div></div></div>"
         )
 
     def render_definition_block(
@@ -805,15 +812,21 @@ class ResultRenderer:
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send
             + " onclick=\"sendToField(event, '"
             + dict_name
-            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
-            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDict">\u25bc</div></div></div></div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">'
+            + action_icon("next_def")
+            + "</div></div></div></div>"
         )
 
     def render_llm_definition_block(
@@ -841,9 +854,12 @@ class ResultRenderer:
             + dict_name
             + '</div><div class="dictionarySettings">'
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" '
-            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">\u25b2</div>'
-            + '<div onclick="navigateDict(event, true)" '
-            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">\u25bc</div></div></div></div>'
+            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div></div>"
         )
 
         stars = str(result.get("starCount", ""))
@@ -880,15 +896,21 @@ class ResultRenderer:
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send
             + " onclick=\"sendToField(event, '"
             + dict_name
-            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
-            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">\u25bc</div></div></div></div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">'
+            + action_icon("next_def")
+            + "</div></div></div></div>"
         )
 
         definition = result.get("definition", "")
@@ -931,9 +953,11 @@ class ResultRenderer:
             + settings_html
             + '<div class="dictNav">'
             + '<div onclick="navigateDict(event, false)" '
-            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">\u25b2</div>'
-            + '<div onclick="navigateDict(event, true)" '
-            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">\u25bc</div>'
+            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
+            + action_icon("next_dict")
             + "</div></div></div>"
             + '<div class="termPronunciation"><span '
             + font
@@ -947,15 +971,20 @@ class ResultRenderer:
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send
             + " onclick=\"sendToField(event, 'Images'\") "
-            + 'role="button" tabindex="0" aria-label="Send to field" class="sendToField">\u279e</div>'
-            + '<div class="defNav">'
+            + 'role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav">'
             + '<div onclick="navigateDef(event, false)" '
-            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">\u25bc</div>'
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
+            + action_icon("next_dict")
             + "</div></div></div>"
             + '<div class="definitionBlock">'
             + '<div class="imageBlock is-loading" id="'

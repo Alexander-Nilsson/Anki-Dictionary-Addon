@@ -69,6 +69,49 @@ class SettingsStore {
   themeRevision = $state(0);
   /** Tab Python asked us to show (e.g. "appearance"), "" when unrequested. */
   requestedTab = $state("");
+  /** Dictionary-server index for the install modals (null until fetched). */
+  webIndex = $state<WebIndexState | null>(null);
+  /** Live progress of the web install job. */
+  webInstall = $state<WebInstallState>({
+    running: false,
+    percent: 0,
+    log: [],
+    completed: false,
+  });
+}
+
+export interface WebIndexState {
+  ok: boolean;
+  server: string;
+  index?: WebIndex;
+}
+
+export interface WebIndexLanguage {
+  name_en?: string;
+  name_native?: string;
+  code?: string;
+  dictionaries?: { name: string; url: string; description?: string }[];
+  to_languages?: {
+    name_en?: string;
+    code?: string;
+    dictionaries?: { name: string; url: string; description?: string }[];
+  }[];
+  frequency_lists?: { name: string; url: string; description?: string }[];
+  word_lists?: { name: string; url: string; description?: string }[];
+  conjugation_url?: string;
+  conjugation_lists?: { name: string; url: string }[];
+  [key: string]: unknown;
+}
+
+export interface WebIndex {
+  languages?: WebIndexLanguage[];
+}
+
+export interface WebInstallState {
+  running: boolean;
+  percent: number;
+  log?: string[];
+  completed?: boolean;
 }
 
 export const settings = new SettingsStore();
@@ -105,6 +148,23 @@ export function saveTheme(
 /** Delete a user theme (Python refuses for built-ins). */
 export function deleteTheme(name: string): void {
   pycmd(SETTINGS_CMD.deleteTheme(name));
+}
+
+/** Fetch the dictionary-server index for the install modals. */
+export function fetchWebIndex(server: string): void {
+  settings.webIndex = null;
+  pycmd(SETTINGS_CMD.getWebIndex(server));
+}
+
+/** Start a web install job for the modal's selection. */
+export function startWebInstall(selection: unknown): void {
+  settings.webInstall = { running: true, percent: 0, log: [] };
+  pycmd(SETTINGS_CMD.webInstall(selection));
+}
+
+/** Ask Python to cancel the running install job. */
+export function cancelWebInstall(): void {
+  pycmd(SETTINGS_CMD.webInstallCancel());
 }
 
 /** Replace the whole staged config (from Python or after Save). */
@@ -203,6 +263,36 @@ export function wireSettingsReplies(): void {
   };
   replies.setActiveTab = (tab: unknown) => {
     if (typeof tab === "string" && tab) settings.requestedTab = tab;
+  };
+  replies.setThemeCss = (css: unknown) => {
+    // The push payload is the full `<style id="customThemeCss">…</style>`
+    // element HTML; swap it into the placeholder so the page re-themes.
+    if (typeof css !== "string" || !css) return;
+    const el = document.getElementById("customThemeCss");
+    if (el) el.outerHTML = css;
+  };
+  replies.setWebIndex = (data: unknown) => {
+    const d = (data ?? {}) as { ok?: boolean; server?: string; index?: WebIndex };
+    settings.webIndex = {
+      ok: !!d.ok,
+      server: typeof d.server === "string" ? d.server : "",
+      index: d.index,
+    };
+  };
+  replies.setWebInstall = (data: unknown) => {
+    const d = (data ?? {}) as {
+      percent?: number;
+      running?: boolean;
+      log?: string[];
+      completed?: boolean;
+    };
+    const current = settings.webInstall;
+    settings.webInstall = {
+      running: !!d.running,
+      percent: typeof d.percent === "number" ? d.percent : current.percent,
+      log: Array.isArray(d.log) ? d.log : current.log,
+      completed: typeof d.completed === "boolean" ? d.completed : current.completed,
+    };
   };
   replies.setThemes = (data: unknown) => {
     const d = (data ?? {}) as {

@@ -655,6 +655,14 @@
             transform: scale(1.1);
         }
 
+        /* Inline SVG tool icons (shared with the Svelte shell and Python's
+           injected HTML) size crisply instead of following font-size. */
+        .defTools svg, .dictNav svg {
+            display: block;
+            width: 15px;
+            height: 15px;
+        }
+
         .tabContent {
             width: 100%;
             display: none;

@@ -1,15 +1,12 @@
 <script lang="ts">
   import { settings, removeLanguage } from "../lib/settings.svelte";
   import { pycmd } from "../lib/pycmd";
+  import WebInstallModal from "./modals/WebInstallModal.svelte";
 
-  function installFromWeb(): void {
-    pycmd("settings:webInstallDicts");
-  }
+  let installModal = $state<"dictionaries" | "frequency" | null>(null);
+
   function importFromFiles(): void {
     pycmd("settings:importDicts");
-  }
-  function installFreqFromWeb(): void {
-    pycmd("settings:webInstallFreq");
   }
   function importFreqFromFiles(): void {
     pycmd("settings:importFreq");
@@ -20,12 +17,12 @@
   <h3>Language Options</h3>
   <p class="hint">
     Manage the languages and dictionaries the addon loads. Installing
-    dictionaries opens the addon's native import flow.
+    dictionaries from files opens the addon's native import flow.
   </p>
   <div class="install-grid">
-    <button type="button" class="btn" onclick={installFromWeb}>Install Dictionaries (Web)</button>
+    <button type="button" class="btn primary" onclick={() => (installModal = "dictionaries")}>Install Dictionaries (Web)</button>
     <button type="button" class="btn" onclick={importFromFiles}>Install Dictionaries (Files)</button>
-    <button type="button" class="btn" onclick={installFreqFromWeb}>Install Frequency Data (Web)</button>
+    <button type="button" class="btn" onclick={() => (installModal = "frequency")}>Install Frequency Data (Web)</button>
     <button type="button" class="btn" onclick={importFreqFromFiles}>Install Frequency Data (Files)</button>
   </div>
 
@@ -55,3 +52,7 @@
     <p class="hint">No languages installed yet.</p>
   {/if}
 </div>
+
+{#if installModal}
+  <WebInstallModal mode={installModal} onclose={() => (installModal = null)} />
+{/if}

@@ -15,15 +15,11 @@ src/anki_dictionary/
 │   ├── main_window.py       # Main window, hotkey management
 │   ├── themes.py            # ThemeManager — dynamic theming
 │   ├── dialogs/
-│   │   ├── dict_importer_widget.py
 │   │   ├── dict_import.py
-│   │   ├── dictionary_manager.py
-│   │   ├── language_manager_widget.py
-│   │   ├── tree_manager_widget.py
-│   │   └── wizard.py
+│   │   └── release_notes.py
 │   └── settings/
 │       ├── settings_bridge.py  # AnkiWebView hosting the Svelte settings page
-│       └── settings_gui.py     # Thin Qt window + native flows (dialogs/installers)
+│       └── settings_gui.py     # Thin Qt window + native flows (file dialogs)
 ├── integrations/
 │   ├── forvo.py             # Forvo audio scraping
 │   ├── image_search.py      # DuckDuckGo image search
@@ -38,7 +34,9 @@ src/anki_dictionary/
 │   ├── common.py, config.py, constants.py, paths.py
 │   ├── history.py, logger.py
 └── web/
-    ├── config.py, icons.py, installer.py, windows.py
+    ├── config.py, icons.py
+    ├── install_service.py     # Headless QThread web-install workers
+    └── (web-installer UI replaced by the Svelte settings install modal)
 web/                          # Svelte 5 + Vite UI (rendered inside AnkiWebView)
 ├── package.json              # vite build → dist/index.html, then inline.mjs → dist/dictionary.html
 ├── vite.config.ts, svelte.config.js, tsconfig.json

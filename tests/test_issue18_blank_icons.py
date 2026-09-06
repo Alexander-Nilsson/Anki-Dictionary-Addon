@@ -74,6 +74,7 @@ def _make_signal(*_types):
 
 
 _QT_CLASSES = [
+    "QColor",
     "QEvent",
     "QFileDialog",
     "QIcon",

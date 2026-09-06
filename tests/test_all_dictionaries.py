@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import aqt
 
 from anki_dictionary.core.database import DictDB
-from anki_dictionary.ui.dialogs.dictionary_manager import importDict
+from anki_dictionary.ui.dialogs.dict_import import importDict
 from scripts.create_empty_db import create_empty_database
 
 aqt.mw = MagicMock()

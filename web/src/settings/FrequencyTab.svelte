@@ -39,8 +39,25 @@
     const r = cfg.get("provider_roles", {});
     return typeof r === "object" && r ? (r as Record<string, string>) : {};
   }
-  function roleFor(key: string): string {
-    return providerRoles()[key] ?? "off";
+
+  /**
+   * Effective role for a provider — mirrors Python's
+   * `FrequencyEngine._get_provider_role`: an explicit config value wins,
+   * then the legacy per-list visibility checkbox, then enabled-by-default
+   * (`stars_rank` for rank lists, `level` for level lists).
+   */
+  function effectiveRole(p: WordListProvider): string {
+    const explicit = providerRoles()[p.key];
+    if (explicit) return explicit;
+    const vis = cfg.get("word_list_visibility", {});
+    const langVis =
+      typeof vis === "object" && vis ? (vis as Record<string, Record<string, unknown>>) : {};
+    if (langVis[p.lang]?.[p.name] === false) return "off";
+    return p.type === "level" ? "level" : "stars_rank";
+  }
+
+  function roleFor(p: WordListProvider): string {
+    return effectiveRole(p);
   }
   function setRole(key: string, role: string): void {
     const r = providerRoles();
@@ -101,7 +118,6 @@
     const showRank = !!cfg.get("show_rank", false);
     const showLabels = !!cfg.get("show_level_labels", true);
     const thresholds = thresh;
-    const roles = providerRoles();
 
     let idx = 0;
     let starFreq: number | null = null;
@@ -109,7 +125,7 @@
     const levels: string[] = [];
 
     for (const p of [...settings.providers].sort((a, b) => a.key.localeCompare(b.key))) {
-      const role = roles[p.key] ?? "off";
+      const role = effectiveRole(p);
       if (role === "off") continue;
       const mock = MOCK_FREQS[Math.min(idx, MOCK_FREQS.length - 1)];
       idx += 1;
@@ -183,7 +199,7 @@
   {#if rankProviders.length > 0}
     {#each rankProviders as p (p.key)}
       <div class="field">
-        <select value={roleFor(p.key)} onchange={(e) => setRole(p.key, e.currentTarget.value)}>
+        <select value={roleFor(p)} onchange={(e) => setRole(p.key, e.currentTarget.value)}>
           {#each RANK_ROLES as r (r.value)}
             <option value={r.value}>{r.label}</option>
           {/each}
@@ -206,7 +222,7 @@
   {#if levelProviders.length > 0}
     {#each levelProviders as p (p.key)}
       <div class="field">
-        <select value={roleFor(p.key)} onchange={(e) => setRole(p.key, e.currentTarget.value)}>
+        <select value={roleFor(p)} onchange={(e) => setRole(p.key, e.currentTarget.value)}>
           {#each LEVEL_ROLES as r (r.value)}
             <option value={r.value}>{r.label}</option>
           {/each}

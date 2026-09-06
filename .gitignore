@@ -88,3 +88,6 @@ docs/oldfiles/
 web/node_modules/
 web/dist/
 
+# Playwright CLI scratch dir (browser snapshots)
+.playwright-cli/
+

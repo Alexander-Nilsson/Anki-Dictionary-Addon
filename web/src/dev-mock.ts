@@ -183,6 +183,80 @@ const MOCK_NOTE_TYPES: Record<string, string[]> = {
   "Basic (and reversed card)": ["Front", "Back"],
 };
 
+/** A believable slice of the dictionary server's index (web install modal). */
+const MOCK_WEB_INDEX = {
+  languages: [
+    {
+      name_en: "Japanese",
+      name_native: "日本語",
+      code: "ja",
+      to_languages: [
+        {
+          name_en: "English",
+          code: "en",
+          dictionaries: [
+            { name: "JMdict (Mock)", url: "/ja/en/JMdict.zip" },
+            { name: "KanjiDict (Mock)", url: "/ja/en/KanjiDict.zip" },
+          ],
+        },
+      ],
+      frequency_lists: [{ name: "JP Frequency (Mock)", url: "/ja/frequency.json" }],
+      word_lists: [{ name: "JLPT (Mock)", url: "/ja/jlpt.json" }],
+      conjugation_url: "/ja/conjugation.json",
+    },
+    {
+      name_en: "Spanish",
+      name_native: "Español",
+      code: "es",
+      to_languages: [
+        {
+          name_en: "English",
+          code: "en",
+          dictionaries: [{ name: "SpanishDict (Mock)", url: "/es/en/SpanishDict.zip" }],
+        },
+      ],
+      frequency_lists: [{ name: "ES Frequency (Mock)", url: "/es/frequency.json" }],
+      word_lists: [],
+    },
+  ],
+};
+
+let MOCK_INSTALL_TIMER: ReturnType<typeof setInterval> | null = null;
+
+/** Simulate a web install job: streamed log lines + percent. */
+function mockWebInstall(): void {
+  callSettingsReply("setWebInstall", { percent: 0, running: true, log: [] });
+  const lines = [
+    "Installing 2 dictionaries...",
+    "Installing Japanese JP Frequency (Mock) (frequency list)...",
+    " Installed as japanese_jp_frequency_mock.freq.json",
+    "Downloading /ja/en/JMdict.zip...",
+    " Importing...",
+    " Installed JMdict (Mock).",
+    "Downloading /ja/en/KanjiDict.zip...",
+    " Importing...",
+    " Installed KanjiDict (Mock).",
+    "All done.",
+  ];
+  let i = 0;
+  let percent = 0;
+  MOCK_INSTALL_TIMER = setInterval(() => {
+    if (i >= lines.length) {
+      if (MOCK_INSTALL_TIMER !== null) clearInterval(MOCK_INSTALL_TIMER);
+      MOCK_INSTALL_TIMER = null;
+      callSettingsReply("setWebInstall", { percent: 100, running: false, completed: true });
+      return;
+    }
+    callSettingsReply("setWebInstall", {
+      percent,
+      running: true,
+      log: lines.slice(0, i + 1),
+    });
+    percent = Math.min(95, percent + 10);
+    i += 1;
+  }, 220);
+}
+
 const MOCK_LANGUAGES_DICTS: Record<string, string[]> = {
   Japanese: ["JMdict", "Kanji"],
   Spanish: ["SpanishDict"],
@@ -448,6 +522,19 @@ function handleSettingsCommand(cmd: string): void {
     if (!MOCK_BUILTIN_THEMES.includes(name)) delete MOCK_THEMES[name];
     if (MOCK_ACTIVE_THEME === name) MOCK_ACTIVE_THEME = "light";
     pushMockThemes();
+  } else if (cmd.startsWith("settings:getWebIndex:")) {
+    const server = JSON.parse(cmd.slice("settings:getWebIndex:".length)) as string;
+    setTimeout(() => {
+      callSettingsReply("setWebIndex", { ok: true, server, index: MOCK_WEB_INDEX });
+    }, 350);
+  } else if (cmd.startsWith("settings:webInstall:")) {
+    mockWebInstall();
+  } else if (cmd === "settings:webInstallCancel") {
+    if (MOCK_INSTALL_TIMER !== null) {
+      clearInterval(MOCK_INSTALL_TIMER);
+      MOCK_INSTALL_TIMER = null;
+      callSettingsReply("setWebInstall", { percent: 0, running: false, completed: false });
+    }
   } else if (cmd === "settings:close") {
     console.log("[dev-mock] settings:close (no-op in browser)");
   } else {

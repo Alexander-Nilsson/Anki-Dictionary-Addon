@@ -260,6 +260,66 @@ def get_theme_dict(theme_manager: Any) -> dict[str, str]:
         return dict(_FALLBACK_THEME)
 
 
+def _mix_hex(a: str, b: str, t: float) -> str:
+    """Linear blend of two hex colors (`t` 0 -> a, 1 -> b)."""
+
+    def channels(c: str) -> tuple[int, int, int]:
+        c = c.lstrip("#")
+        if len(c) == 3:
+            c = "".join(ch * 2 for ch in c)
+        return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+
+    ar, ag, ab = channels(a)
+    br, bg, bb = channels(b)
+    return f"#{round(ar + (br - ar) * t):02x}{round(ag + (bg - ag) * t):02x}{round(ab + (bb - ab) * t):02x}"
+
+
+def generate_settings_css(theme_dict: dict[str, str]) -> str:
+    """Map the dictionary theme onto the settings page's `--settings-*` vars.
+
+    The settings window shares the active theme with the dictionary window:
+    cards use the definition surface, body copy the definition text, and the
+    accent the searched-term color. Injected into the settings bundle's
+    ``<style id="customThemeCss">`` placeholder (and re-pushed on theme
+    changes via ``SETTINGS.setThemeCss``).
+    """
+    muted = _mix_hex(
+        theme_dict["definition_text"], theme_dict["definition_background"], 0.45
+    )
+
+    def readable_on(bg: str) -> str:
+        """Pick whichever of black/white reads better on `bg`."""
+
+        def lum(c: str) -> float:
+            r, g, b = (int(c.lstrip("#")[i : i + 2], 16) / 255 for i in (0, 2, 4))
+            return 0.299 * r + 0.587 * g + 0.114 * b
+
+        return "#ffffff" if lum(bg) < 0.6 else "#111111"
+
+    accent_text = readable_on(theme_dict["search_term"])
+    # `html:root` / `html body` outrank the bundle's own `:root`/`body` rules
+    # (the inlined settings.css lands after this style tag in the cascade).
+    return f"""
+        <style id="customThemeCss">
+            html:root {{
+                --settings-bg: {theme_dict["header_background"]};
+                --settings-panel: {theme_dict["definition_background"]};
+                --settings-border: {theme_dict["border"]};
+                --settings-text: {theme_dict["definition_text"]};
+                --settings-muted: {muted};
+                --settings-accent: {theme_dict["search_term"]};
+                --settings-accent-text: {accent_text};
+                --settings-accent-soft: {hex_to_rgba(theme_dict["example_highlight"], 0.55)};
+                --settings-hover: {theme_dict["tab_hover"]};
+            }}
+            html body {{
+                background-color: {theme_dict["header_background"]};
+                color: {theme_dict["definition_text"]};
+            }}
+        </style>
+    """
+
+
 def get_window_icon_name(theme_manager: Any) -> str:
     return "nightanki.svg" if theme_manager.is_dark else "anki.svg"
 

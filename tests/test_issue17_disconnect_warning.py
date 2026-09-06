@@ -59,6 +59,7 @@ def _make_signal(*_types):
 
 
 _QT_CLASSES = [
+    "QColor",
     "QEvent",
     "QFileDialog",
     "QIcon",
@@ -221,9 +222,7 @@ class TestBridgeRoutesEveryCommand(unittest.TestCase):
             "settings:getForvoLanguages",
             "settings:restoreDefaults",
             "settings:close",
-            "settings:webInstallDicts",
             "settings:importDicts",
-            "settings:webInstallFreq",
             "settings:importFreq",
             "settings:browseFontFile",
         ]
@@ -260,8 +259,8 @@ class TestBridgeRoutesEveryCommand(unittest.TestCase):
         # A future command could reference a native method that the shell no
         # longer provides — the bridge must degrade gracefully, not raise.
         bridge, gui, _ = self._bridge()
-        del gui.web_install_dicts
-        bridge.handleSettingsAction("settings:webInstallDicts")
+        del gui.import_dicts
+        bridge.handleSettingsAction("settings:importDicts")
         bridge._push.assert_not_called()
 
 
