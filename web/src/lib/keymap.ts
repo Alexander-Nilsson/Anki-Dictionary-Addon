@@ -119,13 +119,18 @@ export function installKeymap(): () => void {
       return;
     }
     if (key === "Escape") {
+      if (ui.showPalette) {
+        e.preventDefault();
+        ui.showPalette = false;
+        return;
+      }
       if (ui.showKeymap) {
         e.preventDefault();
         ui.showKeymap = false;
       }
       return;
     }
-    if (ui.showKeymap) return;
+    if (ui.showKeymap || ui.showPalette) return;
 
     switch (key) {
       case "e":

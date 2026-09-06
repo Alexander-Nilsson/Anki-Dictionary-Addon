@@ -7,7 +7,8 @@
     { keys: "C", action: "Copy the current entry to the clipboard" },
     { keys: "↑ / ↓", action: "Previous / next entry" },
     { keys: "Tab / ⇧+Tab", action: "Previous / next dictionary" },
-    { keys: "Ctrl/⌘ + K", action: "Focus the search box" },
+    { keys: "Ctrl/⌘ + K", action: "Open the command palette" },
+    { keys: "/", action: "Focus the search box" },
     { keys: "Esc", action: "Close this help" },
   ];
 

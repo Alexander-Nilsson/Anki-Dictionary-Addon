@@ -31,6 +31,29 @@ class DictionaryUIStore {
   history = $state<HistoryEntry[]>([]);
   /** Keyboard-map cheat sheet overlay visible (U5). */
   showKeymap = $state(false);
+  // ── unified header state (S1 minimal chrome) ──────────────────────
+  // Centralised here (instead of per-component locals) so Chrome, the S3
+  // command palette and the Python bridge all read/write one source.
+  groups = $state<string[]>(["All", "Images"]);
+  group = $state("All");
+  searchModes = $state<string[]>([
+    "Forward",
+    "Backward",
+    "Exact",
+    "Anywhere",
+    "Definition",
+    "Example",
+    "Pronunciation",
+  ]);
+  searchMode = $state("Forward");
+  deinflect = $state(false);
+  singleTab = $state(true);
+  searchSource = $state("manual");
+  clipboardPaused = $state(false);
+  target = $state("");
+  showTarget = $state(false);
+  /** S3 command palette overlay visible (Ctrl/⌘+K). */
+  showPalette = $state(false);
   /** The currently-highlighted entry (scrollspy), target for E/C keys (U5).
    *  Plain field on purpose — DOM elements don't belong in reactive state. */
   activeEntry: HTMLElement | null = null;

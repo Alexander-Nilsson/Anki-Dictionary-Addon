@@ -40,6 +40,8 @@ def test_svelte_sources_present():
         web_dir / "src" / "lib" / "bridge.ts",
         web_dir / "src" / "lib" / "tabs.svelte.ts",
         web_dir / "src" / "components" / "App.svelte",
+        web_dir / "src" / "components" / "Chrome.svelte",
+        web_dir / "src" / "components" / "CommandPalette.svelte",
     ]
     missing = [p for p in expected_sources if not p.exists()]
     assert not missing, f"Missing Svelte sources: {missing}"
@@ -138,7 +140,7 @@ def test_built_bundle_script_runs_to_mount():
 
 
 def test_chrome_component_source_present():
-    """The unified in-web chrome (single header) ships in the UI."""
+    """The S1 minimal chrome (search + scope + overflow) ships in the UI."""
     chrome = web_dir / "src" / "components" / "Chrome.svelte"
     if not chrome.exists():
         import pytest
@@ -147,17 +149,16 @@ def test_chrome_component_source_present():
     text = chrome.read_text(encoding="utf-8")
     # Shell id measured by resizer(), and the Python evaled callbacks.
     assert 'id="chromeBar"' in text
-    assert "setGroups" in text
-    assert "setSearchStatus" in text
-    assert "setHeaderState" in text
-    assert "setSearchModes" in text
+    # Header state lives in the shared store; the bridge writes it.
+    assert "setHeaderState" in text or "ui.group" in text
     assert "getSearchHistory" in text
     assert "getHeaderState" in text
-    # U2: search-source chip + clipboard-monitor pause pill.
-    assert "setSearchSource" in text
+    # S1: scope (group + mode joined) + overflow menu + contextual pills.
+    assert "scopeWrap" in text
+    assert "chromeMenu" in text
     assert "sourcePill" in text
-    assert "pauseBtn" in text
-    # Unified header: every old Qt toolbar capability lives in the web chrome.
+    assert "showPalette" in text
+    # Every old Qt toolbar capability is reachable (inline or via menu/palette).
     assert "setSearchMode" in text
     assert "setDeinflect" in text
     assert "setTabMode" in text
@@ -169,8 +170,23 @@ def test_chrome_component_source_present():
     # command itself lives in Sidebar.svelte; covered by the sidebar test).
     assert "ui.history" in text
     assert "getSearchHistory" in text
-    # Registers the Ctrl/Cmd+K global focus shortcut.
+    # S3: Ctrl/Cmd+K opens the palette; `/` focuses search.
     assert '.toLowerCase() === "k"' in text
+
+
+def test_palette_component_source_present():
+    """The S3 command palette ships alongside the minimal chrome."""
+    palette = web_dir / "src" / "components" / "CommandPalette.svelte"
+    if not palette.exists():
+        import pytest
+
+        pytest.skip("CommandPalette.svelte missing — S3 palette not built")
+    text = palette.read_text(encoding="utf-8")
+    assert "showPalette" in text
+    assert "searchTerm" in text or "CMD.searchTerm" in text
+    assert "palList" in text
+    assert "ui.groups" in text
+    assert "ui.searchModes" in text
 
 
 def test_bridge_and_sidebar_sources_present():
@@ -188,9 +204,14 @@ def test_bridge_and_sidebar_sources_present():
 
     bridge_text = bridge.read_text(encoding="utf-8")
     # setSearchHistory was promoted to the shared bridge so sidebar + chrome
-    # stay in sync over one callback.
+    # stay in sync over one callback. Header state (S1) is centralised there
+    # too so Chrome + palette share one source.
     assert "setSearchHistory" in bridge_text
+    assert "setHeaderState" in bridge_text
     assert "ui.history" in bridge_text
+    assert "ui.groups" in bridge_text
+    store = web_dir / "src" / "lib" / "tabs.svelte.ts"
+    assert "showPalette" in store.read_text(encoding="utf-8")
 
     sidebar_text = sidebar.read_text(encoding="utf-8")
     assert "Recent searches" in sidebar_text
@@ -226,13 +247,16 @@ def test_built_bundle_has_chrome_and_bridge_commands():
     html = built_html.read_text(encoding="utf-8")
     for marker in (
         "chromeBar",
-        # window callbacks Python evals (minified into assignment form)
+        "scopeWrap",
+        "chromeMenu",
+        "palList",
+        # window callbacks Python evals (object-literal form in bridge.ts)
         "setSearchHistory:",
-        "setGroups=",
-        "setHeaderState=",
-        "setSearchModes=",
-        "setSearchSource=",
-        "setSearchStatus=",
+        "setGroups:",
+        "setHeaderState:",
+        "setSearchModes:",
+        "setSearchSource:",
+        "setSearchStatus:",
         # CMD -> Python command prefixes (must match handleDictAction branches)
         "searchTerm:",
         "getSearchHistory:",

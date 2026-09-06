@@ -339,14 +339,12 @@
    so Python-generated *legacy* HTML tabs keep rendering pixel-identical.
    ──────────────────────────────────────────────────────────────────────── */
 
-/* Unified header: the single chrome strip (search + groups + modes +
-   toggles). Sits above the tab strip; `flex: none` so `resizer()` (which
-   measures #chromeBar) keeps the #defBox math correct. Wraps on narrow
-   windows instead of overflowing. */
+/* S1 minimal header: search + scope + overflow. One calm row that never
+   wraps (`flex: none` keeps `resizer()` measuring #chromeBar correctly).
+   Everything rarer lives in the overflow menu or the S3 palette. */
 #chromeBar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   flex: none;
   padding: 6px 12px;
@@ -402,16 +400,39 @@
   font-family: inherit;
 }
 
-#chromeBar .chromeMode {
-  max-width: 120px;
+/* Scope: group + mode joined as one visual unit (S1). */
+#chromeBar .scopeWrap {
+  flex: none;
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: hidden;
 }
 
-#chromeBar .chromeDiv {
+#chromeBar .scopeWrap select {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 5px 6px 5px 8px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  max-width: 110px;
+}
+
+#chromeBar .scopeWrap select:focus-visible {
+  outline: 2px solid var(--search_term);
+  outline-offset: -2px;
+}
+
+#chromeBar .scopeDiv {
   flex: none;
   width: 1px;
-  align-self: stretch;
   background: var(--border);
-  opacity: 0.6;
+  margin: 5px 0;
 }
 
 #chromeBar .chromeBtn {
@@ -440,10 +461,68 @@
   border-color: transparent;
 }
 
-#chromeBar .chromeBtn.active {
-  color: var(--search_term);
-  border-color: var(--search_term);
-  background: color-mix(in srgb, var(--search_term) 10%, var(--background));
+/* Overflow menu (S1): rarer actions behind ⋯. */
+#chromeBar .menuWrap {
+  position: relative;
+  flex: none;
+}
+
+#chromeBar .chromeMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 1300;
+  min-width: 250px;
+  margin: 0;
+  padding: 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+
+#chromeBar .chromeMenu .menuLabel {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  padding: 7px 12px 3px;
+}
+
+#chromeBar .chromeMenu button[role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+#chromeBar .chromeMenu button[role="menuitem"]:hover {
+  background: var(--selector);
+}
+
+#chromeBar .chromeMenu button kbd {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0 7px;
+}
+
+#chromeBar .chromeMenu .menuSep {
+  height: 1px;
+  background: var(--border);
+  opacity: 0.6;
+  margin: 5px 8px;
 }
 
 /* U2: search-source chip + clipboard-monitor pause pill. */
@@ -459,9 +538,18 @@
   background: var(--background);
   color: var(--text-secondary);
   font-size: 12px;
+  font-family: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+#chromeBar button.sourcePill {
+  cursor: pointer;
+}
+
+#chromeBar div.sourcePill {
+  cursor: default;
 }
 
 #chromeBar .sourcePill svg {
@@ -478,7 +566,7 @@
   background: color-mix(in srgb, var(--search_term) 10%, var(--background));
 }
 
-#chromeBar .pauseBtn.paused {
+#chromeBar .sourcePill.paused {
   color: var(--search_term);
   border-color: var(--search_term);
   background: color-mix(in srgb, var(--search_term) 10%, var(--background));
@@ -486,6 +574,99 @@
 
 #chromeBar .targetPill {
   max-width: 200px;
+}
+
+/* S3 command palette (Ctrl/⌘+K). */
+.palBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.palCard {
+  width: min(520px, 92vw);
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.palSearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.palSearch svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.palSearch input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.palSearch kbd,
+.palItem kbd {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 7px;
+}
+
+.palHint {
+  display: flex;
+  gap: 14px;
+  padding: 7px 14px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.palList {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.palItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.palItem:hover,
+.palItem.sel {
+  background: var(--selector);
 }
 
 /* History dropdown (bright above the results pane). */

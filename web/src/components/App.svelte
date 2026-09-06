@@ -1,5 +1,6 @@
 <script lang="ts">
   import Chrome from "./Chrome.svelte";
+  import CommandPalette from "./CommandPalette.svelte";
   import KeymapOverlay from "./KeymapOverlay.svelte";
   import TabBar from "./TabBar.svelte";
   import TabContent from "./TabContent.svelte";
@@ -89,5 +90,6 @@
     </svg>
   </button>
   <Toaster />
+  <CommandPalette />
   <KeymapOverlay />
 </div>

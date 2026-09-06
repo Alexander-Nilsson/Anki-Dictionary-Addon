@@ -41,6 +41,42 @@ function toHistory(payload: unknown): HistoryEntry[] {
     .slice(0, 50);
 }
 
+/** Apply the unified header payload (`pushHeaderState`) to the store. */
+function applyHeaderState(payload: unknown): void {
+  const data = (payload ?? {}) as {
+    groups?: unknown;
+    current?: unknown;
+    searchModes?: unknown;
+    searchMode?: unknown;
+    deinflect?: unknown;
+    singleTab?: unknown;
+    source?: unknown;
+    clipboardPaused?: unknown;
+    target?: unknown;
+    showTarget?: unknown;
+  };
+  if (Array.isArray(data.groups)) {
+    const gs = data.groups.filter((g): g is string => typeof g === "string");
+    if (gs.length > 0) ui.groups = gs;
+  }
+  if (typeof data.current === "string" && data.current) ui.group = data.current;
+  if (Array.isArray(data.searchModes)) {
+    const ms = data.searchModes.filter((m): m is string => typeof m === "string");
+    if (ms.length > 0) ui.searchModes = ms;
+  }
+  if (typeof data.searchMode === "string" && data.searchMode) {
+    ui.searchMode = data.searchMode;
+  }
+  if (typeof data.deinflect === "boolean") ui.deinflect = data.deinflect;
+  if (typeof data.singleTab === "boolean") ui.singleTab = data.singleTab;
+  if (typeof data.source === "string") ui.searchSource = data.source;
+  if (typeof data.clipboardPaused === "boolean") {
+    ui.clipboardPaused = data.clipboardPaused;
+  }
+  if (typeof data.target === "string") ui.target = data.target;
+  if (typeof data.showTarget === "boolean") ui.showTarget = data.showTarget;
+}
+
 /**
  * Install the full window API used by Python and by injected content.
  * Safe to call once at startup.
@@ -64,6 +100,32 @@ export function initBridge(): void {
     // and the sidebar "Recent searches" section together (U3).
     setSearchHistory: (payload: unknown) => {
       ui.history = toHistory(payload);
+    },
+    // Unified header state (S1): one payload drives Chrome + palette.
+    // Legacy per-slice callbacks kept for older bundles.
+    setHeaderState: (payload: unknown) => {
+      applyHeaderState(payload);
+    },
+    setGroups: (payload: unknown) => {
+      const data = (payload ?? {}) as { groups?: unknown; current?: unknown };
+      applyHeaderState({ groups: data.groups, current: data.current });
+    },
+    setSearchModes: (payload: unknown) => {
+      const data = (payload ?? {}) as { modes?: unknown; current?: unknown };
+      applyHeaderState({ searchModes: data.modes, searchMode: data.current });
+    },
+    setSearchSource: (payload: unknown) => {
+      if (typeof payload === "string") ui.searchSource = payload;
+    },
+    setSearchStatus: (payload: unknown) => {
+      const data = (payload ?? {}) as {
+        source?: unknown;
+        clipboardPaused?: unknown;
+      };
+      if (typeof data.source === "string") ui.searchSource = data.source;
+      if (typeof data.clipboardPaused === "boolean") {
+        ui.clipboardPaused = data.clipboardPaused;
+      }
     },
     loadImageHtml,
     appendNewImages,
