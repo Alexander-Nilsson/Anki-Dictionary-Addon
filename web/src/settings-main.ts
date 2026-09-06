@@ -3,6 +3,11 @@ import "./settings.css";
 import SettingsApp from "./settings/SettingsApp.svelte";
 import { initSettingsBridge } from "./lib/settings-bridge";
 import { wireSettingsReplies } from "./lib/settings.svelte";
+import { installDevMock } from "./dev-mock";
+
+// Init the browser preview bridge (`?mock=1`) before mounting so the initial
+// command burst is served instead of dropped. Inert without `mock=1`.
+installDevMock();
 
 // Install the `window.SETTINGS` reply surface before mounting and connect it
 // to the reactive store. Python's `AnkiWebView.eval` targets these globals.

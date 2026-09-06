@@ -4,12 +4,17 @@ import App from "./components/App.svelte";
 import { initBridge } from "./lib/bridge";
 import { awaitPycmdToLoad } from "./lib/pycmd";
 import { initFromWindow, initSidebarSync, resizer } from "./lib/tabs.svelte";
+import { installDevMock } from "./dev-mock";
 
 // Capture Python-injected settings (font sizes, welcome content) before mount.
 initFromWindow();
 
 // Keep the results-pane sidebar highlight in sync with the visible entry.
 initSidebarSync();
+
+// Init the browser preview bridge (`?mock=1`) before mounting. Inert without
+// the query parameter, so it never runs inside Anki.
+installDevMock();
 
 // Expose the Python + content bridge globals.
 initBridge();
