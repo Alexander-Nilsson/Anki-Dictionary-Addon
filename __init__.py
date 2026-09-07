@@ -22,7 +22,8 @@ if sys.platform == "darwin":
 # Add the vendor directory to the system path
 vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
 
-# macOS-specific curl_cffi injection
+# Platform-specific curl_cffi injection (DDG image search needs browser
+# TLS impersonation on every OS — plain requests gets HTTP 403)
 if sys.platform == "darwin":
     try:
         import platform
@@ -38,6 +39,14 @@ if sys.platform == "darwin":
                 sys.path.insert(0, mac_vendor)
     except Exception as e:
         print(f"Anki Dictionary: Error injecting macOS vendor paths: {e}")
+elif sys.platform.startswith("win"):
+    win_vendor = os.path.join(vendor_path, "win_amd64")
+    if os.path.exists(win_vendor) and win_vendor not in sys.path:
+        sys.path.insert(0, win_vendor)
+elif sys.platform.startswith("linux"):
+    linux_vendor = os.path.join(vendor_path, "linux_x86_64")
+    if os.path.exists(linux_vendor) and linux_vendor not in sys.path:
+        sys.path.insert(0, linux_vendor)
 
 if vendor_path not in sys.path:
     sys.path.append(vendor_path)

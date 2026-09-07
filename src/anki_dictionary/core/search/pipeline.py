@@ -708,21 +708,9 @@ class SearchPipeline:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
         id_name = result.get("idName") or "forvo-loader"
-        esc = json.dumps(
-            '<div class="definitionBlock forvo-error" '
-            'style="color:var(--definition_text);padding:12px;'
-            'border-radius:8px;">'
-            f"<div>{error_msg}</div></div>"
-        )
-        self.midict.eval(
-            f"var loader = document.getElementById('{id_name}'); "
-            f"if(loader) {{ "
-            f"  var old = loader.querySelector('.definitionBlock'); "
-            f"  if(old) old.remove(); "
-            f"  var tb = loader.querySelector('.dictionaryTitleBlock'); "
-            f"  if(tb) tb.insertAdjacentHTML('afterend', {esc}); "
-            f"}}"
-        )
+        # Drop the whole Forvo section (heading + box) so a connectivity
+        # failure doesn't leave an empty/error box behind.
+        self._remove_forvo_element(id_name)
 
     def _remove_forvo_element(self, id_name: str) -> None:
         self.midict.eval(
@@ -938,7 +926,7 @@ class SearchPipeline:
             + action_icon("prev_dict")
             + '</div><div onclick="navigateDict(event,true)" class="nextDict">'
             + action_icon("next_dict")
-            + "</div></div></div>"
+            + "</div></div></div></div>"
             '<div class="definitionBlock llm-loading-placeholder">'
             "<i>Loading LLM definition...</i></div></div>"
         )
@@ -962,7 +950,7 @@ class SearchPipeline:
             + action_icon("prev_dict")
             + '</div><div onclick="navigateDict(event,true)" class="nextDict">'
             + action_icon("next_dict")
-            + "</div></div></div>"
+            + "</div></div></div></div>"
             '<div class="definitionBlock"><i>Loading Forvo pronunciations...</i>'
             "</div></div>"
         )

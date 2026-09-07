@@ -958,7 +958,7 @@ class ResultRenderer:
             + '</div><div onclick="navigateDict(event, true)" '
             + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
             + action_icon("next_dict")
-            + "</div></div></div>"
+            + "</div></div></div></div>"
             + '<div class="termPronunciation"><span '
             + font
             + ' class="tpCont">'
@@ -975,7 +975,7 @@ class ResultRenderer:
             + action_icon("clip")
             + "</div><div "
             + send
-            + " onclick=\"sendToField(event, 'Images'\") "
+            + " onclick=\"sendToField(event, 'Images')\" "
             + 'role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
             + action_icon("send")
             + '</div><div class="defNav">'
@@ -985,7 +985,7 @@ class ResultRenderer:
             + '</div><div onclick="navigateDef(event, true)" '
             + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
             + action_icon("next_dict")
-            + "</div></div></div>"
+            + "</div></div></div></div>"
             + '<div class="definitionBlock">'
             + '<div class="imageBlock is-loading" id="'
             + id_name

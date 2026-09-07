@@ -106,6 +106,9 @@ class ExternalServiceCoordinator:
         logger.warning("Forvo unavailable: %s", error_msg)
         if self._on_forvo_error_cb is not None:
             self._on_forvo_error_cb(result)
+        else:
+            id_name = result.get("idName") or "forvo-loader"
+            self._remove_element(id_name, "Forvo")
 
     # ── Image search ───────────────────────────────
 
@@ -122,13 +125,25 @@ class ExternalServiceCoordinator:
         imager.auto_convert = config.get("imageAutoConvert", True)
         imager.setSearchRegion(config.get("imageSearchRegion", "United States"))
         imager.signals.resultsFound.connect(self._on_image_results)
+        imager.signals.imageReady.connect(self._on_image_ready)
+        imager.signals.imagesFinished.connect(self._on_images_finished)
         imager.signals.noResults.connect(self._show_no_images)
         self._threadpool.start(imager)
 
     def _on_image_results(self, results: tuple) -> None:
+        """Inject the grid shell (placeholder tiles); the images follow."""
         html, id_name = results
         if not html or html.strip() == "":
-            self._show_no_images()
+            # A "load more" that came back empty means the gallery is
+            # exhausted — say so on the tile instead of a bare tooltip.
+            if id_name == "load_more":
+                self._eval(
+                    "var btn = document.querySelector('.imageLoader'); "
+                    "if (btn) { btn.textContent = 'No more images'; "
+                    "btn.classList.add('exhausted'); btn.onclick = null; }"
+                )
+            else:
+                self._show_no_images()
             return
         try:
             escaped = json.dumps(html)
@@ -138,6 +153,22 @@ class ExternalServiceCoordinator:
                 self._eval(f"loadImageHtml({escaped}, {json.dumps(id_name)});")
         except Exception as e:
             logger.error("Error injecting image results: %s", e)
+
+    def _on_image_ready(self, payload: list) -> None:
+        """Fill one placeholder tile as its download lands."""
+        slot_id, html = payload
+        try:
+            self._eval(f"fillImageSlot({json.dumps(slot_id)}, {json.dumps(html)});")
+        except Exception as e:
+            logger.error("Error injecting image tile: %s", e)
+
+    def _on_images_finished(self, payload: list) -> None:
+        """Drop the placeholders whose downloads never produced an image."""
+        token, rendered = payload
+        try:
+            self._eval(f"finishImageLoad({json.dumps(token)}, {int(rendered)});")
+        except Exception as e:
+            logger.error("Error finishing image load: %s", e)
 
     def _show_no_images(self) -> None:
         from aqt.utils import tooltip

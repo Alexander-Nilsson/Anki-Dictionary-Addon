@@ -6,6 +6,7 @@ import platform
 import re
 import ssl
 import urllib.parse
+import uuid
 from os.path import dirname, join
 
 import requests
@@ -34,6 +35,12 @@ os.makedirs(temp_dir, exist_ok=True)
 
 # Detect if the OS is macOS
 _ON_MAC = platform.system() == "Darwin"
+
+# Set by _make_session(): False once we have proven curl_cffi cannot be
+# imported. DuckDuckGo's i.js endpoint answers plain `requests` sessions with
+# HTTP 403, so a missing curl_cffi is the single most common cause of an empty
+# image search - keep it visible instead of reporting "connectivity error".
+_CURL_CFFI_AVAILABLE = True
 
 _EXT_TO_MIME = {
     "jpg": "image/jpeg",
@@ -99,42 +106,63 @@ class TLSAdapter(HTTPAdapter):
 def _make_session():
     """
     Hybrid Session Generator:
-    - Mac: curl_cffi (impersonates Chrome HTTP/2 + BoringSSL)
-    - Win/Linux: requests + TLSAdapter
+    - Prefer curl_cffi (impersonates Safari HTTP/2 + TLS fingerprint) on
+      every OS. DuckDuckGo's i.js endpoint now fingerprint-blocks plain
+      requests sessions (HTTP 403), so the requests path below is only a
+      fallback for environments without curl_cffi.
+    - Fallback: requests + TLSAdapter (Windows/Linux legacy path).
     """
-    if _ON_MAC:
-        try:
-            from curl_cffi import (  # ty:ignore[unresolved-import]
-                requests as curl_requests,
-            )
-        except ImportError:
-            # Inject vendor paths manually using our known addon_path
-            import sys
+    from typing import Any
 
-            machine = platform.machine().lower()
+    curl_mod: Any = None
+    try:
+        from curl_cffi import (  # ty:ignore[unresolved-import]
+            requests as _curl_requests,
+        )
+
+        curl_mod = _curl_requests
+    except ImportError:
+        # Inject vendor paths manually using our known addon_path
+        import sys
+
+        machine = platform.machine().lower()
+        candidates: list[str] = []
+        if _ON_MAC:
             # Handle both arm64 and x86_64 naming conventions
             if machine == "arm64":
-                mac_vendor = os.path.join(addon_path, "vendor", "mac_arm64")
+                candidates.append(os.path.join(addon_path, "vendor", "mac_arm64"))
             else:
-                mac_vendor = os.path.join(addon_path, "vendor", "mac_x86_64")
+                candidates.append(os.path.join(addon_path, "vendor", "mac_x86_64"))
+        elif sys.platform.startswith("win"):
+            candidates.append(os.path.join(addon_path, "vendor", "win_amd64"))
+        else:
+            candidates.append(os.path.join(addon_path, "vendor", "linux_x86_64"))
 
-            if os.path.exists(mac_vendor) and mac_vendor not in sys.path:
-                sys.path.insert(0, mac_vendor)
+        for vendor_dir in candidates:
+            if os.path.exists(vendor_dir) and vendor_dir not in sys.path:
+                sys.path.insert(0, vendor_dir)
 
-            try:
-                from curl_cffi import (  # ty:ignore[unresolved-import]
-                    requests as curl_requests,
-                )
-            except ImportError as e:
-                # Log the exact error to diagnose C-extension mismatches (e.g., Python 3.9 vs 3.12)
-                log_debug(f"[ImageSearch] curl_cffi import failed: {e}")
-                curl_requests = None
+        try:
+            from curl_cffi import (  # ty:ignore[unresolved-import]
+                requests as _curl_requests_fallback,
+            )
 
-        if curl_requests:
-            # Impersonate Chrome to bypass Cloudflare/DDG WAF
-            return curl_requests.Session(impersonate="safari15_5")
+            curl_mod = _curl_requests_fallback
+        except ImportError as e:
+            # Log the exact error to diagnose C-extension mismatches (e.g., Python 3.9 vs 3.12)
+            log_debug(f"[ImageSearch] curl_cffi import failed: {e}")
+            curl_mod = None
 
-    # Windows/Linux (or Mac fallback)
+    global _CURL_CFFI_AVAILABLE
+    _CURL_CFFI_AVAILABLE = curl_mod is not None
+
+    if curl_mod:
+        # safari15_5 impersonation bypasses DDG's WAF; chrome targets
+        # currently get HTTP 403 on i.js.
+        return curl_mod.Session(impersonate="safari15_5")
+
+    # Fallback (no curl_cffi available): plain requests. Note DDG may
+    # answer i.js with HTTP 403 to this fingerprint.
     session = requests.Session()
     session.verify = False
     session.mount("https://", TLSAdapter())
@@ -142,7 +170,14 @@ def _make_session():
 
 
 class DuckDuckGoSignals(QObject):
+    # [html, idName] — the grid shell (placeholder tiles + "Load More"), sent
+    # as soon as the DuckDuckGo query returns rather than after every image
+    # has been downloaded.
     resultsFound = pyqtSignal(list)
+    # [slotId, tileHtml] — one downloaded image, ready to replace its slot.
+    imageReady = pyqtSignal(list)
+    # [token, renderedCount] — every download for `token` has settled.
+    imagesFinished = pyqtSignal(list)
     noResults = pyqtSignal(str)
     finished = pyqtSignal()
 
@@ -157,6 +192,10 @@ class DuckDuckGo(QRunnable):
         self.search_offset = 0
         self.session = None
         self.auto_convert = True
+        self.last_error = ""
+        # Unique per run so two overlapping searches cannot fill each other's
+        # placeholder tiles.
+        self.token = uuid.uuid4().hex[:12]
 
     def setTermIdName(self, term, idName):
         self.term = term
@@ -196,11 +235,14 @@ class DuckDuckGo(QRunnable):
         return None
 
     def search(self, term, maximum=15, offset=0):
+        """Return [(display_url, original_url)] for `term`."""
+        self.last_error = ""
         try:
             with prefer_ipv4():
                 vqd = self._fetch_vqd(term)
 
             if not vqd:
+                self.last_error = "could not obtain a DuckDuckGo search token (vqd)"
                 return []
 
             params = {
@@ -229,8 +271,26 @@ class DuckDuckGo(QRunnable):
             if response.status_code == 200:
                 # Some curl_cffi versions return JSON directly, fallback to .json()
                 data = response.json() if callable(response.json) else response.json
-                return [img["image"] for img in data.get("results", [])][:maximum]
+                # Grid thumbnails come from DuckDuckGo's own CDN and are about
+                # a tenth the size of the originals, which the add-on would
+                # scale down to 200x200 anyway. The original URL rides along so
+                # exporting a card still uses the full-resolution image.
+                results = []
+                for img in data.get("results", []):
+                    full = img.get("image")
+                    if not full:
+                        continue
+                    results.append((img.get("thumbnail") or full, full))
+                return results[:maximum]
+
+            self.last_error = f"DuckDuckGo returned HTTP {response.status_code}"
+            if response.status_code == 403 and not _CURL_CFFI_AVAILABLE:
+                self.last_error += (
+                    " and curl_cffi is not bundled, so the request could not use a "
+                    "browser TLS fingerprint"
+                )
         except Exception as e:
+            self.last_error = f"{type(e).__name__}: {e}"
             log_debug(f"[ImageSearch] Error in search: {e}")
         return []
 
@@ -279,6 +339,11 @@ class DuckDuckGo(QRunnable):
         return ""
 
     def download_all_images(self, urls: list) -> list:
+        """Download each (display_url, original_url) pair in parallel.
+
+        Returns [(local filename, original_url)] in completion order; failed
+        downloads are dropped.
+        """
         # Create a fast, standard session strictly for image downloading
         dl_session = requests.Session()
         dl_session.headers.update(
@@ -292,17 +357,17 @@ class DuckDuckGo(QRunnable):
 
         # Download the images in true parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            future_to_url = {
+            future_to_pair = {
                 executor.submit(
-                    self.download_and_process_image_sync, url, dl_session
-                ): url
-                for url in urls
+                    self.download_and_process_image_sync, display_url, dl_session
+                ): (display_url, full_url)
+                for display_url, full_url in urls
             }
 
             results = []
-            for future in concurrent.futures.as_completed(future_to_url):
+            for future in concurrent.futures.as_completed(future_to_pair):
                 if filename := future.result():
-                    results.append(filename)
+                    results.append((filename, future_to_pair[future][1]))
             return results
 
     @staticmethod
@@ -310,38 +375,74 @@ class DuckDuckGo(QRunnable):
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "avif"
         return _EXT_TO_MIME.get(ext, "image/avif")
 
-    def _image_to_html(self, filename: str) -> str:
+    def _image_to_html(self, filename: str, full_url: str = "") -> str:
         import base64
+        import html as html_mod
 
         image_path = join(temp_dir, filename)
         mime = self._mime_for(filename)
         try:
             with open(image_path, "rb") as f:
                 data_url = f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+            # `data-url` keeps the inlined thumbnail (what the grid shows and
+            # what older builds exported); `data-full-url` is the original
+            # image, which the export path prefers so cards are not built from
+            # a 200x200 preview.
+            full_attr = (
+                f' data-full-url="{html_mod.escape(full_url, quote=True)}"'
+                if full_url
+                else ""
+            )
             return (
                 f'<div class="imgBox">'
-                f'<div onclick="toggleImageSelect(this)" data-url="{data_url}" class="imageHighlight"></div>'
+                f'<div onclick="toggleImageSelect(this)" data-url="{data_url}"'
+                f'{full_attr} class="imageHighlight"></div>'
                 f'<img class="searchImage" src="{data_url}" ankiDict="{image_path}">'
                 f"</div>"
             )
         except Exception:
             return '<div class="imgBox">Error loading image</div>'
 
-    def get_images_html(self, term, is_load_more=False):
-        images = self.search(term, offset=self.search_offset)
-        if not images:
+    def _empty_state_reason(self) -> str:
+        """Explain *why* the search came back empty, so users and the debug log
+        can tell a real connectivity problem apart from a missing/blocked
+        curl_cffi (DuckDuckGo answers plain requests with HTTP 403)."""
+        if not _CURL_CFFI_AVAILABLE:
             return (
-                ""
-                if is_load_more
-                else "No Images Found. This is likely due to a connectivity error."
+                "The bundled curl_cffi module is missing, so DuckDuckGo blocks "
+                "the request. Reinstall the add-on to restore it."
             )
+        if self.last_error:
+            return f"Search failed: {self.last_error}"
+        return "This is likely due to a connectivity error."
 
-        local_images = self.download_all_images(images)
-        inner_html = "".join(self._image_to_html(img) for img in local_images)
+    # ── grid markup ───────────────────────────────────────────
 
-        if is_load_more:
-            return inner_html
+    def _slot_id(self, index: int) -> str:
+        return f"imgslot-{self.token}-{index}"
 
+    def _slots_html(self, count: int) -> str:
+        """Placeholder tiles, one per pending image.
+
+        Rendering these up front reserves the grid's final layout, so images
+        popping in as they arrive do not reflow the tiles already on screen.
+        """
+        return "".join(
+            f'<div class="imgBox imgPending" id="{self._slot_id(i)}" '
+            f'data-img-token="{self.token}"></div>'
+            for i in range(count)
+        )
+
+    def _empty_state_html(self) -> str:
+        # Uniform empty state: rendered inside the standard definitionBlock, so
+        # it sits exactly where any other dictionary's definition box sits.
+        return (
+            '<div class="image-empty">'
+            f"No Images Found. {self._empty_state_reason()}"
+            "</div>"
+        )
+
+    def _grid_html(self, term: str, inner_html: str) -> str:
         escaped_term = json.dumps(term).replace('"', "&quot;")
         return (
             f'<div class="imageCont horizontal-layout">{inner_html}'
@@ -352,15 +453,96 @@ class DuckDuckGo(QRunnable):
             f"</div></div>"
         )
 
-    def run(self):
-        try:
-            if self.term:
-                # CREATE A FRESH HYBRID SESSION FOR EVERY SEARCH
-                self.session = _make_session()
+    def get_images_html(self, term, is_load_more=False):
+        """Blocking variant: the complete grid, every image already inlined.
 
-                is_load_more = self.idName == "load_more"
-                html = self.get_images_html(self.term, is_load_more)
+        The UI uses the streaming path in :meth:`run`; this stays for callers
+        that want one finished string (and for tests).
+        """
+        images = self.search(term, offset=self.search_offset)
+        if not images:
+            return "" if is_load_more else self._empty_state_html()
+
+        local_images = self.download_all_images(images)
+        inner_html = "".join(
+            self._image_to_html(img, full_url) for img, full_url in local_images
+        )
+        if is_load_more:
+            return inner_html
+        return self._grid_html(term, inner_html)
+
+    # ── streaming ─────────────────────────────────────────────
+
+    def _stream_images(self, images: list) -> int:
+        """Download in parallel, emitting each tile the moment it is ready.
+
+        Returns how many tiles were actually emitted; the rest of the slots are
+        dropped by the UI when ``imagesFinished`` arrives.
+        """
+        dl_session = requests.Session()
+        dl_session.headers.update(
+            {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        )
+        adapter = HTTPAdapter(pool_connections=15, pool_maxsize=15)
+        dl_session.mount("https://", adapter)
+        dl_session.mount("http://", adapter)
+
+        rendered = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_slot = {
+                executor.submit(
+                    self.download_and_process_image_sync, display_url, dl_session
+                ): (index, full_url)
+                for index, (display_url, full_url) in enumerate(images)
+            }
+            for future in concurrent.futures.as_completed(future_to_slot):
+                index, full_url = future_to_slot[future]
+                try:
+                    filename = future.result()
+                except Exception:  # noqa: BLE001 - one bad image must not stop the rest
+                    filename = ""
+                if not filename:
+                    continue
+                self.signals.imageReady.emit(
+                    [self._slot_id(index), self._image_to_html(filename, full_url)]
+                )
+                rendered += 1
+        return rendered
+
+    def run(self):
+        """Search, then stream the images in as they download.
+
+        The grid shell is emitted as soon as DuckDuckGo answers — roughly half
+        the total time — so results appear while the thumbnails are still
+        arriving, instead of after the slowest one.
+        """
+        try:
+            if not self.term:
+                return
+            # CREATE A FRESH HYBRID SESSION FOR EVERY SEARCH
+            self.session = _make_session()
+
+            is_load_more = self.idName == "load_more"
+            images = self.search(self.term, offset=self.search_offset)
+
+            if not images:
+                html = "" if is_load_more else self._empty_state_html()
                 self.signals.resultsFound.emit([html, self.idName])
+                self.signals.imagesFinished.emit([self.token, 0])
+                return
+
+            # Shell first (placeholders + "Load More"), tiles after. Both are
+            # queued to the UI thread in emission order.
+            self.signals.resultsFound.emit(
+                [
+                    self._slots_html(len(images))
+                    if is_load_more
+                    else self._grid_html(self.term, self._slots_html(len(images))),
+                    self.idName,
+                ]
+            )
+            rendered = self._stream_images(images)
+            self.signals.imagesFinished.emit([self.token, rendered])
         except Exception as e:
             log_debug(f"DuckDuckGo run error: {e}")
             self.signals.noResults.emit("No Images Found.")

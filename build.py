@@ -78,14 +78,24 @@ def run_pip_command(args, env=None):
         raise e
 
 
-def install_macos_curl_cffi(vendor_dir):
-    """Download and extract curl_cffi for macOS (ARM64 and x86_64)"""
-    print("📦 Downloading macOS-specific curl_cffi (via pip --platform)...")
+def install_curl_cffi(vendor_dir):
+    """Download and extract curl_cffi per platform (DDG image search needs
+    browser TLS impersonation on every OS — plain requests gets HTTP 403)."""
+    print("📦 Downloading platform-specific curl_cffi (via pip --platform)...")
 
     # curl_cffi 0.7.4 uses abi3, compatible with all recent Anki/Python versions
     platforms = [
-        {"name": "mac_arm64", "platform": "macosx_11_0_arm64"},
-        {"name": "mac_x86_64", "platform": "macosx_10_9_x86_64"},
+        {
+            "name": "mac_arm64",
+            "platforms": [
+                "macosx_11_0_arm64",
+                "macosx_12_0_arm64",
+                "macosx_13_0_arm64",
+            ],
+        },
+        {"name": "mac_x86_64", "platforms": ["macosx_10_9_x86_64"]},
+        {"name": "linux_x86_64", "platforms": ["manylinux2014_x86_64"]},
+        {"name": "win_amd64", "platforms": ["win_amd64"]},
     ]
 
     for p in platforms:
@@ -97,18 +107,8 @@ def install_macos_curl_cffi(vendor_dir):
             # Use cp38-abi3 as baseline to get universal wheel
             # We add multiple platforms to ensure cffi and other deps are found
             platform_args = []
-            if p["name"] == "mac_arm64":
-                # For ARM64, we often need to specify several compatible macOS versions
-                platform_args = [
-                    "--platform",
-                    "macosx_11_0_arm64",
-                    "--platform",
-                    "macosx_12_0_arm64",
-                    "--platform",
-                    "macosx_13_0_arm64",
-                ]
-            else:
-                platform_args = ["--platform", p["platform"]]
+            for plat in p["platforms"]:
+                platform_args += ["--platform", plat]
 
             run_pip_command(
                 [
@@ -125,6 +125,11 @@ def install_macos_curl_cffi(vendor_dir):
             print(f"   ✓ curl_cffi for {p['name']} completed")
         except Exception as e:
             print(f"   ⚠️ Could not install curl_cffi for {p['name']}: {e}")
+
+
+def install_macos_curl_cffi(vendor_dir):
+    """Backward-compat wrapper (now covers all platforms)."""
+    install_curl_cffi(vendor_dir)
 
 
 def install_dependencies(addon_dir):
@@ -186,7 +191,7 @@ def install_dependencies(addon_dir):
     else:
         print("   No standard dependencies to bundle.")
 
-    # Always install macOS-specific curl_cffi
+    # Always install platform-specific curl_cffi (all OSes need it for DDG)
     install_macos_curl_cffi(vendor_dir)
 
 

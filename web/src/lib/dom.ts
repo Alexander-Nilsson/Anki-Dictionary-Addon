@@ -154,7 +154,10 @@ export function collectSelectedImageUrls(block: HTMLElement): string[] {
   );
   const urls: string[] = [];
   for (const el of Array.from(selected)) {
-    const url = (el as HTMLElement).dataset?.url;
+    // `data-full-url` is the original image; `data-url` is the inlined grid
+    // thumbnail, kept as the fallback for HTML rendered by older builds.
+    const data = (el as HTMLElement).dataset;
+    const url = data?.fullUrl || data?.url;
     if (url && !urls.includes(url)) urls.push(url);
   }
   return urls;

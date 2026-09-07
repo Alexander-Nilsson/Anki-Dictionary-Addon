@@ -59,6 +59,8 @@ function loadImageHtml(html, idName) {
         var target = document.getElementById(idName);
         if (target) {
             target.innerHTML = html;
+            // The "Loading..." state is over once real content arrives.
+            target.classList.remove('is-loading');
         } else {
             console.warn('Target element not found:', idName);
         }
@@ -222,7 +224,9 @@ function getImageExport(ev, dictName) {
 
     if (selImgs.length > 0) {
         for (var i = 0; i < selImgs.length; i++) {
-            var url = selImgs[i].dataset.url;
+            // `data-full-url` is the original image; `data-url` is the inlined grid
+            // thumbnail, kept as the fallback for older rendered HTML.
+            var url = selImgs[i].dataset.fullUrl || selImgs[i].dataset.url;
             if (url && urls.indexOf(url) === -1) {
                 urls.push(url);
             }
@@ -357,7 +361,9 @@ function getImageForField(ev, dictName) {
     var urls = [];
     if (selImgs.length > 0) {
         for (var i = 0; i < selImgs.length; i++) {
-            var url = selImgs[i].dataset.url;
+            // `data-full-url` is the original image; `data-url` is the inlined grid
+            // thumbnail, kept as the fallback for older rendered HTML.
+            var url = selImgs[i].dataset.fullUrl || selImgs[i].dataset.url;
             if (url && urls.indexOf(url) === -1) { // Avoid duplicates
                 urls.push(url);
             }
@@ -383,45 +389,80 @@ function sendToField(ev, dictName) {
  * Navigate dictionary entries
  */
 function navigateDict(ev, next, def = false) {
-    var dict = ev.target.parentElement.parentElement.parentElement;
+    // The click may land on a nested node (e.g. the SVG glyph inside the
+    // button) — climb to the enclosing block instead of assuming a fixed
+    // depth, otherwise icon clicks silently navigate nowhere.
+    var target = ev.target;
+    var selector = def ? '.termPronunciation' : '.dictionaryTitleBlock';
+    var dict = target.closest ? target.closest(selector) : null;
+    if (!dict) return;
     var wanted = 'dictionaryTitleBlock';
     var w = dict.closest('#defBox');
     if (!w) return;
-    
+
     if (def) {
         wanted = 'termPronunciation'
     }
-    if (next) {
-        var nextEl = dict;
-        while (nextEl = nextEl.nextElementSibling) {
-            if (nextEl.classList && nextEl.classList.contains(wanted)) {
-                // Calculate offset relative to the scroll container (w)
-                var offsetTop = 0;
-                var current = nextEl;
-                while (current && current !== w) {
-                    offsetTop += current.offsetTop;
-                    current = current.offsetParent;
-                }
-                w.scrollTop = offsetTop;
-                break;
-            }
+    // Focus travels with the navigation: it lands on the target block's
+    // matching arrow, so repeated presses continue from the visible block.
+    var buttonClass = def
+        ? (next ? '.nextDef' : '.prevDef')
+        : (next ? '.nextDict' : '.prevDict');
+    // Document order within the tab (not siblings), so navigation crosses
+    // dictionary boundaries including the nested Images/LLM/Forvo sections.
+    var scope = dict.closest('.tabContent') || w;
+    var blocks = scope.querySelectorAll('.' + wanted);
+    var idx = Array.prototype.indexOf.call(blocks, dict);
+    if (idx === -1) return;
+    // Layout top of every block relative to the scroll container (w).
+    var tops = [];
+    for (var i = 0; i < blocks.length; i++) {
+        var offsetTop = 0;
+        var current = blocks[i];
+        while (current && current !== w) {
+            offsetTop += current.offsetTop;
+            current = current.offsetParent;
         }
-    } else if (parseInt(dict.dataset.index) > 0) {
-        var nextEl = dict;
-        while (nextEl = nextEl.previousElementSibling) {
-            if (nextEl.classList && nextEl.classList.contains(wanted)) {
-                // Calculate offset relative to the scroll container (w)
-                var offsetTop = 0;
-                var current = nextEl;
-                while (current && current !== w) {
-                    offsetTop += current.offsetTop;
-                    current = current.offsetParent;
-                }
-                w.scrollTop = offsetTop;
-                break;
-            }
+        tops.push(offsetTop);
+    }
+    var currentScroll = w.scrollTop;
+    var step = next ? 1 : -1;
+    var maxScroll = w.scrollHeight - w.clientHeight;
+    // Short trailing sections (e.g. a one-item Forvo block) can already be
+    // fully visible while a neighbour is current: scrolling to the adjacent
+    // block then changes nothing and the arrows look dead. Keep stepping the
+    // same direction until a step would visibly move the view — going back
+    // up always lands somewhere new. If no further block would (true
+    // first/last with everything in view), fall back to the adjacent block
+    // so focus still travels; with no adjacent block, stay put.
+    // (Mirrors NAV_MIN_DELTA in web/src/lib/dom.ts.)
+    var MIN_DELTA = 24;
+    var adjacent = (idx + step >= 0 && idx + step < blocks.length) ? idx + step : -1;
+    var found = -1;
+    for (var j = idx + step; j >= 0 && j < blocks.length; j += step) {
+        // The browser clamps past-the-end offsets to the scroll limit, so
+        // compare against the clamped position the scroll would settle at.
+        var settled = tops[j] <= maxScroll ? tops[j] : maxScroll;
+        if (Math.abs(settled - currentScroll) >= MIN_DELTA) {
+            found = j;
+            break;
         }
     }
+    if (found === -1) {
+        if (adjacent === -1) return;
+        found = adjacent;
+    }
+    var dest = blocks[found];
+    // Calculate offset relative to the scroll container (w)
+    var finalTop = 0;
+    var node = dest;
+    while (node && node !== w) {
+        finalTop += node.offsetTop;
+        node = node.offsetParent;
+    }
+    w.scrollTop = finalTop;
+    var targetBtn = dest.querySelector(buttonClass);
+    if (targetBtn) targetBtn.focus({preventScroll: true});
 }
 
 /**
@@ -960,6 +1001,46 @@ function loadMoreImages(tile, term) {
         tile.querySelector('.loadMoreIcon').textContent = '+';
         tile.querySelector('.loadMoreText').textContent = 'Load More';
     }
+}
+
+/**
+ * Replace one placeholder tile with its downloaded image.
+ * Python streams tiles in as each thumbnail lands rather than waiting for the
+ * slowest one, so the grid fills progressively. A missing slot is not an
+ * error: the tab may have been closed or re-searched mid-flight.
+ */
+function fillImageSlot(slotId, html) {
+    var slot = document.getElementById(slotId);
+    if (!slot) return;
+    var tile = document.createElement('div');
+    tile.innerHTML = html;
+    var box = tile.firstElementChild;
+    if (box) {
+        slot.parentNode.replaceChild(box, slot);
+    } else {
+        slot.remove();
+    }
+}
+
+/**
+ * Settle the grid once every download for `token` has finished: drop the
+ * placeholders whose images never arrived, and fall back to an empty state if
+ * none of them did.
+ */
+function finishImageLoad(token, rendered) {
+    var pending = document.querySelectorAll(
+        '.imgPending[data-img-token="' + token + '"]'
+    );
+    for (var i = 0; i < pending.length; i++) pending[i].remove();
+    if (rendered > 0) return;
+    var container = document.querySelector('.imageCont.horizontal-layout');
+    if (!container) return;
+    // Every image failed to download - the search itself succeeded, so this is
+    // not the "no results" state Python renders.
+    var empty = document.createElement('div');
+    empty.className = 'image-empty';
+    empty.textContent = 'No Images Found. The images could not be downloaded.';
+    container.parentNode.replaceChild(empty, container);
 }
 
 /**

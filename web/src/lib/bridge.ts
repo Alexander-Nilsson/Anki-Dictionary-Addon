@@ -5,7 +5,13 @@
  * (see search/pipeline.py, search/coordinator.py, core/dictionary.py). They
  * drive the reactive Svelte shell instead of mutating the DOM imperatively.
  */
-import { appendNewImages, initCompatGlobals, loadImageHtml } from "./compat";
+import {
+  appendNewImages,
+  fillImageSlot,
+  finishImageLoad,
+  initCompatGlobals,
+  loadImageHtml,
+} from "./compat";
 import {
   addTab,
   resizer,
@@ -129,6 +135,8 @@ export function initBridge(): void {
     },
     loadImageHtml,
     appendNewImages,
+    fillImageSlot,
+    finishImageLoad,
     addCustomFont,
     openSidebar: () => toggleSidebar(),
     scaleFont: (increase: unknown) => scaleFont(asBoolean(increase)),

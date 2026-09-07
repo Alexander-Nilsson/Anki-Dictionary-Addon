@@ -231,6 +231,44 @@ export function loadImageHtml(html: string, idName: string): void {
   }
 }
 
+/**
+ * Replace one placeholder tile with its downloaded image.
+ *
+ * Python streams tiles in as each thumbnail lands rather than waiting for the
+ * slowest one, so the grid fills progressively. A missing slot is not an
+ * error: the tab may have been closed or re-searched mid-flight.
+ */
+export function fillImageSlot(slotId: string, html: string): void {
+  const slot = document.getElementById(slotId);
+  if (!slot) return;
+  const tile = document.createElement("div");
+  tile.innerHTML = html;
+  const box = tile.firstElementChild;
+  if (box) slot.replaceWith(box);
+  else slot.remove();
+}
+
+/**
+ * Settle the grid once every download for `token` has finished: drop the
+ * placeholders whose images never arrived, and fall back to the empty state
+ * if none of them did.
+ */
+export function finishImageLoad(token: string, rendered: number): void {
+  const pending = document.querySelectorAll(
+    `.imgPending[data-img-token="${CSS.escape(token)}"]`,
+  );
+  for (const slot of Array.from(pending)) slot.remove();
+  if (rendered > 0) return;
+  const container = document.querySelector(".imageCont.horizontal-layout");
+  if (!container) return;
+  // Every image failed to download — the search itself succeeded, so this is
+  // not the "no results" state Python renders.
+  const empty = document.createElement("div");
+  empty.className = "image-empty";
+  empty.textContent = "No Images Found. The images could not be downloaded.";
+  container.replaceWith(empty);
+}
+
 /** Append more image boxes to the existing gallery (legacy load-more path). */
 export function appendNewImages(html: string): void {
   try {
@@ -485,6 +523,8 @@ export function initCompatGlobals(): void {
     toggleImageSelect,
     loadImageHtml,
     appendNewImages,
+    fillImageSlot,
+    finishImageLoad,
     playAudio,
     ankiAudioExport,
     sendAudioToField,
