@@ -704,6 +704,19 @@ class SearchPipeline:
             f"}}"
         )
 
+    def _safe_eval(self, script: str) -> None:
+        """Run JS in the results view, swallowing a destroyed-webview error.
+
+        These run from background-worker signals, where the tab (or the whole
+        window) may already be gone. An exception raised inside a Qt slot
+        escapes into C++ and surfaces as Anki's error dialog, so a service
+        that merely failed must never be able to raise here.
+        """
+        try:
+            self.midict.eval(script)
+        except Exception:
+            logger.debug("Webview eval failed (view may have been destroyed)")
+
     def onForvoError(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
@@ -713,7 +726,7 @@ class SearchPipeline:
         self._remove_forvo_element(id_name)
 
     def _remove_forvo_element(self, id_name: str) -> None:
-        self.midict.eval(
+        self._safe_eval(
             f"var el = document.getElementById('{id_name}'); "
             f"if(el) el.remove(); "
             f"var titles = document.querySelectorAll('.listTitle'); "

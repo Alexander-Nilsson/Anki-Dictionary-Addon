@@ -220,6 +220,74 @@ class TestTrySearchClipboardPause:
             module.trySearch("\u98df\u3079\u308b")  # must not raise
 
 
+class TestSearchTermRunsOnce:
+    """``searchTerm`` must issue exactly one search per invocation.
+
+    Opening the window hands the term to ``DictInterface``, which searches it
+    once the page announces itself (``AnkiDictionaryLoaded``). Calling
+    ``initSearch`` as well ran every lookup twice — including the external
+    Forvo, LLM and image requests. Two identical Forvo fetches ~400ms apart
+    trip its Cloudflare rate limiting, which surfaced as a bogus HTTP 403.
+    """
+
+    @staticmethod
+    def _main_window():
+        import aqt
+
+        aqt.mw = MagicMock()
+        import anki_dictionary.ui.main_window as module
+
+        aqt.mw = None  # restore
+        return module
+
+    def _webview(self, text="\u81ea\u884c\u8f66"):
+        webview = MagicMock()
+        webview.selectedText.return_value = text
+        webview.title = "other"
+        return webview
+
+    def test_new_window_searches_once_via_the_queued_term(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            with patch.object(module, "dictionaryInit") as init:
+                mock_mw.ankiDictionary = None
+
+                def create(terms):
+                    # dictionaryInit builds the window with the term queued.
+                    mock_mw.ankiDictionary = MagicMock()
+
+                init.side_effect = create
+                module.searchTerm(self._webview())
+
+        init.assert_called_once_with(["\u81ea\u884c\u8f66"])
+        mock_mw.ankiDictionary.initSearch.assert_not_called()
+
+    def test_hidden_window_is_searched_here(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            with patch.object(module, "dictionaryInit") as init:
+                anki = MagicMock()
+                anki.isVisible.return_value = False
+                mock_mw.ankiDictionary = anki
+                module.searchTerm(self._webview())
+
+        # Re-showing an existing window queues nothing, so it must search here.
+        init.assert_called_once()
+        anki.initSearch.assert_called_once_with("\u81ea\u884c\u8f66", source="browser")
+
+    def test_visible_window_searches_once_without_reopening(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            with patch.object(module, "dictionaryInit") as init:
+                anki = MagicMock()
+                anki.isVisible.return_value = True
+                mock_mw.ankiDictionary = anki
+                module.searchTerm(self._webview())
+
+        init.assert_not_called()
+        anki.initSearch.assert_called_once_with("\u81ea\u884c\u8f66", source="browser")
+
+
 class TestDictInterface:
     """DictInterface instantiation tests."""
 

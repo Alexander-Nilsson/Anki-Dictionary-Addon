@@ -273,10 +273,19 @@ def searchTerm(webview):
     if text:
         text = re.sub(r"\[[^\]]+?\]", "", text)
         text = text.strip()
-        if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
+        # Whether the dictionary window already existed decides who runs the
+        # search. Opening a new one hands the term to DictInterface, which
+        # searches it once the page announces itself — so searching again here
+        # would run every lookup twice, external requests included. Two
+        # identical Forvo fetches ~400ms apart is enough to trip its Cloudflare
+        # rate limiting, and it doubled every LLM and image request too.
+        existing = bool(mw.ankiDictionary)  # ty:ignore[unresolved-attribute]
+        if not existing or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
             dictionaryInit([text])
         mw.ankiDictionary.ensureVisible()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.initSearch(text, source="browser")  # ty:ignore[unresolved-attribute]
+        if existing:
+            # Re-showing an existing window queues nothing, so search here.
+            mw.ankiDictionary.initSearch(text, source="browser")  # ty:ignore[unresolved-attribute]
         if webview.title == "main webview":
             if mw.state == "review":
                 mw.ankiDictionary.dict.setReviewer(mw.reviewer)  # ty:ignore[unresolved-attribute]

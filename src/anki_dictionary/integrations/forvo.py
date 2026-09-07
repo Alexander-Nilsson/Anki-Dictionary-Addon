@@ -69,10 +69,34 @@ class ForvoWorkerSignals(QObject):
     finished = pyqtSignal()
 
 
+# Curl exit code reported as the "status" when we never got an HTTP reply at
+# all (DNS failure, timeout, curl missing). Distinct from any real status so
+# callers can tell "could not reach Forvo" from "Forvo answered with an error".
+NO_HTTP_RESPONSE = 0
+
+# How many times to re-issue a request that failed in a way a retry might fix.
+_MAX_ATTEMPTS = 3
+
+
+def _is_cloudflare_challenge(html: str) -> bool:
+    """True when Cloudflare served an interstitial instead of the page."""
+    return "Just a moment" in html or "cf-browser-verification" in html
+
+
 def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
-    """Fetch a Forvo page using curl, which bypasses Cloudflare TLS fingerprinting."""
-    last_error = None
-    for attempt in range(3):
+    """Fetch a Forvo page using curl, whose TLS fingerprint Cloudflare accepts.
+
+    Returns ``(http_status, html)``. The status is the real HTTP status code —
+    curl's ``%{http_code}`` — not curl's exit code, so a word Forvo simply does
+    not have (404) is distinguishable from being blocked (403) or from never
+    reaching the site at all (:data:`NO_HTTP_RESPONSE`).
+
+    Only failures a retry could plausibly fix are retried: a Cloudflare
+    challenge, rate limiting, a server error, or a curl-level failure. A 404 is
+    a final answer and returns immediately.
+    """
+    last_exit = NO_HTTP_RESPONSE
+    for attempt in range(_MAX_ATTEMPTS):
         try:
             result = subprocess.run(
                 [
@@ -84,6 +108,9 @@ def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
                     str(timeout),
                     "--max-time",
                     str(timeout),
+                    # Append the status so one call yields both body and code.
+                    "-w",
+                    "\n%{http_code}",
                     *CURL_HEADERS,
                     url,
                 ],
@@ -91,32 +118,41 @@ def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
                 text=True,
                 timeout=timeout + 5,
             )
-            status = result.returncode
-            html = result.stdout
-
-            if status == 0 and html:
-                # Check if we got a Cloudflare challenge page instead of real content
-                if "Just a moment" in html:
-                    if attempt < 2:
-                        time.sleep(1)
-                        continue
-                    return 403, ""
-                return 200, html
-
-            if attempt < 2:
-                time.sleep(1)
-                continue
-
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            last_error = e
-            if attempt < 2:
-                time.sleep(1)
-                continue
+        except subprocess.TimeoutExpired:
+            logger.debug("Forvo fetch timed out (attempt %d)", attempt + 1)
+            status, html = NO_HTTP_RESPONSE, ""
+        except FileNotFoundError:
+            # No curl on this machine — retrying cannot help.
+            logger.error("curl not found (%s); Forvo needs it to fetch pages", CURL_BIN)
             raise
+        else:
+            if result.returncode != 0:
+                last_exit = result.returncode
+                logger.debug(
+                    "curl exited %d for Forvo (attempt %d)", last_exit, attempt + 1
+                )
+                status, html = NO_HTTP_RESPONSE, ""
+            else:
+                html, _, code = result.stdout.rpartition("\n")
+                try:
+                    status = int(code.strip())
+                except ValueError:
+                    status, html = NO_HTTP_RESPONSE, ""
 
-    if last_error:
-        raise last_error
-    return 403, ""
+        if status == 200 and _is_cloudflare_challenge(html):
+            logger.debug("Cloudflare challenge from Forvo (attempt %d)", attempt + 1)
+            status, html = 403, ""
+
+        retryable = status in (NO_HTTP_RESPONSE, 403, 429) or status >= 500
+        if not retryable:
+            return status, html
+        if attempt < _MAX_ATTEMPTS - 1:
+            # Back off progressively; hammering a rate limiter only extends it.
+            time.sleep(attempt + 1)
+
+    if status == NO_HTTP_RESPONSE and last_exit:
+        logger.warning("Could not reach Forvo; curl exit %d", last_exit)
+    return status, html
 
 
 class ForvoWorker(QRunnable):
@@ -131,6 +167,22 @@ class ForvoWorker(QRunnable):
         self.config = config
         self.idName = idName
         self.signals = ForvoWorkerSignals()
+
+    @staticmethod
+    def _failure_message(status: int) -> str:
+        """Say what actually went wrong, not just "HTTP 403"."""
+        if status == NO_HTTP_RESPONSE:
+            return "Could not reach forvo.com (network error or curl unavailable)"
+        if status == 403:
+            return (
+                "Forvo returned HTTP 403 - Cloudflare is challenging the request. "
+                "It usually clears on its own; searching more slowly helps."
+            )
+        if status == 429:
+            return "Forvo returned HTTP 429 - too many requests, try again shortly"
+        if status >= 500:
+            return f"Forvo is unavailable (HTTP {status})"
+        return f"Forvo returned HTTP {status}"
 
     def run(self):
         """Execute the scrape."""
@@ -157,7 +209,7 @@ class ForvoWorker(QRunnable):
                 return
 
             if status != 200:
-                raise RuntimeError(f"HTTP {status}: Failed to fetch Forvo page")
+                raise RuntimeError(self._failure_message(status))
 
             soup = BeautifulSoup(html, "html.parser")
 

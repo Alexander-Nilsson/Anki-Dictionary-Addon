@@ -67,13 +67,13 @@ class ExternalServiceCoordinator:
 
     def _on_llm_result(self, result: dict[str, Any]) -> None:
         if self._on_llm_result_cb is not None:
-            self._on_llm_result_cb(result)
+            self._safe_call(self._on_llm_result_cb, result)
 
     def _on_llm_error(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown LLM error")
         logger.debug("LLM error: %s", error_msg)
         if self._on_llm_error_cb is not None:
-            self._on_llm_error_cb(result)
+            self._safe_call(self._on_llm_error_cb, result)
 
     # ── Forvo ──────────────────────────────────────
 
@@ -99,13 +99,39 @@ class ExternalServiceCoordinator:
             self._remove_element(id_name, "Forvo")
             return
         if self._on_forvo_result_cb is not None:
-            self._on_forvo_result_cb(result)
+            self._safe_call(self._on_forvo_result_cb, result)
+
+    @staticmethod
+    def _safe_call(callback: Any, result: dict[str, Any]) -> None:
+        """Invoke a result/error callback without letting it reach Anki.
+
+        These fire from background-worker signals. An exception raised inside a
+        Qt slot escapes into C++ and surfaces as Anki's error dialog, so a
+        lookup that failed (or a webview that went away mid-flight) must never
+        be able to pop one.
+        """
+        try:
+            callback(result)
+        except Exception:
+            logger.exception("Search result callback failed")
+
+    def _safe_eval(self, script: str) -> None:
+        """Run JS in the results view, swallowing a destroyed-webview error.
+
+        Called from background-worker signals: an exception raised inside a Qt
+        slot escapes into C++ and surfaces as Anki's error dialog, so a failed
+        lookup must never be able to raise here.
+        """
+        try:
+            self._eval(script)
+        except Exception:
+            logger.debug("Webview eval failed (view may have been destroyed)")
 
     def _on_forvo_error(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
         if self._on_forvo_error_cb is not None:
-            self._on_forvo_error_cb(result)
+            self._safe_call(self._on_forvo_error_cb, result)
         else:
             id_name = result.get("idName") or "forvo-loader"
             self._remove_element(id_name, "Forvo")
@@ -178,7 +204,7 @@ class ExternalServiceCoordinator:
     # ── helpers ────────────────────────────────────
 
     def _remove_element(self, id_name: str, label: str) -> None:
-        self._eval(
+        self._safe_eval(
             f"var el = document.getElementById('{id_name}'); "
             f"if(el) el.remove(); "
             f"var titles = document.querySelectorAll('.listTitle'); "
