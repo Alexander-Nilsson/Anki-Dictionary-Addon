@@ -159,10 +159,12 @@ function sendToField(ev: Event, dictName: string): void {
 // ── navigation ─────────────────────────────────────
 
 function navigateDict(ev: Event, next: boolean, def = false): void {
+  // The click may land on a nested node (e.g. the SVG glyph inside the
+  // button) — climb to the enclosing block instead of assuming a fixed
+  // depth, otherwise icon clicks silently navigate nowhere.
   const target = ev.target as HTMLElement;
-  const start = target.parentElement?.parentElement?.parentElement as
-    | HTMLElement
-    | null;
+  const selector = def ? ".termPronunciation" : ".dictionaryTitleBlock";
+  const start = target.closest(selector) as HTMLElement | null;
   if (!start) return;
   navigate(start, next, def ? "termPronunciation" : "dictionaryTitleBlock");
 }

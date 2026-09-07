@@ -261,8 +261,8 @@
   color: var(--accent, #4a90d9);
 }
 
-/* Tab strip overflow edge fades + sticky "settings & guide" button. The
-   sticky items stay pinned while `#tabs` scrolls horizontally. */
+/* Tab strip overflow edge fades. The sticky items stay pinned while `#tabs`
+   scrolls horizontally. */
 .tabs-fade {
   position: sticky;
   flex-shrink: 0;
@@ -280,28 +280,12 @@
 }
 
 .tabs-fade-right {
-  right: 34px;
+  right: 0;
   background: linear-gradient(270deg, var(--background), transparent);
 }
 
 .tabs-fade.visible {
   opacity: 1;
-}
-
-.help-button {
-  position: sticky;
-  right: 0;
-  flex-shrink: 0;
-  min-width: 34px;
-  padding: 0 10px !important;
-  color: var(--text-secondary) !important;
-  font-size: var(--font-size-lg) !important;
-  font-weight: var(--font-weight-bold) !important;
-  background: linear-gradient(
-    180deg,
-    var(--background) 0%,
-    var(--background-secondary) 100%
-  );
 }
 
 /* Feedback toasts (copy / send-to-field / export confirmations). */

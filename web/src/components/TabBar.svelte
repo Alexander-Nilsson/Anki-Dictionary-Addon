@@ -5,7 +5,6 @@
     ui,
     updateTermFromTab,
   } from "../lib/tabs.svelte";
-  import { CMD, pycmd } from "../lib/pycmd";
 
   let tabsElement: HTMLDivElement | undefined = $state();
   let canScrollLeft = $state(false);
@@ -92,12 +91,4 @@
     class:visible={canScrollRight}
     aria-hidden="true"
   ></span>
-  <button
-    type="button"
-    class="tablinks help-button"
-    aria-label="Open dictionary settings and guide"
-    title="Settings & guide"
-    onclick={() => pycmd(CMD.openSettings())}
-    >?</button
-  >
 </div>
