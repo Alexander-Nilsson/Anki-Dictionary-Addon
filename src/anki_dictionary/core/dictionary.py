@@ -404,6 +404,8 @@ class DictInterface(QWidget):
             self.dict.loadHTMLURL(html, url)
         if hasattr(self, "historyBrowser") and self.historyBrowser:
             self.historyBrowser.setColors()
+        if getattr(getattr(self, "dict", None), "addWindow", None):
+            self.dict.addWindow.setColors()  # ty:ignore[unresolved-attribute]
 
     def getPalette(self, color):
         pal = QPalette()

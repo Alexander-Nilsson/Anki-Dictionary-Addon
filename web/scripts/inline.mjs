@@ -6,6 +6,7 @@
  * Inputs → outputs:
  *   dist/index.html    → dist/dictionary.html   (results shell)
  *   dist/settings.html → dist/settings.html      (settings window)
+ *   dist/exporter.html → dist/exporter.html      (card exporter window)
  *
  * For each page:
  * - Inlines the JS bundles (shared chunks + entry chunk, in emitted order)
@@ -100,3 +101,4 @@ function inlinePage(srcName, outName, injectAfter) {
 
 inlinePage("index.html", "dictionary.html", '<div id="welcomeBackground"></div>');
 inlinePage("settings.html", "settings.html", null);
+inlinePage("exporter.html", "exporter.html", null);

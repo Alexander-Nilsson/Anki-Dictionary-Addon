@@ -26,7 +26,8 @@ src/anki_dictionary/
 │   └── llm.py               # LLM (AI) definition generation
 ├── exporters/
 │   ├── batch_processor.py   # BatchProcessor — multi-card batch export
-│   ├── card_exporter.py     # CardExporter — single-card export
+│   ├── card_exporter.py     # CardExporter — thin Qt shell + note assembly
+│   ├── exporter_bridge.py   # AnkiWebView hosting the Svelte exporter page
 │   ├── field_mapper.py      # FieldMapper — template field mapping
 │   ├── html_cleaner.py      # HTMLCleaner — sanitize/clean HTML
 │   └── media_handler.py     # MediaHandler — audio/image media ops
@@ -38,7 +39,7 @@ src/anki_dictionary/
     ├── install_service.py     # Headless QThread web-install workers
     └── (web-installer UI replaced by the Svelte settings install modal)
 web/                          # Svelte 5 + Vite UI (rendered inside AnkiWebView)
-├── package.json              # vite build → dist/index.html, then inline.mjs → dist/dictionary.html
+├── package.json              # vite build → dist/*.html, then inline.mjs → self-contained pages
 ├── vite.config.ts, svelte.config.js, tsconfig.json
 ├── index.html                # Shell with Python-injection placeholders (FONT_SIZES, etc.)
 ├── scripts/
@@ -52,8 +53,11 @@ web/                          # Svelte 5 + Vite UI (rendered inside AnkiWebView)
     │   ├── bridge.ts         # Python→JS globals (addNewTab, loadImageHtml, ...)
     │   ├── compat.ts         # Globals used by Python-generated HTML (ankiExport, clipText, ...)
     │   ├── dom.ts, pycmd.ts, types.ts
-    └── components/
-        ├── App.svelte, TabBar.svelte, WelcomeScreen.svelte, TabContent.svelte
+    ├── components/
+    │   ├── App.svelte, TabBar.svelte, WelcomeScreen.svelte, TabContent.svelte
+    ├── settings/                 # Settings window tabs + modals
+    └── exporter/                 # Card exporter app (ExporterApp, RichTextField,
+                                  #   DefinitionSettingsModal)
 assets/
 ├── templates/            # dictionary.html (legacy fallback), guide.html, welcome.html, etc.
 ├── styles/               # guide.css
@@ -87,4 +91,24 @@ user_files/               # db/, dictionaries/, themes/, fonts/, media/
 - **LLM**, **image search**, and **Forvo** are async; use background threads to avoid UI freezes
 - **Vendor strategy:** Only `pynput` and `beautifulsoup4` are bundled; rely on Anki's bundled PyQt6, requests, Pillow
 - **Platform checks:** Use `is_mac()`, `is_win()`, `is_lin()` from `anki.utils`
+- **Card exporter (Svelte):** The exporter window is a `QWidget` whose only child is
+  `ExporterBridge` (an `AnkiWebView` hosting `exporter.html`). Python keeps the
+  authoritative card state — it is what assembles the note — so the page mirrors every
+  edit back over `exporter:setField` and ships the whole state with `exporter:add`.
+  Python pushes state back (`EXPORTER.setState`) whenever the dictionary window sends a
+  definition, sentence, image or audio. `CardExporter` keeps a `scrollArea` property
+  aliasing the window so existing callers (`card_handler`, `dictionary`, `main_window`)
+  are unchanged.
+- **Image search speed:** two changes, roughly halving both bytes and time-to-first-paint.
+  (1) The results grid loads DuckDuckGo's own CDN thumbnails — about a tenth the bytes of
+  the originals, which the add-on downscales to 200×200 anyway. The original URL rides
+  along in `data-full-url` so exporting a card still uses the full-resolution image;
+  `data-url` (the inlined thumbnail) stays as the fallback for HTML rendered by older
+  builds. (2) Results **stream**: `DuckDuckGo.run` emits the grid shell (one shimmering
+  `.imgPending` slot per pending image, plus the "Load More" tile) via `resultsFound` as
+  soon as the query returns, then one `imageReady` per thumbnail as it downloads, and
+  finally `imagesFinished`. The coordinator maps these to `loadImageHtml` /
+  `fillImageSlot` / `finishImageLoad`. Reserving the slots up front means tiles popping
+  in never reflow the grid, and a per-run `token` keeps two overlapping searches from
+  filling each other's slots. `get_images_html` remains as the blocking one-shot variant.
 - **Build:** `build.py` copies `src/`, `assets/`, `__init__.py`, `config.json`; vendors deps; generates manifest; builds the Svelte UI with `npm ci && npm run build` (skips gracefully if npm is missing)

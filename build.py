@@ -252,7 +252,8 @@ def build_web_ui(addon_dir: Path):
 
     The Svelte apps live in ``web/`` and are compiled with Vite into single
     self-contained HTML files (inlined JS + CSS): ``web/dist/dictionary.html``
-    (results shell) and ``web/dist/settings.html`` (settings window). They are
+    (results shell), ``web/dist/settings.html`` (settings window) and
+    ``web/dist/exporter.html`` (card exporter). They are
     copied to ``assets/web/`` inside the addon package so the Python side can
     find them at runtime. Skips (with a warning) when Node.js / npm are
     unavailable or the web build fails.
@@ -284,7 +285,11 @@ def build_web_ui(addon_dir: Path):
     target_dir = addon_dir / "assets" / "web"
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    pages = {"dictionary.html": "dictionary.html", "settings.html": "settings.html"}
+    pages = {
+        "dictionary.html": "dictionary.html",
+        "settings.html": "settings.html",
+        "exporter.html": "exporter.html",
+    }
     copied = False
     for src_name, dst_name in pages.items():
         bundled = web_dir / "dist" / src_name

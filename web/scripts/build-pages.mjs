@@ -73,5 +73,7 @@ function pageConfig(pageKey, htmlName, clearOutDir) {
 await build(pageConfig("index", "index.html", true));
 // Settings window (must keep the dictionary outputs in dist/).
 await build(pageConfig("settings", "settings.html", false));
+// Card exporter window (same: append to dist/, never clear it).
+await build(pageConfig("exporter", "exporter.html", false));
 
-console.log("✅ Built dictionary + settings bundles into web/dist");
+console.log("✅ Built dictionary + settings + exporter bundles into web/dist");

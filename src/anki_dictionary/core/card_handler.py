@@ -6,17 +6,7 @@ from os.path import join
 from typing import Any
 
 from aqt.operations.note import update_note
-from aqt.qt import (
-    QHBoxLayout,
-    QLabel,
-    QMimeData,
-    QPixmap,
-    QSize,
-    Qt,
-    QUrl,
-    QVBoxLayout,
-    QWidget,
-)
+from aqt.qt import QMimeData, QUrl
 from aqt.utils import tooltip
 
 from ..exporters.card_exporter import CardExporter
@@ -61,9 +51,7 @@ class CardCreationHandler:
             except Exception:
                 continue
         if imgs:
-            self.midict.addWindow.addImgs(
-                word, img_separator.join(imgs), self.getThumbs(raw_paths)
-            )
+            self.midict.addWindow.addImgs(word, img_separator.join(imgs), raw_paths)
 
     def copyImagesToClipboard(self, urls_json: str) -> None:
         try:
@@ -99,32 +87,6 @@ class CardCreationHandler:
                 logger.warning("No valid images found to copy to clipboard.")
         except Exception as e:
             logger.error(f"Error copying images to clipboard: {e}")
-
-    def getThumbs(self, paths: list[str]) -> QWidget:
-        thumbCase = QWidget()
-        thumbCase.setContentsMargins(0, 0, 0, 0)
-        vLayout = QVBoxLayout()
-        vLayout.setContentsMargins(0, 0, 0, 0)
-        hLayout = QHBoxLayout()
-        hLayout.setContentsMargins(0, 0, 0, 0)
-        vLayout.addLayout(hLayout)
-        for idx, path in enumerate(paths):
-            image = QPixmap(path)
-            image = image.scaled(
-                QSize(50, 50),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            label = QLabel("")
-            label.setPixmap(image)
-            label.setFixedSize(40, 40)
-            hLayout.addWidget(label)
-            if idx > 0 and idx % 4 == 0:
-                hLayout = QHBoxLayout()
-                hLayout.setContentsMargins(0, 0, 0, 0)
-                vLayout.addLayout(hLayout)
-        thumbCase.setLayout(vLayout)
-        return thumbCase
 
     def addDefToExportWindow(self, dictName: str, word: str, text: str) -> None:
         self.initCardExporterIfNeeded()

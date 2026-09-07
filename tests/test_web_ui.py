@@ -282,6 +282,43 @@ def test_built_bundle_has_chrome_and_bridge_commands():
         assert marker in html, f"bundle lost chrome/bridge marker: {marker}"
 
 
+def test_built_bundle_exposes_the_streaming_image_globals():
+    """Python evals ``fillImageSlot`` / ``finishImageLoad`` on the window.
+
+    The image search streams tiles in as each thumbnail downloads instead of
+    waiting for the slowest one, so these two globals must survive the build —
+    without them the grid would sit on shimmering placeholders forever.
+    """
+    if not built_html.exists():
+        import pytest
+
+        pytest.skip("web/dist/dictionary.html not built")
+    html = built_html.read_text(encoding="utf-8")
+    for marker in ("fillImageSlot", "finishImageLoad", "imgPending", "data-img-token"):
+        assert marker in html, f"bundle lost streaming-image marker: {marker}"
+
+
+def test_exporter_bundle_is_built_and_self_contained():
+    """The card exporter page ships as its own inlined bundle."""
+    exporter_html = web_dir / "dist" / "exporter.html"
+    if not exporter_html.exists():
+        import pytest
+
+        pytest.skip("web/dist/exporter.html not built")
+    html = exporter_html.read_text(encoding="utf-8")
+    assert '<style id="customThemeCss">' in html, "theme injection hook missing"
+    assert 'type="module"' not in html, "exporter bundle must be a classic script"
+    for marker in (
+        "exporterLoaded",
+        "exporter:setField:",
+        "exporter:add:",
+        "exporter:removeDefinition:",
+        "exporter:saveDefinitionSettings:",
+        "setState",
+    ):
+        assert marker in html, f"exporter bundle lost bridge marker: {marker}"
+
+
 def test_group_names_skips_disabled_separator_rows():
     """``_group_names`` must read enablement from the combo's model.
 

@@ -1,0 +1,167 @@
+/* Card exporter window styles.
+ *
+ * Built on the settings page's design tokens (`--settings-*`), which the
+ * exporter bridge injects from the active dictionary theme — so the exporter,
+ * the settings window and the dictionary window stay visually consistent.
+ */
+@import "./settings.css";
+
+.exporter {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
+.exporter-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--settings-panel);
+  border-bottom: 1px solid var(--settings-border);
+}
+
+.exporter-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.exporter-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--settings-panel);
+  border-top: 1px solid var(--settings-border);
+}
+
+.spacer {
+  flex: 1;
+}
+
+label.inline,
+.field label.inline {
+  flex: 0 0 auto;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.block {
+  display: block;
+  margin: 12px 0 4px;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--settings-muted);
+}
+.exporter-body > .block:first-child {
+  margin-top: 0;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Rich text fields (contenteditable) ───────────── */
+.rich-field {
+  width: 100%;
+  padding: 7px 10px;
+  overflow-y: auto;
+  border: 1px solid var(--settings-border);
+  border-radius: var(--settings-radius);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  outline: none;
+}
+.rich-field:focus {
+  border-color: var(--settings-accent);
+}
+.rich-field.empty::before {
+  content: attr(data-placeholder);
+  color: var(--settings-muted);
+  pointer-events: none;
+}
+
+.word-input {
+  width: 100%;
+  font-size: 20px;
+  height: 40px;
+}
+
+#tags {
+  width: 100%;
+}
+
+/* ── Definitions table ────────────────────────────── */
+.definitions {
+  border: 1px solid var(--settings-border);
+  border-radius: var(--settings-radius);
+  background: var(--settings-panel);
+  min-height: 100px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.definition-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--settings-border);
+}
+.definition-row:last-child {
+  border-bottom: none;
+}
+.definition-row .dict-name {
+  flex: 0 0 110px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.definition-row .short-def {
+  flex: 1;
+  min-width: 0;
+  color: var(--settings-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.definition-row .thumbs {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.definition-row .thumbs img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.empty-row {
+  margin: 0;
+  padding: 12px;
+  color: var(--settings-muted);
+}
+
+/* ── Media rows ───────────────────────────────────── */
+.media-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.media-label {
+  color: var(--settings-muted);
+}
+.image-preview {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: var(--settings-radius);
+  border: 1px solid var(--settings-border);
+}
