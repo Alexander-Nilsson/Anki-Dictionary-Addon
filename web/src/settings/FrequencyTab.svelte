@@ -102,6 +102,20 @@
   // appear next to an example entry, driven by the current settings.
   const MOCK_FREQS = [1501, 4000, 12000, 28000, 55000, 120000];
 
+  /**
+   * Distinct mock frequency per provider. The preview renders one chip per
+   * enabled rank provider; with more providers than MOCK_FREQS entries the
+   * naive ``MOCK_FREQS[Math.min(i, len-1)]`` caps and repeats values, so two
+   * rank chips show the same label. That both looks wrong and made the
+   * ``{#each preview.ranks as r (r)}`` throw ``each_key_duplicate`` (the whole
+   * Frequency tab failed to mount). Keep them unique by generating increasing
+   * values beyond the set.
+   */
+  function mockFreq(index: number): number {
+    if (index < MOCK_FREQS.length) return MOCK_FREQS[index]!;
+    return MOCK_FREQS[MOCK_FREQS.length - 1]! + (index - MOCK_FREQS.length + 1) * 1000;
+  }
+
   function starChart(count: number): string {
     return String(cfg.get("star_char", "★")).repeat(count);
   }
@@ -127,7 +141,7 @@
     for (const p of [...settings.providers].sort((a, b) => a.key.localeCompare(b.key))) {
       const role = effectiveRole(p);
       if (role === "off") continue;
-      const mock = MOCK_FREQS[Math.min(idx, MOCK_FREQS.length - 1)];
+      const mock = mockFreq(idx);
       idx += 1;
       if (p.type === "rank") {
         if (role === "stars_rank" || role === "stars") {
@@ -169,10 +183,10 @@
     {#if preview.stars}
       <span class="preview-stars">{preview.stars}</span>
     {/if}
-    {#each preview.ranks as r (r)}
+    {#each preview.ranks as r, i (i)}
       <span class="preview-rank">[{r}]</span>
     {/each}
-    {#each preview.levels as l (l)}
+    {#each preview.levels as l, i (i)}
       <span class="preview-level">{l}</span>
     {/each}
     {#if preview.stars === "" && preview.ranks.length === 0 && preview.levels.length === 0}
