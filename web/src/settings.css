@@ -235,6 +235,21 @@ button.btn:disabled {
   border-radius: 8px;
   background: var(--settings-bg);
 }
+
+/* Rank thresholds row: five number inputs must stay inside the card. Without
+   wrap + a shrinkable basis they overflow the settings body (the row spilled
+   past the right edge of the window in narrow layouts). */
+.thresh-group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.thresh-group input[type="number"] {
+  flex: 1 1 80px;
+  min-width: 0;
+}
 .preview-word {
   font-weight: 700;
   font-size: 15px;
