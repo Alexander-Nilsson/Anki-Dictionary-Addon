@@ -34,18 +34,20 @@ class CardCreationHandler:
                 ext = (
                     media_manager.image_ext_from_url(imgurl)
                     if not auto_convert
-                    else "avif"
+                    else "webp"
                 )
                 prefix = "base64" if imgurl.startswith("data:") else ""
                 filename = media_manager.unique_filename(prefix=prefix, ext=ext)
                 fullpath = join(media_dir, filename)
-                media_manager.download_image(
+                ok = media_manager.download_image(
                     imgurl,
                     fullpath,
                     max_w=self.midict.maxW,
                     max_h=self.midict.maxH,
                     auto_convert=auto_convert,
                 )
+                if not ok:
+                    continue
                 raw_paths.append(fullpath)
                 imgs.append(f'<img src="{filename}">')
             except Exception:
@@ -174,17 +176,19 @@ class CardCreationHandler:
                         ext = (
                             media_manager.image_ext_from_url(imgurl)
                             if not auto_convert
-                            else "avif"
+                            else "webp"
                         )
                         prefix = "base64" if imgurl.startswith("data:") else ""
                         filename = media_manager.unique_filename(prefix=prefix, ext=ext)
-                        media_manager.download_image(
+                        ok = media_manager.download_image(
                             imgurl,
                             join(media_dir, filename),
                             max_w=self.midict.maxW,
                             max_h=self.midict.maxH,
                             auto_convert=auto_convert,
                         )
+                        if not ok:
+                            continue
                         urls_list.append(f'<img src="{filename}">')
                 except Exception as e:
                     logger.error(f"Failed to process image: {imgurl}: {e}")

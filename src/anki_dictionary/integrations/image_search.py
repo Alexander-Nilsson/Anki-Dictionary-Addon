@@ -310,10 +310,10 @@ class DuckDuckGo(QRunnable):
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-            filename = f"dict_img_{img_hash}.avif"
+            filename = f"dict_img_{img_hash}.webp"
             filepath = join(temp_dir, filename)
 
-            return filename if image.save(filepath, "AVIF") else ""
+            return filename if image.save(filepath, "WEBP") else ""
         else:
             ext = _guess_extension(url)
             filename = f"dict_img_{img_hash}.{ext}"
@@ -372,8 +372,8 @@ class DuckDuckGo(QRunnable):
 
     @staticmethod
     def _mime_for(filename: str) -> str:
-        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "avif"
-        return _EXT_TO_MIME.get(ext, "image/avif")
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "webp"
+        return _EXT_TO_MIME.get(ext, "image/webp")
 
     def _image_to_html(self, filename: str, full_url: str = "") -> str:
         import base64

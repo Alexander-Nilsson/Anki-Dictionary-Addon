@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import time
+import uuid
 from os.path import exists, join
 from urllib.request import Request, urlopen
 
@@ -22,7 +23,7 @@ _USER_AGENT = (
 )
 
 
-def image_ext_from_url(url: str, fallback: str = "avif") -> str:
+def image_ext_from_url(url: str, fallback: str = "webp") -> str:
     if url.startswith("data:"):
         return fallback
     cleaned = re.sub(r"\?.*$", "", url)
@@ -102,7 +103,7 @@ def scale_image(
     dest_path: str,
     max_w: int,
     max_h: int,
-    fmt: str = "AVIF",
+    fmt: str = "WEBP",
 ) -> bool:
     try:
         image = QImage(source_path)
@@ -147,9 +148,8 @@ def copy_to_temp(
         return None, None
 
 
-def unique_filename(prefix: str = "", ext: str = "avif") -> str:
-    ts = str(time.time())[:-4].replace(".", "")
-    return f"{ts}{prefix}.{ext}"
+def unique_filename(prefix: str = "", ext: str = "webp") -> str:
+    return f"{uuid.uuid4().hex[:12]}{prefix}.{ext}"
 
 
 def wait_for_file(path: str, timeout: float = 15.0) -> bool:

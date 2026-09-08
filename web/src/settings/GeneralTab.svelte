@@ -199,7 +199,7 @@
   </div>
   <label class="check">
     <input type="checkbox" checked={!!cfg.get("imageAutoConvert", true)} onchange={(e) => cfg.set("imageAutoConvert", e.currentTarget.checked)} />
-    Auto-convert images (resize + AVIF)
+    Auto-convert images (resize + WebP)
   </label>
   <label class="check">
     <input type="checkbox" checked={!!cfg.get("jReadingCards", false)} onchange={(e) => cfg.set("jReadingCards", e.currentTarget.checked)} />

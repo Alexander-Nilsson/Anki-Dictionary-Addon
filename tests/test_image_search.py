@@ -212,7 +212,7 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
     def test_returns_filename_on_success(self):
         url = "http://example.com/img.jpg"
         expected_hash = hashlib.md5(url.encode()).hexdigest()
-        expected_name = f"dict_img_{expected_hash}.avif"
+        expected_name = f"dict_img_{expected_hash}.webp"
 
         ddg = DuckDuckGo()
         with patch("anki_dictionary.integrations.image_search.QImage") as mock_qc:
@@ -268,19 +268,19 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
 class TestDuckDuckGoImageToHtml(unittest.TestCase):
     def test_returns_error_html_for_missing_file(self):
         ddg = DuckDuckGo()
-        result = ddg._image_to_html("nonexistent.avif")
+        result = ddg._image_to_html("nonexistent.webp")
         self.assertIn("Error loading image", result)
 
     def test_returns_image_html_for_existing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("anki_dictionary.integrations.image_search.temp_dir", tmpdir):
-                filename = "test_img.avif"
+                filename = "test_img.webp"
                 with open(os.path.join(tmpdir, filename), "wb") as f:
                     f.write(b"fake_image_data")
 
                 ddg = DuckDuckGo()
                 result = ddg._image_to_html(filename)
-                self.assertIn("data:image/avif;base64,", result)
+                self.assertIn("data:image/webp;base64,", result)
                 self.assertIn('class="imgBox"', result)
                 self.assertIn('class="searchImage"', result)
                 self.assertIn(f'ankiDict="{os.path.join(tmpdir, filename)}"', result)
@@ -289,7 +289,7 @@ class TestDuckDuckGoImageToHtml(unittest.TestCase):
     def test_carries_the_original_url_for_export(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("anki_dictionary.integrations.image_search.temp_dir", tmpdir):
-                filename = "test_img.avif"
+                filename = "test_img.webp"
                 with open(os.path.join(tmpdir, filename), "wb") as f:
                     f.write(b"fake_image_data")
 
@@ -324,12 +324,12 @@ class TestDuckDuckGoDownloadAndProcessImageSync(unittest.TestCase):
         mock_resp.content = b"fake_image"
         dl_session.get.return_value = mock_resp
 
-        with patch.object(ddg, "process_image", return_value="dict_img_abc.avif"):
+        with patch.object(ddg, "process_image", return_value="dict_img_abc.webp"):
             with patch("anki_dictionary.integrations.image_search.prefer_ipv4"):
                 result = ddg.download_and_process_image_sync(
                     "http://example.com/img.jpg", dl_session
                 )
-                self.assertEqual(result, "dict_img_abc.avif")
+                self.assertEqual(result, "dict_img_abc.webp")
                 dl_session.get.assert_called_once_with(
                     "http://example.com/img.jpg", timeout=10
                 )
@@ -449,7 +449,7 @@ class TestDuckDuckGoStreaming(unittest.TestCase):
                 with patch.object(
                     ddg,
                     "download_and_process_image_sync",
-                    side_effect=lambda url, sess: "img.avif",
+                    side_effect=lambda url, sess: "img.webp",
                 ):
                     with patch.object(
                         ddg, "_image_to_html", side_effect=lambda f, u: f"<i>{u}</i>"
@@ -477,7 +477,7 @@ class TestDuckDuckGoStreaming(unittest.TestCase):
 
         # Only the middle image downloads successfully.
         def download(url, sess):
-            return "img.avif" if url.endswith("1.jpg") else ""
+            return "img.webp" if url.endswith("1.jpg") else ""
 
         with patch.object(ddg, "search", return_value=pairs):
             with patch(
@@ -519,7 +519,7 @@ class TestDuckDuckGoStreaming(unittest.TestCase):
                 return_value=MagicMock(),
             ):
                 with patch.object(
-                    ddg, "download_and_process_image_sync", return_value="img.avif"
+                    ddg, "download_and_process_image_sync", return_value="img.webp"
                 ):
                     with patch.object(ddg, "_image_to_html", return_value="<i></i>"):
                         ddg.run()
