@@ -77,7 +77,7 @@ def test_built_bundle_is_self_contained_no_es_modules():
     # The bundle must run as a plain (classic) script inside QtWebEngine:
     # no ES module script tags and no top-level import/export statements.
     assert '<script type="module"' not in html
-    script_bodies = re.findall(r"<script[^>]*>([\s\S]*?)</script>", html)
+    script_bodies = re.findall(r"<script[^>]*>([\s\S]*?)</script>", html, re.IGNORECASE)
     assert len(script_bodies) >= 1
     for body in script_bodies:
         for line in body.splitlines():
@@ -121,7 +121,7 @@ def test_built_bundle_script_runs_to_mount():
         pytest.skip("web/dist/dictionary.html not built")
     html = built_html.read_text(encoding="utf-8")
 
-    script_bodies = re.findall(r"<script[^>]*>([\s\S]*?)</script>", html)
+    script_bodies = re.findall(r"<script[^>]*>([\s\S]*?)</script>", html, re.IGNORECASE)
     mount_code = "Svelte mount target #app not found"
     bundle = next((b for b in script_bodies if mount_code in b), None)
     assert bundle, (
