@@ -9,11 +9,50 @@ import uuid
 from os.path import exists, join
 from urllib.request import Request, urlopen
 
-from aqt.qt import QImage, QSize, Qt
+from aqt.qt import QImage, QImageWriter, QSize, Qt
 
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__.split(".")[-1])
+
+
+_EXT_TO_QT_FORMAT = {
+    "jpg": "JPEG",
+    "jpeg": "JPEG",
+    "png": "PNG",
+    "gif": "GIF",
+    "webp": "WEBP",
+    "avif": "AVIF",
+    "bmp": "BMP",
+}
+
+_preferred_ext: str | None = None
+
+
+def preferred_image_ext() -> str:
+    """Image extension Qt can actually write here — AVIF when supported.
+
+    Qt only writes AVIF if the optional AVIF image plugin is installed
+    (Anki's and pip PyQt6 builds ship WebP but not AVIF), so probing once
+    and falling back keeps AVIF for setups that support it while exports
+    keep working everywhere else.
+    """
+    global _preferred_ext
+    if _preferred_ext is None:
+        try:
+            writable = {
+                f.data().decode("ascii").lower()
+                for f in QImageWriter.supportedImageFormats()
+            }
+            _preferred_ext = "avif" if "avif" in writable else "webp"
+        except Exception:
+            _preferred_ext = "webp"
+    return _preferred_ext
+
+
+def qt_format_for_ext(ext: str) -> str:
+    """QImage save-format name for a file extension."""
+    return _EXT_TO_QT_FORMAT.get(ext.lower(), "WEBP")
 
 
 _USER_AGENT = (
@@ -103,8 +142,9 @@ def scale_image(
     dest_path: str,
     max_w: int,
     max_h: int,
-    fmt: str = "WEBP",
+    fmt: str | None = None,
 ) -> bool:
+    fmt = fmt or qt_format_for_ext(preferred_image_ext())
     try:
         image = QImage(source_path)
         if image.isNull():

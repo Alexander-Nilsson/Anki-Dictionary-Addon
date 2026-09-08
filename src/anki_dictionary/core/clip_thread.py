@@ -163,10 +163,14 @@ class ClipThread(QObject):
         if imageFileName:
             imageTempPath = join(self.temp_dir, imageFileName)
             if media_manager.wait_for_file(imageTempPath):
-                webp_name = re.sub(r"\.[^.]+$", ".webp", imageFileName)
+                converted_name = re.sub(
+                    r"\.[^.]+$",
+                    f".{media_manager.preferred_image_ext()}",
+                    imageFileName,
+                )
                 media_manager.scale_image(
                     imageTempPath,
-                    join(media_dir, webp_name),
+                    join(media_dir, converted_name),
                     self.mw.AnkiDictConfig["maxWidth"],
                     self.mw.AnkiDictConfig["maxHeight"],
                 )
@@ -186,7 +190,8 @@ class ClipThread(QObject):
 
             if not clip.endswith(".mp3") and mime.hasImage():
                 image = mime.imageData()
-                filename = media_manager.unique_filename(ext="webp")
+                ext = media_manager.preferred_image_ext()
+                filename = media_manager.unique_filename(ext=ext)
                 fullpath = join(self.temp_dir, filename)
                 maxW = max(self.maxW, image.width())  # ty:ignore[unresolved-attribute]
                 maxH = max(self.maxH, image.height())  # ty:ignore[unresolved-attribute]
@@ -195,7 +200,7 @@ class ClipThread(QObject):
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
                 )
-                image.save(fullpath, "WEBP")
+                image.save(fullpath, media_manager.qt_format_for_ext(ext))
                 if os.path.exists(fullpath):
                     self.image.emit([fullpath, filename])
             elif clip.endswith(".mp3"):

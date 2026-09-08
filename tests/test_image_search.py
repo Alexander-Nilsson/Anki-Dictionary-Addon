@@ -215,7 +215,13 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
         expected_name = f"dict_img_{expected_hash}.webp"
 
         ddg = DuckDuckGo()
-        with patch("anki_dictionary.integrations.image_search.QImage") as mock_qc:
+        with (
+            patch("anki_dictionary.integrations.image_search.QImage") as mock_qc,
+            patch(
+                "anki_dictionary.integrations.image_search.preferred_image_ext",
+                return_value="webp",
+            ),
+        ):
             mock_img = mock_qc.return_value
             mock_img.loadFromData.return_value = True
             mock_img.scaled.return_value = mock_img
@@ -224,6 +230,7 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
             with patch("anki_dictionary.integrations.image_search.temp_dir", "/tmp"):
                 result = ddg.process_image(url, b"valid_content")
                 self.assertEqual(result, expected_name)
+                mock_img.save.assert_called_once_with("/tmp/" + expected_name, "WEBP")
 
     def test_returns_empty_when_save_fails(self):
         ddg = DuckDuckGo()

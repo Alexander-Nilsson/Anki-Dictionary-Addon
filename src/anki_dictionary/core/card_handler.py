@@ -34,7 +34,7 @@ class CardCreationHandler:
                 ext = (
                     media_manager.image_ext_from_url(imgurl)
                     if not auto_convert
-                    else "webp"
+                    else media_manager.preferred_image_ext()
                 )
                 prefix = "base64" if imgurl.startswith("data:") else ""
                 filename = media_manager.unique_filename(prefix=prefix, ext=ext)
@@ -176,7 +176,7 @@ class CardCreationHandler:
                         ext = (
                             media_manager.image_ext_from_url(imgurl)
                             if not auto_convert
-                            else "webp"
+                            else media_manager.preferred_image_ext()
                         )
                         prefix = "base64" if imgurl.startswith("data:") else ""
                         filename = media_manager.unique_filename(prefix=prefix, ext=ext)

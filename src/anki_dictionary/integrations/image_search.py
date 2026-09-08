@@ -23,6 +23,7 @@ except ImportError:
 from ..utils.common import prefer_ipv4
 from ..utils.constants import COUNTRY_TO_DDG
 from ..utils.logger import get_logger
+from ..utils.media_manager import preferred_image_ext, qt_format_for_ext
 
 logger = get_logger("ImageSearch")
 
@@ -310,10 +311,11 @@ class DuckDuckGo(QRunnable):
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-            filename = f"dict_img_{img_hash}.webp"
+            ext = preferred_image_ext()
+            filename = f"dict_img_{img_hash}.{ext}"
             filepath = join(temp_dir, filename)
 
-            return filename if image.save(filepath, "WEBP") else ""
+            return filename if image.save(filepath, qt_format_for_ext(ext)) else ""
         else:
             ext = _guess_extension(url)
             filename = f"dict_img_{img_hash}.{ext}"
