@@ -14,6 +14,7 @@
     startWebInstall,
   } from "../../lib/settings.svelte";
   import type { WebIndexLanguage } from "../../lib/settings.svelte";
+  import { onMount } from "svelte";
 
   interface Props {
     mode: "dictionaries" | "frequency";
@@ -45,6 +46,13 @@
     fetched = true;
     fetchWebIndex(server.trim() || DEFAULT_SERVER);
   }
+
+  // Load the default server's index as soon as the modal opens, so the
+  // dictionary list appears without requiring a manual "Connect" click.
+  // "Connect" remains for pointing at a different server.
+  onMount(() => {
+    connect();
+  });
 
   function langLabel(l: WebIndexLanguage): string {
     let label = l.name_en ?? "?";

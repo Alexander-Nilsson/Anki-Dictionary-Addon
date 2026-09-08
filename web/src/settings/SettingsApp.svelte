@@ -105,9 +105,6 @@
       </button>
     {/each}
   </div>
-  <span class="status ok">
-    {settings.configLoaded ? "Configuration loaded" : "Loading…"}
-  </span>
 </header>
 
 <div class="settings-body" id="settings-body" role="tabpanel">

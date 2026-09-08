@@ -22,6 +22,32 @@
   box-sizing: border-box;
 }
 
+/* Themed scrollbars (match the dictionary window: thin + theme-colored).
+   The main window uses --border for the thumb and --search_term on hover;
+   those map to --settings-border and --settings-accent here. */
+html,
+body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--settings-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: clamp(6px, 1vw, 10px);
+  height: clamp(6px, 1vw, 10px);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--settings-border);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--settings-accent);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 html,
 body {
   margin: 0;
@@ -88,10 +114,6 @@ body {
 .settings-tabs button.active {
   color: var(--settings-accent);
   border-bottom-color: var(--settings-accent);
-}
-
-.settings-header .status {
-  white-space: nowrap;
 }
 
 /* ── Scrollable body ──────────────────────────────── */
