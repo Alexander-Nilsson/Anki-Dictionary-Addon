@@ -1,5 +1,8 @@
 <script lang="ts">
   import { ui } from "../lib/tabs.svelte";
+  import { modKeyLabel } from "../lib/platform";
+
+  const paletteKeys = modKeyLabel("K");
 
   const shortcuts = [
     { keys: "? /", action: "Show or hide this keyboard map" },
@@ -7,7 +10,7 @@
     { keys: "C", action: "Copy the current entry to the clipboard" },
     { keys: "↑ / ↓", action: "Previous / next entry" },
     { keys: "Tab / ⇧+Tab", action: "Previous / next dictionary" },
-    { keys: "Ctrl/⌘ + K", action: "Open the command palette" },
+    { keys: paletteKeys, action: "Open the command palette" },
     { keys: "/", action: "Focus the search box" },
     { keys: "Esc", action: "Close this help" },
   ];

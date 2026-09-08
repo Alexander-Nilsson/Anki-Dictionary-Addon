@@ -15,8 +15,11 @@
    */
   import { onMount } from "svelte";
   import { CMD, pycmd } from "../lib/pycmd";
+  import { paletteHint } from "../lib/platform";
   import { scaleFont, toggleSidebar, ui } from "../lib/tabs.svelte";
   import type { HistoryEntry } from "../lib/types";
+
+  const paletteKeyHint = paletteHint();
 
   let query = $state("");
   let open = $state(false); // history dropdown
@@ -269,7 +272,7 @@
     <button
       class="chromeBtn"
       type="button"
-      title="More actions (⌘K for commands)"
+      title="More actions ({paletteKeyHint} for commands)"
       aria-label="More actions"
       aria-expanded={menuOpen}
       aria-haspopup="menu"
@@ -334,7 +337,7 @@
           type="button"
           onclick={() => { pycmd(CMD.openSettings()); closeMenu(); }}
         >
-          <span>Dictionary settings</span><kbd>⌘K</kbd>
+          <span>Dictionary settings</span><kbd>{paletteKeyHint}</kbd>
         </button>
       </div>
     {/if}

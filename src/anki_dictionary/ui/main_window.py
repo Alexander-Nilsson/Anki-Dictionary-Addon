@@ -124,24 +124,42 @@ def releaseKey(keyList):
 
 
 def getWelcomeScreen():
-    """Get welcome screen HTML."""
+    """Get welcome screen HTML with platform-adaptive modifier badges.
+
+    The template carries ``{{MOD_KEY}}`` placeholders (``⌘`` on macOS,
+    ``Ctrl`` on Linux/Windows) rendered here, plus a ``data-mod-key``
+    attribute so the web UI can re-resolve them at runtime as well.
+    """
+    from ..utils.shortcuts import render_shortcut_badges
+
     htmlPath = os.path.join(get_templates_dir(), "welcome.html")
     try:
         with open(htmlPath, encoding="utf-8") as fh:
             file = fh.read()
-        return file
+        return render_shortcut_badges(file, bool(is_mac))
     except Exception as e:
         log.error(f"Error loading welcome screen from {htmlPath}: {e}")
         return ""
 
 
 def getMacWelcomeScreen():
-    """Get Mac-specific welcome screen HTML."""
+    """Get Mac-specific welcome screen HTML (kept for backward compatibility).
+
+    Delegates to the shared template renderer with the macOS modifier so
+    both entry points stay in sync.
+    """
+    from ..utils.shortcuts import render_shortcut_badges
+
     htmlPath = os.path.join(get_templates_dir(), "macwelcome.html")
     try:
         with open(htmlPath, encoding="utf-8") as fh:
             file = fh.read()
-        return file
+        # The mac template shares the same placeholder; force the mac modifier
+        # even if the file still contains a literal.
+        rendered = render_shortcut_badges(file, True)
+        if "{{MOD_KEY}}" in file:
+            return rendered
+        return rendered.replace(">Ctrl<", ">\u2318<")
     except Exception as e:
         log.error(f"Error loading Mac welcome screen from {htmlPath}: {e}")
         return ""
@@ -173,9 +191,9 @@ def dictionaryInit(terms=False):
     if terms and isinstance(terms, str):
         terms = [terms]
 
-    shortcut = "(Ctrl+W)"
-    if is_mac:
-        shortcut = "⌘W"
+    from ..utils.shortcuts import format_menu_shortcut
+
+    shortcut = format_menu_shortcut("W", bool(is_mac))
 
     # Get welcome screen - Show shortcuts and help inside dictionary
     if is_mac:

@@ -219,6 +219,26 @@ export function navigate(
   const blocks = Array.from(scope.querySelectorAll<HTMLElement>(`.${wantedClass}`));
   const idx = blocks.indexOf(startEl);
   if (idx === -1) return;
+  const step = next ? 1 : -1;
+  const adjacent = idx + step >= 0 && idx + step < blocks.length ? idx + step : -1;
+  if (adjacent === -1) return;
+  // Keep the arrow under the mouse: scroll by the distance between the
+  // source and target buttons so the target arrow lands where the clicked
+  // one was. Block heights vary (tall definitions, dictionary titles
+  // between entries at first/last positions), so top-aligning the block
+  // leaves the next arrow away from the cursor and jumps feel "off".
+  const sourceBtn = startEl.querySelector<HTMLElement>(`.${buttonClass}`);
+  const adjacentEl = blocks[adjacent];
+  const adjacentBtn = adjacentEl.querySelector<HTMLElement>(`.${buttonClass}`);
+  if (sourceBtn && adjacentBtn) {
+    const max = Math.max(w.scrollHeight - w.clientHeight, 0);
+    const desired =
+      w.scrollTop +
+      (offsetTopRelative(adjacentBtn, w) - offsetTopRelative(sourceBtn, w));
+    w.scrollTop = Math.min(Math.max(desired, 0), max);
+    adjacentBtn.focus({ preventScroll: true });
+    return;
+  }
   // Short trailing sections (e.g. a one-item Forvo block) can already be
   // fully visible while a neighbour is current: scrolling to the adjacent
   // block then changes nothing and the arrows look dead. Keep stepping the
@@ -226,10 +246,9 @@ export function navigate(
   // always lands somewhere new. If no further block would (true first/last
   // with everything in view), fall back to the adjacent block so focus still
   // travels; with no adjacent block, stay put.
+  // (Fallback when the arrow buttons are missing, e.g. keyboard nav.)
   const tops = blocks.map((b) => offsetTopRelative(b, w));
   const current = w.scrollTop;
-  const step = next ? 1 : -1;
-  const adjacent = idx + step >= 0 && idx + step < blocks.length ? idx + step : -1;
   let target = -1;
   for (let j = idx + step; j >= 0 && j < blocks.length; j += step) {
     if (Math.abs(scrollTargetFor(blocks[j], tops[j], w) - current) >= NAV_MIN_DELTA) {
