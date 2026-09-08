@@ -11,6 +11,8 @@ declare global {
     dbfs?: number;
     /** Saved sidebar width (px) injected by Python; 0 means unset. */
     sidebarWidth?: number;
+    /** Export entry headers as HTML (keeps star colors); injected by Python. */
+    exportHeaderHtml?: boolean;
   }
 }
 

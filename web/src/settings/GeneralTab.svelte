@@ -125,6 +125,10 @@
 <!-- Export Templates -->
 <div class="card">
   <h3>Export Templates</h3>
+  <label class="check">
+    <input type="checkbox" checked={!!cfg.get("exportHeaderHtml", false)} onchange={(e) => cfg.set("exportHeaderHtml", e.currentTarget.checked)} />
+    Export headers as HTML (keep star colors)
+  </label>
   <div class="list">
     {#each Object.entries(templates()) as [name, _t] (name)}
       <div class="list-row">

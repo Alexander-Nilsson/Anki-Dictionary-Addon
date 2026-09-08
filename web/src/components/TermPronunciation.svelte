@@ -10,6 +10,8 @@
   } from "../lib/dom";
   import { CMD, pycmd } from "../lib/pycmd";
   import { showToast } from "../lib/toast.svelte";
+  import { headerHtmlForExport } from "../lib/export-header";
+  import { ui } from "../lib/tabs.svelte";
 
   const {
     doc,
@@ -35,17 +37,27 @@
     return tpContRaw(b) + "\n";
   }
 
+  /** Header line for export: styled HTML when enabled, plain text otherwise. */
+  function exportHeaderText(b: TermPronunciationBlockData): string {
+    if (ui.exportHeaderHtml) return headerHtmlForExport(b);
+    return cleanTermDef(tpContRaw(b), "<br>");
+  }
+
+  /** Word pronoun line for export (header + line break, both modes). */
+  function exportWordPron(b: TermPronunciationBlockData): string {
+    if (ui.exportHeaderHtml) return headerHtmlForExport(b) + "<br>";
+    return wordPronText(b) + "<br>";
+  }
+
   function handleExport(_ev: Event, b: TermPronunciationBlockData): void {
     const selection = getSelectionText() || "";
     const word = getMainWordsFromFragment(b.headerHtml);
     let text: string;
     if (selection) {
       text =
-        cleanTermDef(tpContRaw(b), "<br>") +
-        "<br>" +
-        selection.replace(/\n/g, "<br>");
+        exportHeaderText(b) + "<br>" + selection.replace(/\n/g, "<br>");
     } else {
-      text = wordPronText(b) + "<br>" + definitionText(b);
+      text = exportWordPron(b) + definitionText(b);
     }
     pycmd(CMD.addDef(b.cleanName, word, text));
     showToast("Added to export window");
@@ -68,11 +80,9 @@
     let text: string;
     if (selection) {
       text =
-        cleanTermDef(tpContRaw(b), "<br>") +
-        "<br>" +
-        selection.replace(/\n/g, "<br>");
+        exportHeaderText(b) + "<br>" + selection.replace(/\n/g, "<br>");
     } else {
-      text = wordPronText(b) + "<br>" + definitionText(b);
+      text = exportWordPron(b) + definitionText(b);
     }
     pycmd(CMD.sendToField(b.cleanName, text));
     showToast("Sent to field");

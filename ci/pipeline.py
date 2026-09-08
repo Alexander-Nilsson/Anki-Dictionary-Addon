@@ -136,7 +136,8 @@ async def pipeline() -> None:
         print("Type check passed")
 
         print("Building Svelte web UI...")
-        await ctr.with_exec(
+        # Chain the result: later steps (unit tests, build.py) need web/dist.
+        ctr = await ctr.with_exec(
             ["sh", "-c", "cd web && npm ci && npm run build && npm run check"]
         ).sync()
         print("Web UI build + check passed")

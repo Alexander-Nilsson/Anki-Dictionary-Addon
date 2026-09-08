@@ -115,6 +115,7 @@ const MOCK_CONFIG: Record<string, unknown> = {
   backBracket: "】",
   highlightTarget: true,
   showTarget: false,
+  exportHeaderHtml: false,
   tooltips: true,
   currentGroup: "All",
   searchMode: "Forward",

@@ -20,6 +20,7 @@ import {
 } from "./dom";
 import { CMD, pycmd } from "./pycmd";
 import { showToast } from "./toast.svelte";
+import { exportHeaderEnabled, inlineHeaderBadges } from "./export-header";
 
 // ── keyboard accessibility ─────────────────────────
 // The Python renderer marks tool/icon buttons with role="button" and
@@ -39,6 +40,17 @@ document.addEventListener("keydown", (e) => {
 
 // ── clipboard / export ─────────────────────────────
 
+/**
+ * Styled HTML header for a legacy (Python-rendered) entry block.
+ *
+ * The `.tpCont` span already holds the headword + badge markup; only the
+ * badge colors live in page CSS, so they are inlined to survive in Anki.
+ */
+function tpContExportHtml(termTitle: HTMLElement): string {
+  const tpCont = termTitle.querySelector(".tpCont");
+  return inlineHeaderBadges(tpCont ? tpCont.innerHTML : termTitle.innerHTML);
+}
+
 function getDefExport(ev: Event, dictName: string): void {
   const target = ev.target as HTMLElement;
   const definition = getSelectionText();
@@ -50,7 +62,15 @@ function getDefExport(ev: Event, dictName: string): void {
 
   const { word, definition: wordDefinition } = getDefinitionWord(termBody, termTitle);
   let text: string;
-  if (!definition) {
+  if (exportHeaderEnabled()) {
+    const header = tpContExportHtml(termTitle);
+    if (!definition) {
+      text =
+        header + "<br>" + cleanTermDef(termBody.innerHTML, "<br>");
+    } else {
+      text = header + "<br>" + definition.replace(/\n/g, "<br>");
+    }
+  } else if (!definition) {
     text = wordDefinition;
   } else {
     text =
@@ -126,7 +146,14 @@ function getDefForField(ev: Event, dictName: string): void {
 
   const { definition: wordDefinition } = getDefinitionWord(termBody, termTitle);
   let text: string;
-  if (!definition) {
+  if (exportHeaderEnabled()) {
+    const header = tpContExportHtml(termTitle);
+    if (!definition) {
+      text = header + "<br>" + cleanTermDef(termBody.innerHTML, "<br>");
+    } else {
+      text = header + "<br>" + definition.replace(/\n/g, "<br>");
+    }
+  } else if (!definition) {
     text = wordDefinition;
   } else {
     text =

@@ -615,10 +615,16 @@ class DictInterface(QWidget):
             html = fh.read()
 
         # Font sizes + saved sidebar width: the Svelte app reads
-        # window.fefs / window.dbfs / window.sidebarWidth.
+        # window.fefs / window.dbfs / window.sidebarWidth. window.isMac is
+        # the authoritative platform flag (the webview UA is spoofed to macOS,
+        # so the UI must not sniff navigator.userAgent for ⌘ vs Ctrl).
+        is_mac_platform = bool(is_mac() if callable(is_mac) else is_mac)
+        export_html = "true" if self.config.get("exportHeaderHtml", False) else "false"
         font_size_init = (
             f"<script>window.fefs = {fefs}; window.dbfs = {dbfs};"
-            f" window.sidebarWidth = {sidebar_width};</script>"
+            f" window.sidebarWidth = {sidebar_width};"
+            f" window.isMac = {'true' if is_mac_platform else 'false'};"
+            f" window.exportHeaderHtml = {export_html};</script>"
         )
         html = html.replace("<!-- FONT_SIZES -->", font_size_init)
 
@@ -648,9 +654,15 @@ class DictInterface(QWidget):
 
         with open(html_path, encoding="utf-8") as fh:
             html = fh.read()
+            is_mac_platform = bool(is_mac() if callable(is_mac) else is_mac)
+            export_html = (
+                "true" if self.config.get("exportHeaderHtml", False) else "false"
+            )
             font_size_init = (
                 f"<script>var fefs = {fefs}, dbfs = {dbfs},"
-                f" sidebarWidth = {sidebar_width};</script>"
+                f" sidebarWidth = {sidebar_width},"
+                f" exportHeaderHtml = {export_html};"
+                f" window.isMac = {'true' if is_mac_platform else 'false'};</script>"
             )
             html = html.replace(
                 '<script src="../scripts/dictionary.js"></script>',
@@ -699,9 +711,10 @@ class DictInterface(QWidget):
 
     def hideEvent(self, event):  # ty:ignore[invalid-method-override]
         self.saveSizeAndPos()
-        shortcut = "(Ctrl+W)"
-        if is_mac:
-            shortcut = "⌘W"
+        from ..utils.shortcuts import format_menu_shortcut
+
+        mac = bool(is_mac() if callable(is_mac) else is_mac)
+        shortcut = format_menu_shortcut("W", mac)
         self.mw.openMiDict.setText("Open Dictionary " + shortcut)
         event.accept()
 
@@ -1295,6 +1308,7 @@ class DictInterface(QWidget):
             if hasattr(self, "currentTarget")
             else "",
             "showTarget": bool(self.config.get("showTarget", False)),
+            "exportHeaderHtml": bool(self.config.get("exportHeaderHtml", False)),
         }
 
     def pushGroups(self) -> None:

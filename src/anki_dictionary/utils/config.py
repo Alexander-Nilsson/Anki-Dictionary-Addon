@@ -86,6 +86,7 @@ def get_addon_config() -> dict[str, Any]:
         "backBracket": "】",
         "highlightTarget": True,
         "showTarget": False,
+        "exportHeaderHtml": False,
         "tooltips": True,
         "currentGroup": "All",
         "searchMode": "Forward",

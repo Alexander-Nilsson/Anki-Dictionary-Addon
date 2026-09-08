@@ -56,6 +56,7 @@
   "frontBracket": "【",
   "backBracket": "】",
   "showTarget": false,
+  "exportHeaderHtml": false,
   "day": true,
   "currentGroup": "zh",
   "searchMode": "Forward",

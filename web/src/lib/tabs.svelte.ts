@@ -52,6 +52,8 @@ class DictionaryUIStore {
   clipboardPaused = $state(false);
   target = $state("");
   showTarget = $state(false);
+  /** Export entry headers as styled HTML (keeps star colors). */
+  exportHeaderHtml = $state(false);
   /** S3 command palette overlay visible (Ctrl/⌘+K). */
   showPalette = $state(false);
   /** The currently-highlighted entry (scrollspy), target for E/C keys (U5).
@@ -343,6 +345,11 @@ export function initFromWindow(): void {
     ui.dbfs = Math.max(8, Math.round(window.dbfs));
   }
   applyFontSizes();
+
+  // Styled HTML export headers (Python injects window.exportHeaderHtml).
+  if (typeof window.exportHeaderHtml === "boolean") {
+    ui.exportHeaderHtml = window.exportHeaderHtml;
+  }
 
   // Welcome content injected by Python into the #welcomeBackground placeholder.
   const placeholder = document.getElementById("welcomeBackground");

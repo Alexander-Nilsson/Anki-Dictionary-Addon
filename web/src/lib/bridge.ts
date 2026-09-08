@@ -60,6 +60,7 @@ function applyHeaderState(payload: unknown): void {
     clipboardPaused?: unknown;
     target?: unknown;
     showTarget?: unknown;
+    exportHeaderHtml?: unknown;
   };
   if (Array.isArray(data.groups)) {
     const gs = data.groups.filter((g): g is string => typeof g === "string");
@@ -81,6 +82,11 @@ function applyHeaderState(payload: unknown): void {
   }
   if (typeof data.target === "string") ui.target = data.target;
   if (typeof data.showTarget === "boolean") ui.showTarget = data.showTarget;
+  if (typeof data.exportHeaderHtml === "boolean") {
+    ui.exportHeaderHtml = data.exportHeaderHtml;
+    (window as unknown as Record<string, unknown>).exportHeaderHtml =
+      data.exportHeaderHtml;
+  }
 }
 
 /**
@@ -131,6 +137,13 @@ export function initBridge(): void {
       if (typeof data.source === "string") ui.searchSource = data.source;
       if (typeof data.clipboardPaused === "boolean") {
         ui.clipboardPaused = data.clipboardPaused;
+      }
+    },
+    setExportHeaderHtml: (payload: unknown) => {
+      if (typeof payload === "boolean") {
+        ui.exportHeaderHtml = payload;
+        (window as unknown as Record<string, unknown>).exportHeaderHtml =
+          payload;
       }
     },
     loadImageHtml,

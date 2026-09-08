@@ -5,6 +5,7 @@
 
 if (typeof fefs === 'undefined') { var fefs = 12; }
 if (typeof dbfs === 'undefined') { var dbfs = 22; }
+if (typeof exportHeaderHtml === 'undefined') { var exportHeaderHtml = false; }
 var hresizeInt;
 var mouseX;
 var nightMode = false;
@@ -166,6 +167,36 @@ function displayEntry(entry) {
 }
 
 /**
+ * Styled HTML header for an entry block (exportHeaderHtml mode).
+ *
+ * The `.tpCont` span already holds the headword + badge markup; badge colors
+ * live in page CSS, so star badges are inlined golden (#e0a800, mirroring
+ * `.tpCont .starcount`) to survive inside Anki notes.
+ */
+function inlineHeaderBadges(tpContHtml) {
+    var holder = document.createElement('div');
+    holder.innerHTML = tpContHtml;
+    var badges = holder.querySelectorAll('.starcount');
+    for (var i = 0; i < badges.length; i++) {
+        var badge = badges[i];
+        var existing = badge.getAttribute('style') || '';
+        if (badge.classList.contains('frequency-rank') || badge.classList.contains('level-label')) {
+            if (!/font-weight/.test(existing)) {
+                badge.setAttribute('style', (existing + 'font-weight:600;').replace(/^;/, ''));
+            }
+        } else if (!/#e0a800/i.test(existing)) {
+            badge.setAttribute('style', (existing + 'color:#e0a800;font-weight:600;').replace(/^;/, ''));
+        }
+    }
+    return holder.innerHTML;
+}
+
+function tpContExportHtml(termTitle) {
+    var tpCont = termTitle.querySelector('.tpCont');
+    return inlineHeaderBadges(tpCont ? tpCont.innerHTML : termTitle.innerHTML);
+}
+
+/**
  * Export definitions to Anki
  */
 function getDefExport(ev, dictName) {
@@ -182,7 +213,14 @@ function getDefExport(ev, dictName) {
     if (!dictionaryElement) return;
     
     var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle);
-    if (!definition) {
+    if (typeof exportHeaderHtml !== 'undefined' && exportHeaderHtml) {
+        var header = tpContExportHtml(termTitle);
+        if (!definition) {
+            definition = header + '<br>' + cleanTermDef(termBody.innerHTML, '<br>');
+        } else {
+            definition = header + '<br>' + definition.replace(/\n/g, '<br>');
+        }
+    } else if (!definition) {
         definition = wordDefinition[1];
     } else {
         definition = cleanTermDef(termTitle.textContent) + '<br>' + definition.replace(/\n/g, '<br>');
@@ -340,7 +378,14 @@ function getDefForField(ev, dictName) {
     if (!dictionaryElement) return;
     
     var wordDefinition = getDefinitionWord(dictionaryElement, termBody, termTitle);
-    if (!definition) {
+    if (typeof exportHeaderHtml !== 'undefined' && exportHeaderHtml) {
+        var fieldHeader = tpContExportHtml(termTitle);
+        if (!definition) {
+            definition = fieldHeader + '<br>' + cleanTermDef(termBody.innerHTML, '<br>');
+        } else {
+            definition = fieldHeader + '<br>' + definition.replace(/\n/g, '<br>');
+        }
+    } else if (!definition) {
         definition = wordDefinition[1];
     } else {
         definition = cleanTermDef(termTitle.textContent) + '<br>' + definition.replace(/\n/g, '<br>');
@@ -428,6 +473,31 @@ function navigateDict(ev, next, def = false) {
     var currentScroll = w.scrollTop;
     var step = next ? 1 : -1;
     var maxScroll = w.scrollHeight - w.clientHeight;
+    var adjacent = (idx + step >= 0 && idx + step < blocks.length) ? idx + step : -1;
+    if (adjacent === -1) return;
+    // Keep the arrow under the mouse: scroll by the distance between the
+    // source and target buttons so the next arrow lands where the clicked
+    // one was. Entry heights vary (tall definitions, dictionary titles
+    // between entries at first/last positions), so top-aligning the block
+    // leaves the next arrow away from the cursor.
+    var sourceBtn = dict.querySelector(buttonClass);
+    var adjacentEl = blocks[adjacent];
+    var adjacentBtn = adjacentEl ? adjacentEl.querySelector(buttonClass) : null;
+    function offsetOf(node) {
+        var top = 0;
+        var n = node;
+        while (n && n !== w) {
+            top += n.offsetTop;
+            n = n.offsetParent;
+        }
+        return top;
+    }
+    if (sourceBtn && adjacentBtn) {
+        var desired = currentScroll + (offsetOf(adjacentBtn) - offsetOf(sourceBtn));
+        w.scrollTop = Math.min(Math.max(desired, 0), Math.max(maxScroll, 0));
+        adjacentBtn.focus({preventScroll: true});
+        return;
+    }
     // Short trailing sections (e.g. a one-item Forvo block) can already be
     // fully visible while a neighbour is current: scrolling to the adjacent
     // block then changes nothing and the arrows look dead. Keep stepping the
@@ -436,8 +506,8 @@ function navigateDict(ev, next, def = false) {
     // first/last with everything in view), fall back to the adjacent block
     // so focus still travels; with no adjacent block, stay put.
     // (Mirrors NAV_MIN_DELTA in web/src/lib/dom.ts.)
+    // Fallback when arrow buttons are missing (e.g. keyboard nav).
     var MIN_DELTA = 24;
-    var adjacent = (idx + step >= 0 && idx + step < blocks.length) ? idx + step : -1;
     var found = -1;
     for (var j = idx + step; j >= 0 && j < blocks.length; j += step) {
         // The browser clamps past-the-end offsets to the scroll limit, so
