@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import json
-import re
+import os
+import shutil
 import time
-from os.path import exists, join
+from os.path import abspath, basename, exists, isabs, join
 from typing import Any
+from urllib.parse import quote
 
 from ...integrations import llm as llm_integration
 from ...utils.logger import get_logger
 from .coordinator import ExternalServiceCoordinator
+from .icons import action_icon
 from .renderer import (
     ResultRenderer,
     clean_term,
+    custom_font_family,
     get_font_family,
 )
 
@@ -52,22 +56,35 @@ class SearchPipeline:
             self._inject_font(selected_group["font"])
 
         id_name = f"llm-loader-{int(time.time() * 1000)}"
-        html, cleaned, single_tab = self.getHTMLResult(term, selected_group, id_name)
+        js_single = "true" if self._get_tab_mode() == "true" else "false"
+        js_id = json.dumps(id_name)
 
+        if self._uses_svelte_shell():
+            # Phase 2: the Svelte shell renders a structured search document.
+            doc, cleaned, _ = self.getStructuredResult(term, selected_group, id_name)
+            self.midict.eval(
+                f"addNewTab({json.dumps(doc)}, {json.dumps(cleaned)},"
+                f" {js_single}, {js_id});"
+            )
+            return
+
+        # Legacy fallback page: inject the pre-rendered HTML blob.
+        html, cleaned, single_tab = self.getHTMLResult(term, selected_group, id_name)
         js_html = json.dumps(html.replace("\r", "").replace("\n", ""))
         js_cleaned = json.dumps(cleaned)
         js_single = "true" if single_tab == "true" else "false"
-        js_id = json.dumps(id_name)
         self.midict.eval(f"addNewTab({js_html}, {js_cleaned}, {js_single}, {js_id});")
 
     # ── search + render ────────────────────────────
 
-    def getHTMLResult(
+    def _uses_svelte_shell(self) -> bool:
+        """True when the AnkiWebView loaded the Svelte bundle (vs. legacy page)."""
+        return bool(getattr(self.midict.dictInt, "svelte_shell", False))
+
+    def _search(
         self, term: str, selected_group: dict[str, Any], id_name: str = ""
-    ) -> tuple[str, str, str]:
-        single_tab = self._get_tab_mode()
-        cleaned = clean_term(term)
-        font = get_font_family(selected_group)
+    ) -> tuple[dict[str, Any], str]:
+        """Run the DB search and fire LLM/Forvo triggers. Returns (results, forvo_id)."""
         dict_defs = self.midict.config.get("dictSearch", 50)
         max_defs = self.midict.config.get("maxSearch", 1000)
 
@@ -93,7 +110,7 @@ class SearchPipeline:
                     lang = d.get("lang")
                     if lang:
                         info = self.midict.db.get_term_frequency_info(
-                            cleaned, lang, self.midict.config
+                            clean_term(term), lang, self.midict.config
                         )
                         if info.get("starCount"):
                             star_count = info["starCount"]
@@ -117,7 +134,7 @@ class SearchPipeline:
                 )
 
             self._trigger_llm(
-                cleaned,
+                clean_term(term),
                 star_count,
                 level_labels,
                 id_name,
@@ -135,11 +152,31 @@ class SearchPipeline:
                     forvo_lang = d["lang"]
                     break
             forvo_id = f"forvo-loader-{int(time.time() * 1000)}"
-            self._trigger_forvo(cleaned, forvo_id, forvo_lang)
+            self._trigger_forvo(clean_term(term), forvo_id, forvo_lang)
 
+        return results, forvo_id
+
+    def getHTMLResult(
+        self, term: str, selected_group: dict[str, Any], id_name: str = ""
+    ) -> tuple[str, str, str]:
+        single_tab = self._get_tab_mode()
+        cleaned = clean_term(term)
+        results, forvo_id = self._search(term, selected_group, id_name)
+        font = get_font_family(selected_group)
         html = self._prepare_results(results, cleaned, font, id_name, forvo_id)
         html = html.replace("\n", "")
         return html, cleaned, single_tab
+
+    def getStructuredResult(
+        self, term: str, selected_group: dict[str, Any], id_name: str = ""
+    ) -> tuple[dict[str, Any], str, str]:
+        """Structured search document for the Svelte shell (Phase 2)."""
+        single_tab = self._get_tab_mode()
+        cleaned = clean_term(term)
+        results, forvo_id = self._search(term, selected_group, id_name)
+        font = get_font_family(selected_group)
+        doc = self._prepare_document(results, cleaned, font, id_name, forvo_id)
+        return doc, cleaned, single_tab
 
     # ── result preparation ─────────────────────────
 
@@ -235,8 +272,10 @@ class SearchPipeline:
                 + overwrite
                 + field_select
                 + '<div class="dictNav">'
-                + '<div onclick="navigateDict(event, false)" class="prevDict">\u25b2</div>'
-                + '<div onclick="navigateDict(event, true)" class="nextDict">\u25bc</div>'
+                + '<div onclick="navigateDict(event, false)" class="prevDict">'
+                + action_icon("prev_dict")
+                + '</div><div onclick="navigateDict(event, true)" class="nextDict">'
+                + action_icon("next_dict")
                 + "</div></div></div>"
             )
             dict_count += 1
@@ -267,6 +306,243 @@ class SearchPipeline:
 
         html += "</div>"
         return html
+
+    def _prepare_document(
+        self,
+        results: dict[str, Any],
+        term: str,
+        font: str,
+        id_name: str = "",
+        forvo_id: str = "",
+    ) -> dict[str, Any]:
+        """Assemble the structured search document consumed by the Svelte shell.
+
+        Mirrors ``_prepare_results`` (same resolution rules, counters and
+        service triggers) but produces typed blocks instead of one HTML string.
+        Images/LLM/Forvo stay opaque ``*Loader`` blocks whose ``html`` is the
+        existing placeholder markup — the async result flows
+        (``loadImageHtml`` / ``loadLLMResults`` / ``onForvoResult``) inject into
+        them unchanged.
+        """
+        config = self.midict.config
+        front_b = config.get("frontBracket", "\u3010")
+        back_b = config.get("backBracket", "\u3011")
+        term_headers = getattr(self.midict, "termHeaders", None)
+        is_dark = self.midict.dictInt.theme_manager.is_dark
+
+        group = self.midict.dictInt.getSelectedDictGroup()
+        group_dicts = [d["dict"] for d in group.get("dictionaries", [])]
+        has_special = any(d in ("Images", "LLM", "Forvo") for d in group_dicts)
+
+        if not results and not has_special:
+            return {
+                "font": font,
+                "sidebar": [],
+                "blocks": [
+                    {
+                        "type": "noResults",
+                        "term": term,
+                        "icon": self.renderer.get_base64_icon("search.svg", is_dark),
+                        "suggestions": self._build_suggestions(term),
+                        "deinflected": self._deinflect_hint(term),
+                    }
+                ],
+            }
+
+        sidebar = self.renderer.build_sidebar_data(
+            results, term, front_b, back_b, config, term_headers
+        )
+        blocks: list[dict[str, Any]] = []
+        anki_icon = self.renderer.get_base64_icon("anki.svg", is_dark)
+        dict_count = 0
+
+        for d_info in group.get("dictionaries", []):
+            dict_name = d_info["dict"]
+
+            if dict_name == "Images":
+                image_id = f"gcon{int(time.time() * 1000)}".replace(".", "")
+                blocks.append(
+                    {
+                        "type": "imageLoader",
+                        "id": image_id,
+                        "html": self.renderer.render_image_search_html(
+                            term,
+                            font,
+                            front_b,
+                            back_b,
+                            config,
+                            term_headers,
+                            image_id,
+                            is_dark,
+                            settings_html=(
+                                self._get_overwrite_html(dict_count, dict_name)
+                                + self._get_field_html(dict_name)
+                            ),
+                        ),
+                    }
+                )
+                self._trigger_image_search(term, image_id)
+                dict_count += 1
+                continue
+
+            if dict_name == "LLM":
+                if self.midict.config.get("llm_enabled", False):
+                    loader = id_name if id_name else "llm-loader"
+                    blocks.append(
+                        {
+                            "type": "llmLoader",
+                            "id": loader,
+                            "html": self._render_llm_placeholder(
+                                dict_count, font, loader
+                            ),
+                        }
+                    )
+                dict_count += 1
+                continue
+
+            if dict_name == "Forvo":
+                if self.midict.config.get("forvo_enabled", False):
+                    loader = forvo_id if forvo_id else "forvo-loader"
+                    blocks.append(
+                        {
+                            "type": "forvoLoader",
+                            "id": loader,
+                            "html": self._render_forvo_placeholder(
+                                dict_count, font, loader
+                            ),
+                        }
+                    )
+                dict_count += 1
+                continue
+
+            clean_name = self.midict.db.cleanDictName(dict_name)
+            normalized = self.midict.db.normalize_dict_name(dict_name)
+            dict_results = (
+                results.get(dict_name)
+                or results.get(clean_name)
+                or results.get(normalized)
+            )
+            if dict_results is None:
+                continue
+
+            overwrite = self._get_overwrite_html(dict_count, dict_name)
+            field_select = self._get_field_html(dict_name)
+            blocks.append(
+                self.renderer.build_title_block(
+                    dict_count, clean_name, font, overwrite, field_select
+                )
+            )
+            dict_count += 1
+
+            for entry in dict_results:
+                definition, extracted_freq = self.renderer.clean_definition(entry)
+                entry["definition"] = definition
+                def_block = self.renderer.build_definition_block(
+                    definition, font, term, config
+                )
+                blocks.append(
+                    self.renderer.build_term_pronunciation_block(
+                        entry,
+                        dict_name,
+                        clean_name,
+                        font,
+                        front_b,
+                        back_b,
+                        extracted_freq,
+                        config,
+                        term_headers,
+                        definition_html=def_block["html"],
+                    )
+                )
+                blocks.append(def_block)
+
+        return {
+            "font": font,
+            "sidebar": sidebar,
+            "blocks": blocks,
+            "ankiIcon": anki_icon,
+        }
+
+    # ── no-results helpers (U4) ────────────────────
+
+    def _deinflect_hint(self, term: str) -> str:
+        """Best-effort deinflection hint for the no-results state (U4).
+
+        Returns a plausible dictionary form ('' when none found), using the
+        conjugation data that the live search already loads. Purely a hint —
+        the actual term is always preferred.
+        """
+        conj = self.midict.conjugations or {}
+        for _lang, rules in conj.items():
+            for c in rules:
+                inflected = c.get("inflected") or ""
+                if inflected and term.endswith(inflected):
+                    for base in c.get("dict") or []:
+                        candidate = term[: -len(inflected)] + base
+                        if candidate and candidate != term and len(candidate) > 1:
+                            return candidate
+        return ""
+
+    def _build_suggestions(self, term: str) -> list[str]:
+        """Fuzzy 'did you mean' suggestions from the loaded dictionaries (U4).
+
+        Compares the cleaned term against terms already present in the
+        dictionaries (closest edit-distance / prefix neighbours), returning up
+        to 4 suggestions. Uses only the selected group's dictionaries and a
+        rough Levenshtein so it stays cheap on a normal search.
+        """
+        suggestions: list[str] = []
+        cleaned = clean_term(term).strip().lower()
+        if not cleaned:
+            return suggestions
+        try:
+            group = self.midict.dictInt.getSelectedDictGroup()
+        except Exception:
+            return suggestions
+        dict_names = [d["dict"] for d in group.get("dictionaries", [])]
+        seen: set[str] = set()
+        scored: list[tuple[int, str]] = []
+        for d_name in dict_names:
+            if d_name in ("Images", "LLM", "Forvo"):
+                continue
+            try:
+                candidates = self.midict.db.get_terms_for_suggestions(d_name, limit=40)
+            except Exception:
+                candidates = []
+            for cand in candidates:
+                c = cand.lower()
+                if c == cleaned or c in seen:
+                    continue
+                seen.add(c)
+                dist = self._levenshtein(cleaned, c)
+                # Only entertain reasonably close neighbours.
+                if dist <= max(2, len(cleaned) // 3):
+                    scored.append((dist, cand))
+        scored.sort(key=lambda x: (x[0], len(x[1])))
+        return [c for _, c in scored[:4]]
+
+    @staticmethod
+    def _levenshtein(a: str, b: str) -> int:
+        """Classic edit-distance for the fuzzy suggestion rank (U4)."""
+        if a == b:
+            return 0
+        if not a:
+            return len(b)
+        if not b:
+            return len(a)
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            for j, cb in enumerate(b, 1):
+                cur.append(
+                    min(
+                        prev[j] + 1,
+                        cur[j - 1] + 1,
+                        prev[j - 1] + (ca != cb),
+                    )
+                )
+            prev = cur
+        return prev[-1]
 
     # ── LLM result injection ───────────────────────
 
@@ -389,13 +665,14 @@ class SearchPipeline:
                 '<div onclick="animateForvoPlay(this);'
                 f" playAudio('{audio_url}')\" "
                 'style="cursor:pointer; font-size: 20px; '
-                "margin-right: var(--spacing-md); color: var(--primary); "
+                "margin-right: var(--spacing-md); color: var(--search_term); "
                 "width: 32px; height: 32px; "
                 "display: flex; align-items: center; justify-content: center; "
                 "border-radius: 50%; "
-                'background: var(--primary-light, rgba(33,150,243,0.1));">'
-                '<span class="forvo-icon">\u25b6</span>'
-                "</div>"
+                'background: var(--tab_hover);">'
+                '<span class="forvo-icon" style="display:flex;width:14px;height:14px">'
+                + action_icon("play")
+                + "</span></div>"
                 f"<div><b>{user}</b> "
                 f'<span style="font-size:0.85em">{origin}</span>'
                 f'<div style="font-size:0.8em">Votes: {votes}</div></div>'
@@ -411,8 +688,8 @@ class SearchPipeline:
             content += (
                 '<div onclick="showMoreForvo(this)" class="forvo-load-more" '
                 'style="text-align:center;padding:var(--spacing-sm);cursor:pointer;'
-                "color:var(--primary);font-weight:bold;"
-                'border:1px dashed var(--primary);border-radius:var(--border-radius-sm);">'
+                "color:var(--search_term);font-weight:bold;"
+                'border:1px dashed var(--search_term);border-radius:var(--radius-sm);">'
                 f"Load more ({more})</div>"
             )
         content += "</div></div>"
@@ -427,28 +704,29 @@ class SearchPipeline:
             f"}}"
         )
 
+    def _safe_eval(self, script: str) -> None:
+        """Run JS in the results view, swallowing a destroyed-webview error.
+
+        These run from background-worker signals, where the tab (or the whole
+        window) may already be gone. An exception raised inside a Qt slot
+        escapes into C++ and surfaces as Anki's error dialog, so a service
+        that merely failed must never be able to raise here.
+        """
+        try:
+            self.midict.eval(script)
+        except Exception:
+            logger.debug("Webview eval failed (view may have been destroyed)")
+
     def onForvoError(self, result: dict[str, Any]) -> None:
         error_msg = result.get("error", "Unknown Forvo error")
         logger.warning("Forvo unavailable: %s", error_msg)
         id_name = result.get("idName") or "forvo-loader"
-        esc = json.dumps(
-            '<div class="definitionBlock forvo-error" '
-            'style="color:var(--danger,#ff5555);padding:12px;'
-            'border-radius:8px;">'
-            f"<div>{error_msg}</div></div>"
-        )
-        self.midict.eval(
-            f"var loader = document.getElementById('{id_name}'); "
-            f"if(loader) {{ "
-            f"  var old = loader.querySelector('.definitionBlock'); "
-            f"  if(old) old.remove(); "
-            f"  var tb = loader.querySelector('.dictionaryTitleBlock'); "
-            f"  if(tb) tb.insertAdjacentHTML('afterend', {esc}); "
-            f"}}"
-        )
+        # Drop the whole Forvo section (heading + box) so a connectivity
+        # failure doesn't leave an empty/error box behind.
+        self._remove_forvo_element(id_name)
 
     def _remove_forvo_element(self, id_name: str) -> None:
-        self.midict.eval(
+        self._safe_eval(
             f"var el = document.getElementById('{id_name}'); "
             f"if(el) el.remove(); "
             f"var titles = document.querySelectorAll('.listTitle'); "
@@ -657,9 +935,11 @@ class SearchPipeline:
             + overwrite
             + field_sel
             + '<div class="dictNav">'
-            '<div onclick="navigateDict(event,false)" class="prevDict">\u25b2</div>'
-            '<div onclick="navigateDict(event,true)" class="nextDict">\u25bc</div>'
-            "</div></div></div>"
+            '<div onclick="navigateDict(event,false)" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event,true)" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div></div>"
             '<div class="definitionBlock llm-loading-placeholder">'
             "<i>Loading LLM definition...</i></div></div>"
         )
@@ -679,9 +959,11 @@ class SearchPipeline:
             + overwrite
             + field_sel
             + '<div class="dictNav">'
-            '<div onclick="navigateDict(event,false)" class="prevDict">\u25b2</div>'
-            '<div onclick="navigateDict(event,true)" class="nextDict">\u25bc</div>'
-            "</div></div></div>"
+            '<div onclick="navigateDict(event,false)" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event,true)" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div></div>"
             '<div class="definitionBlock"><i>Loading Forvo pronunciations...</i>'
             "</div></div>"
         )
@@ -823,8 +1105,55 @@ class SearchPipeline:
         return fields
 
     def _inject_font(self, font: str) -> None:
-        name = re.sub(r"\..*$", "", font)
-        self.midict.eval(f"addCustomFont({json.dumps(font)}, {json.dumps(name)});")
+        """Install a group's custom font into the page.
+
+        The shell is served from Anki's local media server, so an
+        ``@font-face`` ``src`` cannot point at the filesystem: an http page
+        may not load ``file://`` subresources. The font is therefore copied
+        into ``user_files/fonts/`` (exported to the media server in the
+        addon's ``__init__``) and referenced by its ``/_addons/...`` URL.
+        """
+        served = self._served_font_url(font)
+        if not served:
+            return
+        name = custom_font_family(font)
+        self.midict.eval(f"addCustomFont({json.dumps(served)}, {json.dumps(name)});")
+
+    def _served_font_url(self, font: str) -> str | None:
+        """Return the media-server URL for ``font``, copying it in if needed.
+
+        ``font`` is whatever the settings font picker stored: usually an
+        absolute path to a file anywhere on disk, but older configs may hold
+        a bare filename already living in ``user_files/fonts``.
+        """
+        addon_root = getattr(self.midict, "addon_root", None)
+        if not addon_root:
+            logger.debug("No addon root; cannot serve custom font %s", font)
+            return None
+
+        fonts_dir = join(addon_root, "user_files", "fonts")
+        filename = basename(font)
+        if not filename:
+            return None
+        target = join(fonts_dir, filename)
+
+        try:
+            os.makedirs(fonts_dir, exist_ok=True)
+            source = font if isabs(font) else target
+            if isabs(font) and abspath(font) != abspath(target):
+                if not exists(source):
+                    logger.debug("Custom font not found on disk: %s", source)
+                    return None
+                shutil.copyfile(source, target)
+            elif not exists(target):
+                logger.debug("Custom font not found in user_files/fonts: %s", target)
+                return None
+        except OSError:
+            logger.exception("Could not stage custom font %s", font)
+            return None
+
+        addon_dir = basename(addon_root.rstrip("/"))
+        return f"/_addons/{quote(addon_dir)}/user_files/fonts/{quote(filename)}"
 
     def _base64_icon(self, name: str) -> str:
         return self.renderer.get_base64_icon(

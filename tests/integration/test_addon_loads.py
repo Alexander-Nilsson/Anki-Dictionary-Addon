@@ -174,15 +174,129 @@ class TestAddonImports:
         aqt.mw = None  # restore
 
 
+class TestTrySearchClipboardPause:
+    """U2: ``main_window.trySearch`` labels clipboard searches and honours the
+    one-click clipboard-monitor pause pill.
+
+    Lives here (not in the unit suite) because importing ``main_window`` pulls
+    in ``clip_thread`` → ``aqt.qt`` (``QObject``/``pyqtSignal``), which some
+    unit tests stub out of ``sys.modules`` at collection time.
+    """
+
+    @staticmethod
+    def _main_window():
+        import aqt
+
+        aqt.mw = MagicMock()
+        import anki_dictionary.ui.main_window as module
+
+        aqt.mw = None  # restore
+        return module
+
+    def test_resumes_search_sources_clipboard(self):
+        module = self._main_window()
+        anki = MagicMock()
+        anki.config.get.return_value = True  # clipboard_monitor_enabled
+        with patch.object(module, "mw") as mock_mw:
+            mock_mw.ankiDictionary = anki
+            module.trySearch("\u98df\u3079\u308b")
+        anki.initSearch.assert_called_once_with(
+            "\u98df\u3079\u308b", source="clipboard"
+        )
+
+    def test_skipped_when_clipboard_paused(self):
+        module = self._main_window()
+        anki = MagicMock()
+        anki.config.get.return_value = False  # clipboard_monitor_enabled
+        with patch.object(module, "mw") as mock_mw:
+            mock_mw.ankiDictionary = anki
+            module.trySearch("\u98df\u3079\u308b")
+        anki.initSearch.assert_not_called()
+
+    def test_noop_when_dictionary_closed(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            mock_mw.ankiDictionary = None
+            module.trySearch("\u98df\u3079\u308b")  # must not raise
+
+
+class TestSearchTermRunsOnce:
+    """``searchTerm`` must issue exactly one search per invocation.
+
+    Opening the window hands the term to ``DictInterface``, which searches it
+    once the page announces itself (``AnkiDictionaryLoaded``). Calling
+    ``initSearch`` as well ran every lookup twice — including the external
+    Forvo, LLM and image requests. Two identical Forvo fetches ~400ms apart
+    trip its Cloudflare rate limiting, which surfaced as a bogus HTTP 403.
+    """
+
+    @staticmethod
+    def _main_window():
+        import aqt
+
+        aqt.mw = MagicMock()
+        import anki_dictionary.ui.main_window as module
+
+        aqt.mw = None  # restore
+        return module
+
+    def _webview(self, text="\u81ea\u884c\u8f66"):
+        webview = MagicMock()
+        webview.selectedText.return_value = text
+        webview.title = "other"
+        return webview
+
+    def test_new_window_searches_once_via_the_queued_term(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            with patch.object(module, "dictionaryInit") as init:
+                mock_mw.ankiDictionary = None
+
+                def create(terms):
+                    # dictionaryInit builds the window with the term queued.
+                    mock_mw.ankiDictionary = MagicMock()
+
+                init.side_effect = create
+                module.searchTerm(self._webview())
+
+        init.assert_called_once_with(["\u81ea\u884c\u8f66"])
+        mock_mw.ankiDictionary.initSearch.assert_not_called()
+
+    def test_hidden_window_is_searched_here(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            with patch.object(module, "dictionaryInit") as init:
+                anki = MagicMock()
+                anki.isVisible.return_value = False
+                mock_mw.ankiDictionary = anki
+                module.searchTerm(self._webview())
+
+        # Re-showing an existing window queues nothing, so it must search here.
+        init.assert_called_once()
+        anki.initSearch.assert_called_once_with("\u81ea\u884c\u8f66", source="browser")
+
+    def test_visible_window_searches_once_without_reopening(self):
+        module = self._main_window()
+        with patch.object(module, "mw") as mock_mw:
+            with patch.object(module, "dictionaryInit") as init:
+                anki = MagicMock()
+                anki.isVisible.return_value = True
+                mock_mw.ankiDictionary = anki
+                module.searchTerm(self._webview())
+
+        init.assert_not_called()
+        anki.initSearch.assert_called_once_with("\u81ea\u884c\u8f66", source="browser")
+
+
 class TestDictInterface:
     """DictInterface instantiation tests."""
 
     def test_dictinterface_instantiation(self, qapp):
         """Verify DictInterface can be constructed with a QApplication.
 
-        Patches heavy dependencies (ThemeManager, ThemeEditorDialog, startUp)
-        so we only verify the QApplication requirement is satisfied, not the
-        full widget tree creation.
+        Patches heavy dependencies (ThemeManager, startUp) so we only verify
+        the QApplication requirement is satisfied, not the full widget tree
+        creation.
         """
         from unittest.mock import MagicMock
 
@@ -194,7 +308,6 @@ class TestDictInterface:
 
         with (
             patch.object(_d, "ThemeManager", return_value=MagicMock()),
-            patch.object(_d, "ThemeEditorDialog", return_value=MagicMock()),
             patch.object(_d.DictInterface, "startUp"),
             patch.object(_d.DictInterface, "setHotkeys"),
         ):
@@ -206,3 +319,111 @@ class TestDictInterface:
 
             assert instance is not None
             assert isinstance(instance, _d.DictInterface)
+
+
+class TestHistoryAndSessionActions:
+    """U3/A4/A5: history prune/delete + session restore on DictInterface.
+
+    ``DictInterface`` is built without ``__init__`` (Qt-free) and given fake
+    ``historyModel``/``dict`` handles, so these bridge-facing methods are
+    exercised without a full widget tree.
+    """
+
+    @staticmethod
+    def _dict_interface():
+        import anki_dictionary.core.dictionary as _d
+
+        instance = _d.DictInterface.__new__(_d.DictInterface)
+        instance.dict = MagicMock()
+        instance.config = {}
+        instance.writeConfig = MagicMock()
+        instance.historyModel = MagicMock()
+        instance.historyModel.history = [["a", "2026-01-01"], ["b", "2026-01-02"]]
+        instance.historyModel.justTerms = ["a", "b"]
+        instance.historyModel.removeRows.side_effect = lambda pos, rows=1: (
+            instance.historyModel.history.__delitem__(slice(pos, pos + rows))
+        )
+        return instance
+
+    def test_delete_history_entry_removes_row_and_pushes(self):
+        inst = self._dict_interface()
+        inst.deleteHistoryEntry("a")
+        assert [row[0] for row in inst.historyModel.history] == ["b"]
+        assert inst.historyModel.justTerms == ["b"]
+        inst.dict.eval.assert_called_once()
+        payload = inst.dict.eval.call_args[0][0]
+        assert payload.startswith("setSearchHistory(")
+        assert '"b"' in payload
+
+    def test_delete_history_entry_unknown_term_is_noop(self):
+        inst = self._dict_interface()
+        inst.deleteHistoryEntry("missing")
+        assert len(inst.historyModel.history) == 2
+        # A refresh is still pushed (idempotent).
+        inst.dict.eval.assert_called_once()
+
+    def test_prune_history_caps_rows(self):
+        inst = self._dict_interface()
+        inst.pruneHistory(limit=1)
+        assert [row[0] for row in inst.historyModel.history] == ["b"]
+
+    def test_save_session_caps_and_persists(self):
+        inst = self._dict_interface()
+        inst.saveSession(["   ", "a", "b", "c"] * 10)
+        write_cfg = inst.writeConfig.call_args
+        assert write_cfg[0][0] == "session_terms"
+        assert len(write_cfg[0][1]) <= 20
+        assert write_cfg[0][1][:3] == ["a", "b", "c"]
+
+    def test_restore_session_opt_in(self):
+        inst = self._dict_interface()
+        assert inst.restoreSession() == []
+        inst.config = {"restore_session": True, "session_terms": ["a", "", "b"]}
+        assert inst.restoreSession() == ["a", "b"]
+
+
+class TestDictionaryInitSessionRestore:
+    """A5: ``dictionaryInit`` reopens the persisted session when enabled.
+
+    The restore terms are read from ``mw.AnkiDictConfig`` *before* the instance
+    exists (a previous version called ``restoreSession`` on the still-``None``
+    ``mw.ankiDictionary`` — dead code, always swallowed by the except).
+    """
+
+    @staticmethod
+    def _run(terms, anki_dict_config):
+        import aqt
+
+        aqt.mw = MagicMock()
+        import anki_dictionary.ui.main_window as module
+
+        aqt.mw = None  # restore
+        with (
+            patch.object(module, "mw") as mock_mw,
+            patch.object(module, "DictInterface") as mock_cls,
+            patch.object(module, "showAfterGlobalSearch"),
+            patch.object(module, "getWelcomeScreen", return_value="<welcome>"),
+            patch.object(module, "getMacWelcomeScreen", return_value="<welcome>"),
+        ):
+            mock_mw.ankiDictionary = None
+            mock_mw.AnkiDictConfig = anki_dict_config
+            module.dictionaryInit(terms)
+        return mock_cls
+
+    def test_restore_terms_used_when_enabled(self):
+        mock_cls = self._run(
+            False, {"restore_session": True, "session_terms": ["cat", "", "dog"]}
+        )
+        assert mock_cls.call_args.kwargs["terms"] == ["cat", "dog"]
+
+    def test_restore_skipped_when_disabled(self):
+        mock_cls = self._run(
+            False, {"restore_session": False, "session_terms": ["cat"]}
+        )
+        assert mock_cls.call_args.kwargs["terms"] is False
+
+    def test_restore_skipped_when_explicit_terms(self):
+        mock_cls = self._run(
+            ["explicit"], {"restore_session": True, "session_terms": ["cat"]}
+        )
+        assert mock_cls.call_args.kwargs["terms"] == ["explicit"]

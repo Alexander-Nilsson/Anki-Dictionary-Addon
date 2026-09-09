@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import re
-from os.path import exists, join
+from os.path import basename, exists, join, splitext
 from typing import Any
 
 from ...utils.logger import get_logger
+from .icons import action_icon
 
 logger = get_logger(__name__.split(".")[-1])
 
@@ -19,11 +20,23 @@ def clean_term(term: str) -> str:
     )
 
 
+def custom_font_family(font: str) -> str:
+    r"""CSS family name for a custom font file.
+
+    The stored value is a path (the settings font picker returns an absolute
+    one), so the family name is the file's base name without its extension.
+    Deriving it with ``re.sub(r"\..*$", "", font)`` on a full path produced
+    things like ``/home/user/`` — an unquoted, slash-bearing name that no
+    browser would match against the injected ``@font-face``.
+    """
+    return splitext(basename(font))[0]
+
+
 def get_font_family(group: dict[str, Any]) -> str:
     if not group.get("font"):
         return " "
     if group.get("customFont"):
-        return ' style="font-family:' + re.sub(r"\..*$", "", group["font"]) + ';" '
+        return " style=\"font-family:'" + custom_font_family(group["font"]) + "';\" "
     return ' style="font-family:' + group["font"] + ';" '
 
 
@@ -86,12 +99,15 @@ class ResultRenderer:
         )
         return img_tip, clip_tip, send_tip
 
-    def get_star_tooltip_html(self, star_count: str, source: str = "") -> str:
+    def get_star_tip(self, star_count: str, source: str = "") -> str:
+        """Tooltip text for a star-count badge ("" when there is no count)."""
         if not star_count or not isinstance(star_count, str):
             return ""
+        return f"Frequency: {source}" if source else "Frequency"
 
-        tip = f"Frequency: {source}" if source else "Frequency"
-        return f' title="{tip}" '
+    def get_star_tooltip_html(self, star_count: str, source: str = "") -> str:
+        tip = self.get_star_tip(star_count, source)
+        return f' title="{tip}" ' if tip else ""
 
     @staticmethod
     def format_frequency(raw: str) -> str:
@@ -111,21 +127,53 @@ class ResultRenderer:
         formatted = f"{k:.1f}k"
         return formatted.replace(".0k", "k")
 
-    def _build_level_labels_html(self, entry: dict[str, Any]) -> str:
+    def _levels_data(self, entry: dict[str, Any]) -> list[dict[str, str]] | None:
+        """Structured level-label data: ``[{label, source?}]`` (None when none)."""
         data = entry.get("levelLabelsData")
         if data and isinstance(data, list):
-            parts = []
+            items: list[dict[str, str]] = []
             for item in data:
                 label = item.get("label", "")
+                if not label:
+                    continue
                 source = item.get("source", "")
-                tip = f' title="{source}"' if source else ""
-                parts.append(f'<span class="starcount level-label"{tip}>{label}</span>')
-            if parts:
-                return " " + " ".join(parts)
+                items.append(
+                    {"label": label, "source": source} if source else {"label": label}
+                )
+            return items if items else None
         levels = entry.get("levelLabels", "")
         if levels:
-            return f' <span class="starcount level-label">{levels}</span>'
-        return ""
+            return [{"label": levels}]
+        return None
+
+    def _build_level_labels_html(self, entry: dict[str, Any]) -> str:
+        items = self._levels_data(entry)
+        if not items:
+            return ""
+        parts = []
+        for item in items:
+            source = item.get("source", "")
+            tip = f' title="{source}"' if source else ""
+            parts.append(
+                f'<span class="starcount level-label"{tip}>{item["label"]}</span>'
+            )
+        return " " + " ".join(parts)
+
+    def _rank_data(
+        self, entry: dict[str, Any], extracted_freq: str, config: dict[str, Any]
+    ) -> tuple[str, str]:
+        """(label, tooltip) for the frequency-rank badge (shared by HTML + doc)."""
+        rank_tip = entry.get("frequency_rank_source_display", "")
+        rank_source_name = entry.get("frequency_rank_source", "")
+        frequency_source_visibility: dict[str, bool] = config.get(
+            "frequency_source_visibility", {}
+        )
+        show_source = frequency_source_visibility.get(
+            rank_source_name, False
+        ) or config.get("show_frequency_source_name", False)
+        if show_source and extracted_freq and rank_tip:
+            return f"{rank_tip} [{extracted_freq}]", rank_tip
+        return f"[{extracted_freq}]", rank_tip
 
     def get_base64_icon(self, icon_name: str, is_dark: bool) -> str:
         if is_dark:
@@ -199,7 +247,7 @@ class ResultRenderer:
 
     # ── term headers ───────────────────────────────
 
-    def get_prepared_term_header(
+    def get_term_header_html(
         self,
         dict_name: str,
         front_bracket: str,
@@ -212,6 +260,12 @@ class ResultRenderer:
         term_headers: dict[str, list[str]] | None = None,
         sb: bool = False,
     ) -> str:
+        """Headword/pronunciation header as an HTML fragment.
+
+        Single source of truth for both the legacy HTML renderer and the
+        structured search document (the components inject the fragment).
+        ``sb=True`` produces the sidebar variant (listTerm/listAltTerm).
+        """
         alt_fb = front_bracket
         alt_bb = back_bracket
         if pronunciation == term:
@@ -266,6 +320,33 @@ class ResultRenderer:
             .replace("\u25f3b", back_bracket)
             .replace("\u25f3x", alt_fb)
             .replace("\u25f3y", alt_bb)
+        )
+
+    def get_prepared_term_header(
+        self,
+        dict_name: str,
+        front_bracket: str,
+        back_bracket: str,
+        target: str,
+        term: str,
+        altterm: str,
+        pronunciation: str,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
+        sb: bool = False,
+    ) -> str:
+        """Backwards-compatible alias for the legacy HTML callers."""
+        return self.get_term_header_html(
+            dict_name,
+            front_bracket,
+            back_bracket,
+            target,
+            term,
+            altterm,
+            pronunciation,
+            config,
+            term_headers,
+            sb,
         )
 
     # ── sidebar ────────────────────────────────────
@@ -408,18 +489,7 @@ class ResultRenderer:
         star_source = entry.get("frequency_source_display", "")
         rank_tip = entry.get("frequency_rank_source_display", "")
         rank_tip_attr = f' title="{rank_tip}"' if rank_tip else ""
-
-        rank_source_name = entry.get("frequency_rank_source", "")
-        frequency_source_visibility: dict[str, bool] = config.get(
-            "frequency_source_visibility", {}
-        )
-        show_source = frequency_source_visibility.get(
-            rank_source_name, False
-        ) or config.get("show_frequency_source_name", False)
-        if show_source and extracted_freq and rank_tip:
-            rank_label = f"{rank_tip} [{extracted_freq}]"
-        else:
-            rank_label = f"[{extracted_freq}]"
+        rank_label, rank_tip = self._rank_data(entry, extracted_freq, config)
         rank_display = (
             f' <span class="starcount frequency-rank"{rank_tip_attr}>'
             f"{rank_label}</span>"
@@ -454,21 +524,27 @@ class ResultRenderer:
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"
             + clean_name
-            + '\')" class="ankiExportButton"><img '
+            + '\')" role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img_tooltip
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip_tooltip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send_tooltip
             + " onclick=\"sendToField(event, '"
             + clean_name
-            + '\')" class="sendToField">\u279e</div>'
-            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDef">\u25bc</div></div></div></div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">'
+            + action_icon("next_def")
+            + "</div></div></div></div>"
         )
 
     def render_definition_block(
@@ -481,6 +557,157 @@ class ResultRenderer:
             + self.highlight_target(process_definition_html(definition), term, config)
             + "</div>"
         )
+
+    # ── structured document builders ────────────────
+    # These produce the JSON search document consumed by the Svelte shell
+    # (Phase 2). The side effects (search, triggers) stay in the pipeline; the
+    # renderer only maps data -> document blocks. The legacy HTML renderers
+    # above remain for the legacy fallback page and the dynamic service flows.
+
+    def build_sidebar_data(
+        self,
+        results: dict[str, Any],
+        term: str,
+        front_bracket: str,
+        back_bracket: str,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Sidebar structure: displayed dict names + highlighted headwords.
+
+        Mirrors ``get_sidebar`` (same iteration/counters) so the Svelte
+        ``<Sidebar />`` renders listTitle *i* / li *j* in the same order the
+        scrollspy expects.
+        """
+        sidebar: list[dict[str, Any]] = []
+        dict_count = 0
+        entry_count = 0
+        for dict_name, dict_results in results.items():
+            display = re.sub(r"l\d+name", "", dict_name).replace("_", " ")
+            if dict_name in ("Images", "LLM", "Forvo"):
+                sidebar.append(
+                    {
+                        "displayName": display,
+                        "dataIndex": dict_count,
+                        "entries": [
+                            {
+                                "dataIndex": entry_count,
+                                "headerHtml": self.get_term_header_html(
+                                    dict_name,
+                                    front_bracket,
+                                    back_bracket,
+                                    term,
+                                    term,
+                                    term,
+                                    term,
+                                    config,
+                                    term_headers,
+                                    True,
+                                ),
+                            }
+                        ],
+                    }
+                )
+                entry_count += 1
+                dict_count += 1
+                continue
+            entries = []
+            for entry in dict_results:
+                entries.append(
+                    {
+                        "dataIndex": entry_count,
+                        "headerHtml": self.get_term_header_html(
+                            dict_name,
+                            front_bracket,
+                            back_bracket,
+                            term,
+                            entry["term"],
+                            entry["altterm"],
+                            entry["pronunciation"],
+                            config,
+                            term_headers,
+                            True,
+                        ),
+                    }
+                )
+                entry_count += 1
+            sidebar.append(
+                {
+                    "displayName": display,
+                    "dataIndex": dict_count,
+                    "entries": entries,
+                }
+            )
+            dict_count += 1
+        return sidebar
+
+    def build_title_block(
+        self,
+        dict_count: int,
+        clean_name: str,
+        font: str,
+        overwrite_html: str,
+        field_html: str,
+    ) -> dict[str, Any]:
+        return {
+            "type": "dictionaryTitle",
+            "dataIndex": dict_count,
+            "title": clean_name.replace("_", " "),
+            "font": font,
+            "overwriteHtml": overwrite_html,
+            "fieldHtml": field_html,
+        }
+
+    def build_term_pronunciation_block(
+        self,
+        entry: dict[str, Any],
+        dict_name: str,
+        clean_name: str,
+        font: str,
+        front_bracket: str,
+        back_bracket: str,
+        extracted_freq: str,
+        config: dict[str, Any],
+        term_headers: dict[str, list[str]] | None = None,
+        definition_html: str = "",
+    ) -> dict[str, Any]:
+        stars = str(entry.get("starCount", ""))
+        star_source = entry.get("frequency_source_display", "")
+        rank_label, rank_tip = self._rank_data(entry, extracted_freq, config)
+        return {
+            "type": "termPronunciation",
+            "dataIndex": 999,
+            "dictName": dict_name,
+            "cleanName": clean_name,
+            "font": font,
+            "headerHtml": self.get_term_header_html(
+                dict_name,
+                front_bracket,
+                back_bracket,
+                entry["term"],
+                entry["term"],
+                entry.get("altterm", ""),
+                entry.get("pronunciation", ""),
+                config,
+                term_headers,
+            ),
+            "stars": stars,
+            "starTip": self.get_star_tip(stars, star_source),
+            "rank": {"label": rank_label, "tip": rank_tip} if extracted_freq else None,
+            "levels": self._levels_data(entry),
+            "definitionHtml": definition_html,
+        }
+
+    def build_definition_block(
+        self, definition: str, font: str, term: str, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "type": "definition",
+            "font": font,
+            "html": self.highlight_target(
+                process_definition_html(definition), term, config
+            ),
+        }
 
     # ── LLM rendering ──────────────────────────────
 
@@ -579,21 +806,27 @@ class ResultRenderer:
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"
             + dict_name
-            + '\')" class="ankiExportButton"><img '
+            + '\')" role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send
             + " onclick=\"sendToField(event, '"
             + dict_name
-            + '\')" class="sendToField">\u279e</div>'
-            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDict">\u25bc</div></div></div></div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">'
+            + action_icon("next_def")
+            + "</div></div></div></div>"
         )
 
     def render_llm_definition_block(
@@ -621,9 +854,12 @@ class ResultRenderer:
             + dict_name
             + '</div><div class="dictionarySettings">'
             + '<div class="dictNav"><div onclick="navigateDict(event, false)" '
-            + 'class="prevDict">\u25b2</div>'
-            + '<div onclick="navigateDict(event, true)" '
-            + 'class="nextDict">\u25bc</div></div></div></div>'
+            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div></div>"
         )
 
         stars = str(result.get("starCount", ""))
@@ -654,21 +890,27 @@ class ResultRenderer:
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, '"
             + dict_name
-            + '\')" class="ankiExportButton"><img '
+            + '\')" role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send
             + " onclick=\"sendToField(event, '"
             + dict_name
-            + '\')" class="sendToField">\u279e</div>'
-            + '<div class="defNav"><div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDef">\u25bc</div></div></div></div>'
+            + '\')" role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav"><div onclick="navigateDef(event, false)" '
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next definition" class="nextDef">'
+            + action_icon("next_def")
+            + "</div></div></div></div>"
         )
 
         definition = result.get("definition", "")
@@ -711,34 +953,41 @@ class ResultRenderer:
             + settings_html
             + '<div class="dictNav">'
             + '<div onclick="navigateDict(event, false)" '
-            + 'class="prevDict">\u25b2</div>'
-            + '<div onclick="navigateDict(event, true)" '
-            + 'class="nextDict">\u25bc</div>'
-            + "</div></div></div>"
+            + 'role="button" tabindex="0" aria-label="Previous dictionary" class="prevDict">'
+            + action_icon("prev_dict")
+            + '</div><div onclick="navigateDict(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div></div>"
             + '<div class="termPronunciation"><span '
             + font
             + ' class="tpCont">'
             + prepared
             + '</span><div class="defTools">'
             + "<div onclick=\"ankiExport(event, 'Images')\" "
-            + 'class="ankiExportButton"><img '
+            + 'role="button" tabindex="0" aria-label="Export to Anki" class="ankiExportButton"><img '
             + img
             + ' src="'
             + self.get_base64_icon("anki.svg", is_dark)
             + '"></div><div onclick="clipText(event)" '
             + clip
-            + ' class="clipper">\u2702</div><div '
+            + ' role="button" tabindex="0" aria-label="Copy to clipboard" class="clipper">'
+            + action_icon("clip")
+            + "</div><div "
             + send
-            + " onclick=\"sendToField(event, 'Images'\") "
-            + 'class="sendToField">\u279e</div>'
-            + '<div class="defNav">'
+            + " onclick=\"sendToField(event, 'Images')\" "
+            + 'role="button" tabindex="0" aria-label="Send to field" class="sendToField">'
+            + action_icon("send")
+            + '</div><div class="defNav">'
             + '<div onclick="navigateDef(event, false)" '
-            + 'class="prevDef">\u25b2</div>'
-            + '<div onclick="navigateDef(event, true)" '
-            + 'class="nextDict">\u25bc</div>'
-            + "</div></div></div>"
+            + 'role="button" tabindex="0" aria-label="Previous definition" class="prevDef">'
+            + action_icon("prev_def")
+            + '</div><div onclick="navigateDef(event, true)" '
+            + 'role="button" tabindex="0" aria-label="Next dictionary" class="nextDict">'
+            + action_icon("next_dict")
+            + "</div></div></div></div>"
             + '<div class="definitionBlock">'
-            + '<div class="imageBlock" id="'
+            + '<div class="imageBlock is-loading" id="'
             + id_name
             + '">Loading...</div></div>'
         )

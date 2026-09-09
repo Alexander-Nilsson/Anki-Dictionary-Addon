@@ -1,0 +1,890 @@
+/*
+ * Global styles for the Svelte dictionary UI.
+ *
+ * `legacy.css` is the stylesheet extracted verbatim from the old
+ * assets/templates/dictionary.html — it keeps the Phase-1 shell (which still
+ * renders Python-generated HTML) pixel-identical. Additions below are
+ * Svelte-specific tweaks for the componentized shell.
+ */
+
+@import "./legacy.css";
+
+/* The Svelte shell reproduces the legacy wrapper div (flex child that holds
+   the welcome background / results pane). */
+#defArea {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+/* Pin the results pane to the pane's height so `overflow-y: auto` actually
+   scrolls (the absolute + `top: 0` rules alone let it grow past #defArea,
+   which left the page unscrollable — nav arrows and back-to-top did nothing
+   because scrollTop could never change). */
+#defBox {
+  bottom: 0;
+}
+
+/* Welcome screen fills the available space (legacy CSS hides it by default
+   and shows it under `.no-tabs`; we render it conditionally instead). */
+#welcomeBackground {
+  display: block !important;
+}
+
+/* Focus styles for Svelte-rendered tab buttons. */
+.tablinks:focus-visible {
+  outline: 2px solid var(--search_term);
+  outline-offset: -2px;
+}
+
+#app,
+#app > div {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tab switch fade — opacity only (a transform on the ancestor would
+   re-position the sidebar's `position: fixed` during the animation). */
+@keyframes tabContentFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tabContent.active {
+  animation: tabContentFadeIn 160ms ease;
+}
+
+/* No-results state — the legacy renderer inlined these rules per-tab; the
+   componentized `<NoResults />` uses the same selectors globally. */
+.tabContent {
+  position: relative;
+}
+
+.vertical-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.noresults {
+  color: #888;
+}
+
+.noresults img {
+  margin-bottom: 20px;
+}
+
+.noresults h3 {
+  margin: 0;
+  font-weight: normal;
+}
+
+/* U4: no-results "did you mean" + deinflection hint. */
+.noresults .deinflect-hint {
+  margin: 14px 0 0;
+  color: #666;
+}
+
+.noresults .suggestion-label {
+  margin: 14px 0 4px;
+  color: #888;
+}
+
+.noresults .suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.suggestion-chip {
+  appearance: none;
+  border: 1px solid var(--pill-border, #ccc);
+  background: var(--pill-bg, rgba(127, 127, 127, 0.1));
+  color: var(--text-color, #222);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.suggestion-chip:hover {
+  border-color: var(--accent, #4a90d9);
+  color: var(--accent, #4a90d9);
+}
+
+/* U3: "Recent searches" section inside the sidebar (theme variables from
+   legacy.css). */
+.sidebarHistory {
+  margin-top: 8px;
+}
+
+.sidebarHistory .listTitle {
+  cursor: default;
+}
+
+.historyList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyEntry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: clamp(5px, 0.9vw, 8px) clamp(10px, 1.8vw, 16px);
+  font-size: var(--font-size-sm);
+  color: var(--definition_text);
+  border-left: 3px solid transparent;
+  transition: background-color var(--transition-base);
+}
+
+.historyEntry:hover {
+  background-color: var(--tab_hover);
+  border-left-color: var(--search_term);
+}
+
+.historyTerm {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyDate {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  color: var(--definition_text);
+  opacity: 0.6;
+}
+
+.historyPrune {
+  flex-shrink: 0;
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 0.9em;
+  color: var(--definition_text);
+  opacity: 0.5;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.historyPrune:hover {
+  opacity: 1;
+  color: #e05c5c;
+}
+
+/* U5: keyboard-map cheat sheet overlay. */
+.keymap-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.keymap-card {
+  background: var(--background_color, #fff);
+  color: var(--definition_text, #333);
+  border-radius: 10px;
+  padding: 20px 26px;
+  min-width: 340px;
+  max-width: 90vw;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.keymap-card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.keymap-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.keymap-card td {
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+}
+
+.keymap-card td.keys {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 14px;
+}
+
+.keymap-card kbd {
+  font-family: inherit;
+  background: rgba(127, 127, 127, 0.12);
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+
+.keymap-close {
+  margin-top: 14px;
+  float: right;
+  appearance: none;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: none;
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+
+.keymap-close:hover {
+  border-color: var(--accent, #4a90d9);
+  color: var(--accent, #4a90d9);
+}
+
+/* Tab strip overflow edge fades. The sticky items stay pinned while `#tabs`
+   scrolls horizontally. */
+.tabs-fade {
+  position: sticky;
+  flex-shrink: 0;
+  width: clamp(18px, 2.5vw, 28px);
+  align-self: stretch;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: 5;
+}
+
+.tabs-fade-left {
+  left: 0;
+  background: linear-gradient(90deg, var(--background), transparent);
+}
+
+.tabs-fade-right {
+  right: 0;
+  background: linear-gradient(270deg, var(--background), transparent);
+}
+
+.tabs-fade.visible {
+  opacity: 1;
+}
+
+/* Feedback toasts (copy / send-to-field / export confirmations). */
+.toast-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--background-secondary);
+  color: var(--header_text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--search_term);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-md);
+  animation: toastIn 180ms ease;
+  max-width: 320px;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Phase 2.5 polish — in-web chrome + doc-mode refinements.
+
+   Everything below is scoped with `.tabContent.doc-mode` (or is shell chrome)
+   so Python-generated *legacy* HTML tabs keep rendering pixel-identical.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* S1 minimal header: search + scope + overflow. One calm row that never
+   wraps (`flex: none` keeps `resizer()` measuring #chromeBar correctly).
+   Everything rarer lives in the overflow menu or the S3 palette. */
+#chromeBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 6px 12px;
+  background: var(--background-secondary);
+  border-bottom: 2px solid var(--border);
+}
+
+#chromeBar .chromeSearch {
+  position: relative;
+  flex: 1 1 180px;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+}
+
+#chromeBar .chromeSearch > svg {
+  position: absolute;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+#chromeBar input[type="text"] {
+  width: 100%;
+  padding: 6px 12px 6px 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+#chromeBar input[type="text"]:focus {
+  border-color: var(--search_term);
+  outline: 2px solid var(--search_term);
+  outline-offset: -1px;
+}
+
+#chromeBar select,
+#chromeBar .chromeSelect {
+  flex: none;
+  max-width: 140px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+/* Scope: group + mode joined as one visual unit (S1). */
+#chromeBar .scopeWrap {
+  flex: none;
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: hidden;
+}
+
+#chromeBar .scopeWrap select {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 5px 6px 5px 8px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  max-width: 110px;
+}
+
+#chromeBar .scopeWrap select:focus-visible {
+  outline: 2px solid var(--search_term);
+  outline-offset: -2px;
+}
+
+#chromeBar .scopeDiv {
+  flex: none;
+  width: 1px;
+  background: var(--border);
+  margin: 5px 0;
+}
+
+#chromeBar .chromeBtn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+#chromeBar .chromeBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+#chromeBar .chromeBtn:hover {
+  background: var(--button-bg-hover);
+  color: var(--button-text);
+  border-color: transparent;
+}
+
+/* Overflow menu (S1): rarer actions behind ⋯. */
+#chromeBar .menuWrap {
+  position: relative;
+  flex: none;
+}
+
+#chromeBar .chromeMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 1300;
+  min-width: 250px;
+  margin: 0;
+  padding: 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+
+#chromeBar .chromeMenu .menuLabel {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  padding: 7px 12px 3px;
+}
+
+#chromeBar .chromeMenu button[role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+#chromeBar .chromeMenu button[role="menuitem"]:hover {
+  background: var(--selector);
+}
+
+#chromeBar .chromeMenu button kbd {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0 7px;
+}
+
+#chromeBar .chromeMenu .menuSep {
+  height: 1px;
+  background: var(--border);
+  opacity: 0.6;
+  margin: 5px 8px;
+}
+
+/* U2: search-source chip + clipboard-monitor pause pill. */
+#chromeBar .sourcePill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 150px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chromeBar button.sourcePill {
+  cursor: pointer;
+}
+
+#chromeBar div.sourcePill {
+  cursor: default;
+}
+
+#chromeBar .sourcePill svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+/* Clipboard-sourced searches get a touch of accent so the most surprising
+   trigger (a global hotkey fired a lookup) is the most noticeable. */
+#chromeBar .sourcePill.clipboard {
+  color: var(--search_term);
+  border-color: var(--search_term);
+  background: color-mix(in srgb, var(--search_term) 10%, var(--background));
+}
+
+#chromeBar .sourcePill.paused {
+  color: var(--search_term);
+  border-color: var(--search_term);
+  background: color-mix(in srgb, var(--search_term) 10%, var(--background));
+}
+
+#chromeBar .targetPill {
+  max-width: 200px;
+}
+
+/* S3 command palette (Ctrl/⌘+K). */
+.palBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.palCard {
+  width: min(520px, 92vw);
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.palSearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.palSearch svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.palSearch input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.palSearch kbd,
+.palItem kbd {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 7px;
+}
+
+.palHint {
+  display: flex;
+  gap: 14px;
+  padding: 7px 14px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.palList {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.palItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.palItem:hover,
+.palItem.sel {
+  background: var(--selector);
+}
+
+/* History dropdown (bright above the results pane). */
+#chromeBar .chromeHist {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1200;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--background-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#chromeBar .chromeHist li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+#chromeBar .chromeHist li:hover,
+#chromeBar .chromeHist li.sel {
+  background: var(--selector);
+}
+
+#chromeBar .chromeHist li small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  flex: none;
+}
+
+/* Back-to-top button (floating, shows after scrolling the results pane). */
+.backToTop {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  z-index: 900;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.backToTop svg {
+  width: 18px;
+  height: 18px;
+}
+
+.backToTop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.backToTop:hover {
+  color: var(--text);
+  border-color: var(--search_term);
+}
+
+/* ── doc-mode refinements (structured tabs only; legacy HTML untouched) ── */
+
+/* QW2: dictionary headers stick to the top of the results pane so you never
+   lose track of which dictionary/entry you're reading. */
+.doc-mode .dictionaryTitleBlock {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* QW1: SVG tool buttons size crisply; tools quiet down until the entry is
+   hovered / focused (kept slightly visible for discoverability). */
+.doc-mode .defTools svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.doc-mode .termPronunciation .defTools {
+  opacity: 0.45;
+  transition: opacity 140ms ease;
+}
+
+.doc-mode .termPronunciation:hover .defTools,
+.doc-mode .termPronunciation:focus-within .defTools {
+  opacity: 1;
+}
+
+/* QW4: stars / frequency-rank / JLPT-level become badge pills. */
+.doc-mode .tpCont .starcount {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 9px;
+  margin: 0 2px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.7;
+  vertical-align: 2px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  background: var(--selector);
+}
+
+.doc-mode .tpCont .starcount:not(.frequency-rank):not(.level-label) {
+  color: #e0a800; /* stars — warm gold reads on light & dark themes */
+}
+
+.doc-mode .tpCont .starcount.frequency-rank {
+  color: var(--search_term);
+}
+
+.doc-mode .tpCont .starcount.level-label {
+  color: var(--text-secondary);
+}
+
+/* QW4: example sentences as a tasteful indented card under the sense. */
+.doc-mode .exampleSentence {
+  font-style: normal;
+  background: var(--selector);
+  border-left-color: var(--search_term);
+}
+
+/* QW3: shimmer skeleton over the async-service placeholders (Images/LLM/
+   Forvo). The header/toolbar inside each placeholder stays visible and
+   clickable while services load; only the placeholder body text fades out,
+   and the sheet itself is a transparent moving sheen. Once real content is
+   injected (loadImageHtml / loadLLMResults / onForvoResult replace the
+   "Loading…" text) the observer flips `.done` and the sheet disappears. */
+.doc-mode .skeletonHost {
+  position: relative;
+  min-height: 84px;
+}
+
+.doc-mode .skeletonHost .loaderSkeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+        100deg,
+        transparent 35%,
+        rgba(128, 128, 128, 0.16) 50%,
+        transparent 65%
+      )
+      0 0 / 220% 100% no-repeat;
+  animation: chromeShimmer 1.4s linear infinite;
+}
+
+.doc-mode .skeletonHost.done .loaderSkeleton {
+  display: none;
+}
+
+/* While loading, fade the placeholder body (never the title/toolbar). LLM
+   and Forvo bodies are plain <i>text</i>; the images block pulses via the
+   legacy imageLoadingPulse animation, so kill that too or it overrides the
+   fade. */
+.doc-mode .skeletonHost:not(.done) .llm-loading-placeholder,
+.doc-mode .skeletonHost:not(.done) .definitionBlock i,
+.doc-mode .skeletonHost:not(.done) .imageBlock.is-loading {
+  opacity: 0;
+}
+
+.doc-mode .skeletonHost:not(.done) .imageBlock.is-loading {
+  animation: none;
+}
+
+@keyframes chromeShimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* QW5: very tall definition bodies collapse with a "show more" fade. */
+.doc-mode .definitionBlock.collapsible {
+  position: relative;
+}
+
+.doc-mode .definitionBlock.collapsed {
+  max-height: 420px;
+  overflow: hidden;
+}
+
+.doc-mode .definitionBlock.collapsed .defExpand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 30px 12px 6px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--definition_background) 65%
+  );
+  color: var(--search_term);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.doc-mode .definitionBlock.collapsed .defExpand:hover {
+  color: var(--text);
+}

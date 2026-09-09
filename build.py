@@ -78,14 +78,24 @@ def run_pip_command(args, env=None):
         raise e
 
 
-def install_macos_curl_cffi(vendor_dir):
-    """Download and extract curl_cffi for macOS (ARM64 and x86_64)"""
-    print("📦 Downloading macOS-specific curl_cffi (via pip --platform)...")
+def install_curl_cffi(vendor_dir):
+    """Download and extract curl_cffi per platform (DDG image search needs
+    browser TLS impersonation on every OS — plain requests gets HTTP 403)."""
+    print("📦 Downloading platform-specific curl_cffi (via pip --platform)...")
 
     # curl_cffi 0.7.4 uses abi3, compatible with all recent Anki/Python versions
     platforms = [
-        {"name": "mac_arm64", "platform": "macosx_11_0_arm64"},
-        {"name": "mac_x86_64", "platform": "macosx_10_9_x86_64"},
+        {
+            "name": "mac_arm64",
+            "platforms": [
+                "macosx_11_0_arm64",
+                "macosx_12_0_arm64",
+                "macosx_13_0_arm64",
+            ],
+        },
+        {"name": "mac_x86_64", "platforms": ["macosx_10_9_x86_64"]},
+        {"name": "linux_x86_64", "platforms": ["manylinux2014_x86_64"]},
+        {"name": "win_amd64", "platforms": ["win_amd64"]},
     ]
 
     for p in platforms:
@@ -97,18 +107,8 @@ def install_macos_curl_cffi(vendor_dir):
             # Use cp38-abi3 as baseline to get universal wheel
             # We add multiple platforms to ensure cffi and other deps are found
             platform_args = []
-            if p["name"] == "mac_arm64":
-                # For ARM64, we often need to specify several compatible macOS versions
-                platform_args = [
-                    "--platform",
-                    "macosx_11_0_arm64",
-                    "--platform",
-                    "macosx_12_0_arm64",
-                    "--platform",
-                    "macosx_13_0_arm64",
-                ]
-            else:
-                platform_args = ["--platform", p["platform"]]
+            for plat in p["platforms"]:
+                platform_args += ["--platform", plat]
 
             run_pip_command(
                 [
@@ -125,6 +125,11 @@ def install_macos_curl_cffi(vendor_dir):
             print(f"   ✓ curl_cffi for {p['name']} completed")
         except Exception as e:
             print(f"   ⚠️ Could not install curl_cffi for {p['name']}: {e}")
+
+
+def install_macos_curl_cffi(vendor_dir):
+    """Backward-compat wrapper (now covers all platforms)."""
+    install_curl_cffi(vendor_dir)
 
 
 def install_dependencies(addon_dir):
@@ -186,7 +191,7 @@ def install_dependencies(addon_dir):
     else:
         print("   No standard dependencies to bundle.")
 
-    # Always install macOS-specific curl_cffi
+    # Always install platform-specific curl_cffi (all OSes need it for DDG)
     install_macos_curl_cffi(vendor_dir)
 
 
@@ -240,6 +245,61 @@ def generate_manifest():
 
     print("   ✓ Generated manifest.json")
     return manifest_path
+
+
+def build_web_ui(addon_dir: Path):
+    """Build the Svelte UI and copy the bundled HTML pages into the addon.
+
+    The Svelte apps live in ``web/`` and are compiled with Vite into single
+    self-contained HTML files (inlined JS + CSS): ``web/dist/dictionary.html``
+    (results shell), ``web/dist/settings.html`` (settings window) and
+    ``web/dist/exporter.html`` (card exporter). They are
+    copied to ``assets/web/`` inside the addon package so the Python side can
+    find them at runtime. Skips (with a warning) when Node.js / npm are
+    unavailable or the web build fails.
+    """
+    print("🌐 Building Svelte web UI...")
+
+    web_dir = Path("web")
+    if not web_dir.exists():
+        print("   ⚠️  No web/ directory found - skipping Svelte build")
+        return False
+
+    if shutil.which("npm") is None:
+        print("   ⚠️  npm not found - skipping Svelte build (legacy UI will be used)")
+        return False
+
+    try:
+        subprocess.run(["npm", "ci"], cwd=str(web_dir), check=True, capture_output=True)
+        subprocess.run(
+            ["npm", "run", "build"], cwd=str(web_dir), check=True, capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ Web UI build failed: {e}")
+        if e.stdout:
+            print(f"      stdout: {e.stdout.decode(errors='replace')[:2000]}")
+        if e.stderr:
+            print(f"      stderr: {e.stderr.decode(errors='replace')[:2000]}")
+        return False
+
+    target_dir = addon_dir / "assets" / "web"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    pages = {
+        "dictionary.html": "dictionary.html",
+        "settings.html": "settings.html",
+        "exporter.html": "exporter.html",
+    }
+    copied = False
+    for src_name, dst_name in pages.items():
+        bundled = web_dir / "dist" / src_name
+        if not bundled.exists():
+            print(f"   ⚠️  Bundled {src_name} not found after build - skipping")
+            continue
+        shutil.copy2(bundled, target_dir / dst_name)
+        print(f"   ✓ Copied Svelte bundle to {target_dir / dst_name}")
+        copied = True
+    return copied
 
 
 def build_addon():
@@ -352,6 +412,10 @@ def build_addon():
         pass
 
     print(f"✅ Addon built in: {addon_dir}")
+
+    # Build and bundle the Svelte UI last (it only needs assets/ + src/ present).
+    build_web_ui(addon_dir)
+
     return addon_dir
 
 

@@ -83,3 +83,11 @@ AGENTS.md
 # Documentation
 CONTEXT.md
 docs/oldfiles/
+
+# Svelte web UI
+web/node_modules/
+web/dist/
+
+# Playwright CLI scratch dir (browser snapshots)
+.playwright-cli/
+

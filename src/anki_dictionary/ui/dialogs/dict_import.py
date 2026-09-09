@@ -14,7 +14,11 @@ log = get_logger("dict_import")
 
 
 def importDict(
-    lang_name: str, file: str | BinaryIO, dict_name: str, parent: QWidget | None = None
+    lang_name: str,
+    file: str | BinaryIO,
+    dict_name: str,
+    parent: QWidget | None = None,
+    overwrite: bool = False,
 ) -> None:
     db = aqt.mw.miDictDB  # ty:ignore[unresolved-attribute]
 
@@ -59,16 +63,24 @@ def importDict(
     success, message, final_name = db.addDict(dict_name, lang_name, term_header)
 
     if not success and message == "duplicate":
-        dlg = QMessageBox(
-            QMessageBox.Icon.Question,
-            "Duplicate Dictionary",
-            f'A dictionary with the name "{final_name}" already exists.\n\nDo you want to overwrite it?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            parent,
-        )
-        if dlg.exec() == QMessageBox.StandardButton.Yes:
+        if overwrite:
+            # Web installs run on a worker thread where a modal prompt would
+            # be unsafe; the install flow explicitly asked to overwrite.
             db.deleteDict(final_name)
             success, message, final_name = db.addDict(dict_name, lang_name, term_header)
+        else:
+            dlg = QMessageBox(
+                QMessageBox.Icon.Question,
+                "Duplicate Dictionary",
+                f'A dictionary with the name "{final_name}" already exists.\n\nDo you want to overwrite it?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                parent,
+            )
+            if dlg.exec() == QMessageBox.StandardButton.Yes:
+                db.deleteDict(final_name)
+                success, message, final_name = db.addDict(
+                    dict_name, lang_name, term_header
+                )
 
     if not success:
         raise ValueError(

@@ -653,6 +653,13 @@
             transform: scale(1.1);
         }
 
+        /* Inline SVG tool icons (mirrors legacy.css in the Svelte shell). */
+        .defTools svg, .dictNav svg {
+            display: block;
+            width: 15px;
+            height: 15px;
+        }
+
         .tabContent {
             width: 100%;
             display: none;
@@ -915,6 +922,41 @@
             transform: scale(1.05);
         }
 
+        /* Streaming image grid: a slot reserves its tile's space while the
+           thumbnail downloads, so images popping in never reflow the grid. */
+        .imgBox.imgPending {
+            background: linear-gradient(
+                100deg,
+                var(--selector) 30%,
+                var(--tab_hover) 50%,
+                var(--selector) 70%
+            );
+            background-size: 300% 100%;
+            animation: imgSlotShimmer 1.2s ease-in-out infinite;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .imgBox.imgPending:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        @keyframes imgSlotShimmer {
+            0% { background-position: 100% 0; }
+            100% { background-position: 0 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .imgBox.imgPending { animation: none; }
+        }
+
+        /* Exhausted "Load More" tile (no further pages available). */
+        .imgBox.imageLoader.exhausted {
+            cursor: default;
+            opacity: 0.6;
+        }
+
         .imgBox.imageLoader {
             display: flex;
             flex-direction: column;
@@ -955,6 +997,17 @@
 
         .imgBox.imageLoader.loading .loadMoreIcon {
             animation: pulse 1s ease-in-out infinite;
+        }
+
+        /* Empty state for a failed/empty image search. Lives inside the
+           standard definitionBlock, so the box keeps the same location
+           and size as every other dictionary's definition box. */
+        .image-empty {
+            padding: clamp(12px, 2vw, 18px);
+            text-align: center;
+            color: var(--text-secondary, var(--text-muted, inherit));
+            font-size: var(--font-size-md);
+            white-space: normal;
         }
 
         @keyframes pulse {

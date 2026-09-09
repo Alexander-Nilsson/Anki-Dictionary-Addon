@@ -1,0 +1,144 @@
+/**
+ * JS -> Python bridge.
+ *
+ * `pycmd(...)` is injected by Anki's AnkiWebView; every `pycmd("...")` call is
+ * routed to `MIDict.handleDictAction` on the Python side. This module centralises
+ * the few commands the web UI itself issues (font saving, term updates, the
+ * initial "page loaded" handshake) and guards against the bridge not being
+ * ready yet.
+ */
+import type { FontSizes } from "./types";
+
+/**
+ * Commands issued before Anki injected the bridge. Anki's bridge script assigns
+ * `window.pycmd` only inside the async QWebChannel handshake, so it is
+ * ``undefined`` (the ``var`` is hoisted) during early page load. Any command
+ * sent then would be silently dropped — which left the settings page stuck on
+ * "Loading…" because its whole initial data burst fires from ``onMount``,
+ * before the handshake completes.
+ */
+let pending: string[] = [];
+let flushWatch: ReturnType<typeof setInterval> | null = null;
+
+function flushPending(): void {
+  if (!pending.length || typeof window.pycmd !== "function") return;
+  const cmds = pending;
+  pending = [];
+  for (const cmd of cmds) {
+    try {
+      window.pycmd(cmd);
+    } catch (err) {
+      console.error("pycmd failed:", cmd, err);
+    }
+  }
+}
+
+/** Poll until the injected bridge appears, then flush queued commands. */
+function ensureFlushWatch(): void {
+  if (flushWatch !== null) return;
+  flushWatch = setInterval(() => {
+    if (typeof window.pycmd === "function") {
+      if (flushWatch !== null) {
+        clearInterval(flushWatch);
+        flushWatch = null;
+      }
+      flushPending();
+    }
+  }, 5);
+  // Safety: if the bridge never appears (e.g. a plain browser without the dev
+  // mock), stop polling after a few seconds instead of spinning forever.
+  setTimeout(() => {
+    if (flushWatch !== null) {
+      clearInterval(flushWatch);
+      flushWatch = null;
+    }
+    if (pending.length) {
+      console.warn("pycmd still unavailable; dropping queued commands:", pending);
+      pending = [];
+    }
+  }, 5000);
+}
+
+/**
+ * Send a raw command to Python via the Anki bridge. If the bridge is not
+ * injected yet (early page load), the command is queued and flushed as soon as
+ * it appears.
+ */
+export function pycmd(command: string): void {
+  if (typeof window.pycmd === "function") {
+    flushPending();
+    try {
+      window.pycmd(command);
+    } catch (err) {
+      console.error("pycmd failed:", command, err);
+    }
+  } else {
+    pending.push(command);
+    ensureFlushWatch();
+  }
+}
+
+export const CMD = {
+  pageLoaded: () => "AnkiDictionaryLoaded",
+  updateTerm: (term: string) => `updateTerm:${term}`,
+  saveFontSizes: ({ fefs, dbfs }: FontSizes) => `saveFS:${fefs}:${dbfs}`,
+  fieldsSetting: (dictName: string, fields: string[]) =>
+    `fieldsSetting:${JSON.stringify({ dictName, fields })}`,
+  overwriteSetting: (name: string, type: string) =>
+    `overwriteSetting:${JSON.stringify({ name, type })}`,
+  clipped: (text: string) => `clipped:${text.replace("&lt", "<").replace("&gt;", ">")}`,
+  clippedImages: (urls: string[]) => `clipped_images:${JSON.stringify(urls)}`,
+  sendToField: (dictName: string, text: string) =>
+    `sendToField:${dictName}\u25f3\u25f4${text}`,
+  sendImgToField: (urls: string[]) => `sendImgToField:${JSON.stringify(urls)}`,
+  sendAudioToField: (url: string) => `sendAudioToField:${url}`,
+  playAudio: (url: string) => `playAudio:${url}`,
+  addDef: (dictName: string, word: string, text: string) =>
+    `addDef:${dictName}\u25f3\u25f4${word}\u25f3\u25f4${text}`,
+  audioExport: (word: string, url: string) =>
+    `audioExport:${word}\u25f3\u25f4${url}`,
+  imgExport: (word: string, urls: string[]) =>
+    `imgExport:${word}\u25f3\u25f4${JSON.stringify(urls)}`,
+  getMoreImages: (term: string) => `getMoreImages::${term}`,
+  /** Persist the drag-resized sidebar width (px). */
+  saveSidebarWidth: (width: number) => `saveSidebarWidth:${Math.round(width)}`,
+  /** Open the dictionary settings window (contains the usage guide). */
+  openSettings: () => "openSettings",
+  // In-web search chrome (Phase 2.5): search + history + group switching.
+  searchTerm: (term: string) => `searchTerm:${term}`,
+  getSearchHistory: () => "getSearchHistory:",
+  deleteSearchHistory: (term: string) => `deleteSearchHistory:${term}`,
+  getGroups: () => "getGroups:",
+  setGroup: (name: string) => `setGroup:${name}`,
+  // Unified header (single chrome): groups + search modes + toggles in one
+  // payload so the Qt toolbar can stay removed and the standalone web
+  // preview still shows every capability.
+  getHeaderState: () => "getHeaderState:",
+  getSearchModes: () => "getSearchModes:",
+  setSearchMode: (mode: string) => `setSearchMode:${mode}`,
+  setDeinflect: (enabled: boolean) => `setDeinflect:${enabled ? "true" : "false"}`,
+  setTabMode: (single: boolean) => `setTabMode:${single ? "single" : "multi"}`,
+  openHistory: () => "openHistory",
+  openTheme: () => "openTheme",
+  // U2: search-source chip + clipboard-monitor pause pill.
+  requestSearchStatus: () => "requestSearchStatus:",
+  setClipboardPaused: (paused: boolean) =>
+    `setClipboardPaused:${paused ? "true" : "false"}`,
+  // A5: persist open-tab terms so the session can be restored on reopen.
+  saveSession: (terms: string[]) =>
+    `saveSession:${JSON.stringify(terms)}`,
+} as const;
+
+/**
+ * Wait for the Anki bridge to be injected, then announce the page is ready
+ * (mirrors the legacy `awaitPycmdToLoad` in dictionary.js).
+ */
+export function awaitPycmdToLoad(): void {
+  const timer = setInterval(() => {
+    if (typeof window.pycmd === "function") {
+      clearInterval(timer);
+      flushPending();
+      pycmd(CMD.pageLoaded());
+    }
+  }, 5);
+}

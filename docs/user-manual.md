@@ -110,27 +110,19 @@ Fields:
 
 #### Installing Dictionaries
 
-##### Using the Wizard
+##### From the Dictionary Server (Web)
 
-1. Open **Anki Dictionary → Dictionary Settings → Dictionaries**
-2. Click **Install Languages in Wizard**
-3. Select a server (default: the add-on's dictionary server)
-4. Click **Next**, choose a target language and translation language
-5. Check the dictionaries you want, optionally enable frequency and conjugation data
-6. Click **Next**, review your selection, then **Confirm**
+1. Open **Anki Dictionary → Settings → Dictionaries**
+2. Click **Install Dictionaries (Web)**
+3. Pick a server (default: the add-on's dictionary server) and click **Connect**
+4. Check the languages and dictionaries you want, optionally enable frequency and conjugation data
+5. Click **Install** and watch the progress log
 
 ##### From a ZIP File
 
-1. In the Dictionaries tab, select a language on the left
-2. Click **Install Dictionary From File**
-3. Select a dictionary ZIP and optionally rename it
-4. Click **OK**
-
-##### By Adding a Language
-
-1. In the Dictionaries tab, click **Add a Language**
-2. Enter a name and click **OK**
-3. Select the new language and use the wizard or file installer to add dictionaries
+1. Open **Anki Dictionary → Settings → Dictionaries**
+2. Click **Install Dictionaries (Files)**, choose a language, then select the dictionary ZIPs
+3. Optionally rename each dictionary
 
 #### Removing Dictionaries
 
@@ -163,9 +155,8 @@ List with readings (for Japanese, Chinese):
 
 Frequency lists can be installed:
 
-- **Automatically** via the wizard (when available for your language)
-- **From file** — select a language, click **Install Frequency Data From File**
-- **From server** — select a language, click **Install Frequency Data in Wizard**
+- **From the server** — open **Settings → Dictionaries** (or **Frequency Lists**) and click **Install Frequency Data (Web)**
+- **From file** — click **Install Frequency Data (Files)**
 
 > Install the frequency list **before** installing dictionaries for that language, or uninstall and reinstall dictionaries afterward.
 
@@ -693,19 +684,21 @@ Manage installed dictionaries and languages:
 
 The add-on supports full custom theming — not just dark/light mode but any colour scheme.
 
-The active theme is stored in `user_files/themes/active.json`. You can create and edit themes visually using the **Theme Editor**.
+The active theme is stored in `user_files/themes/active.json`. You can browse, create and edit themes visually in the **Appearance** tab of the settings window, where every theme is shown as a live miniature of the dictionary window.
 
-To open the theme editor: click the theme icon in the dictionary window toolbar.
-
-### Creating a Theme
-
-1. Open the Theme Editor
-2. Start from a preset or customise each UI element's colour
-3. Save the theme
+To open the theme gallery: click the theme icon in the dictionary window toolbar (opens the settings window on the Appearance tab), or choose **Appearance** in the settings window directly.
 
 ### Applying a Theme
 
-Saved themes appear in the theme dropdown in the dictionary window. Select one to apply it immediately.
+Click a theme card to apply it immediately — the dictionary window repaints instantly. A notice at the bottom of the gallery offers one-press **Undo** in case you picked the wrong theme. Themes can be filtered by light/dark/custom and searched by name.
+
+### Creating a Theme
+
+1. In the Appearance tab, click **New theme** (or **Customize**/**Duplicate** on an existing card)
+2. Adjust the fourteen colours — grouped by the part of the window they affect — while the live preview and the readability audit update as you type
+3. **Save** the theme, or **Save & Apply** to start using it right away
+
+The editor also includes a two-colour generator (pick a background + accent, everything else is derived with WCAG-contrast-safe text) and JSON copy/paste for sharing themes.
 
 ### Theme Components
 
@@ -716,5 +709,3 @@ Themes control colours for:
 - Search bar and sidebar
 - Buttons and icons
 - Links and highlighted text
-
-![Theme editor](images/theme-editor.png)

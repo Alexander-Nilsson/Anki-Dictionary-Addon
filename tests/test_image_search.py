@@ -108,7 +108,10 @@ class TestDuckDuckGoSearch(unittest.TestCase):
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
             "results": [
-                {"image": "http://example.com/img1.jpg"},
+                {
+                    "image": "http://example.com/img1.jpg",
+                    "thumbnail": "http://thumbs.example.com/1.jpg",
+                },
                 {"image": "http://example.com/img2.jpg"},
             ]
         }
@@ -117,9 +120,40 @@ class TestDuckDuckGoSearch(unittest.TestCase):
         with patch.object(ddg, "_fetch_vqd", return_value="testvqd"):
             with patch("anki_dictionary.integrations.image_search.prefer_ipv4"):
                 result = ddg.search("test", maximum=15)
-                self.assertEqual(len(result), 2)
-                self.assertIn("http://example.com/img1.jpg", result)
-                self.assertIn("http://example.com/img2.jpg", result)
+                # (display url, original url): the grid loads the thumbnail,
+                # exports keep the original. No thumbnail -> original for both.
+                self.assertEqual(
+                    result,
+                    [
+                        (
+                            "http://thumbs.example.com/1.jpg",
+                            "http://example.com/img1.jpg",
+                        ),
+                        (
+                            "http://example.com/img2.jpg",
+                            "http://example.com/img2.jpg",
+                        ),
+                    ],
+                )
+
+    def test_skips_results_without_an_image_url(self):
+        ddg = DuckDuckGo()
+        ddg.session = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "results": [
+                {"thumbnail": "http://thumbs.example.com/1.jpg"},
+                {"image": "http://example.com/img2.jpg"},
+            ]
+        }
+        ddg.session.get.return_value = mock_resp
+
+        with patch.object(ddg, "_fetch_vqd", return_value="testvqd"):
+            with patch("anki_dictionary.integrations.image_search.prefer_ipv4"):
+                result = ddg.search("test")
+                self.assertEqual(len(result), 1)
+                self.assertEqual(result[0][1], "http://example.com/img2.jpg")
 
     def test_respects_maximum_param(self):
         ddg = DuckDuckGo()
@@ -178,10 +212,16 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
     def test_returns_filename_on_success(self):
         url = "http://example.com/img.jpg"
         expected_hash = hashlib.md5(url.encode()).hexdigest()
-        expected_name = f"dict_img_{expected_hash}.avif"
+        expected_name = f"dict_img_{expected_hash}.webp"
 
         ddg = DuckDuckGo()
-        with patch("anki_dictionary.integrations.image_search.QImage") as mock_qc:
+        with (
+            patch("anki_dictionary.integrations.image_search.QImage") as mock_qc,
+            patch(
+                "anki_dictionary.integrations.image_search.preferred_image_ext",
+                return_value="webp",
+            ),
+        ):
             mock_img = mock_qc.return_value
             mock_img.loadFromData.return_value = True
             mock_img.scaled.return_value = mock_img
@@ -190,6 +230,7 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
             with patch("anki_dictionary.integrations.image_search.temp_dir", "/tmp"):
                 result = ddg.process_image(url, b"valid_content")
                 self.assertEqual(result, expected_name)
+                mock_img.save.assert_called_once_with("/tmp/" + expected_name, "WEBP")
 
     def test_returns_empty_when_save_fails(self):
         ddg = DuckDuckGo()
@@ -234,22 +275,38 @@ class TestDuckDuckGoProcessImage(unittest.TestCase):
 class TestDuckDuckGoImageToHtml(unittest.TestCase):
     def test_returns_error_html_for_missing_file(self):
         ddg = DuckDuckGo()
-        result = ddg._image_to_html("nonexistent.avif")
+        result = ddg._image_to_html("nonexistent.webp")
         self.assertIn("Error loading image", result)
 
     def test_returns_image_html_for_existing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("anki_dictionary.integrations.image_search.temp_dir", tmpdir):
-                filename = "test_img.avif"
+                filename = "test_img.webp"
                 with open(os.path.join(tmpdir, filename), "wb") as f:
                     f.write(b"fake_image_data")
 
                 ddg = DuckDuckGo()
                 result = ddg._image_to_html(filename)
-                self.assertIn("data:image/avif;base64,", result)
+                self.assertIn("data:image/webp;base64,", result)
                 self.assertIn('class="imgBox"', result)
                 self.assertIn('class="searchImage"', result)
                 self.assertIn(f'ankiDict="{os.path.join(tmpdir, filename)}"', result)
+                self.assertNotIn("data-full-url", result)
+
+    def test_carries_the_original_url_for_export(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("anki_dictionary.integrations.image_search.temp_dir", tmpdir):
+                filename = "test_img.webp"
+                with open(os.path.join(tmpdir, filename), "wb") as f:
+                    f.write(b"fake_image_data")
+
+                ddg = DuckDuckGo()
+                result = ddg._image_to_html(
+                    filename, "http://example.com/full.jpg?a=1&b=2"
+                )
+                self.assertIn(
+                    'data-full-url="http://example.com/full.jpg?a=1&amp;b=2"', result
+                )
 
 
 class TestDuckDuckGoDownloadAndProcessImageSync(unittest.TestCase):
@@ -274,12 +331,12 @@ class TestDuckDuckGoDownloadAndProcessImageSync(unittest.TestCase):
         mock_resp.content = b"fake_image"
         dl_session.get.return_value = mock_resp
 
-        with patch.object(ddg, "process_image", return_value="dict_img_abc.avif"):
+        with patch.object(ddg, "process_image", return_value="dict_img_abc.webp"):
             with patch("anki_dictionary.integrations.image_search.prefer_ipv4"):
                 result = ddg.download_and_process_image_sync(
                     "http://example.com/img.jpg", dl_session
                 )
-                self.assertEqual(result, "dict_img_abc.avif")
+                self.assertEqual(result, "dict_img_abc.webp")
                 dl_session.get.assert_called_once_with(
                     "http://example.com/img.jpg", timeout=10
                 )
@@ -326,17 +383,161 @@ class TestTLSAdapter(unittest.TestCase):
 
 
 class TestMakeSession(unittest.TestCase):
-    def test_returns_requests_session_on_linux(self):
-        with patch("anki_dictionary.integrations.image_search._ON_MAC", False):
-            session = _make_session()
-            self.assertIsInstance(session, requests.Session)
-            self.assertFalse(session.verify)
+    def test_prefers_curl_cffi_when_available(self):
+        # DDG's i.js fingerprint-blocks plain requests (HTTP 403), so
+        # curl_cffi with browser impersonation is preferred on every OS.
+        try:
+            import curl_cffi  # noqa: F401
+        except ImportError:
+            self.skipTest("curl_cffi not installed")
+        session = _make_session()
+        self.assertEqual(type(session).__module__, "curl_cffi.requests.session")
 
-    def test_mounts_tls_adapter_on_https(self):
-        with patch("anki_dictionary.integrations.image_search._ON_MAC", False):
-            session = _make_session()
-            adapter = session.get_adapter("https://duckduckgo.com")
-            self.assertIsInstance(adapter, TLSAdapter)
+    def test_falls_back_to_requests_session_without_curl_cffi(self):
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "curl_cffi" or name.startswith("curl_cffi."):
+                raise ImportError("mocked missing curl_cffi")
+            return real_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", side_effect=fake_import):
+            # Ensure a fresh import attempt (module is already imported,
+            # so force the ImportError path via sys.modules hiding).
+            with patch.dict("sys.modules", {"curl_cffi": None}):
+                session = _make_session()
+                self.assertIsInstance(session, requests.Session)
+                self.assertFalse(session.verify)
+
+    def test_fallback_mounts_tls_adapter_on_https(self):
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "curl_cffi" or name.startswith("curl_cffi."):
+                raise ImportError("mocked missing curl_cffi")
+            return real_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", side_effect=fake_import):
+            with patch.dict("sys.modules", {"curl_cffi": None}):
+                session = _make_session()
+                adapter = session.get_adapter("https://duckduckgo.com")
+                self.assertIsInstance(adapter, TLSAdapter)
+
+
+class TestDuckDuckGoStreaming(unittest.TestCase):
+    """The grid shell is emitted as soon as the search returns; each image
+    tile follows as its download lands, so results appear well before the
+    slowest thumbnail."""
+
+    def _runner(self, results):
+        ddg = DuckDuckGo()
+        ddg.setTermIdName("cat", "gcon1")
+        ddg.session = MagicMock()
+        self.shells = []
+        self.tiles = []
+        self.finished = []
+        ddg.signals.resultsFound.connect(self.shells.append)
+        ddg.signals.imageReady.connect(self.tiles.append)
+        ddg.signals.imagesFinished.connect(self.finished.append)
+        return ddg
+
+    def test_emits_shell_then_one_tile_per_image(self):
+        pairs = [(f"http://thumb/{i}.jpg", f"http://full/{i}.jpg") for i in range(3)]
+        ddg = self._runner(pairs)
+        with patch.object(ddg, "search", return_value=pairs):
+            with patch(
+                "anki_dictionary.integrations.image_search._make_session",
+                return_value=MagicMock(),
+            ):
+                with patch.object(
+                    ddg,
+                    "download_and_process_image_sync",
+                    side_effect=lambda url, sess: "img.webp",
+                ):
+                    with patch.object(
+                        ddg, "_image_to_html", side_effect=lambda f, u: f"<i>{u}</i>"
+                    ):
+                        ddg.run()
+
+        # One shell, carrying a placeholder per pending image.
+        self.assertEqual(len(self.shells), 1)
+        shell_html, id_name = self.shells[0]
+        self.assertEqual(id_name, "gcon1")
+        self.assertEqual(shell_html.count("imgPending"), 3)
+        self.assertIn("imageLoader", shell_html)
+        self.assertIn(ddg.token, shell_html)
+
+        # One tile per image, each addressed to its own reserved slot.
+        self.assertEqual(len(self.tiles), 3)
+        slot_ids = sorted(slot for slot, _ in self.tiles)
+        self.assertEqual(slot_ids, sorted(ddg._slot_id(i) for i in range(3)))
+
+        self.assertEqual(self.finished, [[ddg.token, 3]])
+
+    def test_failed_downloads_are_reported_so_slots_can_be_dropped(self):
+        pairs = [(f"http://thumb/{i}.jpg", f"http://full/{i}.jpg") for i in range(3)]
+        ddg = self._runner(pairs)
+
+        # Only the middle image downloads successfully.
+        def download(url, sess):
+            return "img.webp" if url.endswith("1.jpg") else ""
+
+        with patch.object(ddg, "search", return_value=pairs):
+            with patch(
+                "anki_dictionary.integrations.image_search._make_session",
+                return_value=MagicMock(),
+            ):
+                with patch.object(
+                    ddg, "download_and_process_image_sync", side_effect=download
+                ):
+                    with patch.object(ddg, "_image_to_html", return_value="<i></i>"):
+                        ddg.run()
+
+        self.assertEqual(len(self.tiles), 1)
+        self.assertEqual(self.tiles[0][0], ddg._slot_id(1))
+        self.assertEqual(self.finished, [[ddg.token, 1]])
+
+    def test_empty_search_emits_the_empty_state_not_a_grid(self):
+        ddg = self._runner([])
+        with patch.object(ddg, "search", return_value=[]):
+            with patch(
+                "anki_dictionary.integrations.image_search._make_session",
+                return_value=MagicMock(),
+            ):
+                ddg.run()
+
+        self.assertEqual(len(self.shells), 1)
+        html, _ = self.shells[0]
+        self.assertIn("image-empty", html)
+        self.assertNotIn("imgPending", html)
+        self.assertEqual(self.finished, [[ddg.token, 0]])
+
+    def test_load_more_shell_is_slots_only(self):
+        pairs = [("http://thumb/0.jpg", "http://full/0.jpg")]
+        ddg = self._runner(pairs)
+        ddg.setTermIdName("cat", "load_more")
+        with patch.object(ddg, "search", return_value=pairs):
+            with patch(
+                "anki_dictionary.integrations.image_search._make_session",
+                return_value=MagicMock(),
+            ):
+                with patch.object(
+                    ddg, "download_and_process_image_sync", return_value="img.webp"
+                ):
+                    with patch.object(ddg, "_image_to_html", return_value="<i></i>"):
+                        ddg.run()
+
+        html, id_name = self.shells[0]
+        self.assertEqual(id_name, "load_more")
+        self.assertIn("imgPending", html)
+        # Appending into the existing gallery must not nest a second container
+        # or a duplicate "Load More" tile.
+        self.assertNotIn("imageCont", html)
+        self.assertNotIn("imageLoader", html)
 
 
 class TestLogDebug(unittest.TestCase):

@@ -92,7 +92,7 @@ class NoteAssembler:
         if image_map_text != "No Image Selected":
             img_field = template["image"]
             if img_field != "Don't Export":
-                img_tag = '<img ankiDict="' + img_name + '">'
+                img_tag = '<img src="' + img_name + '">'
                 if self.field_valid(img_field):
                     if img_field not in fields:
                         fields[img_field] = [img_tag]
@@ -186,7 +186,7 @@ class NoteAssembler:
             tags_field = tags_text
         if image:
             img_field = template["image"]
-            img_tag = '<img ankiDict="' + image + '">'
+            img_tag = '<img src="' + image + '">'
             if self.field_valid(img_field):
                 if img_field not in fields:
                     fields[img_field] = [img_tag]

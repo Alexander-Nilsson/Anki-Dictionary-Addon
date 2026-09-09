@@ -9,7 +9,6 @@ from anki.utils import is_mac
 from aqt.qt import (
     QColor,  # noqa: F401 — needed at runtime by downstream importers
     QComboBox,
-    QFrame,
     QHBoxLayout,
     QIcon,
     QImage,
@@ -30,7 +29,7 @@ from aqt.utils import (
     ensureWidgetInScreenBoundaries,
 )
 from aqt.webview import AnkiWebView
-from PyQt6.QtCore import QThreadPool, QUrl
+from PyQt6.QtCore import QThreadPool, QTimer, QUrl
 
 from ..utils.history import HistoryBrowser, HistoryModel
 from ..utils.logger import get_logger
@@ -45,7 +44,6 @@ import datetime
 from PyQt6.QtSvgWidgets import QSvgWidget
 
 from ..ui import theme_controller
-from ..ui.dialogs.theme_editor import ThemeEditorDialog
 from ..ui.settings.settings_gui import SettingsGui
 from ..ui.themes import ThemeManager
 
@@ -77,6 +75,14 @@ class MIDict(AnkiWebView):
         self.threadpool = QThreadPool()
         self.customFontsLoaded = []
 
+        page = self.page()
+        if page is not None:
+            page.loadFinished.connect(
+                lambda ok: logger.debug(
+                    "page loadFinished ok=%s url=%s", ok, page.url().toString()
+                )
+            )
+
         self.search_pipeline = SearchPipeline(self)
         self.card_handler = CardCreationHandler(self)
 
@@ -86,7 +92,69 @@ class MIDict(AnkiWebView):
         self.conjugations = self.search_pipeline.loadConjugations()
 
     def loadHTMLURL(self, html, url):
-        self.page().setHtml(html, url)
+        """Load the dictionary shell into the webview.
+
+        This goes through ``AnkiWebView.setHtml``, which serves the page from
+        Anki's local media server, rather than ``page().setHtml()``. Anki
+        stopped using ``QWebEnginePage.setHtml`` itself because it loads the
+        content as a ``data:`` URL, which caps the page at 2MB and is on its
+        way out of QtWebEngine. Serving over ``http://127.0.0.1`` also gives
+        the page a real origin, which is what lets it pull resources such as
+        custom fonts from ``/_addons/`` (see ``SearchPipeline._inject_font``).
+
+        ``url`` is unused: both shells (the built Svelte bundle and the
+        legacy template) are fully self-contained after inlining, so they
+        need no base URL for relative resources.
+        """
+        del url  # kept for call-site compatibility; see docstring
+        self.setHtml(html)
+        self._logBridgeDiagnostics()
+
+    def _logBridgeDiagnostics(self) -> None:
+        """Warn if the JS -> Python bridge did not come up after a page load.
+
+        Anki injects ``window.pycmd`` through a QWebChannel handshake started
+        by a profile-level user script, which reads the transport off the
+        ``qt`` object QtWebEngine injects. Anything the page defines as a
+        global named ``qt`` shadows it, the handshake never completes, and
+        ``pycmd`` stays undefined — a silent failure in which the UI renders
+        and still receives results (``eval`` does not use the channel) while
+        every button, menu entry and search silently does nothing. This
+        turns that into a log line.
+
+        It deliberately uses ``page().runJavaScript`` rather than
+        ``AnkiWebView.evalWithCallback``: the latter queues behind
+        ``_domDone``, which the page can only report over the very bridge
+        being checked, so a broken bridge would silence the check.
+        """
+        probe = (
+            "JSON.stringify({"
+            "pycmd: typeof window.pycmd,"
+            "transport: typeof (window.qt && window.qt.webChannelTransport),"
+            "readyState: document.readyState"
+            "})"
+        )
+
+        def report(value):
+            if isinstance(value, str) and '"pycmd":"function"' in value:
+                logger.debug("bridge ready: %s", value)
+            else:
+                logger.warning(
+                    "JS -> Python bridge is not available (%s); the web UI's "
+                    "buttons and search box cannot reach Python",
+                    value,
+                )
+
+        def run():
+            page = self.page()
+            if page is None:
+                return
+            try:
+                page.runJavaScript(probe, report)
+            except Exception:
+                logger.exception("Could not check the JS -> Python bridge")
+
+        QTimer.singleShot(3000, run)
 
     def setSType(self, sType):
         self.sType = sType
@@ -97,10 +165,25 @@ class MIDict(AnkiWebView):
     def maybeSearchTerms(self, terms: str) -> None:
         if self.terms:
             for t in self.terms:  # ty:ignore[not-iterable]
-                self.dictInt.initSearch(t)
+                self.dictInt.initSearch(t, source="extension")
             self.terms = False
 
     def handleDictAction(self, dAct):
+        """Entry point for every JS -> Python bridge command.
+
+        Handler failures are logged rather than propagated: an exception
+        raised inside a Qt slot escapes into C++, where it is easy to lose,
+        and one broken command should not take the rest of the header with it.
+        """
+        # Logging every command makes a dead bridge (nothing arriving at all)
+        # distinguishable from a handler that arrives and then fails.
+        logger.debug("bridge cmd: %s", dAct[:200])
+        try:
+            self._dispatchDictAction(dAct)
+        except Exception:
+            logger.exception("Bridge command failed: %s", dAct[:200])
+
+    def _dispatchDictAction(self, dAct):
         if dAct.startswith("AnkiDictionaryLoaded"):
             self.maybeSearchTerms(dAct)
         elif dAct.startswith("updateTerm:"):
@@ -109,6 +192,11 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("saveFS:"):
             f1, f2 = dAct[7:].split(":")
             self.dictInt.writeConfig("fontSizes", [int(f1), int(f2)])
+        elif dAct.startswith("openSettings"):
+            self.dictInt.openDictionarySettings()
+        elif dAct.startswith("saveSidebarWidth:"):
+            width = max(int(dAct[17:]), 20)
+            self.dictInt.writeConfig("sidebarWidth", width)
         elif dAct.startswith("fieldsSetting:"):
             fields = json.loads(dAct[14:])
             logger.debug(f"Received fieldsSetting command: {fields}")
@@ -163,17 +251,71 @@ class MIDict(AnkiWebView):
         elif dAct.startswith("getMoreImages::"):
             search_term = dAct[15:]
             self.search_pipeline.loadMoreImages(search_term)
+        elif dAct.startswith("searchTerm:"):
+            # In-web search box (Svelte chrome) -> same path as the Qt field.
+            self.dictInt.initSearch(dAct[len("searchTerm:") :])
+        elif dAct.startswith("getSearchHistory:"):
+            self.dictInt.pushSearchHistory()
+        elif dAct.startswith("deleteSearchHistory:"):
+            # U3: the sidebar's per-entry prune button removed one history row.
+            term = dAct[len("deleteSearchHistory:") :]
+            self.dictInt.deleteHistoryEntry(term)
+        elif dAct.startswith("getGroups:"):
+            self.dictInt.pushGroups()
+        elif dAct.startswith("setGroup:"):
+            name = dAct[len("setGroup:") :]
+            self.dictInt.setDictGroup(name)
+        elif dAct.startswith("getSearchModes:"):
+            self.dictInt.pushSearchModes()
+        elif dAct.startswith("setSearchMode:"):
+            name = dAct[len("setSearchMode:") :]
+            self.dictInt.setSearchMode(name)
+        elif dAct.startswith("getHeaderState:"):
+            # Unified web header: one call returns groups + modes + toggles.
+            self.dictInt.pushHeaderState()
+        elif dAct.startswith("setDeinflect:"):
+            raw = dAct[len("setDeinflect:") :].strip()
+            self.dictInt.setDeinflect(raw.lower() in ("true", "1", "yes"))
+        elif dAct.startswith("setTabMode:"):
+            raw = dAct[len("setTabMode:") :].strip()
+            # Accepts "single"/"multi"/"true"/"false"/"onetab"/"tabs".
+            single = raw.lower() in ("single", "true", "1", "onetab", "yes")
+            self.dictInt.setTabMode(single)
+        elif dAct.startswith("openHistory"):
+            self.dictInt.openHistory()
+        elif dAct.startswith("openTheme"):
+            self.dictInt.setTheme()
+        elif dAct.startswith("setClipboardPaused:"):
+            # U2: one-click pause/resume of clipboard-monitored searches.
+            raw = dAct[len("setClipboardPaused:") :].strip()
+            paused = raw.lower() in ("true", "1", "yes")
+            self.dictInt.setClipboardPaused(paused)
+        elif dAct.startswith("requestSearchStatus:"):
+            # Chrome requests the current search source + pause state on mount
+            # (mirrors how getSearchHistory / getGroups are fetched on demand).
+            self.dictInt.pushSearchStatus()
+        elif dAct.startswith("saveSession:"):
+            # A5: the web shell reported its open-tab terms; persist them so the
+            # session can be restored when the dictionary reopens.
+            try:
+                terms = json.loads(dAct[len("saveSession:") :])
+                if isinstance(terms, list):
+                    self.dictInt.saveSession(terms)
+            except Exception:
+                logger.debug("Could not parse session terms")
 
     def setCurrentEditor(self, editor, target=""):
         if editor != self.currentEditor:
             self.currentEditor = editor
             self.reviewer = False
             self.dictInt.currentTarget.setText(target)
+            self.dictInt.pushHeaderState()
 
     def setReviewer(self, reviewer):
         self.reviewer = reviewer
         self.currentEditor = False
         self.dictInt.currentTarget.setText("Reviewer")
+        self.dictInt.pushHeaderState()
 
     def checkEditorClose(self, editor):
         if self.currentEditor == editor:
@@ -183,6 +325,7 @@ class MIDict(AnkiWebView):
         self.reviewer = False
         self.currentEditor = False
         self.dictInt.currentTarget.setText("")
+        self.dictInt.pushHeaderState()
 
 
 class HoverButton(QPushButton):
@@ -243,8 +386,6 @@ class DictInterface(QWidget):
             self.addonPath, "user_files/themes", "active.json"
         )
         self.theme_manager = ThemeManager(self.addonPath)
-        self.theme_editor = ThemeEditorDialog(self.theme_manager, mw, path, self)
-        self.theme_editor.applied.connect(self.refresh_application_theme)
 
         self.startUp(terms)
         self.setHotkeys()
@@ -263,6 +404,8 @@ class DictInterface(QWidget):
             self.dict.loadHTMLURL(html, url)
         if hasattr(self, "historyBrowser") and self.historyBrowser:
             self.historyBrowser.setColors()
+        if getattr(getattr(self, "dict", None), "addWindow", None):
+            self.dict.addWindow.setColors()  # ty:ignore[unresolved-attribute]
 
     def getPalette(self, color):
         pal = QPalette()
@@ -355,12 +498,13 @@ class DictInterface(QWidget):
         self.restoreSizePos()
         self.initTooltips()
         self.show()
-        self.search.setFocus()
+        self.dict.setFocus()
         self.refresh_application_theme()
         # if self.nightModeToggler.day:
         #     self.refresh_application_theme()
         # else:
         #     self.refresh_application_theme()
+        self.search_source = "manual"
         html, url = self.getHTMLURL(willSearch)
         self.dict.loadHTMLURL(html, url)
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
@@ -407,55 +551,136 @@ class DictInterface(QWidget):
                 return validTerms
         return False
 
-    def getHTMLURL(self, willSearch):
+    def _get_font_sizes(self) -> tuple[int, int]:
+        font_sizes = self.config.get("fontSizes", [12, 22])
+        fefs = font_sizes[0] if len(font_sizes) > 0 else 12
+        dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
+        return int(fefs), int(dbfs)
+
+    def _get_sidebar_width(self) -> int:
+        """Saved sidebar width in px (0 = unset, keep the CSS default)."""
+        return max(int(self.config.get("sidebarWidth", 0) or 0), 0)
+
+    def _svelte_dictionary_path(self) -> str | None:
+        """Locate the built Svelte UI bundle.
+
+        In a source checkout it lives at ``web/dist/dictionary.html``; in a
+        packaged addon it is copied to ``assets/web/dictionary.html`` by
+        ``build.py``. Returns ``None`` when the web UI has not been built so
+        callers can fall back to the legacy static assets.
+        """
+        candidates = (
+            join(self.addonPath, "web", "dist", "dictionary.html"),
+            join(self.addonPath, "assets", "web", "dictionary.html"),
+        )
+        for candidate in candidates:
+            if exists(candidate):
+                return candidate
+        return None
+
+    def getHTMLURL(self, _willSearch):
         active_theme_dict = theme_controller.get_theme_dict(self.theme_manager)
         qss = theme_controller.generate_qt_stylesheet(active_theme_dict)
         self.setStyleSheet(qss)
         custom_theme_css = theme_controller.generate_html_css(active_theme_dict)
+        fefs, dbfs = self._get_font_sizes()
+        sidebar_width = self._get_sidebar_width()
 
+        svelte_path = self._svelte_dictionary_path()
+        if svelte_path:
+            html, url = self._get_html_url_svelte(
+                svelte_path, custom_theme_css, fefs, dbfs, sidebar_width
+            )
+        else:
+            html, url = self._get_html_url_legacy(
+                custom_theme_css, fefs, dbfs, sidebar_width
+            )
+        return html, url
+
+    def _get_html_url_svelte(
+        self,
+        html_path: str,
+        custom_theme_css: str,
+        fefs: int,
+        dbfs: int,
+        sidebar_width: int,
+    ) -> tuple[str, QUrl]:
+        """Load the Svelte-built shell and apply the Python-side injections.
+
+        The Svelte ``index.html`` keeps the same placeholder hooks as the
+        legacy template (``customThemeCss``, ``welcomeBackground`` and a
+        ``FONT_SIZES`` marker) so the UI is configured identically.
+        """
+        with open(html_path, encoding="utf-8") as fh:
+            html = fh.read()
+
+        # Font sizes + saved sidebar width: the Svelte app reads
+        # window.fefs / window.dbfs / window.sidebarWidth. window.isMac is
+        # the authoritative platform flag (the webview UA is spoofed to macOS,
+        # so the UI must not sniff navigator.userAgent for ⌘ vs Ctrl).
+        is_mac_platform = bool(is_mac() if callable(is_mac) else is_mac)
+        export_html = "true" if self.config.get("exportHeaderHtml", False) else "false"
+        font_size_init = (
+            f"<script>window.fefs = {fefs}; window.dbfs = {dbfs};"
+            f" window.sidebarWidth = {sidebar_width};"
+            f" window.isMac = {'true' if is_mac_platform else 'false'};"
+            f" window.exportHeaderHtml = {export_html};</script>"
+        )
+        html = html.replace("<!-- FONT_SIZES -->", font_size_init)
+
+        # Theme CSS.
+        html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
+
+        # Welcome screen content.
+        if self.welcome and self.welcome.strip():
+            html = html.replace(
+                '<div id="welcomeBackground"></div>',
+                f'<div id="welcomeBackground">{self.welcome}</div>',
+            )
+
+        # Welcome visibility is fully reactive in the Svelte shell; nothing
+        # else needs to be injected.
+        self.svelte_shell = True
+        return html, QUrl.fromLocalFile(html_path)
+
+    def _get_html_url_legacy(
+        self, custom_theme_css: str, fefs: int, dbfs: int, sidebar_width: int
+    ) -> tuple[str, QUrl]:
         html_path = join(self.addonPath, "assets", "templates", "dictionary.html")
         js_path = join(self.addonPath, "assets", "scripts", "dictionary.js")
 
-        # Read the JavaScript content to inline it
         with open(js_path, encoding="utf-8") as js_file:
             js_content = js_file.read()
 
-        # Get saved font sizes from config, default to [12, 22]
-        font_sizes = self.config.get("fontSizes", [12, 22])
-        fefs = font_sizes[0] if len(font_sizes) > 0 else 12
-        dbfs = font_sizes[1] if len(font_sizes) > 1 else 22
-
         with open(html_path, encoding="utf-8") as fh:
             html = fh.read()
-            # Inject font size variables before the main script
-            font_size_init = f"<script>var fefs = {fefs}, dbfs = {dbfs};</script>"
-            # Replace the external script tag with inline JavaScript
+            is_mac_platform = bool(is_mac() if callable(is_mac) else is_mac)
+            export_html = (
+                "true" if self.config.get("exportHeaderHtml", False) else "false"
+            )
+            font_size_init = (
+                f"<script>var fefs = {fefs}, dbfs = {dbfs},"
+                f" sidebarWidth = {sidebar_width},"
+                f" exportHeaderHtml = {export_html};"
+                f" window.isMac = {'true' if is_mac_platform else 'false'};</script>"
+            )
             html = html.replace(
                 '<script src="../scripts/dictionary.js"></script>',
                 f"{font_size_init}<script>{js_content}</script>",
             )
-            # Inject the custom theme CSS
             html = html.replace('<style id="customThemeCss"></style>', custom_theme_css)
-            # Always inject welcome screen content if available
             if self.welcome and self.welcome.strip():
                 html = html.replace(
                     '<div id="welcomeBackground"></div>',
                     f'<div id="welcomeBackground">{self.welcome}</div>',
                 )
-
-            if not willSearch:
-                # Don't add a Welcome tab anymore, just show the background
-                html = html.replace(
-                    '<script id="initialValue"></script>',
-                    '<script id="initialValue">updateWelcomeVisibility();</script>',
-                )
-            else:
-                # If searching, we still need to clear the initialValue script tag
-                html = html.replace(
-                    '<script id="initialValue"></script>',
-                    '<script id="initialValue">updateWelcomeVisibility();</script>',
-                )
+            # Don't add a Welcome tab anymore, just show the background.
+            html = html.replace(
+                '<script id="initialValue"></script>',
+                '<script id="initialValue">updateWelcomeVisibility();</script>',
+            )
             url = QUrl.fromLocalFile(html_path)
+        self.svelte_shell = False
         return html, url
 
     def getAllGroups(self):
@@ -486,9 +711,10 @@ class DictInterface(QWidget):
 
     def hideEvent(self, event):  # ty:ignore[invalid-method-override]
         self.saveSizeAndPos()
-        shortcut = "(Ctrl+W)"
-        if is_mac:
-            shortcut = "⌘W"
+        from ..utils.shortcuts import format_menu_shortcut
+
+        mac = bool(is_mac() if callable(is_mac) else is_mac)
+        shortcut = format_menu_shortcut("W", mac)
         self.mw.openMiDict.setText("Open Dictionary " + shortcut)
         event.accept()
 
@@ -508,47 +734,38 @@ class DictInterface(QWidget):
         self.defaultGroups = self.db.getDefaultGroups()
         self.userGroups = self.getUserGroups()
 
-        # Update dictionary groups combo box
+        # Refresh the hidden state holders (no Qt toolbar anymore — the
+        # unified web header reads these via pushHeaderState).
         if hasattr(self, "dictGroups"):
             self.dictGroups.blockSignals(True)
             newDictGroupsCombo = self.setupDictGroups()
-            if hasattr(self, "toolbar"):
-                self.toolbar.replaceWidget(self.dictGroups, newDictGroupsCombo)
+            newDictGroupsCombo.setParent(self)
+            newDictGroupsCombo.hide()
             self.dictGroups.deleteLater()
             self.dictGroups = newDictGroupsCombo
         else:
             self.dictGroups = self.setupDictGroups()
+            self.dictGroups.setParent(self)
+            self.dictGroups.hide()
 
         # Update search type combo box (to reflect any language-specific search options if they were added)
         if hasattr(self, "sType"):
             self.sType.blockSignals(True)
             newSType = self.setupSearchType()
-            if hasattr(self, "toolbar"):
-                self.toolbar.replaceWidget(self.sType, newSType)
+            newSType.setParent(self)
+            newSType.hide()
             self.sType.deleteLater()
             self.sType = newSType
         else:
             self.sType = self.setupSearchType()
-
-        # Fixed sizes for header elements
-        header_height = 36
-        for widget in [self.dictGroups, self.sType]:
-            widget.setFixedHeight(header_height)
-        self.dictGroups.setFixedWidth(120)
-        self.sType.setFixedWidth(100)
+            self.sType.setParent(self)
+            self.sType.hide()
 
         previouslyOnTop = self.alwaysOnTop
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
         if previouslyOnTop != self.alwaysOnTop:
             self.setAlwaysOnTop()
         self.setAlwaysOnTop()
-
-        if not self.config["showTarget"]:
-            self.currentTarget.hide()
-            self.targetLabel.hide()
-        else:
-            self.targetLabel.show()
-            self.currentTarget.show()
 
         if self.config["tooltips"]:
             self.dictGroups.setToolTip("Select the dictionary group.")
@@ -612,75 +829,42 @@ class DictInterface(QWidget):
         return config
 
     def setupView(self):
+        """Build the main layout.
+
+        The header is unified in the web shell (Svelte ``Chrome``): the old
+        Qt toolbar was removed because it duplicated the in-web search box
+        and never showed up in the standalone web preview. The Qt combo
+        boxes / line edit are kept as hidden state holders (search pipeline
+        and history logic read them) so existing behaviour is unchanged.
+        """
         layoutV = QVBoxLayout()
 
-        # Unified Toolbar
-        self.toolbar = QHBoxLayout()
-        self.toolbar.setContentsMargins(10, 10, 10, 10)
-        self.toolbar.setSpacing(8)
-
-        # Left side: Combo boxes and Search
-        self.toolbar.addWidget(self.dictGroups)
-        self.toolbar.addWidget(self.sType)
-        self.toolbar.addWidget(self.search)
-
-        # Action buttons
-        self.toolbar.addWidget(self.searchButton)
-        self.toolbar.addWidget(self.openSB)
-
-        # Divider
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.VLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.toolbar.addWidget(line)
-
-        # Utility buttons
-        self.toolbar.addWidget(self.minusB)
-        self.toolbar.addWidget(self.plusB)
-        self.toolbar.addWidget(self.tabB)
-        self.toolbar.addWidget(self.histB)
-        self.toolbar.addWidget(self.conjToggler)
-        self.toolbar.addWidget(self.themeSettings)
-        self.toolbar.addWidget(self.setB)
-
-        # Target Info (if enabled)
-        if self.config["showTarget"]:
-            self.toolbar.addSpacing(10)
-            self.targetLabel.setStyleSheet("font-weight: bold; opacity: 0.7;")
-            self.toolbar.addWidget(self.targetLabel)
-            self.currentTarget.setStyleSheet("font-weight: medium;")
-            self.toolbar.addWidget(self.currentTarget)
-
-        self.toolbar.addStretch()
-
-        # Fixed sizes for header elements
-        header_height = 36
-        for widget in [self.dictGroups, self.sType, self.search]:
-            widget.setFixedHeight(header_height)
-
-        self.dictGroups.setFixedWidth(120)
-        self.sType.setFixedWidth(100)
-        self.search.setMinimumWidth(100)
-        self.search.setMaximumWidth(250)
-
-        # Set fixed size for all toolbar buttons
-        btn_size = 36
-        for btn in [
-            self.searchButton,
-            self.openSB,
-            self.minusB,
-            self.plusB,
-            self.tabB,
-            self.histB,
-            self.conjToggler,
-            self.themeSettings,
-            self.setB,
+        # Keep the former toolbar widgets alive but hidden — they remain the
+        # source of truth for group / search-mode / target state.
+        for widget in [
+            getattr(self, "dictGroups", None),
+            getattr(self, "sType", None),
+            getattr(self, "search", None),
+            getattr(self, "searchButton", None),
+            getattr(self, "openSB", None),
+            getattr(self, "minusB", None),
+            getattr(self, "plusB", None),
+            getattr(self, "tabB", None),
+            getattr(self, "histB", None),
+            getattr(self, "conjToggler", None),
+            getattr(self, "themeSettings", None),
+            getattr(self, "setB", None),
+            getattr(self, "currentTarget", None),
+            getattr(self, "targetLabel", None),
         ]:
-            btn.setFixedSize(btn_size, btn_size)
+            if widget is not None:
+                try:
+                    widget.setParent(self)
+                    widget.hide()
+                except Exception:
+                    pass
 
-        layoutV.addLayout(self.toolbar)
-
-        # Content Area
+        # Content Area (the unified web header lives inside the webview).
         layoutV.addWidget(self.dict)
 
         layoutV.setContentsMargins(0, 0, 0, 0)
@@ -740,6 +924,7 @@ class DictInterface(QWidget):
                 self.tabB.singleTab = True
                 self.setSvg(self.tabB, "onetab")
                 self.writeConfig("onetab", True)
+            self.pushHeaderState()
 
         except Exception as e:
             logger.error(f"Error in toggleTabMode: {e}")
@@ -779,13 +964,20 @@ class DictInterface(QWidget):
             self.setSvg(self.conjToggler, "closedcube")
             self.dict.deinflect = False
             self.writeConfig("deinflect", False)
+        self.pushHeaderState()
 
     def setTheme(self):
-        self.theme_editor.exec()
-        # The theme editor might have already triggered a refresh,
-        # but we call it here to be sure, with reload_html=True
-        # because the user actually changed the theme.
-        self.refresh_application_theme(reload_html=True)
+        """Open the theme gallery (Appearance tab of the settings window).
+
+        Themes used to be edited in a Qt colour-field dialog; the gallery in
+        the Svelte settings UI previews every theme on a miniature of this
+        window and repaints it live through the settings bridge, so the theme
+        button opens that instead.
+        """
+        self.openDictionarySettings()
+        settings_window = getattr(self.mw, "dictSettings", None)
+        if settings_window is not None:
+            settings_window.show_tab("appearance")
 
     def setSvg(self, widget, name):
         theme_color = theme_controller.load_color(self.theme_manager, "header_text")
@@ -982,15 +1174,17 @@ class DictInterface(QWidget):
             term,
         )[:30]
 
-    def initSearch(self, term=False):
+    def initSearch(self, term=False, source="manual"):
         self.ensureVisible()
         if term is False:
-            term = self.search.text()
+            term = self.search.text() if hasattr(self, "search") else ""
             term = term.strip()
         term = term.strip()
         term = self.cleanTermBrackets(term)
         if term == "":
             return
+
+        self.setSearchSource(source)
 
         if self.config.get("auto_select_dict_group", True):
             from anki_dictionary.utils.script_detector import find_matching_group
@@ -1013,17 +1207,218 @@ class DictInterface(QWidget):
                     self.dictGroups.blockSignals(False)
 
         selectedGroup = self.getSelectedDictGroup()
-        self.search.setText(term.strip())
+        if hasattr(self, "search"):
+            try:
+                self.search.setText(term.strip())
+            except Exception:
+                pass
         self.addToHistory(term)
         self.dict.addNewTab(term, selectedGroup)
-        self.search.setFocus()
+        self.pushHeaderState()
+        self.pushSearchHistory()
+
+    # ── search source + clipboard-monitor pause (U2) ─────────────────────
+
+    def setSearchSource(self, source: str) -> None:
+        """Record where the last search came from and reflect it in the web UI.
+
+        ``source`` is one of ``"manual"`` (in-app field/browser text),
+        ``"clipboard"`` (global hotkey / system clipboard), ``"browser"``
+        (selected text in the Anki browser/editor) or ``"extension"`` (browser
+        extension). Pushed to the Svelte chrome via ``setSearchSource``.
+        """
+        self.search_source = source
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setSearchSource(" + json.dumps(source, ensure_ascii=False) + ");"
+            )
+        except Exception:
+            logger.exception("Failed to push search source to the web view")
+
+    def setClipboardPaused(self, paused: bool) -> None:
+        """Persist and apply the clipboard-monitor pause state."""
+        self.writeConfig("clipboard_monitor_enabled", not paused)
+        self.pushHeaderState()
+
+    def clipboardPaused(self) -> bool:
+        return not bool(self.config.get("clipboard_monitor_enabled", True))
+
+    def pushSearchStatus(self) -> None:
+        """Push the current search source + clipboard-pause state to the web UI."""
+        if not getattr(self, "svelte_shell", False):
+            return
+        status = json.dumps(
+            {
+                "source": getattr(self, "search_source", "manual"),
+                "clipboardPaused": self.clipboardPaused(),
+            },
+            ensure_ascii=False,
+        )
+        try:
+            self.dict.eval("setSearchStatus(" + status + ");")
+        except Exception:
+            logger.exception("Failed to push search status to the web view")
+        # The unified header reads the same payload via setHeaderState.
+        self.pushHeaderState()
+
+    # ── unified web header (single chrome, no Qt toolbar) ──────────────
+
+    def _group_names(self) -> list[str]:
+        """Selectable group names, skipping the disabled "──────" separators.
+
+        ``QComboBox`` has no ``itemEnabled()``; enablement lives on the
+        underlying model item (that is also how ``setupDictGroups`` disables
+        the separator rows).
+        """
+        combo = self.dictGroups
+        model = combo.model()
+        names = []
+        for i in range(combo.count()):
+            item = model.item(i) if hasattr(model, "item") else None
+            if item is not None and not item.isEnabled():
+                continue
+            names.append(combo.itemText(i))
+        return names
+
+    def getHeaderState(self) -> dict:
+        """Full header state for the unified in-web chrome.
+
+        The Qt toolbar was removed; the Svelte ``Chrome`` is the single
+        header, so it needs groups + search modes + toggle states in one
+        payload (also used for the standalone web preview fallback).
+        """
+        single_tab = bool(getattr(getattr(self, "tabB", None), "singleTab", True))
+        if "onetab" in self.config:
+            # Config is authoritative across restarts; the button mirrors it.
+            single_tab = bool(self.config.get("onetab", single_tab))
+        return {
+            "groups": self._group_names(),
+            "current": self.dictGroups.currentText(),
+            "searchModes": list(getattr(self, "searchOptions", [])),
+            "searchMode": self.sType.currentText()
+            if hasattr(self, "sType")
+            else self.config.get("searchMode", "Forward"),
+            "deinflect": bool(getattr(getattr(self, "dict", None), "deinflect", False)),
+            "singleTab": single_tab,
+            "source": getattr(self, "search_source", "manual"),
+            "clipboardPaused": self.clipboardPaused(),
+            "target": self.currentTarget.text()
+            if hasattr(self, "currentTarget")
+            else "",
+            "showTarget": bool(self.config.get("showTarget", False)),
+            "exportHeaderHtml": bool(self.config.get("exportHeaderHtml", False)),
+        }
+
+    def pushGroups(self) -> None:
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setGroups("
+                + json.dumps(
+                    {
+                        "groups": self._group_names(),
+                        "current": self.dictGroups.currentText(),
+                    },
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        except Exception:
+            logger.exception("Failed to push groups to the web view")
+
+    def pushSearchModes(self) -> None:
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setSearchModes("
+                + json.dumps(
+                    {
+                        "modes": list(getattr(self, "searchOptions", [])),
+                        "current": self.sType.currentText(),
+                    },
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        except Exception:
+            logger.exception("Failed to push search modes to the web view")
+
+    def pushHeaderState(self) -> None:
+        """Push the unified header state (groups, modes, toggles) to the web UI."""
+        if not getattr(self, "svelte_shell", False):
+            return
+        try:
+            self.dict.eval(
+                "setHeaderState("
+                + json.dumps(self.getHeaderState(), ensure_ascii=False)
+                + ");"
+            )
+        except Exception:
+            logger.exception("Failed to push header state to the web view")
+        # Keep the legacy per-slice callbacks in sync for older bundles.
+        try:
+            self.dict.eval(
+                "setGroups("
+                + json.dumps(
+                    {
+                        "groups": self._group_names(),
+                        "current": self.dictGroups.currentText(),
+                    },
+                    ensure_ascii=False,
+                )
+                + ");"
+            )
+        except Exception:
+            pass
+
+    def setDictGroup(self, name: str) -> None:
+        combo = self.dictGroups
+        idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+            self.pushHeaderState()
+
+    def setSearchMode(self, name: str) -> None:
+        combo = self.sType
+        idx = combo.findText(name, Qt.MatchFlag.MatchExactly)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+            self.pushHeaderState()
+
+    def setDeinflect(self, enabled: bool) -> None:
+        self.dict.deinflect = bool(enabled)
+        self.writeConfig("deinflect", bool(enabled))
+        self.pushHeaderState()
+
+    def setTabMode(self, single: bool) -> None:
+        single = bool(single)
+        if hasattr(self, "tabB"):
+            self.tabB.singleTab = single
+        self.writeConfig("onetab", single)
+        self.pushHeaderState()
 
     def addToHistory(self, term):
         date = str(datetime.date.today())
         self.historyModel.insertRows(term=term, date=date)
         self.saveHistory()
 
+    def pruneHistory(self, limit: int = 200) -> None:
+        """Trim the in-memory history to the most recent ``limit`` entries (A4).
+
+        Called after writing history JSON so the file never grows unbounded
+        (the live web chrome already slices its dropdown to 50; this caps the
+        persisted model that backs it).
+        """
+        if len(self.historyModel.history) > limit:
+            self.historyModel.removeRows(0, len(self.historyModel.history) - limit)
+
     def saveHistory(self):
+        # A4: keep the persisted history from growing without bound.
+        self.pruneHistory()
         path = join(self.mw.col.media.dir(), "_searchHistory.json")
         with codecs.open(path, "w", "utf-8") as outfile:  # ty:ignore[deprecated]
             json.dump(self.historyModel.history, outfile, ensure_ascii=False)
@@ -1044,6 +1439,45 @@ class DictInterface(QWidget):
         except Exception as e:
             logger.warning(f"Could not load search history: {e}")
             return []
+
+    def pushSearchHistory(self) -> None:
+        """Push the current history to the web shell (chrome dropdown + sidebar)."""
+        try:
+            self.dict.eval(
+                "setSearchHistory("
+                + json.dumps(self.historyModel.history, ensure_ascii=False)
+                + ");"
+            )
+        except Exception:
+            logger.debug("Web view not ready to receive search history")
+
+    def deleteHistoryEntry(self, term: str) -> None:
+        """Remove one search-history entry (U3 sidebar prune; old Qt dialog).
+
+        Mirrors the Qt history dialog's remove: the model row is dropped, the
+        file is saved (``removeRows`` persists) and the web shell receives the
+        refreshed list so the sidebar/chrome update immediately.
+        """
+        for i, item in enumerate(self.historyModel.history):
+            if item and item[0] == term:
+                self.historyModel.removeRows(i)
+                if i < len(self.historyModel.justTerms):
+                    del self.historyModel.justTerms[i]
+                break
+        self.pushSearchHistory()
+
+    # ── session restore (A5) ────────────────────────
+
+    def saveSession(self, terms: list) -> None:
+        """Persist the open-tab terms so the session survives a reopen (A5)."""
+        capped = [str(t).strip() for t in terms if str(t).strip()][:20]
+        self.writeConfig("session_terms", capped)
+
+    def restoreSession(self) -> list:
+        """Return the saved session terms (empty when none / disabled)."""
+        from anki_dictionary.utils.config import get_session_terms
+
+        return get_session_terms(self.config)
 
     def updateFieldsSetting(self, dictName, fields):
         clean_name = self.db.cleanDictName(dictName)

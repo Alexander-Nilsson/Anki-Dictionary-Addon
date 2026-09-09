@@ -1,0 +1,7 @@
+node_modules/
+dist/
+
+# The root .gitignore has an unanchored `lib/` pattern (setuptools artifact)
+# that would swallow web/src/lib/. Re-include the Svelte source dir.
+!src/lib/
+!src/lib/**

@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple header demos — Anki Dictionary (PROTOTYPE)</title>
+<style>
+/* ==========================================================================
+   PROTOTYPE — throwaway simplicity exploration.
+   Question: "How calm can the header get without losing capabilities?"
+   Open in any browser, no build:  ?variant=current|s1|s2|s3
+   ========================================================================== */
+:root { --radius: 12px; --radius-sm: 8px; --shadow: 0 8px 28px rgba(0,0,0,.32);
+  --font: "Segoe UI", system-ui, -apple-system, "Noto Sans JP", sans-serif; }
+:root[data-theme="dark"] { --bg:#191d26; --bg-2:#1e2430; --panel:#232a38; --panel-2:#2a3242;
+  --line:#313a4c; --line-soft:#272f3e; --text:#e9ecf3; --text-2:#9aa4b6; --text-3:#6b7486;
+  --accent:#4fc3f7; --accent-soft:rgba(79,195,247,.14); --ok:#6ee7a0; --gold:#ffd166;
+  --violet:#c39bff; --danger:#ff7d7d; }
+:root[data-theme="light"] { --bg:#f4f6fa; --bg-2:#eef1f6; --panel:#fff; --panel-2:#f7f9fc;
+  --line:#dfe5ee; --line-soft:#e8edf4; --text:#212a38; --text-2:#5c6778; --text-3:#98a2b3;
+  --accent:#0e7bc0; --accent-soft:rgba(14,123,192,.12); --ok:#1fa865; --gold:#c7900b;
+  --violet:#7a4fd0; --danger:#d64545; }
+* { box-sizing: border-box; } html, body { margin:0; } body {
+  background:var(--bg); color:var(--text); font-family:var(--font);
+  font-size:14px; line-height:1.55; padding-bottom:90px; }
+button { font:inherit; color:inherit; cursor:pointer; } input, select { font:inherit; }
+
+/* ── header shell ── */
+.bar { position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:8px;
+  padding:8px 14px; background:color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter:blur(10px); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.brand { font-weight:700; font-size:13px; white-space:nowrap; }
+.brand small { color:var(--text-3); font-weight:400; }
+.proto-tag { font-size:10px; text-transform:uppercase; letter-spacing:.8px;
+  padding:3px 8px; border-radius:99px; background:var(--danger); color:#fff; }
+.search { position:relative; flex:1 1 200px; min-width:150px; display:flex; align-items:center; }
+.search > span.ic { position:absolute; left:11px; color:var(--text-3); font-size:14px; }
+.search input { width:100%; padding:8px 12px 8px 34px; border:1px solid var(--line);
+  border-radius:99px; background:var(--panel); color:var(--text); outline:none; }
+.search input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.hist { position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--panel);
+  border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+  display:none; z-index:60; overflow:hidden; }
+.hist.open { display:block; }
+.hist .hi { padding:8px 14px; display:flex; justify-content:space-between; gap:10px; cursor:pointer; }
+.hist .hi:hover, .hist .hi.sel { background:var(--accent-soft); }
+.hist .hi small { color:var(--text-3); }
+select.sel { padding:7px 10px; border-radius:9px; border:1px solid var(--line);
+  background:var(--panel); color:var(--text); flex:none; max-width:150px; }
+.ib { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+  border-radius:9px; border:1px solid transparent; background:transparent; color:var(--text-2); flex:none; }
+.ib:hover { background:var(--accent-soft); color:var(--accent); }
+.ib.on { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+.ib svg { width:16px; height:16px; }
+.div { width:1px; align-self:stretch; background:var(--line); opacity:.7; }
+.pill { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:4px 10px;
+  border-radius:99px; border:1px solid var(--line); color:var(--text-2); background:var(--panel);
+  white-space:nowrap; }
+.pill.hot { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+
+/* overflow menu */
+.menuwrap { position:relative; flex:none; }
+.menu { position:absolute; right:0; top:calc(100% + 6px); min-width:250px; background:var(--panel);
+  border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:6px;
+  display:none; z-index:70; }
+.menu.open { display:block; }
+.menu button.mi { display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  border:none; background:transparent; padding:9px 12px; border-radius:8px; font-size:13px;
+  color:var(--text); }
+.menu button.mi:hover { background:var(--accent-soft); }
+.menu button.mi .st { margin-left:auto; color:var(--text-3); font-size:12px; }
+.menu .sep { height:1px; background:var(--line-soft); margin:5px 8px; }
+.menu .mlab { font-size:10.5px; text-transform:uppercase; letter-spacing:1px;
+  color:var(--text-3); padding:7px 12px 3px; }
+
+/* note + stage */
+#note { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:9px 16px;
+  border-bottom:1px solid var(--line-soft); background:var(--bg-2);
+  color:var(--text-2); font-size:12.5px; }
+#note b { color:var(--text); } #note .why { flex-basis:100%; color:var(--text-3); }
+#note .chip { padding:2px 9px; border-radius:99px; border:1px solid var(--line); font-size:11.5px; }
+#note .chip.gone { border-color:var(--danger); color:var(--danger); text-decoration:line-through; }
+#note .chip.new { border-color:var(--ok); color:var(--ok); }
+#stage { max-width:860px; margin:0 auto; padding:18px 18px 60px; }
+.count { font-size:12px; color:var(--text-3); padding:10px; border:1px dashed var(--line);
+  border-radius:10px; margin-bottom:14px; }
+
+/* results */
+.dhead { position:sticky; top:53px; z-index:20; display:flex; align-items:center; gap:10px;
+  padding:9px 14px; margin:0 -18px 12px; background:color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter:blur(8px); border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line); }
+.dhead .t { font-weight:700; } .dhead .sub { font-size:12px; color:var(--text-3); }
+.dhead .sp { flex:1; }
+.entry { background:var(--panel); border:1px solid var(--line-soft); border-radius:var(--radius);
+  padding:15px 17px; margin-bottom:12px; }
+.entry .r1 { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
+.entry .term { font-size:23px; font-weight:800; } .entry .pron { color:var(--text-2); }
+.badge { display:inline-flex; font-size:11px; font-weight:600; padding:1px 8px; border-radius:99px; }
+.badge.g { color:var(--gold); background:color-mix(in srgb, var(--gold) 15%, transparent); }
+.badge.a { color:var(--accent); background:var(--accent-soft); }
+.badge.o { color:var(--ok); background:color-mix(in srgb, var(--ok) 14%, transparent); }
+.badge.p { color:var(--text-2); background:var(--panel-2); }
+.acts { display:flex; gap:5px; margin-left:auto; }
+.acts button { width:30px; height:30px; border-radius:8px; border:1px solid transparent;
+  background:transparent; color:var(--text-2); display:inline-flex; align-items:center; justify-content:center; }
+.acts button:hover { background:var(--accent-soft); color:var(--accent); }
+.acts button svg { width:15px; height:15px; }
+.hover-only .acts { opacity:0; transition:opacity .15s; }
+.hover-only .entry:hover .acts, .hover-only .entry:focus-within .acts { opacity:1; }
+.always .tools5 { display:flex; gap:6px; margin:8px 0; }
+.always .tools5 button { width:28px; height:28px; border-radius:7px; border:1px solid var(--line);
+  background:var(--panel-2); color:var(--text-2); }
+.sense { color:var(--text-2); margin:9px 0 0; }
+.sense .pos { color:var(--text-3); font-style:italic; font-size:12.5px; margin-right:8px; }
+.ex { margin:8px 0 0; padding:8px 12px; border-left:3px solid var(--accent-soft);
+  background:var(--bg-2); border-radius:0 8px 8px 0; font-size:13px; }
+.collapsed .more { max-height:96px; overflow:hidden; position:relative; }
+.collapsed .more::after { content:""; position:absolute; left:0; right:0; bottom:0; height:44px;
+  background:linear-gradient(transparent, var(--panel)); }
+.showmore { border:none; background:none; color:var(--accent); font-size:12.5px;
+  font-weight:600; padding:6px 0 0; }
+@keyframes sh { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+.skel { border-radius:8px; background:linear-gradient(90deg,var(--panel-2) 25%,var(--bg-2) 50%,var(--panel-2) 75%);
+  background-size:800px 100%; animation:sh 1.4s infinite linear; }
+.skel.ln { height:12px; margin:8px 0; }
+.ldr-card { border:1px dashed var(--line); border-radius:var(--radius); padding:13px 16px; margin-bottom:12px; }
+.ldr-card .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--text-3); margin-bottom:6px; }
+
+/* palette */
+#pal { position:fixed; inset:0; z-index:100; display:none; align-items:flex-start; justify-content:center;
+  padding-top:12vh; background:rgba(0,0,0,.45); }
+#pal.open { display:flex; }
+#pal .card { width:min(520px, 92vw); background:var(--panel); border:1px solid var(--line);
+  border-radius:14px; box-shadow:var(--shadow); overflow:hidden; }
+#pal input { width:100%; border:none; outline:none; background:transparent; color:var(--text);
+  padding:14px 16px; font-size:15px; border-bottom:1px solid var(--line-soft); }
+#pal .cmd { display:flex; gap:10px; align-items:center; width:100%; text-align:left; border:none;
+  background:transparent; padding:10px 16px; color:var(--text); }
+#pal .cmd:hover, #pal .cmd.sel { background:var(--accent-soft); }
+#pal .cmd kbd { margin-left:auto; font-size:11px; border:1px solid var(--line);
+  border-radius:5px; padding:1px 7px; color:var(--text-2); background:var(--panel-2); }
+#toasts { position:fixed; right:18px; bottom:70px; z-index:120; display:flex; flex-direction:column; gap:8px; }
+.toast { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
+  border-radius:10px; padding:9px 14px; box-shadow:var(--shadow); font-size:13px; max-width:320px; }
+#sw { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:90; display:flex;
+  align-items:center; gap:4px; background:var(--panel); border:1px solid var(--line);
+  border-radius:99px; box-shadow:var(--shadow); padding:5px 8px; }
+#sw button { width:32px; height:32px; border-radius:50%; border:none; background:transparent;
+  color:var(--text-2); font-size:16px; }
+#sw button:hover { background:var(--accent-soft); color:var(--accent); }
+#sw .lb { min-width:230px; text-align:center; font-size:12.5px; color:var(--text-2); }
+#sw .lb b { color:var(--text); }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="note"></div>
+<div id="stage"></div>
+<div id="pal"><div class="card"><input id="palq" placeholder="Type a command or search…" />
+<div id="palcmds"></div></div></div>
+<div id="toasts"></div>
+<div id="sw"><button id="prev" title="Previous (←)">‹</button>
+<span class="lb" id="swlabel"></span><button id="next" title="Next (→)">›</button></div>
+
+<script>
+const VARIANTS = [
+  { key:"current", name:"Today — 13 controls" },
+  { key:"s1", name:"S1 — minimal (3 + ⋯)" },
+  { key:"s2", name:"S2 — calm (5 + ⋯)" },
+  { key:"s3", name:"S3 — command (⌘K)" },
+];
+const NOTES = {
+  current: { t:"Today: every capability is a visible button. Calm? No — the strip wraps to two rows and buries search.",
+    gone:[], fresh:["baseline for comparison"] },
+  s1: { t:"S1 keeps 3 things visible: search, scope, overflow. Everything else lives in ⋯ or on the keyboard. Pills appear only when interesting.",
+    gone:["9 permanent buttons","always-on Manual pill"], fresh:["scope select","overflow menu","contextual pills"] },
+  s2: { t:"S2 is the compromise: search, group, mode, sidebar stay visible; the 6 rarest move to ⋯. Same results polish as S1.",
+    gone:["font ±","tab","history","deinflect","theme","pause as buttons"], fresh:["overflow","hover actions"] },
+  s3: { t:"S3: the header is a trigger, not a toolbar. ⌘K opens a palette for everything (search + commands). Fewest pixels, most keyboard.",
+    gone:["all selects","all toggle buttons"], fresh:["command palette"] },
+};
+const HIST = [{t:"食べる",d:"today"},{t:"かっこいい",d:"yesterday"},{t:"難しい",d:"Tue"},{t:"行く",d:"Mon"}];
+const S = { group:"ja", mode:"Forward", sidebar:true, single:true, deinflect:false,
+  paused:false, source:"manual", theme:"dark" };
+const $ = (s,r)=>(r||document).querySelector(s), Q = (s,r)=>Array.from((r||document).querySelectorAll(s));
+const esc = s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(m){ const e=document.createElement("div"); e.className="toast"; e.textContent=m;
+  $("#toasts").appendChild(e); setTimeout(()=>e.remove(),1900); }
+const IB = {
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
+  side:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>',
+  minus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+  tabs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="7" width="13" height="13" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>',
+  one:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>',
+  hist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>',
+  cube:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M12 22V12"/><path d="m3 7 9 5 9-5"/></svg>',
+  theme:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-1 1.5-2-.5-1.2.2-2.5 1.5-2.5H17a4 4 0 0 0 4-4c0-5-4-9.5-9-9.5Z"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>',
+  dots:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  exp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M4 17v4h16v-4"/></svg>',
+  clip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+};
+function searchBox(){ return `<div class="search"><span class="ic">⌕</span>
+  <input id="q" placeholder="Search the dictionary (Ctrl+K)" autocomplete="off" spellcheck="false" />
+  <div class="hist" id="hist"></div></div>`; }
+function grpSel(){ return `<select class="sel" id="grp" title="Dictionary group">
+  ${["ja","zh","All","Images"].map(g=>`<option ${g===S.group?"selected":""}>${g}</option>`).join("")}</select>`; }
+function modeSel(){ return `<select class="sel" id="mode" title="Search mode" style="max-width:118px">
+  ${["Forward","Exact","Anywhere","Definition"].map(m=>`<option ${m===S.mode?"selected":""}>${m}</option>`).join("")}</select>`; }
+function scopeSel(){ return `<select class="sel" id="scope" title="Scope: group + mode" style="max-width:170px">
+  <option selected>ja · Forward</option><option>ja · Exact</option>
+  <option>zh · Forward</option><option>All · Anywhere</option></select>`; }
+function pillIfHot(){
+  if (S.source==="clipboard") return `<span class="pill hot">⧉ From clipboard</span>`;
+  if (S.paused) return `<span class="pill hot">❚❚ paused</span>`;
+  return ``; /* Manual/target hidden unless set — that IS the simplification */
+}
+function overflowBtn(){ return `<div class="menuwrap"><button class="ib" id="dots" title="More actions" aria-label="More actions">${IB.dots}</button>
+  <div class="menu" id="menu"></div></div>`; }
+function menuInner(full){
+  const t = (k,label,state)=>`<button class="mi" data-k="${k}">${label}<span class="st">${state||""}</span></button>`;
+  return `<div class="mlab">View</div>`
+    + t("sidebar","Toggle sidebar", S.sidebar?"on":"off")
+    + t("font-","Font smaller")+ t("font+","Font larger")
+    + t("tabs","Tab mode", S.single?"single":"multi")
+    + (full?"":`<div class="sep"></div><div class="mlab">Search</div>`
+    + t("hist","Search history")+ t("deinf","Deinflection", S.deinflect?"on":"off"))
+    + `<div class="sep"></div><div class="mlab">Addon</div>`
+    + t("theme","Theme editor", S.theme)
+    + t("pause","Clipboard monitoring", S.paused?"paused":"active")
+    + t("settings","Dictionary settings");
+}
+
+function barFor(v){
+  const tag = `<span class="proto-tag">PROTO</span><span class="brand">辞書 <small>simple</small></span>`;
+  if (v==="current") return `<div class="bar">${tag}${searchBox()}
+    <button class="ib" title="Search">${IB.search}</button>${grpSel()}${modeSel()}
+    <button class="ib ${S.sidebar?"on":""}" title="Sidebar">${IB.side}</button><span class="div"></span>
+    <button class="ib" title="Font −">${IB.minus}</button><button class="ib" title="Font +">${IB.plus}</button>
+    <button class="ib" title="Tab mode">${S.single?IB.one:IB.tabs}</button>
+    <button class="ib" title="History">${IB.hist}</button>
+    <button class="ib ${S.deinflect?"on":""}" title="Deinflect">${IB.cube}</button>
+    <button class="ib" title="Theme">${IB.theme}</button>
+    <span class="pill">◍ Manual</span>
+    <button class="ib ${S.paused?"on":""}" title="Pause">❚❚</button>
+    <button class="ib" title="Settings">${IB.gear}</button></div>`;
+  if (v==="s1") return `<div class="bar">${tag}${searchBox()}${scopeSel()}${pillIfHot()}${overflowBtn()}</div>`;
+  if (v==="s2") return `<div class="bar">${tag}${searchBox()}${grpSel()}${modeSel()}
+    <button class="ib ${S.sidebar?"on":""}" title="Sidebar">${IB.side}</button>${pillIfHot()}${overflowBtn()}</div>`;
+  return `<div class="bar" style="justify-content:center">${tag}
+    <button class="ib" id="palopen" title="Search / commands (Ctrl+K)"
+      style="flex:1;max-width:420px;border:1px solid var(--line);border-radius:99px;height:36px;gap:8px;width:auto;padding:0 16px;">
+      <span style="color:var(--text-3)">⌕</span><span style="color:var(--text-3)">Search or type a command…</span>
+      <span style="flex:1"></span><kbd style="font-size:11px;border:1px solid var(--line);border-radius:5px;padding:0 6px;color:var(--text-3)">⌘K</kbd>
+    </button>${overflowBtn()}</div>`;
+}
+
+function resultsFor(v){
+  const noisy = v==="current";
+  const count = noisy
+    ? `<div class="count">13 header controls · tools always visible · text loaders — the noise baseline.</div>`
+    : `<div class="count">1 search row · contextual pills · hover actions · sticky headers — same power, ~70% less chrome.</div>`;
+  const tools = noisy
+    ? `<div class="tools5"><button>⇩</button><button>✂</button><button>➞</button><button>▲</button><button>▼</button></div>`
+    : `<div class="acts"><button title="Export (E)">${IB.exp}</button><button title="Copy (C)">${IB.clip}</button><button title="More">${IB.dots}</button></div>`;
+  const badges = `<span class="badge g">★★★★★</span> <span class="badge p">[3k]</span> <span class="badge o">N5</span>`;
+  const entry = (term, pron, defs, extra="")=>`<section class="entry">
+    <div class="r1"><span class="term">${term}</span><span class="pron">${pron}</span>${badges}${tools}</div>
+    ${defs.map(d=>`<div class="sense"><span class="pos">${d[0]}</span>${esc(d[1])}</div>`).join("")}${extra}</section>`;
+  const longDef = `<div class="more"><div class="sense"><span class="pos">Ichidan verb</span>${esc("to eat; to make a meal (of). ".repeat(14))}</div></div>
+    <button class="showmore" onclick="this.parentElement.classList.toggle('collapsed');this.textContent=this.textContent.includes('more')?'Show less':'Show more…'">Show more…</button>`;
+  const loader = noisy
+    ? `<div class="ldr-card"><div class="lbl">Images</div><div style="color:var(--text-3);font-size:12.5px">Loading images from DuckDuckGo…</div></div>`
+    : `<div class="ldr-card"><div class="lbl">Images</div><div class="skel ln" style="width:65%"></div><div class="skel ln" style="width:45%"></div></div>`;
+  return `${count}<div class="${noisy?"always":"hover-only"}">
+    <div class="dhead"><span class="t">JMDict</span><span class="sub">2 senses</span><span class="sp"></span>${noisy?"":pillIfHot()}</div>
+    ${entry("食べる","たべる",[["Ichidan verb","to eat; to make a meal (of)"],["Idiomatic","to live off someone — 親のすねをかじって食べている。"]])}
+    <div class="entry collapsed">${`<div class="r1"><span class="term">食べる</span><span class="pron">たべる</span>${badges}${tools}</div>`}${longDef}</div>
+    ${loader}</div>`;
+}
+
+function cur(){ return new URLSearchParams(location.search).get("variant") || "current"; }
+function render(){
+  const v = VARIANTS.find(x=>x.key===cur()) || VARIANTS[0];
+  $("#bar").innerHTML = barFor(v.key);
+  const n = NOTES[v.key];
+  $("#note").innerHTML = `<b>${esc(v.name)}</b>`
+    + (n.gone.map(g=>`<span class="chip gone">${esc(g)}</span>`).join(""))
+    + (n.fresh.map(g=>`<span class="chip new">${esc(g)}</span>`).join(""))
+    + `<span class="why">${esc(n.t)}</span>`;
+  $("#swlabel").innerHTML = `<b>${v.key.toUpperCase()}</b> — ${esc(v.name)}`;
+  $("#stage").innerHTML = resultsFor(v.key);
+  wire(v.key);
+}
+function openHist(){
+  const h=$("#hist"); if(!h) return;
+  h.innerHTML = HIST.map(x=>`<div class="hi" data-t="${esc(x.t)}"><span>${esc(x.t)}</span><small>${esc(x.d)}</small></div>`).join("");
+  h.classList.add("open");
+  Q(".hi",h).forEach(el=>el.onmousedown=e=>{ e.preventDefault(); $("#q").value=el.dataset.t; closeHist(); toast(`Searched “${el.dataset.t}” (mock)`); });
+}
+function closeHist(){ $("#hist")?.classList.remove("open"); }
+function wire(v){
+  const q=$("#q");
+  if(q){ q.addEventListener("focus",openHist); q.addEventListener("focusout",()=>setTimeout(closeHist,150));
+    q.addEventListener("input",()=>{ $("#hist")?.classList.add("open"); });
+    q.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); toast(`Searched “${q.value.trim()||"食べる"}” (mock)`); closeHist(); } }); }
+  $("#grp")?.addEventListener("change",e=>{ S.group=e.target.value; toast(`Group → ${S.group} (mock)`); });
+  $("#mode")?.addEventListener("change",e=>{ S.mode=e.target.value; toast(`Mode → ${S.mode} (mock)`); });
+  $("#scope")?.addEventListener("change",e=>toast(`Scope → ${e.target.value} (mock)`));
+  document.querySelectorAll("#bar .ib:not(#dots)").forEach(b=>{ if(!b.onclick && !b.id) b.onclick=()=>toast(`${b.title||"Action"} (mock)`); });
+  const dots=$("#dots"), menu=$("#menu");
+  if(dots&&menu){ menu.innerHTML=menuInner(v==="s2");
+    dots.onclick=e=>{ e.stopPropagation(); menu.classList.toggle("open"); };
+    document.onclick=()=>menu.classList.remove("open");
+    menu.onclick=e=>e.stopPropagation();
+    Q(".mi",menu).forEach(b=>b.onclick=()=>{
+      const k=b.dataset.k;
+      if(k==="sidebar"){ S.sidebar=!S.sidebar; toast(`Sidebar ${S.sidebar?"opened":"closed"} (mock)`); }
+      else if(k==="tabs"){ S.single=!S.single; toast(`Tab mode → ${S.single?"single":"multi"} (mock)`); }
+      else if(k==="deinf"){ S.deinflect=!S.deinflect; toast(`Deinflection ${S.deinflect?"on":"off"} (mock)`); }
+      else if(k==="pause"){ S.paused=!S.paused; toast(`Clipboard ${S.paused?"paused":"active"} (mock)`); }
+      else if(k==="theme"){ S.theme=S.theme==="dark"?"light":"dark"; document.documentElement.dataset.theme=S.theme; toast(`Theme → ${S.theme}`); }
+      else toast(`${b.textContent.trim()} (mock)`);
+      menu.classList.remove("open"); render(); }); }
+  $("#palopen")?.addEventListener("click",openPal);
+}
+const CMDS=[["Search…","⌘K"],["Switch group","G"],["Switch mode","M"],["Toggle sidebar","S"],["Toggle tabs","T"],["Deinflection on/off","D"],["Pause clipboard","P"],["Theme","H"],["Settings",","]];
+function openPal(){ $("#pal").classList.add("open"); const i=$("#palq"); i.value=""; drawPal(""); setTimeout(()=>i.focus(),30); }
+function closePal(){ $("#pal").classList.remove("open"); }
+function drawPal(f){
+  $("#palcmds").innerHTML=CMDS.filter(c=>c[0].toLowerCase().includes(f.toLowerCase()))
+    .map(c=>`<button class="cmd" data-c="${esc(c[0])}">${esc(c[0])}<kbd>${esc(c[1])}</kbd></button>`).join("")
+    || `<div style="padding:14px 16px;color:var(--text-3)">No match — Enter searches “${esc(f)}”</div>`;
+  Q("#palcmds .cmd").forEach(b=>b.onclick=()=>{ closePal(); toast(`${b.dataset.c} (mock)`); });
+}
+$("#palq").addEventListener("input",e=>drawPal(e.target.value));
+$("#palq").addEventListener("keydown",e=>{ if(e.key==="Enter"){ closePal(); toast(`Searched “${e.target.value||"食べる"}” (mock)`); } if(e.key==="Escape") closePal(); });
+$("#pal").addEventListener("click",e=>{ if(e.target.id==="pal") closePal(); });
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){ e.preventDefault(); openPal(); }
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||"");
+  if(typing) return;
+  if(e.key==="ArrowLeft") cycle(-1); if(e.key==="ArrowRight") cycle(1);
+});
+function cycle(d){ const i=VARIANTS.findIndex(x=>x.key===cur());
+  const n=VARIANTS[(i+d+VARIANTS.length)%VARIANTS.length];
+  const u=new URL(location.href); u.searchParams.set("variant",n.key); history.replaceState(null,"",u); render(); }
+$("#prev").onclick=()=>cycle(-1); $("#next").onclick=()=>cycle(1);
+render();
+</script>
+</body>
+</html>

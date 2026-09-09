@@ -3,16 +3,13 @@
 
 import datetime
 
-from anki.utils import is_mac
 from aqt.qt import (
     QAbstractItemView,
     QAbstractTableModel,
-    QColor,
     QHBoxLayout,
     QHeaderView,
     QKeySequence,
     QModelIndex,
-    QPalette,
     QPushButton,
     QShortcut,
     Qt,
@@ -96,7 +93,8 @@ class HistoryBrowser(QWidget):
         super().__init__(parent, Qt.WindowType.Window)
         self.history_model = None
         self.setAutoFillBackground(True)
-        self.resize(300, 200)
+        self.resize(460, 360)
+        self.setMinimumSize(320, 240)
         self.tableView = QTableView()
         self.model = historyModel
         self.dictInt = parent
@@ -141,21 +139,88 @@ class HistoryBrowser(QWidget):
 
     def setColors(self):
         """
-        Set the colors for the history browser based on the active theme.
+        Theme the history browser to match the active dictionary theme.
+
+        The browser is a separate top-level window, so it does not inherit the
+        dictionary window's stylesheet. This builds a full Qt stylesheet from
+        the active ``ThemeColors`` — window background, table, header, cells,
+        selection and the footer button — mirroring ``theme_controller``'s
+        design (rounded borders, the tab gradient for the button, etc.).
         """
-        # Load the background color from the active theme
-        active_theme = self.dictInt.theme_manager.get_active_theme()
-        background_color = QColor(active_theme.header_background)
+        theme = self.dictInt.theme_manager.get_active_theme()
 
-        # Create a QPalette object and set the background color
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, background_color)
+        # Brightness-aware hues for the hover/selection surfaces.
+        from ..ui.theme_controller import hex_to_rgba
 
-        # Apply the palette to the history browser
-        self.setPalette(palette)
-        self.setStyleSheet(
-            self.dictInt.theme_manager.get_qt_styles(is_mac=is_mac)
-        )  # Reapply stylesheet
+        border_soft = hex_to_rgba(theme.border, 0.6)
+
+        sheet = f"""
+        QWidget {{
+            background-color: {theme.header_background};
+            color: {theme.header_text};
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: 13px;
+        }}
+        QTableView {{
+            background-color: {theme.definition_background};
+            color: {theme.definition_text};
+            border: 1px solid {theme.border};
+            border-radius: 8px;
+            gridline-color: {theme.border};
+            selection-background-color: {theme.search_term};
+            selection-color: white;
+            outline: none;
+        }}
+        QTableView::item {{
+            padding: 6px 10px;
+            border-bottom: 1px solid {border_soft};
+        }}
+        QTableView::item:hover {{
+            background-color: {theme.tab_hover};
+        }}
+        QTableView::item:selected {{
+            background-color: {theme.search_term};
+            color: white;
+            border-radius: 4px;
+        }}
+        QHeaderView {{
+            background: transparent;
+            border: none;
+        }}
+        QHeaderView::section {{
+            background-color: {theme.selector};
+            color: {theme.header_text};
+            border-right: 1px solid {theme.border};
+            border-bottom: 1px solid {theme.border};
+            padding: 6px 10px;
+            font-weight: 600;
+        }}
+        QPushButton {{
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 {theme.current_tab_gradient_top},
+                stop: 1 {theme.current_tab_gradient_bottom});
+            color: {theme.anki_button_text};
+            border: 1px solid {theme.border};
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-weight: 500;
+        }}
+        QPushButton:hover {{
+            border: 1.5px solid {theme.search_term};
+        }}
+        QPushButton:pressed {{
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                stop: 0 {theme.current_tab_gradient_bottom},
+                stop: 1 {theme.current_tab_gradient_top});
+        }}
+        QToolTip {{
+            background-color: {theme.selector};
+            color: {theme.header_text};
+            border: 1px solid {theme.border};
+            padding: 3px 6px;
+        }}
+        """
+        self.setStyleSheet(sheet)
         self.update()  # Force the widget to repaint
 
     def deleteHistory(self):

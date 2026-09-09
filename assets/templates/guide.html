@@ -3,7 +3,17 @@
 <head>
 	<link rel="stylesheet" id="wp-block-library-css" href="guide.css" type="text/css" media="all">
 	<style>
-				.elementor-widget-container {
+		/* Local fallbacks — the settings window may inject the dictionary
+		   theme's CSS variables; when absent, these defaults keep the guide
+		   readable (previously hardcoded black on white). */
+		:root {
+			--text: #111;
+			--header_text: #111;
+			--background: #fff;
+			--border: #ccc;
+			--search_term: #1a5fb4;
+		}
+		.elementor-widget-container {
 		  margin: auto;
 		  padding: 0px;
 		  width: 800px;
@@ -27,12 +37,12 @@
 			font-size: 21px !important;
 			zoom:110%;
 			margin: 0px;
-			color: black !important;
+			color: var(--text) !important;
 		}
 		.table-of-contents-header{
 			font-size: 150%;
             font-weight: 600;
-            color:#333;
+            color: var(--header_text);
 		}
         .box{
             margin-top:15px;
@@ -47,7 +57,7 @@
         }
 
         a{
-        	color: blue;
+        	color: var(--search_term);
         }
 
 
@@ -55,4 +65,3 @@
 </head>
 </head>
 </html>
-

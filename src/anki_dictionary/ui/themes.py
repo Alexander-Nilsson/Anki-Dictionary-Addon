@@ -178,6 +178,28 @@ class ThemeManager:
             ),
         }
 
+    @property
+    def builtin_names(self) -> list[str]:
+        """Theme ids that ship with the addon (never renamed or deleted)."""
+        return list(self._load_default_themes())
+
+    def selectable_themes(self) -> dict[str, ThemeColors]:
+        """Every theme a user can pick, minus the internal "active" copy."""
+        return {name: t for name, t in self.themes.items() if name != "active"}
+
+    def delete_theme(self, name: str) -> bool:
+        """Delete a user theme. Built-ins and "active" are refused."""
+        if name in self.builtin_names or name == "active":
+            log.warning(f"Refusing to delete built-in theme '{name}'")
+            return False
+        if name not in self.themes:
+            return False
+        del self.themes[name]
+        self._save_themes()
+        if self.current_theme == name:
+            self.set_active_theme("light")
+        return True
+
     def _load_user_themes(self):
         """Load user-defined themes from themes.json"""
         if os.path.exists(self.themes_file):

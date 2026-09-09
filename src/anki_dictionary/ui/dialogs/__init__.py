@@ -1,4 +1,3 @@
 """
-Dialog windows for Anki Dictionary
-Contains dictionary manager, theme editor, and wizard dialogs.
+Dialog windows for Anki Dictionary: dictionary import and release notes.
 """

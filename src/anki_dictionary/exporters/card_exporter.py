@@ -1,4 +1,17 @@
-#
+"""
+Card exporter — thin PyQt shell hosting the Svelte exporter web UI.
+
+Every widget the old Qt window drew (template/deck combos, the sentence,
+secondary, word and notes editors, the definitions table, the media rows, the
+tags box and the automatic-definition pop-out) now lives in the Svelte app
+built into ``exporter.html`` and hosted by :class:`ExporterBridge`. This module
+keeps what a web page cannot do: window chrome, note assembly, media transfer
+into Anki's collection and the bulk-export paths.
+
+Python stays the source of truth for the card being built. The web UI mirrors
+each edit back over ``exporter:setField`` as it is typed, and ships the whole
+state with ``exporter:add`` so a card is never assembled from stale values.
+"""
 
 import re
 from os.path import join
@@ -8,119 +21,37 @@ from anki.notes import Note
 from anki.utils import is_mac
 from aqt import dialogs
 from aqt.qt import (
-    QAbstractItemView,
-    QAction,
-    QCheckBox,
-    QComboBox,
-    QFont,
-    QHBoxLayout,
-    QHeaderView,
     QIcon,
     QKeySequence,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QScrollArea,
     QShortcut,
-    QSpinBox,
     Qt,
-    QTableWidget,
-    QTableWidgetItem,
-    QTextCharFormat,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 from aqt.utils import ensureWidgetInScreenBoundaries
 
 from ..utils.common import miAsk, miInfo
-from ..utils.config import get_addon_config
+from ..utils.config import get_addon_config, save_addon_config
 from ..utils.logger import get_logger
 from . import note_creator
 from .bulk_processor import BulkProcessor
+from .exporter_bridge import ExporterBridge
 from .html_cleaner import HtmlCleaner
 from .media_transfer import MediaTransfer
 from .note_assembler import NoteAssembler
 
 logger = get_logger(__name__.split(".")[-1])
 
-
-class MITextEdit(QTextEdit):
-    def __init__(self, parent=None, dictInt=None):
-        super().__init__(parent)
-        self.dictInt = dictInt
-        self.setAcceptRichText(False)
-
-    def contextMenuEvent(self, event):  # ty:ignore[invalid-method-override]
-        menu = super().createStandardContextMenu()
-        search = QAction("Search")
-        search.triggered.connect(self.searchSelected)
-        menu.addAction(search)  # ty:ignore[unresolved-attribute]
-        menu.exec_(event.globalPos())  # ty:ignore[unresolved-attribute]
-
-    def keyPressEvent(self, event):  # ty:ignore[invalid-method-override]
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            if event.key() == Qt.Key.Key_B:
-                cursor = self.textCursor()
-                format = QTextCharFormat()
-                format.setFontWeight(
-                    QFont.Bold  # ty:ignore[unresolved-attribute]
-                    if not cursor.charFormat().font().bold()
-                    else QFont.Normal  # ty:ignore[unresolved-attribute]
-                )
-                cursor.mergeCharFormat(format)
-                return
-            elif event.key() == Qt.Key.Key_I:
-                cursor = self.textCursor()
-                format = QTextCharFormat()
-                format.setFontItalic(
-                    True if not cursor.charFormat().font().italic() else False
-                )
-                cursor.mergeCharFormat(format)
-                return
-            elif event.key() == Qt.Key.Key_U:
-                cursor = self.textCursor()
-                format = QTextCharFormat()
-                format.setUnderlineStyle(
-                    QTextCharFormat.SingleUnderline  # ty:ignore[unresolved-attribute]
-                    if not cursor.charFormat().font().underline()
-                    else QTextCharFormat.NoUnderline  # ty:ignore[unresolved-attribute]
-                )
-                cursor.mergeCharFormat(format)
-                return
-        QTextEdit.keyPressEvent(self, event)
-
-    def searchSelected(self, in_browser):
-        if in_browser:
-            b = dialogs.open("Browser", self.dictInt.mw)  # ty:ignore[unresolved-attribute]
-            b.form.searchEdit.lineEdit().setText(f"expression:*{self.selectedText()}*")
-            b.onSearchActivated()
-        else:
-            self.dictInt.initSearch(self.selectedText())  # ty:ignore[unresolved-attribute]
-
-    def selectedText(self):
-        return self.textCursor().selectedText()
+NO_IMAGE = "No Image Selected"
+NO_AUDIO = "No Audio Selected"
 
 
-class MILineEdit(QLineEdit):
-    def __init__(self, parent=None, dictInt=None):
-        super().__init__(parent)
-        self.dictInt = dictInt
+class ExporterWindow(QWidget):
+    """Frameless-free Qt window whose only child is the exporter web view.
 
-    def contextMenuEvent(self, event):  # ty:ignore[invalid-method-override]
-        menu = super().createStandardContextMenu()
-        search = QAction("Search")
-        search.triggered.connect(self.searchSelected)
-        menu.addAction(search)  # ty:ignore[unresolved-attribute]
-        menu.exec_(event.globalPos())  # ty:ignore[unresolved-attribute]
-
-    def searchSelected(self, in_browser):
-        if in_browser:
-            b = dialogs.open("Browser", self.dictInt.mw)  # ty:ignore[unresolved-attribute]
-            b.form.searchEdit.lineEdit().setText(f"Expression:*{self.selectedText()}*")
-            b.onSearchActivated()
-        else:
-            self.dictInt.initSearch(self.selectedText())  # ty:ignore[unresolved-attribute]
+    ``CardExporter`` installs its own ``closeEvent``/``hideEvent`` handlers,
+    matching how the previous QScrollArea-based window was wired.
+    """
 
 
 class CardExporter:
@@ -133,127 +64,270 @@ class CardExporter:
         word=False,
         definition=False,
     ):
-        self.window = QWidget()
-        self.scrollArea = QScrollArea()
-        self.scrollArea.setWidget(self.window)
-        self.scrollArea.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.scrollArea.setWidgetResizable(True)
-        self.window.setAutoFillBackground(True)
         self.dictInt = dictInt
         self.mw = self.dictInt.mw
+        self.dictWeb = dictWeb
         self.config = self.getConfig()
         self.definitionSettings = self.config["autoDefinitionSettings"]
-        self.dictWeb = dictWeb
-        self.layout = QVBoxLayout()
-        self.decks = self.getDecks()
         self.templates = self.config["ExportTemplates"]
-        self.templateCB = self.getTemplateCB()
-        self.deckCB = self.getDeckCB()
-        self.sentenceLE = MITextEdit(dictInt=dictInt)
-        self.secondaryLE = MITextEdit(dictInt=dictInt)
-        self.notesLE = MITextEdit(dictInt=dictInt)
-        self.wordLE = MILineEdit(dictInt=dictInt)
-        self.tagsLE = MILineEdit(dictInt=dictInt)
-        self.definitions = self.getDefinitions()
-        self.autoAdd = QCheckBox("Add Extension Cards Automatically")
-        self.autoAdd.setChecked(self.config["autoAddCards"])
-        self.searchUnknowns = QSpinBox()
-        self.searchUnknowns.setValue(self.config.get("unknownsToSearch", 3))
-        self.searchUnknowns.setMinimum(0)
-        self.searchUnknowns.setMaximum(10)
-        self.addDefinitionsCheckbox = QCheckBox("Automatically Add Definitions")
-        self.addDefinitionsCheckbox.setChecked(self.config["autoAddDefinitions"])
-        self.definitionSettingsButton = QPushButton("Automatic Definition Settings")
-        self.clearButton = QPushButton("Clear Current Card")
-        self.cancelButton = QPushButton("Cancel")
-        self.addButton = QPushButton("Add")
+        self.decks = self.getDecks()
         self.exportJS = self.config["jReadingCards"]
+
+        # ── card state (mirrored to/from the web UI) ──────────
+        self.template = self._initial_template()
+        self.deck = self._initial_deck()
+        self.sentence_html = ""
+        self.secondary_html = ""
+        self.notes_html = ""
+        self.word_text = ""
+        self.tags_text = self.config.get("exporterLastTags", "")
+        self.definitionList = []
+        # Parallel to definitionList: `file://` thumbnails for image rows.
+        self.definitionThumbs = []
+        self.autoAdd = bool(self.config["autoAddCards"])
+        self.autoAddDefinitions = bool(self.config["autoAddDefinitions"])
+        self.unknownsToSearch = int(self.config.get("unknownsToSearch", 3))
+
         self.imgName = ""
         self.imgPath = ""
+        self.imageLabel = NO_IMAGE
         self.audioTag = ""
         self.audioName = ""
         self.audioPath = ""
+        self.audioLabel = NO_AUDIO
         self.audioPlayer = sound
-        self.audioPlay = QPushButton("Play")
+
         self.html_cleaner = HtmlCleaner()
         self.note_assembler = NoteAssembler(self.mw, self.html_cleaner)
-        self.audioPlay.clicked.connect(self.playAudio)
-        self.audioPlay.hide()
-        self.setupLayout()
-        self.media_transfer = MediaTransfer(
-            self.mw, self.imageMap, self.audioMap, self.audioPlay, sound
+        self.media_transfer = MediaTransfer(self.mw, sound)
+
+        # ── window ────────────────────────────────────────────
+        self.window = ExporterWindow()
+        self.bridge = ExporterBridge(
+            self, self.dictInt.addonPath, self.dictInt.theme_manager
         )
-        self.initHandlers()
+        layout = QVBoxLayout(self.window)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.bridge)
+        self.window.setMinimumSize(490, 400)
+        self.window.resize(490, 654)
+        self.window.setWindowTitle("Anki Card Exporter")
+        self.window.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+
         self.setColors()
-        self.window.setLayout(self.layout)
-        self.window.setMinimumSize(490, 650)
-        self.scrollArea.setMinimumWidth(490)
-        self.scrollArea.setMinimumHeight(400)
-        self.scrollArea.resize(490, 654)
-        self.scrollArea.setWindowIcon(
-            QIcon(join(self.dictInt.addonPath, "assets", "icons", "anki.svg"))
-        )
-        self.scrollArea.setWindowTitle("Anki Card Exporter")
-        self.definitionList = []
-        self.word = ""
-        self.sentence = ""
-        self.initTooltips()
         self.restoreSizePos()
-        self.scrollArea.closeEvent = self.closeEvent  # ty:ignore[invalid-assignment]
-        self.scrollArea.hideEvent = self.hideEvent  # ty:ignore[invalid-assignment]
+        self.window.closeEvent = self.closeEvent  # ty:ignore[invalid-assignment]
+        self.window.hideEvent = self.hideEvent  # ty:ignore[invalid-assignment]
         self.setHotkeys()
-        self.scrollArea.show()
+        self.window.show()
+
         self.alwaysOnTop = self.config["dictAlwaysOnTop"]
         self.bulk_processor = BulkProcessor(self.mw, self.dictInt, self.alwaysOnTop)
         self.maybeSetToAlwaysOnTop()
 
+    # ── compatibility shim ────────────────────────────────────
+
+    @property
+    def scrollArea(self):
+        """The old window attribute — callers still say ``addWindow.scrollArea``."""
+        return self.window
+
+    # ── web state ─────────────────────────────────────────────
+
+    def _initial_template(self):
+        current = self.config["currentTemplate"]
+        names = list(self.templates)
+        if current in self.templates:
+            return current
+        return names[0] if names else ""
+
+    def _initial_deck(self):
+        current = self.config["currentDeck"]
+        names = sorted(self.decks)
+        if current in self.decks:
+            return current
+        return names[0] if names else ""
+
+    def web_state(self):
+        """The full state the Svelte page renders."""
+        return {
+            "templates": list(self.templates),
+            "template": self.template,
+            "decks": sorted(self.decks),
+            "deck": self.deck,
+            "sentence": self.sentence_html,
+            "secondary": self.secondary_html,
+            "word": self.word_text,
+            "notes": self.notes_html,
+            "tags": self.tags_text,
+            "definitions": self._definition_rows(),
+            "imageLabel": self.imageLabel,
+            "audioLabel": self.audioLabel,
+            "imagePreview": self._file_url(self.imgPath) if self.imgPath else "",
+            "autoAdd": self.autoAdd,
+            "autoAddDefinitions": self.autoAddDefinitions,
+            "unknownsToSearch": self.unknownsToSearch,
+            "tooltips": bool(self.config.get("tooltips", True)),
+            "dictionaryNames": sorted(self.getDictionaryNameToTableNameDictionary()),
+            "definitionSettings": self.definitionSettings or [],
+        }
+
+    def _definition_rows(self):
+        rows = []
+        for idx, entry in enumerate(self.definitionList):
+            thumbs = (
+                self.definitionThumbs[idx] if idx < len(self.definitionThumbs) else []
+            )
+            rows.append(
+                {
+                    "name": entry[0],
+                    "short": entry[1] if isinstance(entry[1], str) else "",
+                    "thumbs": [self._file_url(p) for p in thumbs],
+                }
+            )
+        return rows
+
+    @staticmethod
+    def _file_url(path):
+        from urllib.parse import quote
+        from urllib.request import pathname2url
+
+        return "file://" + quote(pathname2url(path))
+
+    def pushState(self):
+        """Re-render the web UI from Python's state."""
+        self.bridge.push_state()
+
+    # Fields the web UI is allowed to write, mapped to the attribute holding
+    # them. Anything else in a `setField` payload is ignored.
+    _WEB_FIELDS = {
+        "template": "template",
+        "deck": "deck",
+        "sentence": "sentence_html",
+        "secondary": "secondary_html",
+        "word": "word_text",
+        "notes": "notes_html",
+        "tags": "tags_text",
+        "autoAdd": "autoAdd",
+        "autoAddDefinitions": "autoAddDefinitions",
+        "unknownsToSearch": "unknownsToSearch",
+    }
+
+    def set_web_field(self, field, value):
+        """Mirror one edit from the web UI, persisting the ones that are config."""
+        attr = self._WEB_FIELDS.get(field)
+        if attr is None:
+            return
+        if field == "unknownsToSearch":
+            value = int(value or 0)
+        elif field in ("autoAdd", "autoAddDefinitions"):
+            value = bool(value)
+        else:
+            value = "" if value is None else str(value)
+        setattr(self, attr, value)
+
+        if field == "template":
+            self.dictInt.writeConfig("currentTemplate", value)
+        elif field == "deck":
+            self.dictInt.writeConfig("currentDeck", value)
+        elif field == "autoAdd":
+            self._saveConfigValue("autoAddCards", value)
+        elif field == "autoAddDefinitions":
+            self._saveConfigValue("autoAddDefinitions", value)
+        elif field == "unknownsToSearch":
+            self._saveConfigValue("unknownsToSearch", value)
+
+    def apply_web_state(self, state):
+        """Adopt every field of a state snapshot sent with an add request."""
+        if not isinstance(state, dict):
+            return
+        for field in self._WEB_FIELDS:
+            if field in state:
+                self.set_web_field(field, state[field])
+
+    def _saveConfigValue(self, key, value):
+        config = self.getConfig()
+        config[key] = value
+        self.config = config
+        self.mw.refresh_anki_dict_config(config)
+        save_addon_config(config)
+
+    # ── window plumbing ───────────────────────────────────────
+
     def maybeSetToAlwaysOnTop(self):
         if self.alwaysOnTop:
-            self.scrollArea.setWindowFlags(
-                self.scrollArea.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
+            self.window.setWindowFlags(
+                self.window.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
             )
-            self.scrollArea.show()
-
-    def initTooltips(self):
-        if self.config["tooltips"]:
-            self.templateCB.setToolTip("Select the export template.")
-            self.deckCB.setToolTip("Select the deck to export to.")
-            self.clearButton.setToolTip("Clear the card exporter.")
+            self.window.show()
 
     def restoreSizePos(self):
         sizePos = self.config["exporterSizePos"]
         if sizePos:
-            self.scrollArea.resize(sizePos[2], sizePos[3])
-            self.scrollArea.move(sizePos[0], sizePos[1])
-            ensureWidgetInScreenBoundaries(self.scrollArea)
+            self.window.resize(sizePos[2], sizePos[3])
+            self.window.move(sizePos[0], sizePos[1])
+            ensureWidgetInScreenBoundaries(self.window)
 
     def setHotkeys(self):
-        self.sentencehotkeyS = QShortcut(
-            QKeySequence("Ctrl+S"), self.scrollArea, lambda: self.attemptSearch(False)
-        )
-        self.sentencehotkeyS = QShortcut(
-            QKeySequence("Ctrl+F"), self.scrollArea, lambda: self.attemptSearch(True)
-        )
-        self.scrollArea.hotkeyEsc = QShortcut(QKeySequence("Esc"), self.scrollArea)  # ty:ignore[unresolved-attribute]
-        self.scrollArea.hotkeyEsc.activated.connect(self.scrollArea.hide)  # ty:ignore[unresolved-attribute]
+        # Esc is handled inside the page too; the Qt shortcut covers the case
+        # where focus sits on the window chrome rather than the web view.
+        self.window.hotkeyEsc = QShortcut(QKeySequence("Esc"), self.window)  # ty:ignore[unresolved-attribute]
+        self.window.hotkeyEsc.activated.connect(self.window.hide)  # ty:ignore[unresolved-attribute]
 
-    def attemptSearch(self, in_browser):
-        focused = self.scrollArea.focusWidget()
-        if type(focused).__name__ in ["MILineEdit", "MITextEdit"]:
-            focused.searchSelected(in_browser)  # ty:ignore[unresolved-attribute]
+    def searchSelected(self, text, in_browser):
+        """Look up text selected in the web UI (Ctrl+S / Ctrl+F)."""
+        text = (text or "").strip()
+        if not text:
+            return
+        if in_browser:
+            b = dialogs.open("Browser", self.dictInt.mw)
+            b.form.searchEdit.lineEdit().setText(f"expression:*{text}*")
+            b.onSearchActivated()
+        else:
+            self.dictInt.initSearch(text)
 
     def setColors(self):
-        if is_mac:
-            self.templateCB.setStyleSheet(self.dictInt.getMacComboStyle())
-            self.deckCB.setStyleSheet(self.dictInt.getMacComboStyle())
-            self.definitions.setStyleSheet(self.dictInt.getMacTableStyle())
-        else:
-            self.templateCB.setStyleSheet("")
-            self.deckCB.setStyleSheet("")
-            self.definitions.setStyleSheet("")
+        """Follow the active theme, like the main window and history browser."""
+        self.window.setStyleSheet(
+            self.dictInt.theme_manager.get_qt_styles(is_mac=is_mac)
+        )
+        icon = "nightanki.svg" if self.dictInt.theme_manager.is_dark else "anki.svg"
+        self.window.setWindowIcon(
+            QIcon(join(self.dictInt.addonPath, "assets", "icons", icon))
+        )
+        self.bridge.repaint_theme()
+        self.window.update()
+
+    def hideEvent(self, event):
+        self.saveSizeAndPos()
+        event.accept()
+
+    def closeEvent(self, event):
+        self.clearCurrent()
+        self.saveSizeAndPos()
+        event.accept()
+
+    def saveSizeAndPos(self):
+        pos = self.window.pos()
+        size = self.window.size()
+        posSize = [pos.x(), pos.y(), size.width(), size.height()]
+        self.dictInt.writeConfig("exporterSizePos", posSize)
+        self.dictInt.writeConfig("exporterLastTags", self.tags_text)
+
+    def focusWindow(self):
+        self.window.show()
+        if self.window.windowState() == Qt.WindowState.WindowMinimized:
+            self.window.setWindowState(Qt.WindowState.WindowNoState)
+        self.window.setFocus()
+        self.window.activateWindow()
+
+    def getDecks(self):
+        return {name: did for did, name in note_creator.get_decks(self.mw.col)}
+
+    def getConfig(self):
+        return get_addon_config()
+
+    # ── note assembly ─────────────────────────────────────────
 
     def addNote(self, note, did):
         note.note_type()["did"] = int(did)
@@ -262,7 +336,7 @@ class CardExporter:
             if not miAsk(
                 "Your note's sorting field will be empty with this configuration."
                 " Would you like to continue?",
-                self.scrollArea,
+                self.window,
             ):
                 return False
         if "{{cloze:" in note.note_type()["tmpls"][0]["qfmt"]:
@@ -272,7 +346,7 @@ class CardExporter:
                 if not miAsk(
                     "You have a cloze deletion note type but have not made any"
                     " cloze deletions. Would you like to continue?",
-                    self.scrollArea,
+                    self.window,
                 ):
                     return False
         cards = self.mw.col.addNote(note)
@@ -290,80 +364,8 @@ Please review your template and notetype combination."""
         self.mw.reset()
         return True
 
-    def getDecks(self):
-        return {name: did for did, name in note_creator.get_decks(self.mw.col)}
-
-    def getDeckCB(self):
-        cb = QComboBox()
-        decks = list(self.decks.keys())
-        decks.sort()
-        cb.addItems(decks)
-        current = self.config["currentDeck"]
-        if current in decks:
-            cb.setCurrentText(current)
-        cb.currentIndexChanged.connect(
-            lambda: self.dictInt.writeConfig("currentDeck", cb.currentText())
-        )
-        return cb
-
-    def hideEvent(self, event):
-        self.saveSizeAndPos()
-        event.accept()
-
-    def closeEvent(self, event):
-        self.clearCurrent()
-        self.saveSizeAndPos()
-        event.accept()
-
-    def saveSizeAndPos(self):
-        pos = self.scrollArea.pos()
-        x = pos.x()
-        y = pos.y()
-        size = self.scrollArea.size()
-        width = size.width()
-        height = size.height()
-        posSize = [x, y, width, height]
-        self.dictInt.writeConfig("exporterSizePos", posSize)
-        self.dictInt.writeConfig("exporterLastTags", self.tagsLE.text())
-
-    def initHandlers(self):
-        self.definitionSettingsButton.clicked.connect(self.definitionSettingsWidget)
-        self.clearButton.clicked.connect(self.clearCurrent)
-        self.cancelButton.clicked.connect(self.scrollArea.close)
-        self.addButton.clicked.connect(self.addCard)
-        self.addDefinitionsCheckbox.clicked.connect(self.saveAddDefinitionChecked)
-        self.searchUnknowns.valueChanged.connect(self.saveSearchUnknowns)
-        self.autoAdd.clicked.connect(self.saveAutoAddChecked)
-
-    def saveSearchUnknowns(self):
-        config = self.getConfig()
-        config["unknownsToSearch"] = self.searchUnknowns.value()
-        self.config = config
-        self.mw.refresh_anki_dict_config(config)
-        from anki_dictionary.utils.config import save_addon_config
-
-        save_addon_config(config)
-
-    def saveAutoAddChecked(self):
-        config = self.getConfig()
-        config["autoAddCards"] = self.autoAdd.isChecked()
-        self.config = config
-        self.mw.refresh_anki_dict_config(config)
-        from anki_dictionary.utils.config import save_addon_config
-
-        save_addon_config(config)
-
-    def saveAddDefinitionChecked(self):
-        config = self.getConfig()
-        config["autoAddDefinitions"] = self.addDefinitionsCheckbox.isChecked()
-        self.config = config
-        self.mw.refresh_anki_dict_config(config)
-        from anki_dictionary.utils.config import save_addon_config
-
-        save_addon_config(config)
-
     def addCard(self):
-        templateName = self.templateCB.currentText()
+        templateName = self.template
         if templateName in self.templates:
             template = self.templates[templateName]
             noteType = template["noteType"]
@@ -374,7 +376,7 @@ Please review your template and notetype combination."""
                 fieldsValues, imgField, audioField, tagsField = self.getFieldsValues(
                     template
                 )
-                word = self.wordLE.text()
+                word = self.word_text
                 if not fieldsValues:
                     miInfo(
                         "The currently selected template and values will lead"
@@ -387,11 +389,10 @@ Please review your template and notetype combination."""
                         note[field] = template["separator"].join(fieldsValues[field])
                 note.set_tags_from_str(tagsField)
                 did = False
-                deck = self.deckCB.currentText()
-                if deck in self.decks:
-                    did = self.decks[deck]
+                if self.deck in self.decks:
+                    did = self.decks[self.deck]
                 if did:
-                    if word and self.addDefinitionsCheckbox.isChecked():
+                    if word and self.autoAddDefinitions:
                         note = self.automaticallyAddDefinitions(note, word, template)
                     if self.exportJS:
                         note = self.dictInt.jHandler.attemptGenerate(note)
@@ -436,26 +437,26 @@ Please review your template and notetype combination."""
     def getFieldsValues(self, t):
         return self.note_assembler.assemble_field_values(
             t,
-            self.sentenceLE.toHtml(),
-            self.secondaryLE.toHtml(),
-            self.notesLE.toHtml(),
-            self.wordLE.text(),
-            self.tagsLE.text(),
+            self.sentence_html,
+            self.secondary_html,
+            self.notes_html,
+            self.word_text,
+            self.tags_text,
             self.definitionList,
             self.imgName,
             self.audioTag,
-            self.imageMap.text(),
-            self.audioMap.text(),
+            self.imageLabel,
+            self.audioLabel,
         )
 
     def getFieldsValuesForTextCard(self, t, wordText, sentenceText):
         return self.note_assembler.assemble_for_text_card(
-            t, wordText, sentenceText, self.tagsLE.text()
+            t, wordText, sentenceText, self.tags_text
         )
 
     def getFieldsValuesForMediaCard(self, t, wordText, card):
         return self.note_assembler.assemble_for_media_card(
-            t, wordText, card, self.tagsLE.text()
+            t, wordText, card, self.tags_text
         )
 
     def automaticallyAddDefinitions(self, note, word, template):
@@ -464,250 +465,38 @@ Please review your template and notetype combination."""
         )
 
     def clearCurrent(self):
-        self.definitions.setRowCount(0)
-        self.sentenceLE.clear()
-        self.secondaryLE.clear()
-        self.notesLE.clear()
-        self.wordLE.clear()
+        self.sentence_html = ""
+        self.secondary_html = ""
+        self.notes_html = ""
+        self.word_text = ""
         self.definitionList = []
-        self.audioMap.clear()
-        self.audioMap.setText("No Audio Selected")
-        self.audioPlay.hide()
+        self.definitionThumbs = []
+        self.audioLabel = NO_AUDIO
         self.audioTag = ""
         self.audioName = ""
         self.audioPath = ""
-        self.imageMap.clear()
-        self.imageMap.setText("No Image Selected")
+        self.imageLabel = NO_IMAGE
         self.imgPath = ""
         self.imgName = ""
+        self.pushState()
 
-    def getDefinitions(self):
-        definitions = QTableWidget()
-        definitions.setMinimumHeight(100)
-        definitions.setColumnCount(3)
-        tableHeader = definitions.horizontalHeader()
-        vHeader = definitions.verticalHeader()
-        vHeader.setDefaultSectionSize(50)  # ty:ignore[unresolved-attribute]
-        vHeader.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)  # ty:ignore[unresolved-attribute]
-        tableHeader.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
-        definitions.setColumnWidth(1, 100)
-        tableHeader.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # ty:ignore[unresolved-attribute]
-        tableHeader.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)  # ty:ignore[unresolved-attribute]
-        definitions.setRowCount(0)
-        definitions.setSortingEnabled(False)
-        definitions.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        definitions.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        definitions.setColumnWidth(2, 40)
-        tableHeader.hide()  # ty:ignore[unresolved-attribute]
-        return definitions
+    # ── automatic definition settings ─────────────────────────
 
-    def getConfig(self):
-        return get_addon_config()
-
-    def setupLayout(self):
-        tempLayout = QHBoxLayout()
-        tempLayout.addWidget(QLabel("Template: "))
-        self.templateCB.setFixedSize(120, 30)
-        tempLayout.addWidget(self.templateCB)
-        tempLayout.addWidget(QLabel(" Deck: "))
-        self.deckCB.setFixedSize(120, 30)
-        tempLayout.addWidget(self.deckCB)
-        tempLayout.addStretch()
-        tempLayout.setSpacing(2)
-        self.clearButton.setFixedSize(130, 30)
-        tempLayout.addWidget(self.clearButton)
-        self.layout.addLayout(tempLayout)
-        sentenceL = QLabel("Sentence")
-        self.layout.addWidget(sentenceL)
-        self.layout.addWidget(self.sentenceLE)
-        secondaryL = QLabel("Secondary")
-        self.layout.addWidget(secondaryL)
-        self.layout.addWidget(self.secondaryLE)
-        wordL = QLabel("Word")
-        self.layout.addWidget(wordL)
-        self.layout.addWidget(self.wordLE)
-        notesL = QLabel("User Notes")
-        self.layout.addWidget(notesL)
-        self.layout.addWidget(self.notesLE)
-
-        self.sentenceLE.setMinimumHeight(60)
-        self.secondaryLE.setMinimumHeight(60)
-        self.notesLE.setMinimumHeight(90)
-        self.sentenceLE.setMaximumHeight(120)
-        self.secondaryLE.setMaximumHeight(120)
-        f = self.sentenceLE.font()
-        f.setPointSize(16)
-        self.sentenceLE.setFont(f)
-        self.secondaryLE.setFont(f)
-        self.notesLE.setFont(f)
-        f = self.wordLE.font()
-        f.setPointSize(20)
-        self.wordLE.setFont(f)
-
-        self.wordLE.setFixedHeight(40)
-        definitionsL = QLabel("Definitions")
-        self.layout.addWidget(definitionsL)
-        self.layout.addWidget(self.definitions)
-
-        self.layout.addWidget(QLabel("Audio"))
-        self.audioMap = QLabel("No Audio Selected")
-        self.layout.addWidget(self.audioMap)
-        self.layout.addWidget(self.audioPlay)
-        self.layout.addWidget(QLabel("Image"))
-        self.imageMap = QLabel("No Image Selected")
-        self.layout.addWidget(self.imageMap)
-        tagsL = QLabel("Tags")
-        self.layout.addWidget(tagsL)
-        lastTags = self.config.get("exporterLastTags", "")
-        self.tagsLE.setText(lastTags)
-        self.layout.addWidget(self.tagsLE)
-
-        unknownLayout = QHBoxLayout()
-        unknownLayout.addWidget(QLabel("Number of unknown words to search: "))
-        unknownLayout.addStretch()
-        unknownLayout.addWidget(self.searchUnknowns)
-        self.layout.addLayout(unknownLayout)
-
-        autoDefLayout = QHBoxLayout()
-        autoDefLayout.addWidget(self.addDefinitionsCheckbox)
-        autoDefLayout.addStretch()
-        self.definitionSettingsButton.setFixedSize(202, 30)
-        autoDefLayout.addWidget(self.definitionSettingsButton)
-        self.layout.addLayout(autoDefLayout)
-
-        buttonLayout = QHBoxLayout()
-        buttonLayout.addWidget(self.autoAdd)
-        buttonLayout.addStretch()
-        self.cancelButton.setFixedSize(100, 30)
-        self.addButton.setFixedSize(100, 30)
-        buttonLayout.addWidget(self.cancelButton)
-        buttonLayout.addWidget(self.addButton)
-        self.layout.addLayout(buttonLayout)
-        self.layout.setContentsMargins(2, 2, 2, 2)
-        self.layout.setSpacing(2)
-
-    def getTemplateCB(self):
-        cb = QComboBox()
-        cb.addItems(self.templates)
-        current = self.config["currentTemplate"]
-
-        cb.currentIndexChanged.connect(
-            lambda: self.dictInt.writeConfig("currentTemplate", cb.currentText())
-        )
-        if current in self.templates:
-            cb.setCurrentText(current)
-        return cb
-
-    def focusWindow(self):
-        self.scrollArea.show()
-        if self.scrollArea.windowState() == Qt.WindowState.WindowMinimized:
-            self.scrollArea.setWindowState(Qt.WindowState.WindowNoState)
-        self.scrollArea.setFocus()
-        self.scrollArea.activateWindow()
-
-    def definitionSettingsWidget(self):
-        settingsWidget = QWidget(self.scrollArea, Qt.WindowType.Window)
-        layout = QVBoxLayout()
-        dict1 = QComboBox()
-        dict2 = QComboBox()
-        dict3 = QComboBox()
-
-        dictToTable = self.getDictionaryNameToTableNameDictionary()
-        dictNames = dictToTable.keys()
-        dict1.addItems(dictNames)
-        dict2.addItems(dictNames)
-        dict3.addItems(dictNames)
-
-        dict1Lay = QHBoxLayout()
-        dict1Lay.addWidget(QLabel("1st Dictionary:"))
-        dict1Lay.addStretch()
-        dict1Lay.addWidget(dict1)
-        dict2Lay = QHBoxLayout()
-        dict2Lay.addWidget(QLabel("2nd Dictionary:"))
-        dict2Lay.addStretch()
-        dict2Lay.addWidget(dict2)
-        dict3Lay = QHBoxLayout()
-        dict3Lay.addWidget(QLabel("3rd Dictionary:"))
-        dict3Lay.addStretch()
-        dict3Lay.addWidget(dict3)
-
-        howMany1 = QSpinBox()
-        howMany1.setValue(1)
-        howMany1.setMinimum(1)
-        howMany1.setMaximum(20)
-        hmLay1 = QHBoxLayout()
-        hmLay1.addWidget(QLabel("Max Definitions:"))
-        hmLay1.addWidget(howMany1)
-
-        howMany2 = QSpinBox()
-        howMany2.setValue(1)
-        howMany2.setMinimum(1)
-        howMany2.setMaximum(20)
-        hmLay2 = QHBoxLayout()
-        hmLay2.addWidget(QLabel("Max Definitions:"))
-        hmLay2.addWidget(howMany2)
-
-        howMany3 = QSpinBox()
-        howMany3.setValue(1)
-        howMany3.setMinimum(1)
-        howMany3.setMaximum(20)
-        hmLay3 = QHBoxLayout()
-        hmLay3.addWidget(QLabel("Max Definitions:"))
-        hmLay3.addWidget(howMany3)
-
-        layout.addLayout(dict1Lay)
-        layout.addLayout(hmLay1)
-        layout.addLayout(dict2Lay)
-        layout.addLayout(hmLay2)
-        layout.addLayout(dict3Lay)
-        layout.addLayout(hmLay3)
-
-        if self.definitionSettings:
-            howManys = [howMany1, howMany2, howMany3]
-            dicts = [dict1, dict2, dict3]
-            for idx, setting in enumerate(self.definitionSettings):
-                dictName = setting["name"]
-                if dictName in dictToTable:
-                    limit = setting["limit"]
-                    dicts[idx].setCurrentText(dictName)
-                    howManys[idx].setValue(limit)
-
-        save = QPushButton("Save Settings")
-        layout.addWidget(save)
-        layout.setContentsMargins(4, 4, 4, 4)
-        save.clicked.connect(
-            lambda: self.saveDefinitionSettings(
-                settingsWidget,
-                dict1.currentText(),
-                howMany1.value(),
-                dict2.currentText(),
-                howMany2.value(),
-                dict3.currentText(),
-                howMany3.value(),
+    def saveDefinitionSettings(self, rows):
+        """Persist the modal's three dictionary/limit pairs."""
+        settings = []
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            settings.append(
+                {"name": str(row.get("name", "")), "limit": int(row.get("limit", 1))}
             )
-        )
-        settingsWidget.setWindowTitle("Definition Settings")
-        settingsWidget.setWindowIcon(
-            QIcon(join(self.dictInt.addonPath, "assets", "icons", "anki.svg"))
-        )
-        settingsWidget.setLayout(layout)
-        settingsWidget.show()
-
-    def saveDefinitionSettings(
-        self, settingsWidget, dict1, limit1, dict2, limit2, dict3, limit3
-    ):
-        definitionSettings = []
-        definitionSettings.append({"name": dict1, "limit": limit1})
-        definitionSettings.append({"name": dict2, "limit": limit2})
-        definitionSettings.append({"name": dict3, "limit": limit3})
+        self.definitionSettings = settings
         config = self.getConfig()
-        self.definitionSettings = definitionSettings
-        config["autoDefinitionSettings"] = definitionSettings
-        from anki_dictionary.utils.config import save_addon_config
-
+        config["autoDefinitionSettings"] = settings
+        self.config = config
         save_addon_config(config)
-        settingsWidget.close()
-        settingsWidget.deleteLater()
+        self.pushState()
 
     # --- Media handler methods delegated to MediaTransfer ---
 
@@ -724,49 +513,43 @@ Please review your template and notetype combination."""
     def exportImage(self, path, name):
         self.imgName = name
         self.imgPath = path
-        self.media_transfer.export_image(path, name)
+        self.imageLabel = name
+        self.pushState()
 
     def exportAudio(self, path, tag, name):
         self.audioTag = tag
         self.audioName = name
         self.audioPath = path
-        self.media_transfer.export_audio(path, tag, name)
+        self.audioLabel = tag
+        self.pushState()
 
-    def addImgs(self, word, imgs, thumbs):
+    def exportWord(self, word):
+        self.word_text = word
+        self.pushState()
+
+    def exportSentence(self, sentence):
+        self.focusWindow()
+        self.sentence_html = sentence
+        self.pushState()
+
+    def exportSecondary(self, secondary):
+        self.secondary_html = secondary
+        self.pushState()
+
+    # ── definitions ───────────────────────────────────────────
+
+    def addImgs(self, word, imgs, thumbs=None):
+        """Attach an image definition. `thumbs` are local paths to preview."""
         self.focusWindow()
         defEntry = ["Images", False, imgs, imgs]
         if defEntry in self.definitionList:
             miInfo("A card cannot contain duplicate definitions.", level="not")
             return
         self.definitionList.append(defEntry)
-        rc = self.definitions.rowCount()
-        self.definitions.setRowCount(rc + 1)
-        self.definitions.setItem(rc, 0, QTableWidgetItem("Images"))
-        self.definitions.setCellWidget(rc, 1, thumbs)
-        deleteButton = QPushButton("X")
-        deleteButton.setFixedWidth(40)
-        deleteButton.clicked.connect(lambda: self.removeImgs(imgs))
-        self.definitions.setCellWidget(rc, 2, deleteButton)
-        self.definitions.resizeRowsToContents()
-        if self.wordLE.text() == "":
-            self.wordLE.setText(word)
-
-    def exportWord(self, word):
-        self.wordLE.setText(word)
-
-    def removeImgs(self, imgs):
-        try:
-            row = self.definitions.selectionModel().currentIndex().row()
-            self.definitions.removeRow(row)
-            self.removeImgFromDefinitionList(imgs)
-        except Exception:
-            return
-
-    def removeImgFromDefinitionList(self, imgs):
-        for idx, entry in enumerate(self.definitionList):
-            if entry[0] == "Images" and entry[3] == imgs:
-                self.definitionList.pop(idx)
-                break
+        self.definitionThumbs.append(list(thumbs or []))
+        if self.word_text == "":
+            self.word_text = word
+        self.pushState()
 
     def addDefinition(self, dictName, word, definition):
         self.focusWindow()
@@ -781,49 +564,27 @@ Please review your template and notetype combination."""
             miInfo("A card can not contain duplicate definitions.", level="not")
             return
         self.definitionList.append(defEntry)
-        rc = self.definitions.rowCount()
-        self.definitions.setRowCount(rc + 1)
-        self.definitions.setItem(rc, 0, QTableWidgetItem(dictName))
-        self.definitions.setItem(rc, 1, QTableWidgetItem(shortDef))
-        deleteButton = QPushButton("X")
-        deleteButton.setFixedWidth(40)
-        deleteButton.clicked.connect(self.removeDefinition)
-        self.definitions.setCellWidget(rc, 2, deleteButton)
-        self.definitions.resizeRowsToContents()
-        if self.wordLE.text() == "":
-            self.wordLE.setText(word)
+        self.definitionThumbs.append([])
+        if self.word_text == "":
+            self.word_text = word
+        self.pushState()
 
-    def exportSentence(self, sentence):
-        self.focusWindow()
-        self.sentenceLE.setHtml(sentence)
+    def removeDefinitionAt(self, index):
+        """Drop the definition the web UI's row X button points at."""
+        if 0 <= index < len(self.definitionList):
+            self.definitionList.pop(index)
+            if index < len(self.definitionThumbs):
+                self.definitionThumbs.pop(index)
+        self.pushState()
 
-    def exportSecondary(self, secondary):
-        self.secondaryLE.setHtml(secondary)
-
-    def removeFromDefinitionList(self, dictName, shortDef):
-        for idx, entry in enumerate(self.definitionList):
-            if entry[0] == dictName and entry[1] == shortDef:
-                self.definitionList.pop(idx)
-                break
-
-    def removeDefinition(self):
-        try:
-            row = self.definitions.selectionModel().currentIndex().row()
-            dictName = self.definitions.item(row, 0).text()
-            shortDef = self.definitions.item(row, 1).text()
-            self.definitions.removeRow(row)
-            self.removeFromDefinitionList(dictName, shortDef)
-        except Exception:
-            return
-
-    # --- Batch processing methods ---
+    # ── batch processing ──────────────────────────────────────
 
     def attemptAutoAdd(self, bulkExport):
-        if self.autoAdd.isChecked() or bulkExport:
+        if self.autoAdd or bulkExport:
             self.addCard()
 
     def addTextCard(self, card):
-        templateName = self.templateCB.currentText()
+        templateName = self.template
         sentence = card["primary"]
         word = ""
         unknowns = card["unknowns"]
@@ -848,11 +609,10 @@ Please review your template and notetype combination."""
                             )
                     note.set_tags_from_str(tagsField)
                     did = False
-                    deck = self.deckCB.currentText()
-                    if deck in self.decks:
-                        did = self.decks[deck]
+                    if self.deck in self.decks:
+                        did = self.decks[self.deck]
                     if did:
-                        if word and self.addDefinitionsCheckbox.isChecked():
+                        if word and self.autoAddDefinitions:
                             note = self.automaticallyAddDefinitions(
                                 note, word, template
                             )
@@ -864,7 +624,7 @@ Please review your template and notetype combination."""
                     logger.error("Invalid field values")
 
     def addMediaCard(self, card):
-        templateName = self.templateCB.currentText()
+        templateName = self.template
         word = ""
         unknowns = card["unknownWords"]
         if len(unknowns) > 0:
@@ -889,11 +649,10 @@ Please review your template and notetype combination."""
                             )
                     note.set_tags_from_str(tagsField)
                     did = False
-                    deck = self.deckCB.currentText()
-                    if deck in self.decks:
-                        did = self.decks[deck]
+                    if self.deck in self.decks:
+                        did = self.decks[self.deck]
                     if did:
-                        if word and self.addDefinitionsCheckbox.isChecked():
+                        if word and self.autoAddDefinitions:
                             note = self.automaticallyAddDefinitions(
                                 note, word, template
                             )
