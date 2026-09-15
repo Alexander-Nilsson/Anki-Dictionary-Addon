@@ -4,6 +4,8 @@ Scrapes pronunciations from Forvo.com.
 """
 
 import base64
+import os
+import platform
 import re
 import subprocess
 import sys
@@ -69,13 +71,19 @@ class ForvoWorkerSignals(QObject):
     finished = pyqtSignal()
 
 
-# Curl exit code reported as the "status" when we never got an HTTP reply at
-# all (DNS failure, timeout, curl missing). Distinct from any real status so
-# callers can tell "could not reach Forvo" from "Forvo answered with an error".
+# Status reported when we never got an HTTP reply at all (DNS failure, timeout,
+# curl missing, curl_cffi request-level failure). Distinct from any real status
+# so callers can tell "could not reach Forvo" from "Forvo answered with an
+# error".
 NO_HTTP_RESPONSE = 0
 
 # How many times to re-issue a request that failed in a way a retry might fix.
 _MAX_ATTEMPTS = 3
+
+# curl_cffi impersonation targets tried in order. Chrome gets Forvo's
+# Cloudflare pass today; the others give us a fighting chance if Forvo starts
+# fingerprint-blocking one target but not another.
+_CURL_CFFI_IMPERSONATIONS = ("chrome", "safari15_5", "firefox133")
 
 
 def _is_cloudflare_challenge(html: str) -> bool:
@@ -83,17 +91,91 @@ def _is_cloudflare_challenge(html: str) -> bool:
     return "Just a moment" in html or "cf-browser-verification" in html
 
 
-def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
-    """Fetch a Forvo page using curl, whose TLS fingerprint Cloudflare accepts.
+def _curl_cffi_requests() -> Any | None:
+    """Import the bundled curl_cffi requests module, or None if unavailable.
 
-    Returns ``(http_status, html)``. The status is the real HTTP status code —
-    curl's ``%{http_code}`` — not curl's exit code, so a word Forvo simply does
-    not have (404) is distinguishable from being blocked (403) or from never
-    reaching the site at all (:data:`NO_HTTP_RESPONSE`).
+    The addon ships platform-specific curl_cffi wheels under ``vendor/`` and
+    ``__init__.py`` injects that directory at startup. Re-injecting here keeps
+    Forvo working even when this module is imported before that (or in tests).
 
-    Only failures a retry could plausibly fix are retried: a Cloudflare
-    challenge, rate limiting, a server error, or a curl-level failure. A 404 is
-    a final answer and returns immediately.
+    Catches any load failure — not just ``ImportError`` — because a broken
+    C-extension (missing ``.so``, undefined symbol) surfaces as ``OSError``
+    and must degrade to the system-curl fallback rather than bubble up.
+    """
+    try:
+        from curl_cffi import requests as _curl_requests  # ty:ignore[unresolved-import]
+    except Exception:  # any load failure → fall back to curl
+        pass
+    else:
+        return _curl_requests
+
+    machine = platform.machine().lower()
+    if sys.platform == "darwin":
+        sub_dir = "mac_arm64" if machine == "arm64" else "mac_x86_64"
+    elif sys.platform.startswith("win"):
+        sub_dir = "win_amd64"
+    else:
+        sub_dir = "linux_x86_64"
+    vendor_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        "vendor",
+        sub_dir,
+    )
+    if os.path.isdir(vendor_path) and vendor_path not in sys.path:
+        sys.path.insert(0, vendor_path)
+    try:
+        from curl_cffi import requests as _curl_requests  # ty:ignore[unresolved-import]
+    except Exception:  # any load failure → fall back to curl
+        return None
+    return _curl_requests
+
+
+def _fetch_with_curl_cffi(
+    curl_requests: Any, url: str, timeout: int
+) -> tuple[int, str]:
+    """Fetch ``url`` impersonating a real browser's TLS fingerprint.
+
+    Cloudflare fingerprint-blocks system curl and plain ``requests`` with
+    HTTP 403; impersonating Chrome/Safari/Firefox gets through. Status and
+    retry semantics match :func:`_fetch_with_subprocess`.
+    """
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            response = curl_requests.get(
+                url,
+                impersonate=_CURL_CFFI_IMPERSONATIONS[
+                    attempt % len(_CURL_CFFI_IMPERSONATIONS)
+                ],
+                timeout=timeout,
+            )
+        except Exception as e:  # curl-level failure (DNS, timeout, reset)
+            logger.debug(
+                "Forvo curl_cffi request failed (attempt %d): %s", attempt + 1, e
+            )
+            status, html = NO_HTTP_RESPONSE, ""
+        else:
+            status = int(response.status_code)
+            html = response.text or ""
+
+        if status == 200 and _is_cloudflare_challenge(html):
+            logger.debug("Cloudflare challenge from Forvo (attempt %d)", attempt + 1)
+            status, html = 403, ""
+
+        retryable = status in (NO_HTTP_RESPONSE, 403, 429) or status >= 500
+        if not retryable:
+            return status, html
+        if attempt < _MAX_ATTEMPTS - 1:
+            # Back off progressively; hammering a rate limiter only extends it.
+            time.sleep(attempt + 1)
+
+    return status, html
+
+
+def _fetch_with_subprocess(url: str, timeout: int) -> tuple[int, str]:
+    """Fetch a Forvo page using system curl (only when curl_cffi is missing).
+
+    Cloudflare currently challenges this path (HTTP 403), but it still beats
+    doing nothing on environments where the bundled curl_cffi cannot load.
     """
     last_exit = NO_HTTP_RESPONSE
     for attempt in range(_MAX_ATTEMPTS):
@@ -153,6 +235,32 @@ def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
     if status == NO_HTTP_RESPONSE and last_exit:
         logger.warning("Could not reach Forvo; curl exit %d", last_exit)
     return status, html
+
+
+def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
+    """Fetch a Forvo page, preferring a real browser TLS fingerprint.
+
+    Cloudflare answers system curl and plain ``requests`` with an HTTP 403
+    "Just a moment" challenge based on the TLS fingerprint, regardless of
+    headers. The addon's bundled curl_cffi impersonates a real browser, which
+    Forvo accepts; system curl remains only as a fallback for environments
+    where curl_cffi cannot be imported.
+
+    Returns ``(http_status, html)``. The status is the real HTTP status code —
+    not curl's exit code — so a word Forvo simply does not have (404) is
+    distinguishable from being blocked (403) or from never reaching the site at
+    all (:data:`NO_HTTP_RESPONSE`).
+
+    Only failures a retry could plausibly fix are retried: a Cloudflare
+    challenge, rate limiting, a server error, or a request-level failure. A 404
+    is a final answer and returns immediately.
+    """
+    curl_requests = _curl_cffi_requests()
+    if curl_requests is not None:
+        return _fetch_with_curl_cffi(curl_requests, url, timeout)
+
+    logger.debug("curl_cffi unavailable; falling back to system curl")
+    return _fetch_with_subprocess(url, timeout)
 
 
 class ForvoWorker(QRunnable):

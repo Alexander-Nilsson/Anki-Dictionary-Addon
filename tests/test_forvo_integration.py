@@ -21,7 +21,8 @@ class TestForvoIntegration(unittest.TestCase):
 
         # We need to mock QRunnable/QObject dependencies if they aren't available,
         # but here we are in a dev environment where they should be or mocked by the import.
-        # The ForvoWorker itself uses requests, which we want to test for real.
+        # The ForvoWorker itself uses curl_cffi browser TLS impersonation (Cloudflare
+        # blocks plain requests), which we want to test for real.
 
         worker = ForvoWorker(term, language, {})
 
