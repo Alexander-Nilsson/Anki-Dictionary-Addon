@@ -185,6 +185,31 @@
       });
   }
 
+  /* ── guide freshness: last commit touching the guide ─────────── */
+
+  const updatedNodes = [...document.querySelectorAll("[data-docs-updated]")];
+  if (updatedNodes.length) {
+    fetch(
+      `https://api.github.com/repos/${REPO}/commits?path=site/guide.html&per_page=1`,
+      { headers: { Accept: "application/vnd.github+json" } },
+    )
+      .then((response) => {
+        if (!response.ok) throw new Error(`GitHub ${response.status}`);
+        return response.json();
+      })
+      .then((commits) => {
+        const iso = commits?.[0]?.commit?.committer?.date;
+        if (!iso) throw new Error("no commit date");
+        const date = new Date(iso).toISOString().slice(0, 10);
+        updatedNodes.forEach((el) => {
+          el.textContent = `Updated ${date} · Anki 25.09+`;
+        });
+      })
+      .catch(() => {
+        /* Keep the static fallback. */
+      });
+  }
+
   /* ── reveal on scroll ────────────────────────────────────────── */
 
   const reveals = [...document.querySelectorAll("[data-reveal]")];

@@ -1,0 +1,50 @@
+name: Docs link check
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "site/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "site/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: Check links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lychee
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: >-
+            --no-progress
+            --verbose
+            --exclude-path docs/oldfiles
+            --max-retries 2
+            --retry-wait-time 2
+            --timeout 20
+            README.md docs site
+          fail: true

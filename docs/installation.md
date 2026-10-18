@@ -1,5 +1,8 @@
 # Installation
 
+> The maintained, screenshot-rich version of this page is at
+> <https://alexander-nilsson.github.io/Anki-Dictionary-Addon/guide.html#installation>.
+
 ## Option 1: AnkiWeb (Recommended)
 
 The fastest way to install the addon and stay updated:
