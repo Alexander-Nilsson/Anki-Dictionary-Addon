@@ -1,0 +1,10 @@
+0:00 Introduction
+0:10 Install the add-on from file
+0:51 Download and install dictionaries (JMDict English, KireiCake, JMnedict)
+2:01 Create the "Japanese Study" dictionary group
+3:05 Configure the "Sentence Card" export template
+3:41 Build a sentence card: look up 水 and send the definition to the Definition field
+5:20 Build a second sentence card with 日本
+6:47 Card Exporter overview
+7:12 Keybinds and wrap-up
+7:25 Thanks
