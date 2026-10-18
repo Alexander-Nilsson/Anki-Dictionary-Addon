@@ -10,20 +10,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from aqt.qt import (
-    QApplication,
-    QComboBox,
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
-    QLabel,
-    QProgressDialog,
-    QSpinBox,
-    Qt,
-    QVBoxLayout,
-)
-
-from ..utils.common import miInfo
 from ..utils.config import get_addon_config
 from ..utils.logger import get_logger
 
@@ -179,6 +165,20 @@ def _dictionary_choices(db) -> tuple[list[str], dict[str, str]]:
 
 def show_export_definitions_dialog(browser) -> None:
     from aqt import mw
+    from aqt.qt import (
+        QApplication,
+        QComboBox,
+        QDialog,
+        QDialogButtonBox,
+        QFormLayout,
+        QLabel,
+        QProgressDialog,
+        QSpinBox,
+        Qt,
+        QVBoxLayout,
+    )
+
+    from ..utils.common import miInfo
 
     note_ids = browser.selectedNotes()
     if not note_ids:
