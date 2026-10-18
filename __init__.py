@@ -10,7 +10,10 @@ import sys
 from typing import Any
 
 try:
-    from aqt import mw
+    import aqt
+
+    # Anki assigns ``aqt.mw`` once before addons load; keep a local alias.
+    mw = aqt.mw
 except ImportError:
     mw = None
 
@@ -56,6 +59,7 @@ try:
     os.environ.setdefault("SSL_CERT_FILE", _ca_bundle)
     os.environ.setdefault("REQUESTS_CA_BUNDLE", _ca_bundle)
 except Exception:
+    # certifi is optional; requests still ships its own CA bundle.
     pass
 
 # Special check for broken PIL in vendor (often happens if bundled on different OS)
@@ -87,11 +91,11 @@ class AddonState:
         self.bulk_media_export_cancelled: bool = False
         self.currently_pressed: list[str] = []
         self.dict_db: Any = None  # Will be properly typed when we fix the DictDB class
+        self.initialized: bool = False
 
 
 # Global state instance
 _addon_state: AddonState | None = None
-_initialized = False
 
 
 def get_addon_state() -> AddonState:
@@ -105,14 +109,12 @@ def get_addon_state() -> AddonState:
 # Initialize addon configuration and global state
 def initialize_addon() -> None:
     """Initialize the addon when Anki starts."""
-    global _initialized
-    if not mw or _initialized:
+    state = get_addon_state()
+    if not mw or state.initialized:
         return
 
-    _initialized = True
+    state.initialized = True
     print("--- Anki Dictionary: Starting Initialization ---")
-    # Initialize state container
-    state = get_addon_state()
 
     # Get the addon root path for use throughout the addon
     addon_root = os.path.dirname(__file__)

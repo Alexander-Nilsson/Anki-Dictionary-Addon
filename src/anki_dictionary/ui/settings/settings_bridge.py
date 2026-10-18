@@ -310,7 +310,7 @@ class SettingsBridge(AnkiWebView):
                 config.get("llm_base_url") and config.get("llm_model")
             )
         except Exception:
-            pass
+            logger.debug("Could not read LLM status", exc_info=True)
         return status
 
     # ── themes ─────────────────────────────────────────────

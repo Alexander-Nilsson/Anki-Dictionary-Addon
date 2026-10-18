@@ -7,7 +7,6 @@ from os.path import dirname, exists, join
 
 from anki.utils import is_mac
 from aqt.qt import (
-    QColor,  # noqa: F401 — needed at runtime by downstream importers
     QComboBox,
     QHBoxLayout,
     QIcon,
@@ -16,7 +15,6 @@ from aqt.qt import (
     QLabel,
     QLineEdit,
     QPalette,
-    QPixmap,  # noqa: F401 — needed at runtime by downstream importers
     QPushButton,
     QShortcut,
     QSize,
@@ -503,10 +501,6 @@ class DictInterface(QWidget):
         self.show()
         self.dict.setFocus()
         self.refresh_application_theme()
-        # if self.nightModeToggler.day:
-        #     self.refresh_application_theme()
-        # else:
-        #     self.refresh_application_theme()
         self.search_source = "manual"
         html, url = self.getHTMLURL(willSearch)
         self.dict.loadHTMLURL(html, url)
@@ -877,6 +871,7 @@ class DictInterface(QWidget):
                     widget.setParent(self)
                     widget.hide()
                 except Exception:
+                    # A legacy toolbar widget may already be deleted.
                     pass
 
         # Content Area (the unified web header lives inside the webview).
@@ -886,11 +881,6 @@ class DictInterface(QWidget):
         layoutV.setSpacing(0)
 
         return layoutV
-
-    def toggleMenuBar(self, vertical):
-        # We've improved the layout to be multi-line by default,
-        # so we can simplify or remove the responsive toggle if it causes issues.
-        pass
 
     def resizeEvent(self, event):  # ty:ignore[invalid-method-override]
         # Simplified resize event
@@ -1177,6 +1167,7 @@ class DictInterface(QWidget):
 
         if cur in self.defaultGroups:
             return self.defaultGroups[cur]
+        return self.allGroups
 
     def ensureVisible(self):
         if not self.isVisible():
@@ -1230,6 +1221,7 @@ class DictInterface(QWidget):
             try:
                 self.search.setText(term.strip())
             except Exception:
+                # The search box may be gone during teardown.
                 pass
         self.addToHistory(term)
         self.dict.addNewTab(term, selectedGroup)
@@ -1392,6 +1384,7 @@ class DictInterface(QWidget):
                 + ");"
             )
         except Exception:
+            # The web view may not have finished loading yet.
             pass
 
     def setDictGroup(self, name: str) -> None:

@@ -99,6 +99,7 @@ class BulkProcessor:
                 self._close_progress_bar(state.widget)
                 self.media_export_progress_window = None
         except Exception:
+            # Progress UI teardown is best-effort; the export already finished.
             pass
 
     def cancel_media_export(self):

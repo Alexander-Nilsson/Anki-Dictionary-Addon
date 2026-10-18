@@ -143,6 +143,7 @@ class SettingsGui(QWidget):
         try:
             os.remove(os.path.join(get_db_dir(), "conjugation", f"{lang}.json"))
         except OSError:
+            # No conjugation file was installed for this language.
             pass
 
         self._after_native_change()

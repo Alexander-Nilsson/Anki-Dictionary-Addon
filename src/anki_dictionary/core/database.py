@@ -4,7 +4,7 @@ import re
 import sqlite3
 from typing import Any
 
-from aqt import mw
+import aqt
 
 from ..utils.common import miInfo
 from ..utils.config import get_addon_config
@@ -47,7 +47,7 @@ class DictDB:
         # If that doesn't exist, try using Anki's addon folder structure
         if not os.path.exists(db_file):
             db_file = os.path.join(
-                mw.pm.addonFolder(),
+                aqt.mw.pm.addonFolder(),
                 addon_name,
                 "user_files",
                 "db",
@@ -478,7 +478,8 @@ class DictDB:
                     dicts[d[0].lower()] = info
                     dicts[table_name.lower()] = info
             return dicts
-        except:
+        except Exception:
+            # A malformed/legacy dictnames table should not break lookup.
             return {}
 
     def fetchDefs(self) -> list[str]:

@@ -11,11 +11,13 @@ import re
 
 import aqt
 from anki.utils import is_mac, is_win
-from aqt import mw
 
 from ..utils.logger import get_logger
 
 log = get_logger("main_window")
+
+# Anki assigns ``aqt.mw`` once before addons load.
+mw = aqt.mw
 from aqt.qt import Qt
 from aqt.utils import showInfo
 
