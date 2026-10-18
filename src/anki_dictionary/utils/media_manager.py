@@ -132,7 +132,7 @@ def _decode_with_pillow(file_data: bytes) -> QImage:
     try:
         from io import BytesIO
 
-        from PIL import Image
+        from PIL import Image  # ty:ignore[unresolved-import]
 
         with Image.open(BytesIO(file_data)) as source:
             converted = source.convert("RGBA")

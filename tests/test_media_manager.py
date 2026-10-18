@@ -6,7 +6,7 @@ from io import BytesIO
 import pytest
 
 try:
-    from PIL import Image, features
+    from PIL import Image, features  # ty:ignore[unresolved-import]
 except ImportError:  # Optional in the minimal test environment.
     Image = None
     features = None
