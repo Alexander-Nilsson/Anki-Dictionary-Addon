@@ -325,9 +325,6 @@ def handleYomiDictEntry(jsonDict: list, count: int, entry: Any) -> None:
         accents: list[int] = []
 
         def recursive_search(item: Any) -> None:
-            if isinstance(item, dict) and "data" in item:
-                name = item.get("data", {}).get("name", "")
-
             if not isinstance(item, (dict, list)):
                 return
 
@@ -338,6 +335,7 @@ def handleYomiDictEntry(jsonDict: list, count: int, entry: Any) -> None:
                         accent_num = int(name.replace("accent", ""))
                         accents.append(accent_num)
                     except ValueError:
+                        # Non-numeric accent labels are not pitch positions.
                         pass
 
                 if "content" in item:

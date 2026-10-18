@@ -418,10 +418,7 @@ def build_addon():
         print("   ✓ Database creation completed")
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating database: {e}")
-        # print(f"   Output: {e.stdout}")
-        # print(f"   Error: {e.stderr}")
-        # Continue even if DB creation fails (user might create it at runtime)
-        pass
+        # Continue even if DB creation fails (user might create it at runtime).
 
     # Create default themes.json using separate script
     themes_path = addon_dir / "user_files" / "themes" / "themes.json"
@@ -436,7 +433,6 @@ def build_addon():
         print("   ✓ Themes.json creation completed")
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating themes.json: {e}")
-        pass
 
     print(f"✅ Addon built in: {addon_dir}")
 

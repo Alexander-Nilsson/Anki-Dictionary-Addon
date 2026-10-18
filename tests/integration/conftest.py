@@ -11,11 +11,12 @@ if src_path not in sys.path:
 # Check if a real anki is available; skip all tests if not.
 _anki_available = False
 try:
-    import anki.collection  # noqa: F401
+    import anki.collection as _anki_collection
 
     _anki_available = True
 except ImportError:
-    pass
+    _anki_collection = None
+    # The integration marker is skipped below when anki is unavailable.
 
 
 def pytest_collection_modifyitems(items):
@@ -37,6 +38,7 @@ def pytest_collection_modifyitems(items):
                             )
                         )
             except Exception:
+                # Path resolution is best-effort; leave the item unmarked.
                 pass
 
 
@@ -83,11 +85,10 @@ def headless_anki_collection():
     import shutil
     import tempfile
 
-    from anki.collection import Collection
-
+    assert _anki_collection is not None
     base_dir = tempfile.mkdtemp(prefix="anki_dict_int_")
     col_path = os.path.join(base_dir, "collection.anki2")
-    col = Collection(col_path)
+    col = _anki_collection.Collection(col_path)
 
     class Session:
         collection = col
@@ -97,10 +98,12 @@ def headless_anki_collection():
             try:
                 self.collection.close()
             except Exception:
+                # Closing is best-effort during teardown.
                 pass
             try:
                 shutil.rmtree(self.base, ignore_errors=True)
             except Exception:
+                # ignore_errors already covers the common case.
                 pass
 
     session = Session()

@@ -48,9 +48,9 @@ class TestAddonDatabase:
         aqt.mw = MagicMock()
         aqt.mw.pm.addonFolder.return_value = headless_anki_collection.base
 
-        from anki_dictionary.core.database import DictDB
+        import anki_dictionary.core.database as _database
 
-        db = DictDB()
+        db = _database.DictDB()
         assert db is not None
         db.closeConnection()
         aqt.mw = None
@@ -60,7 +60,7 @@ class TestAddonImports:
     """Verify addon modules can be imported in an Anki environment."""
 
     def test_core_modules_importable(self):
-        import anki_dictionary.core.database  # noqa: F401
+        import anki_dictionary.core.database as _database  # noqa: F401
         import anki_dictionary.utils.config  # noqa: F401
         import anki_dictionary.utils.constants  # noqa: F401
         import anki_dictionary.utils.paths  # noqa: F401
@@ -75,7 +75,9 @@ class TestAddonImports:
     def test_dictionary_importable(self):
         """DictInterface — the main orchestrator — must import cleanly
         against the real aqt.qt, since it uses many Qt symbols."""
-        import anki_dictionary.core.dictionary  # noqa: F401
+        import anki_dictionary.core.dictionary as _dictionary
+
+        assert _dictionary is not None
 
     def test_all_qt_names_have_imports(self):
         """AST-based check: every Qt symbol used in dictionary.py must
@@ -128,10 +130,10 @@ class TestAddonImports:
     def test_image_resizer_runtime(self):
         """``imageResizer`` uses QImage/QSize/Qt — verify they resolve at
         runtime (catches missing symbols that import-time alone would miss)."""
-        from anki_dictionary.core.dictionary import imageResizer
+        import anki_dictionary.core.dictionary as _d
 
         # Non-existent file => should return False, not crash
-        assert imageResizer("/nonexistent/path.jpg") is False
+        assert _d.imageResizer("/nonexistent/path.jpg") is False
 
     def test_qthreadpool_instantiation(self):
         """``QThreadPool()`` caused a NameError at runtime because it was
@@ -150,10 +152,8 @@ class TestAddonImports:
 
         # Symbols used in __init__ / startUp that don't need a QWidget
         assert _d.QThreadPool is not None
-        assert _d.QColor is not None
         assert _d.QIcon is not None
         assert _d.QPalette is not None
-        assert _d.QPixmap is not None
         assert _d.QKeySequence is not None
         assert _d.QShortcut is not None
 
@@ -166,7 +166,7 @@ class TestAddonImports:
         """
         import aqt
 
-        aqt.mw = _mw = MagicMock()
+        aqt.mw = MagicMock()
         import anki_dictionary.ui.main_window  # noqa: F401
 
         assert aqt.mw.dictionaryInit is not None

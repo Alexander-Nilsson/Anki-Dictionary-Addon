@@ -9,6 +9,7 @@ This module handles all the integration points with Anki, including:
 """
 
 import re
+from typing import Any, cast
 
 try:
     from anki.hooks import addHook, wrap
@@ -17,9 +18,11 @@ except ImportError:
     addHook = lambda *args: None  # ty:ignore[invalid-assignment]
     wrap = lambda *args: lambda *a, **k: None  # ty:ignore[invalid-assignment]
 
+mw: Any = None
+
 try:
+    import aqt
     import aqt.editor
-    from aqt import mw
     from aqt.addcards import AddCards
     from aqt.browser import Browser
     from aqt.editcurrent import EditCurrent
@@ -27,6 +30,8 @@ try:
     from aqt.qt import QAction, QKeySequence, QMenu, Qt
     from aqt.reviewer import Reviewer
     from aqt.tagedit import TagEdit
+
+    mw = cast(Any, aqt.mw)
 except ImportError:
     # Fallback for testing - use real PyQt if possible
     try:
@@ -34,6 +39,7 @@ except ImportError:
         from PyQt6.QtGui import *  # noqa: F403
         from PyQt6.QtWidgets import *  # noqa: F403
     except ImportError:
+        # Neither Anki nor PyQt6 is importable (plain unit-test runtime).
         pass
     mw = None  # ty:ignore[invalid-assignment]
     AddCards = EditCurrent = Browser = TagEdit = Reviewer = Previewer = object  # ty:ignore[invalid-assignment]
@@ -45,7 +51,6 @@ from ..utils.common import getTarget, gt
 
 # Store the original link handler - will be set on first hook setup
 _original_link_handler = None
-_hooks_setup = False
 
 
 def closeDictionary():
@@ -164,7 +169,7 @@ def searchTerm(webview):
         mw.ankiDictionary.initSearch(text)  # ty:ignore[unresolved-attribute]
 
         if webview.title == "main webview":
-            if mw.state == "review":
+            if mw.state == "review":  # ty:ignore[unresolved-attribute]
                 mw.ankiDictionary.dict.setReviewer(mw.reviewer)  # ty:ignore[unresolved-attribute]
         elif webview.title == "editor":
             target = getTarget(type(webview.parentEditor.parentWindow).__name__)
@@ -244,12 +249,12 @@ def miLinks(self, cmd):
 
 def setup_hooks():
     """Setup all Anki hooks and wrapping."""
-    global _original_link_handler, _hooks_setup
+    global _original_link_handler
 
-    # Prevent double-wrapping
-    if _hooks_setup:
+    # Prevent double-wrapping without a module-global flag.
+    if getattr(setup_hooks, "_done", False):
         return
-    _hooks_setup = True
+    setup_hooks._done = True  # ty:ignore[unresolved-attribute]
 
     # Profile hooks
     addHook("unloadProfile", closeDictionary)
@@ -323,7 +328,7 @@ def setup_gui_menu():
         logger.debug("Action triggered: Search Term")
         from ..ui.main_window import searchTerm
 
-        focused_widget = mw.app.focusWidget()
+        focused_widget = mw.app.focusWidget()  # ty:ignore[unresolved-attribute]
 
         # Check if dictionary window is focused and visible
         if mw.ankiDictionary and mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
@@ -353,13 +358,13 @@ def setup_gui_menu():
                     parent = None
 
         # Fallback to main webview (Reviewer)
-        searchTerm(mw.web)
+        searchTerm(mw.web)  # ty:ignore[unresolved-attribute]
 
     def trigger_search_col():
         logger.debug("Action triggered: Search Collection")
         from ..ui.main_window import searchCol
 
-        focused_widget = mw.app.focusWidget()
+        focused_widget = mw.app.focusWidget()  # ty:ignore[unresolved-attribute]
 
         if focused_widget:
             parent = focused_widget
@@ -375,7 +380,7 @@ def setup_gui_menu():
                 except (TypeError, AttributeError):
                     parent = None
 
-        searchCol(mw.web)
+        searchCol(mw.web)  # ty:ignore[unresolved-attribute]
 
     # Use a more stable location for the menu to avoid issues with standard shortcuts
     if not hasattr(mw, "DictMainMenu"):
@@ -404,8 +409,8 @@ def setup_gui_menu():
 
     # Store actions on mw to prevent garbage collection
     # Also set legacy openMiDict attribute for toggle functionality in main_window.py
-    mw.openMiDict = open_action  # ty:ignore[unresolved-attribute]
-    mw.dict_actions = {"settings": setting_action, "open": open_action}  # ty:ignore[unresolved-attribute]
+    mw.openMiDict = open_action  # ty:ignore[invalid-assignment]
+    mw.dict_actions = {"settings": setting_action, "open": open_action}  # ty:ignore[invalid-assignment]
 
     # Search Actions
     search_term_action = QAction("Search Selected Term", mw)

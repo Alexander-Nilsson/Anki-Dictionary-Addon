@@ -54,16 +54,6 @@ _EXT_TO_MIME = {
     "svg": "image/svg+xml",
 }
 
-_EXT_TO_SAVE = {
-    "jpg": "jpeg",
-    "jpeg": "jpeg",
-    "png": "png",
-    "gif": "gif",
-    "webp": "webp",
-    "avif": "avif",
-    "bmp": "bmp",
-}
-
 
 def _guess_extension(url: str) -> str:
     """Extract image extension from URL, defaulting to 'jpg'."""
@@ -83,6 +73,7 @@ def log_debug(message):
         ) as f:
             f.write(f"{message}\n")
     except Exception:
+        # Debug logging is best-effort and must not break image search.
         pass
 
 

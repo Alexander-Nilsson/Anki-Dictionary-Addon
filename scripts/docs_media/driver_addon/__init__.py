@@ -18,8 +18,11 @@ import subprocess
 import tempfile
 import time
 
-from aqt import gui_hooks, mw
+import aqt
+from aqt import gui_hooks
 from aqt.qt import QApplication, QTimer
+
+mw = aqt.mw
 
 SCENARIO = os.environ.get("DOCS_SCENARIO", "shots")
 OUT_DIR = os.environ.get(

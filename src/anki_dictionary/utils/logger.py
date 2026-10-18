@@ -6,7 +6,7 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
-from aqt import mw
+import aqt
 
 from .paths import get_addon_root
 
@@ -39,6 +39,7 @@ def get_logger(name: str) -> logging.Logger:
 
         # File handler (if Anki is running and we have a path)
         try:
+            mw = getattr(aqt, "mw", None)
             if mw and mw.pm:
                 addon_root = get_addon_root()
                 log_dir = os.path.join(addon_root, "logs")
@@ -63,7 +64,8 @@ def get_logger(name: str) -> logging.Logger:
                 file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
                 logger.addHandler(file_handler)
         except Exception:
-            # Fallback if mw is not available yet
+            # Logging must never prevent the addon from starting; Anki may not
+            # have finished initialising its profile yet.
             pass
 
     return logger
