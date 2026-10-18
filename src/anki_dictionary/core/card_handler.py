@@ -320,14 +320,15 @@ class CardCreationHandler:
                 noteField = item[0]
                 if noteField in tFields:
                     found_field = True
+                    args = (
+                        definition,
+                        idx,
+                        addType,
+                        currentNoteId,
+                    )
                     self.midict.currentEditor.web.eval(
                         self.midict.dictInt.insertHTMLJS
-                        % (
-                            definition.replace('"', '\\"'),
-                            str(idx),
-                            addType,
-                            currentNoteId,
-                        )
+                        % tuple(json.dumps(arg, ensure_ascii=False) for arg in args)
                     )
             if not found_field:
                 tooltip(

@@ -249,7 +249,13 @@ class CardExporter:
         config = self.getConfig()
         config[key] = value
         self.config = config
-        self.mw.refresh_anki_dict_config(config)
+        refresher = getattr(self.mw, "refreshAnkiDictConfig", None)
+        if callable(refresher):
+            refresher(config)
+        else:
+            from ..utils.config import refresh_anki_dict_config
+
+            refresh_anki_dict_config(config)
         save_addon_config(config)
 
     # ── window plumbing ───────────────────────────────────────

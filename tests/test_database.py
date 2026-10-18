@@ -82,6 +82,25 @@ class TestDictDB(unittest.TestCase):
         )
         self.assertIsNotNone(cursor.fetchone())
 
+    def test_add_dict_creates_missing_language(self):
+        """Web install imports dictionaries before addLanguages is called."""
+        success, _message, final_name = self.db.addDict("FreshDict", "Japanese", "[]")
+
+        self.assertTrue(success)
+        self.assertEqual(final_name, "FreshDict")
+        self.assertIsNotNone(self.db.getLangId("Japanese"))
+        self.assertTrue(self.db.dictExists("FreshDict", "Japanese"))
+
+    def test_user_group_accepts_display_names(self):
+        """Settings store display names with spaces; the DB uses underscores."""
+        self.db.addLanguages(["Japanese"])
+        self.db.addDict("JMDict_English", "Japanese", "[]")
+
+        found = self.db.getUserGroups(["JMDict English"])
+
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["dict"], "l1nameJMDict_English")
+
     def test_normalize_dict_name(self):
         test_cases = [
             ("Normal Name", "Normal_Name"),

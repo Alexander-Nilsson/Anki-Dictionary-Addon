@@ -11,25 +11,37 @@ function insertHTML(newHTML, ord, action, currentNoteId) {
     return;
   }
 
+  // Anki 25.09+ renders the actual rich-text editor inside an open shadow
+  // root. Older versions kept the editable element in the light DOM.
+  const target = editableField.shadowRoot
+    ? editableField.shadowRoot.querySelector(
+        'anki-editable, [contenteditable="true"]',
+      ) || editableField
+    : editableField;
+
+  const currentHTML = target.innerHTML;
+  const isEmpty = currentHTML === "<br>" || currentHTML.trim() === "";
   if (action === "overwrite") {
-    editableField.innerHTML = newHTML;
+    target.innerHTML = newHTML;
   } else if (action === "add") {
-    if (editableField.innerHTML === "<br>" || editableField.innerHTML.trim() === "") {
-      editableField.innerHTML = newHTML;
-    } else {
-      editableField.innerHTML = editableField.innerHTML + "<br><br>" + newHTML;
-    }
+    target.innerHTML = isEmpty
+      ? newHTML
+      : currentHTML + "<br><br>" + newHTML;
   } else if (action === "no") {
-    if (editableField.innerHTML === "<br>" || editableField.innerHTML.trim() === "") {
-      editableField.innerHTML = newHTML;
+    if (!isEmpty) {
+      return;
     }
+    target.innerHTML = newHTML;
   }
 
-  pycmd("key" + ":" + parseInt(ord) + ":" + currentNoteId + ":" + editableField.innerHTML);
+  // Let the editor's own input handlers notice the change, then sync the
+  // note model through Anki's editor bridge.
+  target.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  pycmd("key:" + parseInt(ord) + ":" + currentNoteId + ":" + target.innerHTML);
 }
 
 try {
-  insertHTML("%s", "%s", "%s", "%s");
+  insertHTML(%s, %s, %s, %s);
 } catch (e) {
   console.error("Error in insertHTML:", e);
 }
