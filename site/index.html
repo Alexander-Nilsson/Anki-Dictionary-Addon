@@ -3,61 +3,108 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Anki Dictionary Add-on — look it up, make the card</title>
-<meta name="description" content="A dictionary window inside Anki. Search seven ways across every dictionary you own, add AI definitions, images and native audio, then send the result straight to a card.">
+<title>Anki Dictionary Add-on — Guide</title>
+<meta name="description" content="A dictionary window inside Anki. Installation, search modes, dictionary groups, results, Send to Field, the Card Exporter, themes and troubleshooting.">
 <link rel="canonical" href="https://alexander-nilsson.github.io/Anki-Dictionary-Addon/">
 <meta name="theme-color" content="#17171a">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://alexander-nilsson.github.io/Anki-Dictionary-Addon/">
-<meta property="og:title" content="Anki Dictionary Add-on — look it up, make the card">
-<meta property="og:description" content="Seven search modes, local dictionaries, LLM definitions, DuckDuckGo images, Forvo audio, and one-click card export — inside Anki.">
+<meta property="og:title" content="Anki Dictionary Add-on — Guide">
+<meta property="og:description" content="A dictionary window inside Anki. Installation, search modes, dictionary groups, results, Send to Field, the Card Exporter, themes and troubleshooting.">
 <meta property="og:image" content="https://alexander-nilsson.github.io/Anki-Dictionary-Addon/assets/og.jpg">
 <meta property="og:image:alt" content="Anki Dictionary Add-on search results for the Chinese word 电脑">
 <meta property="og:site_name" content="Anki Dictionary Add-on">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Anki Dictionary Add-on — look it up, make the card">
-<meta name="twitter:description" content="Seven search modes, local dictionaries, LLM definitions, DuckDuckGo images, Forvo audio, and one-click card export — inside Anki.">
+<meta name="twitter:title" content="Anki Dictionary Add-on — Guide">
+<meta name="twitter:description" content="Install, search seven ways, send a result to a field, export a card, theme the window, and fix common problems.">
 <meta name="twitter:image" content="https://alexander-nilsson.github.io/Anki-Dictionary-Addon/assets/og.jpg">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;0,900;1,800;1,900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<script>
-(function () {
-  try {
-    var saved = localStorage.getItem("akd-theme");
-    document.documentElement.dataset.theme = saved === "paper" ? "paper" : "ink";
-  } catch (error) {
-    document.documentElement.dataset.theme = "ink";
-  }
-})();
-</script>
 <link rel="stylesheet" href="assets/css/main.css">
+<style>
+  .doc .gallery { padding: 0 0 24px; }
+
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--line2);
+    border-bottom: 1px solid var(--line2);
+  }
+  .overview article {
+    padding: 28px var(--gut);
+    border-right: 1px solid var(--line);
+  }
+  .overview article:last-child { border-right: 0; }
+  .overview .num {
+    color: var(--spot);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+  .overview h3 {
+    margin: 10px 0 8px;
+    font-family: var(--disp);
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+  }
+  .overview p {
+    margin: 0;
+    max-width: 42ch;
+    color: var(--dim);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .guide-section { border-top: 1px solid var(--line2); }
+  .films .film video { aspect-ratio: 16 / 9; object-fit: contain; }
+
+  .hero-visual { flex-direction: column; gap: 18px; }
+  .workflow-shot {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 520px;
+    margin: 0;
+  }
+  .workflow-shot .window video {
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    background: var(--terminal);
+  }
+  .workflow-shot figcaption {
+    margin-top: 10px;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  @media (max-width: 980px) {
+    .overview { grid-template-columns: 1fr; }
+    .overview article { border-right: 0; border-bottom: 1px solid var(--line); }
+    .overview article:last-child { border-bottom: 0; }
+  }
+</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
 <div class="frame">
   <header class="site-nav">
-    <a class="brand" href="index.html" aria-label="Anki Dictionary Add-on home">
+    <a class="brand" href="#" aria-label="Anki Dictionary Add-on home">
       <img src="favicon.svg" alt="" width="23" height="23">
       <span>Anki Dictionary <b>Add-on</b></span>
     </a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="guide.html">Guide</a>
-      <a href="#features">Features</a>
-      <a href="#themes">Themes</a>
-      <a href="#films">Film</a>
+      <a href="#overview">Overview</a>
+      <a href="#videos">Videos</a>
+      <a href="#guide">Guide</a>
+      <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon" target="_blank" rel="noopener">GitHub ↗</a>
     </nav>
     <div class="nav-actions">
-      <a class="stars-pill" href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon" target="_blank" rel="noopener" aria-label="Anki Dictionary Add-on on GitHub">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2l2.95 6.1 6.7.9-4.9 4.7 1.2 6.6L12 17.4l-5.95 3.1 1.2-6.6-4.9-4.7 6.7-.9z"/></svg>
-        <b data-github-stars>—</b><span>stars</span>
-      </a>
-      <div class="ground" role="group" aria-label="Color ground">
-        <button type="button" data-theme-set="ink" aria-pressed="true">ink</button>
-        <button type="button" data-theme-set="paper" aria-pressed="false">paper</button>
-      </div>
       <a class="nav-cta" href="#install">Install</a>
       <button class="menu" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-sheet">
         <span></span><span></span><span></span>
@@ -66,10 +113,9 @@
   </header>
 
   <div class="sheet" id="site-sheet">
-    <a href="guide.html">Guide</a>
-    <a href="#features">Features</a>
-    <a href="#themes">Themes</a>
-    <a href="#films">Film</a>
+    <a href="#overview">Overview</a>
+    <a href="#videos">Videos</a>
+    <a href="#guide">Guide</a>
     <a href="#install">Install</a>
     <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon" target="_blank" rel="noopener">GitHub ↗</a>
   </div>
@@ -78,32 +124,29 @@
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">The dictionary layer for Anki</p>
-        <h1>Look it up.<br><em>Make it stick.</em></h1>
+        <h1>A dictionary <em>inside Anki.</em></h1>
         <p class="hero-lede">
-          Seven search modes across every dictionary you own. AI definitions, DuckDuckGo
-          images and native Forvo audio. <b>One window, one click from meaning to finished card.</b>
+          Search the dictionaries you have installed, read the result, and send it to a
+          note field or to the Card Exporter. The add-on uses the note types and fields
+          already in your collection.
         </p>
         <div class="hero-actions">
-          <a class="btn btn-solid" href="guide.html">Read the guide <span aria-hidden="true">→</span></a>
-          <a class="btn btn-ghost" href="#films">Watch the walkthrough · 7:32</a>
+          <a class="btn btn-solid" href="#guide">Read the guide <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="#overview">What it does</a>
         </div>
 
         <div class="install-panel" id="install">
           <p class="install-label"><i></i> Install from AnkiWeb</p>
           <div class="install-card">
-            <span class="prompt" aria-hidden="true">$</span>
+            <span class="prompt" aria-hidden="true">code</span>
             <code>1973740182</code>
             <button class="copy" type="button" data-copy="1973740182" aria-label="Copy the AnkiWeb add-on code">copy</button>
           </div>
-          <div class="install-card install-card-secondary">
-            <span class="prompt" aria-hidden="true">↧</span>
-            <code>releases/latest &rarr; .ankiaddon</code>
-            <button class="copy" type="button" data-copy="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases/latest" aria-label="Copy the releases URL">copy</button>
-          </div>
           <p class="hero-note">
             Tools → Add-ons → Get Add-ons… · paste the code · restart Anki.
-            <a href="guide.html#installation">Install guide</a> ·
-            <a href="guide.html#quick-start">5-minute start</a>
+            <a href="#installation">Installation</a><br>
+            Or download the latest
+            <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases/latest">.ankiaddon release ↗</a>.
           </p>
         </div>
       </div>
@@ -114,345 +157,609 @@
             <div class="window-bar" aria-hidden="true">
               <i></i><i></i><i></i>
               <span>Anki Dictionary — 你好</span>
-              <span class="win-badge">live capture</span>
+              <span class="win-badge">search</span>
             </div>
             <video autoplay muted loop playsinline preload="metadata" poster="assets/media/v01-search-poster.jpg" title="Screen recording: typing 你好 in the dictionary and getting real Moedict and Cedict results">
               <source src="assets/media/v01-search.mp4" type="video/mp4">
               <source src="assets/media/v01-search.webm" type="video/webm">
             </video>
           </div>
-          <figcaption>Type 你好, press Enter. Real dictionaries, real content.</figcaption>
+          <figcaption>Type 你好, press Enter. Results come from the installed dictionaries.</figcaption>
+        </figure>
+
+        <figure class="workflow-shot">
+          <div class="window">
+            <div class="window-bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span>Anki Dictionary — workflow</span>
+              <span class="win-badge">workflow</span>
+            </div>
+            <video autoplay muted loop playsinline preload="metadata" poster="assets/media/demo-workflow-poster.jpg" title="Workflow recording: search, choose an image, and send the entry to the Card Exporter">
+              <source src="assets/media/demo-workflow.mp4" type="video/mp4">
+              <source src="assets/media/demo-workflow.webm" type="video/webm">
+            </video>
+          </div>
+          <figcaption>Search → choose an image → send the entry to the Card Exporter.</figcaption>
         </figure>
       </div>
     </section>
 
-    <section class="strip" aria-label="Project numbers">
-      <a class="stat" href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon" target="_blank" rel="noopener">
-        <b class="stat-num" data-github-stars>—</b>
-        <span><i class="live"></i> GitHub stars · live</span>
-      </a>
-      <div class="stat">
-        <b data-count="7">7</b>
-        <span>search modes</span>
-      </div>
-      <div class="stat">
-        <b data-count="25.09" data-decimals="2" data-suffix="+">25.09+</b>
-        <span>minimum Anki version</span>
-      </div>
-      <div class="stat">
-        <b data-count="1973740182" data-format="plain">1973740182</b>
-        <span>AnkiWeb add-on code</span>
-      </div>
-    </section>
-
-    <section id="features">
-      <div class="section-head" data-reveal>
-        <p class="eyebrow">What it does</p>
-        <h2>One search. <em>Five jobs.</em></h2>
+    <section id="overview">
+      <div class="section-head">
+        <p class="eyebrow">Overview</p>
+        <h2>What it is</h2>
         <p class="lede">
-          The add-on is not a lookup box bolted onto Anki. It is the whole path from a word
-          you met to a card you will review — <b>without switching windows.</b>
+          The add-on adds a dictionary window to Anki. It searches local dictionary
+          files, renders the results, and writes them into notes. It does not replace
+          Anki's editor or scheduler.
         </p>
       </div>
 
-      <div class="features">
-        <article class="feature" data-reveal>
-          <span class="num" aria-hidden="true">01</span>
-          <div>
-            <h3>Seven ways to find the word</h3>
-            <p>
-              Search every installed dictionary at once, or narrow to a language group.
-              Forward, Backward, Exact, Anywhere, Definition, Example and Pronunciation
-              modes are one dropdown apart. Frequency comes with the result: stars, a
-              numeric rank, and HSK, JLPT or CEFR labels when the lists are installed.
-            </p>
-            <ul class="tags">
-              <li>Forward</li><li>Backward</li><li>Exact</li><li>Anywhere</li>
-              <li>Definition</li><li>Example</li><li>Pronunciation</li>
-            </ul>
-            <ul class="tags">
-              <li>★★★★★</li><li>rank</li><li>HSK³</li><li>JLPT</li><li>CEFR</li>
-            </ul>
-          </div>
-          <div class="spec">
-            <div class="spec-row"><span class="dot"></span> dictionaries <b>local · all at once</b></div>
-            <div class="spec-row"><span class="dot g"></span> groups <b>per language or purpose</b></div>
-            <div class="spec-row"><span class="dot y"></span> deconjugation <b>dictionary form</b></div>
-            <div class="spec-row"><span class="dot r"></span> tabs <b>multi or single</b></div>
-          </div>
+      <div class="overview">
+        <article>
+          <span class="num">01</span>
+          <h3>Search</h3>
+          <p>
+            Type a term and choose a mode. Forward, Backward, Exact, Anywhere,
+            Definition, Example and Pronunciation search different columns in the
+            installed dictionaries. Forward is the default.
+          </p>
         </article>
-
-        <article class="feature" data-reveal>
-          <span class="num" aria-hidden="true">02</span>
-          <div>
-            <h3>AI that reads the room</h3>
-            <p>
-              Bring your own model through an OpenAI-compatible endpoint or a local Ollama
-              install. The prompt receives the term, part of speech, frequency and level
-              context. Join several prompt templates with <code>---</code> and a single call
-              returns independent definition blocks, each with its own export tools.
-            </p>
-            <ul class="tags">
-              <li>OpenAI-compatible</li><li>Ollama</li><li>streaming</li><li>multi-definition</li>
-            </ul>
-          </div>
-          <div class="spec">
-            <div class="spec-row">provider <b class="spot">OpenAI-compatible</b></div>
-            <div class="spec-row">or <b class="run">Ollama · local</b></div>
-            <div class="spec-row">templates <b>joined with ---</b></div>
-            <div class="spec-row">context <b>term · POS · frequency</b></div>
-          </div>
+        <article>
+          <span class="num">02</span>
+          <h3>Read</h3>
+          <p>
+            Results are grouped by dictionary. Headers show the term, reading,
+            frequency and level labels when those lists are installed. The sidebar
+            indexes every entry in the current search.
+          </p>
         </article>
-
-        <article class="feature" data-reveal>
-          <span class="num" aria-hidden="true">03</span>
-          <div>
-            <h3>Images and voices, on tap</h3>
-            <p>
-              DuckDuckGo Image Search and Forvo live in the dictionary group dropdown like
-              any other source. Click an image or tick a native recording, then send it to
-              the same field as the definition. No downloads, no asset folder, no context
-              switch.
-            </p>
-            <ul class="tags">
-              <li>DuckDuckGo Image Search</li><li>Forvo</li><li>send to field</li>
-            </ul>
-          </div>
-          <div class="spec">
-            <div class="spec-row"><span class="dot"></span> images <b>DuckDuckGo</b></div>
-            <div class="spec-row"><span class="dot g"></span> audio <b>Forvo native speakers</b></div>
-            <div class="spec-row"><span class="dot y"></span> output <b>straight to a field</b></div>
-            <div class="spec-row"><span class="dot r"></span> limits <b>region · max dimensions</b></div>
-          </div>
-        </article>
-
-        <article class="feature" data-reveal>
-          <span class="num" aria-hidden="true">04</span>
-          <div>
-            <h3>The card is the destination</h3>
-            <p>
-              Map any note type to an export template, then build the card in a dedicated
-              exporter: multiple definitions, a sentence, notes, one image and one recording.
-              Automatic modes pull definitions, DuckDuckGo images and Forvo audio for you.
-              For existing decks, mass-export definitions from the Card Browser.
-            </p>
-            <ul class="tags">
-              <li>export templates</li><li>auto definitions</li><li>auto images</li>
-              <li>auto audio</li><li>mass export</li>
-            </ul>
-          </div>
-          <div class="spec">
-            <div class="spec-row">template → note type <b>field mapping</b></div>
-            <div class="spec-row">definitions <b>up to 3 dictionaries</b></div>
-            <div class="spec-row">bulk <b>Edit → Export Definitions</b></div>
-            <div class="spec-row">add <b>button or Ctrl/⌘+Enter</b></div>
-          </div>
-        </article>
-
-        <article class="feature" data-reveal>
-          <span class="num" aria-hidden="true">05</span>
-          <div>
-            <h3>Themes are a JSON system</h3>
-            <p>
-              More than a light/dark toggle. Fourteen colours control every panel, header, tab and
-              highlight in the window. Apply a built-in theme instantly, derive a readable
-              palette from two colours, or paste JSON from someone else. The gallery shows
-              the live window, and one press undoes a wrong pick.
-            </p>
-            <ul class="tags">
-              <li>JSON themes</li><li>14 colours</li><li>live gallery</li>
-              <li>2-colour generator</li><li>instant undo</li>
-            </ul>
-          </div>
-          <div class="spec">
-            <div class="spec-row">format <b>JSON · portable</b></div>
-            <div class="spec-row">built in <b>Light · Dark · Catppuccin</b></div>
-            <div class="spec-row">also <b>Nord · Gruvbox · Tokyo Night</b></div>
-            <div class="spec-row">apply <b>instant · undoable</b></div>
-          </div>
+        <article>
+          <span class="num">03</span>
+          <h3>Send</h3>
+          <p>
+            Send a definition to a note field, or stage a card in the Card Exporter.
+            The exporter maps definitions, a sentence, notes, image and audio to the
+            fields of one note type.
+          </p>
         </article>
       </div>
     </section>
 
-    <section id="themes">
-      <div class="section-head" data-reveal>
-        <p class="eyebrow">Appearance</p>
-        <h2>Five grounds. <em>One click.</em></h2>
+    <section id="videos">
+      <div class="section-head">
+        <p class="eyebrow">Video</p>
+        <h2>Walkthroughs</h2>
         <p class="lede">
-          The same search for 电脑, repainted live. Every theme is JSON, every colour is
-          yours, and the switch happens over the open result — not on restart.
-        </p>
-      </div>
-      <div class="gallery">
-        <figure class="theme-card" data-reveal>
-          <a href="guide.html#themes">
-            <picture>
-              <source type="image/avif" srcset="assets/media/s02-search-light.avif">
-              <img src="assets/media/s02-search-light.webp" alt="Dictionary results for 电脑 in the Light theme" width="1920" height="1200" loading="lazy">
-            </picture>
-            <figcaption><b>Light</b><span>paper ground</span></figcaption>
-          </a>
-        </figure>
-        <figure class="theme-card" data-reveal>
-          <a href="guide.html#themes">
-            <picture>
-              <source type="image/avif" srcset="assets/media/s03-search-dark.avif">
-              <img src="assets/media/s03-search-dark.webp" alt="Dictionary results for 电脑 in the Dark theme" width="1920" height="1200" loading="lazy">
-            </picture>
-            <figcaption><b>Dark</b><span>ink ground</span></figcaption>
-          </a>
-        </figure>
-        <figure class="theme-card" data-reveal>
-          <a href="guide.html#themes">
-            <picture>
-              <source type="image/avif" srcset="assets/media/s04-search-catppuccin_mocha.avif">
-              <img src="assets/media/s04-search-catppuccin_mocha.webp" alt="Dictionary results for 电脑 in the Catppuccin Mocha theme" width="1920" height="1200" loading="lazy">
-            </picture>
-            <figcaption><b>Catppuccin Mocha</b><span>community</span></figcaption>
-          </a>
-        </figure>
-        <figure class="theme-card" data-reveal>
-          <a href="guide.html#themes">
-            <picture>
-              <source type="image/avif" srcset="assets/media/s05-search-gruvbox.avif">
-              <img src="assets/media/s05-search-gruvbox.webp" alt="Dictionary results for 电脑 in the Gruvbox theme" width="1920" height="1200" loading="lazy">
-            </picture>
-            <figcaption><b>Gruvbox</b><span>community</span></figcaption>
-          </a>
-        </figure>
-        <figure class="theme-card" data-reveal>
-          <a href="guide.html#themes">
-            <picture>
-              <source type="image/avif" srcset="assets/media/s06-search-nord.avif">
-              <img src="assets/media/s06-search-nord.webp" alt="Dictionary results for 电脑 in the Nord theme" width="1920" height="1200" loading="lazy">
-            </picture>
-            <figcaption><b>Nord</b><span>community</span></figcaption>
-          </a>
-        </figure>
-      </div>
-    </section>
-
-    <section id="films">
-      <div class="section-head" data-reveal>
-        <p class="eyebrow">In motion</p>
-        <h2>Real window. <em>Real dictionaries.</em></h2>
-        <p class="lede">
-          Start with the full setup walkthrough, then the follow-up for images, Forvo audio,
-          AI definitions, and batch export. Everything runs against a real dictionary
-          database — no mock badge, no composited UI.
+          Two recordings against a real dictionary database: the full setup, then the
+          follow-up for images, Forvo audio, AI definitions and batch export.
         </p>
       </div>
       <div class="films">
-        <figure class="film film-wide film-chapters" data-chaptered data-reveal>
-          <div class="film-player">
-            <video controls playsinline preload="metadata" poster="assets/media/walkthrough-poster.jpg" title="Full narrated walkthrough: install the add-on, add dictionaries, create groups and an export template, and build sentence cards with dictionary definitions">
-              <source src="assets/media/walkthrough.mp4" type="video/mp4">
-            </video>
-            <div class="chapter-now" aria-hidden="true">
-              <span class="chapter-now-index">01</span>
-              <span class="chapter-now-label">Introduction</span>
-            </div>
-          </div>
-          <aside class="chapter-rail" aria-label="Setup walkthrough sections">
-            <div class="chapter-rail-head">
-              <span>Sections</span>
-              <span class="chapter-time" data-chapter-time>0:00 / 7:32</span>
-            </div>
-            <ol class="chapter-list">
-              <li><button type="button" data-at="0"><span class="chapter-at">0:00</span><span class="chapter-label">Introduction</span></button></li>
-              <li><button type="button" data-at="10"><span class="chapter-at">0:10</span><span class="chapter-label">Install the Add-on</span></button></li>
-              <li><button type="button" data-at="51"><span class="chapter-at">0:51</span><span class="chapter-label">Install Dictionaries</span></button></li>
-              <li><button type="button" data-at="121"><span class="chapter-at">2:01</span><span class="chapter-label">Dictionary Groups</span></button></li>
-              <li><button type="button" data-at="185"><span class="chapter-at">3:05</span><span class="chapter-label">Export Template</span></button></li>
-              <li><button type="button" data-at="221"><span class="chapter-at">3:41</span><span class="chapter-label">Sentence Card</span></button></li>
-              <li><button type="button" data-at="320"><span class="chapter-at">5:20</span><span class="chapter-label">Second Sentence Card</span></button></li>
-              <li><button type="button" data-at="407"><span class="chapter-at">6:47</span><span class="chapter-label">Card Exporter</span></button></li>
-              <li><button type="button" data-at="432"><span class="chapter-at">7:12</span><span class="chapter-label">Keybinds &amp; Wrap-up</span></button></li>
-              <li><button type="button" data-at="445"><span class="chapter-at">7:25</span><span class="chapter-label">Thanks</span></button></li>
-            </ol>
-          </aside>
+        <figure class="film">
+          <video controls playsinline preload="metadata" poster="assets/media/walkthrough-poster.jpg" title="Full narrated walkthrough: install the add-on, add dictionaries, create groups and an export template, and build sentence cards">
+            <source src="assets/media/walkthrough.mp4" type="video/mp4">
+          </video>
           <figcaption>
             <b>Full walkthrough · 7:32</b>
-            <span>Install → dictionaries → groups → export template → two sentence cards. <a href="assets/media/walkthrough-chapters.txt">Download timestamps</a>.</span>
+            <span>Install → dictionaries → groups → export template → two sentence cards. <a href="assets/media/walkthrough-chapters.txt">Timestamps</a>.</span>
           </figcaption>
         </figure>
-        <figure class="film film-wide film-chapters" data-chaptered data-reveal>
-          <div class="film-player">
-            <video controls playsinline preload="metadata" poster="assets/media/walkthrough-v3-poster.jpg" title="Follow-up walkthrough: DuckDuckGo Images, Forvo audio, AI definitions, the Card Exporter, and batch definition export">
-              <source src="assets/media/walkthrough-v3.mp4" type="video/mp4">
-            </video>
-            <div class="chapter-now" aria-hidden="true">
-              <span class="chapter-now-index">01</span>
-              <span class="chapter-now-label">Introduction</span>
-            </div>
-          </div>
-          <aside class="chapter-rail" aria-label="Follow-up walkthrough sections">
-            <div class="chapter-rail-head">
-              <span>Sections</span>
-              <span class="chapter-time" data-chapter-time>0:00 / 3:59</span>
-            </div>
-            <ol class="chapter-list">
-              <li><button type="button" data-at="0"><span class="chapter-at">0:00</span><span class="chapter-label">Introduction</span></button></li>
-              <li><button type="button" data-at="7"><span class="chapter-at">0:07</span><span class="chapter-label">Images</span></button></li>
-              <li><button type="button" data-at="44"><span class="chapter-at">0:44</span><span class="chapter-label">Forvo audio</span></button></li>
-              <li><button type="button" data-at="87"><span class="chapter-at">1:27</span><span class="chapter-label">Card Exporter</span></button></li>
-              <li><button type="button" data-at="152"><span class="chapter-at">2:32</span><span class="chapter-label">AI definitions</span></button></li>
-              <li><button type="button" data-at="191"><span class="chapter-at">3:11</span><span class="chapter-label">Batch export</span></button></li>
-              <li><button type="button" data-at="230"><span class="chapter-at">3:50</span><span class="chapter-label">Wrap-up</span></button></li>
-            </ol>
-          </aside>
+        <figure class="film">
+          <video controls playsinline preload="metadata" poster="assets/media/walkthrough-v3-poster.jpg" title="Follow-up walkthrough: DuckDuckGo Images, Forvo audio, AI definitions, the Card Exporter, and batch definition export">
+            <source src="assets/media/walkthrough-v3.mp4" type="video/mp4">
+          </video>
           <figcaption>
             <b>Follow-up · 3:59</b>
-            <span>Images → Forvo audio → AI settings → a card with media → batch export. <a href="assets/media/walkthrough-v3-chapters.txt">Download timestamps</a>.</span>
+            <span>Images → Forvo audio → AI settings → a card with media → batch export. <a href="assets/media/walkthrough-v3-chapters.txt">Timestamps</a>.</span>
           </figcaption>
-        </figure>
-        <figure class="film" data-reveal>
-          <video controls muted loop playsinline preload="metadata" poster="assets/media/v02-themes-poster.jpg" title="Screen recording of the dictionary switching themes over one result page">
-            <source src="assets/media/v02-themes.mp4" type="video/mp4">
-            <source src="assets/media/v02-themes.webm" type="video/webm">
-          </video>
-          <figcaption><b>01 · Themes</b><span>Catppuccin → Gruvbox → Nord → Light, over the same result.</span></figcaption>
-        </figure>
-        <figure class="film" data-reveal>
-          <video controls muted loop playsinline preload="metadata" poster="assets/media/v03-tabs-sidebar-poster.jpg" title="Screen recording of two search tabs and the results sidebar">
-            <source src="assets/media/v03-tabs-sidebar.mp4" type="video/mp4">
-            <source src="assets/media/v03-tabs-sidebar.webm" type="video/webm">
-          </video>
-          <figcaption><b>02 · Tabs + sidebar</b><span>Two searches kept open, the sidebar jumping between them.</span></figcaption>
         </figure>
       </div>
     </section>
 
-    <section class="cta" aria-labelledby="cta-title">
-      <div class="cta-inner">
-        <div data-reveal>
-          <p class="eyebrow">Ready when you are</p>
-          <h2 id="cta-title">Give every word <em>a card.</em></h2>
-          <p>
-            One add-on code, no account. Install it, point it at the dictionaries you
-            already own, and press Ctrl+W.
-          </p>
-          <div class="cta-links">
-            <a class="btn btn-ghost" href="guide.html#quick-start">5-minute quick start</a>
+    <section id="guide" class="guide-section">
+      <div class="section-head">
+        <p class="eyebrow">Guide</p>
+        <h2>How to use the add-on</h2>
+        <p class="lede">
+          Installation, the search modes, dictionary groups, LLM, image and audio
+          sources, the results window, Send to Field, the Card Exporter, themes,
+          settings and troubleshooting. Each section is linkable.
+        </p>
+      </div>
+
+      <div class="docs-layout">
+        <aside class="toc">
+          <div class="toc-inner">
+            <p class="eyebrow">On this page</p>
+            <nav aria-label="Guide sections">
+              <a href="#installation">Installation</a>
+              <a href="#first-lookup">First lookup</a>
+              <a href="#search-modes">Search modes</a>
+              <a href="#groups">Dictionary groups</a>
+              <a href="#sources">LLM, images and audio</a>
+              <a href="#results">Results window</a>
+              <a href="#shortcuts">Keyboard shortcuts</a>
+              <a href="#send-to-field">Send to Field</a>
+              <a href="#exporter">Card Exporter</a>
+              <a href="#themes">Themes</a>
+              <a href="#settings">Settings</a>
+              <a href="#troubleshooting">Troubleshooting</a>
+            </nav>
+            <div class="toc-cta">
+              AnkiWeb code<br>
+              <a href="#install">1973740182</a><br>
+              Anki 25.09+ · <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases" target="_blank" rel="noopener">Releases ↗</a>
+            </div>
           </div>
-        </div>
-        <div class="install-panel">
-          <p class="install-label"><i></i> Install from AnkiWeb</p>
-          <div class="install-card">
-            <span class="prompt" aria-hidden="true">$</span>
-            <code>1973740182</code>
-            <button class="copy" type="button" data-copy="1973740182" aria-label="Copy the AnkiWeb add-on code">copy</button>
-          </div>
-          <div class="install-card install-card-secondary">
-            <span class="prompt" aria-hidden="true">↧</span>
-            <code>releases/latest &rarr; .ankiaddon</code>
-            <button class="copy" type="button" data-copy="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases/latest" aria-label="Copy the releases URL">copy</button>
-          </div>
-          <p class="hero-note">
-            Requires Anki 25.09+ · macOS &amp; Linux tested · AGPLv3.
-            <a href="guide.html#installation">Full installation notes</a>
-          </p>
-        </div>
+        </aside>
+
+        <article class="doc">
+          <section id="installation">
+            <h2>Installation</h2>
+            <p>
+              The add-on runs inside <b>Anki 25.09 or newer</b> on the desktop. Anki
+              provides the Qt and web engine runtime, so there is nothing else to install.
+            </p>
+
+            <h3>Install from AnkiWeb</h3>
+            <ol class="steps">
+              <li>Open Anki and choose <b>Tools → Add-ons</b>.</li>
+              <li>Click <b>Get Add-ons…</b> and enter the code below.</li>
+              <li>Restart Anki. An <b>Anki Dictionary</b> menu appears in the menu bar.</li>
+            </ol>
+            <pre><code>1973740182</code><button class="copy" type="button" data-copy="1973740182" aria-label="Copy the AnkiWeb add-on code">copy</button></pre>
+
+            <h3>Install from a release file</h3>
+            <ol class="steps">
+              <li>Download the latest <code>.ankiaddon</code> from the <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases" target="_blank" rel="noopener">releases page</a>.</li>
+              <li>In Anki, open <b>Tools → Add-ons</b>.</li>
+              <li>Drag the file onto the Add-ons window, or click <b>Install from file…</b> and select it.</li>
+              <li>Restart Anki.</li>
+            </ol>
+
+            <h3>Install dictionaries</h3>
+            <p>
+              Open <b>Anki Dictionary → Settings… → Dictionaries</b>. Use <b>Quick Setup</b>
+              to install one recommended dictionary plus frequency, level and conjugation
+              data for a language pair. <b>Install Dictionaries (Web)</b> lets you pick
+              individual dictionaries; <b>Install Dictionaries (Files)</b> accepts Yomichan
+              <code>.zip</code> and Migaku <code>.json</code> files.
+            </p>
+            <figure class="doc-fig">
+              <picture>
+                <source type="image/avif" srcset="assets/media/s11-settings-dicts.avif">
+                <img src="assets/media/s11-settings-dicts.webp" alt="Dictionaries tab in the add-on settings" width="1920" height="1200" loading="lazy">
+              </picture>
+              <figcaption>Dictionaries tab · install, remove and manage languages.</figcaption>
+            </figure>
+          </section>
+
+          <section id="first-lookup">
+            <h2>First lookup</h2>
+            <p>The shortest path from a clean Anki install to a result in a note field.</p>
+            <ol class="steps">
+              <li>Install Anki 25.09 or newer and restart it once.</li>
+              <li>Install the add-on with the AnkiWeb code <code>1973740182</code> (or a release file).</li>
+              <li>Open <b>Anki Dictionary → Settings… → Dictionaries</b> and install at least one dictionary for your target language.</li>
+              <li>Press <kbd>Ctrl</kbd>+<kbd>W</kbd> (<kbd>⌘</kbd>+<kbd>W</kbd> on macOS) or choose <b>Anki Dictionary → Open Dictionary</b>.</li>
+              <li>Type a word, press <b>Enter</b>, and choose a result.</li>
+              <li>Pick the target field in the dictionary header, then click <b>Send to Field</b>.</li>
+            </ol>
+            <figure class="doc-fig">
+              <picture>
+                <source type="image/avif" srcset="assets/media/s02-search-light.avif">
+                <img src="assets/media/s02-search-light.webp" alt="Dictionary results for 电脑 with definitions from Moedict and Cedict" width="1920" height="1200" loading="lazy">
+              </picture>
+              <figcaption>One search, several dictionaries. Results are grouped and sortable by frequency.</figcaption>
+            </figure>
+          </section>
+
+          <section id="search-modes">
+            <h2>Search modes</h2>
+            <p>
+              The mode is in the dropdown next to the search bar. <b>Forward</b> is the
+              default; it matches entries that begin with the query. Use <b>Exact</b> when
+              you want only the headword, and <b>Anywhere</b> when a lookup returns nothing.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Mode</th><th>What it matches</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Forward</b></td><td>Entries beginning with the query</td></tr>
+                  <tr><td><b>Backward</b></td><td>Entries ending with the query</td></tr>
+                  <tr><td><b>Exact</b></td><td>Entries equal to the query</td></tr>
+                  <tr><td><b>Anywhere</b></td><td>The query anywhere in the entry</td></tr>
+                  <tr><td><b>Definition</b></td><td>The query in definition text</td></tr>
+                  <tr><td><b>Example</b></td><td>The query in an example sentence</td></tr>
+                  <tr><td><b>Pronunciation</b></td><td>Entries whose pronunciation begins with the query</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Bracket pairs <code>()</code>, <code>[]</code>, <code>（）</code> and
+              <code>《》</code> are stripped with their contents, so pasted text with
+              furigana still works.
+            </p>
+          </section>
+
+          <section id="groups">
+            <h2>Dictionary groups</h2>
+            <p>
+              A group defines which dictionaries are searched. The group selector in the
+              header includes <b>All</b>, one group per installed language, and the
+              <b>Images</b>, <b>Forvo</b> and <b>LLM</b> source groups when those features
+              are enabled.
+            </p>
+            <p>
+              Create or edit groups in the <b>Settings</b> tab, under
+              <b>Dictionary Groups</b>. The editor selects dictionaries from the
+              installed list; Quick Setup creates the language groups for the language
+              pair you choose.
+            </p>
+          </section>
+
+          <section id="sources">
+            <h2>LLM, images and audio</h2>
+            <p>
+              These sources appear as groups in the header when they are enabled. They
+              behave like dictionary sources: choose the group, select a result, then send
+              it to a field or to the exporter.
+            </p>
+
+            <h3>DuckDuckGo images</h3>
+            <p>
+              Choose the <b>Images</b> group, click an image to select it (click again to
+              deselect), then click <b>Send to Field</b>. Set the search region and maximum
+              width/height in the <b>Settings</b> tab.
+            </p>
+
+            <h3>Forvo audio</h3>
+            <p>
+              Choose the <b>Forvo</b> group, tick a recording, then click
+              <b>Send to Field</b>. Enable Forvo and choose the language in
+              <b>Settings → Forvo</b>. If the group stays empty, confirm the feature is
+              enabled and that Anki can reach the network.
+            </p>
+
+            <h3>LLM definitions</h3>
+            <p>
+              Open <b>Settings → LLM</b>. Choose an OpenAI-compatible endpoint or a local
+              Ollama install, then set the base URL, API key and model. The prompt receives
+              the term, part of speech, and frequency or level context when available.
+            </p>
+            <p>
+              Separate prompt templates with a line containing only <code>---</code>. The
+              model is instructed to mirror that delimiter, and the add-on splits the
+              response into independent definition blocks, each with its own export, copy
+              and send controls. It is still one API call.
+            </p>
+            <div class="note">
+              Empty or refused responses are usually a model or prompt problem. Check the
+              prompt, try a different model, or raise the timeout in
+              <a href="#troubleshooting">Troubleshooting</a>.
+            </div>
+          </section>
+
+          <section id="results">
+            <h2>The results window</h2>
+            <p>
+              Results are grouped by dictionary. A dictionary header holds the output mode,
+              field selector and previous/next dictionary controls. A definition header
+              holds the term, reading, frequency, and the Send to Exporter, Copy and Send
+              to Field buttons.
+            </p>
+            <ul>
+              <li><b>Sidebar</b> lists every result in the current search; click one to jump to it, or right-click a dictionary name to fold its entries.</li>
+              <li><b>History</b> is behind the clock icon. Double-click a term to search it again.</li>
+              <li><b>Zoom</b> with the <b>+</b> and <b>−</b> buttons; the sidebar and definitions resize together.</li>
+              <li><b>Multi-Tab</b> keeps each search in its own tab; <b>Single-Tab</b> replaces the current result.</li>
+              <li><b>Deconjugation</b> resolves conjugated input to its dictionary form when a conjugation table is installed.</li>
+            </ul>
+            <figure class="doc-fig">
+              <picture>
+                <source type="image/avif" srcset="assets/media/s08-sidebar.avif">
+                <img src="assets/media/s08-sidebar.webp" alt="Results sidebar with recent searches" width="1920" height="1200" loading="lazy">
+              </picture>
+              <figcaption>The sidebar indexes the whole result set; history sits beside it.</figcaption>
+            </figure>
+
+            <h3>Frequency and level</h3>
+            <p>
+              When a frequency list is installed, each entry header carries stars and often
+              a numeric rank. Level data appears as labels such as <code>HSK³:1</code>,
+              <code>JLPT:N2</code> or <code>CEFR:B2</code>. If two lists publish the same
+              label, it is shown once; hover the label to see both sources.
+            </p>
+          </section>
+
+          <section id="shortcuts">
+            <h2>Keyboard shortcuts</h2>
+            <p>
+              Global shortcuts work from any Anki window. In-window keys work while the
+              dictionary has focus. Press <kbd>?</kbd> inside the dictionary to show the
+              shortcut map.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Action</th><th>Windows / Linux</th><th>macOS</th></tr></thead>
+                <tbody>
+                  <tr><td>Open or hide the dictionary</td><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td><kbd>⌘</kbd>+<kbd>W</kbd></td></tr>
+                  <tr><td>Search the selected text</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td><kbd>⌘</kbd>+<kbd>S</kbd></td></tr>
+                  <tr><td>Search the collection in the Browser</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd></td><td><kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>In the dictionary window</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Key</th><th>Action</th></tr></thead>
+                <tbody>
+                  <tr><td><kbd>/</kbd></td><td>Focus the search box</td></tr>
+                  <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd> / <kbd>⌘</kbd>+<kbd>K</kbd></td><td>Open the command palette</td></tr>
+                  <tr><td><kbd>?</kbd> or <kbd>Shift</kbd>+<kbd>/</kbd></td><td>Show or hide the shortcut map</td></tr>
+                  <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Previous / next result entry</td></tr>
+                  <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Previous / next dictionary</td></tr>
+                  <tr><td><kbd>E</kbd></td><td>Send the current entry to the exporter</td></tr>
+                  <tr><td><kbd>C</kbd></td><td>Copy the current entry</td></tr>
+                  <tr><td><kbd>Esc</kbd></td><td>Close the overlay, or hide the dictionary</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p>
+              In the Card Exporter, <kbd>Ctrl</kbd>+<kbd>B</kbd>/<kbd>I</kbd>/<kbd>U</kbd>
+              toggle bold, italic and underline in notes; <kbd>Ctrl</kbd>+<kbd>S</kbd>
+              looks up selected text in the dictionary and <kbd>Ctrl</kbd>+<kbd>F</kbd>
+              searches it in the Browser.
+            </p>
+          </section>
+
+          <section id="send-to-field">
+            <h2>Send to Field</h2>
+            <p>
+              This writes one definition into a note field. It works in the Add, Edit,
+              Browser and Reviewer windows.
+            </p>
+            <ol class="steps">
+              <li>Pick the target field in the <b>Field Selector</b> dropdown in the dictionary header.</li>
+              <li>Choose the output mode: <b>Add</b>, <b>Overwrite</b> or <b>If Empty</b>.</li>
+              <li>Click <b>Send to Field</b> in a definition header. With text selected, only that portion plus the header is sent; with nothing selected, the whole definition goes.</li>
+            </ol>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Output mode</th><th>Behaviour</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Add</b></td><td>Appends to the field's existing content</td></tr>
+                  <tr><td><b>Overwrite</b></td><td>Replaces the field's content</td></tr>
+                  <tr><td><b>If Empty</b></td><td>Only writes when the field is empty</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="note">
+              <b>Which card receives it?</b> The add-on sends to the card window Anki last
+              used. Enable <b>Show Export Target Identifier</b> in settings if you keep
+              several windows open.
+            </div>
+          </section>
+
+          <section id="exporter">
+            <h2>Card Exporter</h2>
+            <p>
+              The exporter is a staging window: collect definitions, a sentence, notes,
+              one image and one audio clip, then add the card in one action.
+            </p>
+
+            <h3>Export templates</h3>
+            <p>
+              A template maps content types onto the fields of one note type. Create one
+              in the <b>Settings</b> tab, under <b>Export Templates</b>, before using the
+              exporter.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Template slot</th><th>Content</th></tr></thead>
+                <tbody>
+                  <tr><td>Notetype</td><td>The note type cards are created with</td></tr>
+                  <tr><td>Sentence field</td><td>Context sentence or selected text</td></tr>
+                  <tr><td>Word field</td><td>The looked-up term</td></tr>
+                  <tr><td>Secondary field</td><td>Optional second line — reading, translation or notes</td></tr>
+                  <tr><td>User notes</td><td>Free-form text</td></tr>
+                  <tr><td>Image field</td><td>Screenshot or searched image</td></tr>
+                  <tr><td>Audio field</td><td>Forvo or pasted recording</td></tr>
+                  <tr><td>Tags</td><td>Tags applied to the new note</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Build a card</h3>
+            <ol class="steps">
+              <li>Click <b>Send to Exporter</b> (the Anki icon) in any definition header. Selected text goes to the sentence field; otherwise the whole entry goes to the definition list.</li>
+              <li>Add an image or audio with the exporter's image and audio controls.</li>
+              <li>Click <b>Add</b>.</li>
+            </ol>
+
+            <h3>Mass export existing cards</h3>
+            <ol class="steps">
+              <li>Select cards in the Card Browser.</li>
+              <li>Choose <b>Edit → Export Definitions</b>.</li>
+              <li>Set the input field, output field, up to three dictionaries, output mode and maximum definitions per dictionary.</li>
+              <li>Click <b>Execute</b>.</li>
+            </ol>
+          </section>
+
+          <section id="themes">
+            <h2>Themes</h2>
+            <p>
+              A theme is a JSON object with fourteen color roles: header background,
+              sidebar, text, search term, border, Anki button background and text, tab
+              hover, two tab gradient colors, example highlight, definition background and
+              text, and pitch accent.
+            </p>
+
+            <h3>Apply a theme</h3>
+            <p>
+              Open the <b>Appearance</b> tab in Settings, or click the theme icon in the
+              dictionary toolbar. Click a card and the open window updates. The gallery can
+              be filtered by light, dark or custom, and a wrong pick can be undone from the
+              notice at the bottom.
+            </p>
+
+            <h3>Create or edit</h3>
+            <ol class="steps">
+              <li>Click <b>New theme</b>, or <b>Customize</b>/<b>Duplicate</b> on an existing card.</li>
+              <li>Adjust the colors; the live preview and readability audit update as you type.</li>
+              <li>Use the two-color generator to derive a palette from a background and an accent color.</li>
+              <li><b>Save</b>, or <b>Save &amp; Apply</b>. JSON can be copied out and pasted back in for sharing.</li>
+            </ol>
+
+            <div class="gallery">
+              <figure class="theme-card">
+                <picture>
+                  <source type="image/avif" srcset="assets/media/s02-search-light.avif">
+                  <img src="assets/media/s02-search-light.webp" alt="Dictionary results for 电脑 in the Light theme" width="1920" height="1200" loading="lazy">
+                </picture>
+                <figcaption><b>Light</b><span>built-in</span></figcaption>
+              </figure>
+              <figure class="theme-card">
+                <picture>
+                  <source type="image/avif" srcset="assets/media/s03-search-dark.avif">
+                  <img src="assets/media/s03-search-dark.webp" alt="Dictionary results for 电脑 in the Dark theme" width="1920" height="1200" loading="lazy">
+                </picture>
+                <figcaption><b>Dark</b><span>built-in</span></figcaption>
+              </figure>
+              <figure class="theme-card">
+                <picture>
+                  <source type="image/avif" srcset="assets/media/s04-search-catppuccin_mocha.avif">
+                  <img src="assets/media/s04-search-catppuccin_mocha.webp" alt="Dictionary results for 电脑 in the Catppuccin Mocha theme" width="1920" height="1200" loading="lazy">
+                </picture>
+                <figcaption><b>Catppuccin Mocha</b><span>built-in</span></figcaption>
+              </figure>
+              <figure class="theme-card">
+                <picture>
+                  <source type="image/avif" srcset="assets/media/s05-search-gruvbox.avif">
+                  <img src="assets/media/s05-search-gruvbox.webp" alt="Dictionary results for 电脑 in the Gruvbox theme" width="1920" height="1200" loading="lazy">
+                </picture>
+                <figcaption><b>Gruvbox</b><span>built-in</span></figcaption>
+              </figure>
+              <figure class="theme-card">
+                <picture>
+                  <source type="image/avif" srcset="assets/media/s06-search-nord.avif">
+                  <img src="assets/media/s06-search-nord.webp" alt="Dictionary results for 电脑 in the Nord theme" width="1920" height="1200" loading="lazy">
+                </picture>
+                <figcaption><b>Nord</b><span>built-in</span></figcaption>
+              </figure>
+            </div>
+            <p class="note">
+              The same search for 电脑 in five of the eight built-in themes. Catppuccin
+              Latte, Solarized Light and Tokyo Night are also included.
+            </p>
+          </section>
+
+          <section id="settings">
+            <h2>Settings</h2>
+            <p>
+              Open <b>Anki Dictionary → Settings…</b> or the gear icon in the dictionary
+              window. The tabs are <b>Settings</b>, <b>Appearance</b>, <b>LLM</b>,
+              <b>Forvo</b>, <b>Frequency Lists</b> and <b>Dictionaries</b>.
+            </p>
+            <p>
+              <b>Export Templates</b> and <b>Dictionary Groups</b> are sections inside the
+              Settings tab, not separate tabs. <b>Restore Defaults</b> is in the footer of
+              the settings window. Some settings are read when the dictionary window opens,
+              so close and reopen it after changing them.
+            </p>
+            <figure class="doc-fig">
+              <picture>
+                <source type="image/avif" srcset="assets/media/s09-settings.avif">
+                <img src="assets/media/s09-settings.webp" alt="Settings window with options" width="1920" height="1200" loading="lazy">
+              </picture>
+              <figcaption>Settings · the dictionary window may need to be reopened after a change.</figcaption>
+            </figure>
+
+            <h3>Other tabs</h3>
+            <ul>
+              <li><b>Appearance</b> — theme gallery and editor.</li>
+              <li><b>LLM</b> — endpoint, API key, model, prompt templates, temperature, timeout and streaming.</li>
+              <li><b>Forvo</b> — enable the service and choose the language to search.</li>
+              <li><b>Frequency Lists</b> — stars, rank thresholds, HSK mode and level labels.</li>
+              <li><b>Dictionaries</b> — Quick Setup, dictionary installation, language removal.</li>
+            </ul>
+          </section>
+
+          <section id="troubleshooting">
+            <h2>Troubleshooting</h2>
+
+            <h3>The Anki Dictionary menu is missing</h3>
+            <p>
+              Confirm Anki is <b>25.09 or newer</b> and restart it. Check the add-on is
+              enabled under <b>Tools → Add-ons</b>. If you installed from source, verify
+              the folder is directly under <code>addons21</code> and contains
+              <code>__init__.py</code>.
+            </p>
+
+            <h3>A search returns nothing</h3>
+            <ul>
+              <li>Check the selected group contains a dictionary for the language.</li>
+              <li>Try <b>Forward</b> or <b>Anywhere</b> instead of <b>Exact</b>.</li>
+              <li>If the word is conjugated, enable deconjugation and install a conjugation table.</li>
+              <li>Check <b>Max total search results</b> is not zero.</li>
+            </ul>
+
+            <h3>An installed dictionary does not appear</h3>
+            <p>
+              Language groups are created when a language is added. Edit the group and
+              select the dictionary, or choose <b>All</b>. Removing and reinstalling a
+              dictionary keeps the group definition, but the group must still include it.
+            </p>
+
+            <h3>The LLM block errors or times out</h3>
+            <ul>
+              <li>Verify the base URL includes the API prefix, e.g. <code>https://api.openai.com/v1</code>.</li>
+              <li>Check the key and model name. Local Ollama needs no key, but the server must be running.</li>
+              <li>Raise the timeout or choose a faster model.</li>
+              <li>If responses are empty, simplify the prompt; a refusal is not a parse failure.</li>
+            </ul>
+
+            <h3>Forvo returns no recordings</h3>
+            <p>
+              Enable Forvo, set the language in <b>Settings → Forvo</b>, and confirm the
+              machine can reach the network. The Forvo group is separate from your language
+              dictionaries, so select it explicitly.
+            </p>
+
+            <h3>Send to Field writes to the wrong card</h3>
+            <p>
+              The add-on targets the card window Anki last used. Enable
+              <b>Show Export Target Identifier</b> to see the target before sending. Close
+              extra Add/Edit windows if the choice is ambiguous.
+            </p>
+
+            <h3>A settings change did nothing</h3>
+            <p>
+              Some settings are read when the dictionary window opens. Close it and reopen
+              it with <kbd>Ctrl</kbd>+<kbd>W</kbd> / <kbd>⌘</kbd>+<kbd>W</kbd>. Theme
+              changes apply immediately and do not need a restart.
+            </p>
+
+            <h3>Where are the logs?</h3>
+            <p>
+              In Anki, open <b>Tools → Add-ons</b>, select the add-on and click
+              <b>View Files</b>. The rotating log is <code>logs/addon.log</code> inside that
+              folder. Attach the relevant tail to a
+              <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/issues" target="_blank" rel="noopener">bug report</a>.
+            </p>
+
+            <h3>How do I update or uninstall?</h3>
+            <p>
+              Update with <b>Tools → Add-ons → Check for Updates</b>, then restart Anki.
+              To uninstall, disable the add-on, restart Anki, then delete it from
+              <b>Tools → Add-ons</b>. User dictionaries and themes live under the add-on's
+              <code>user_files/</code> folder; keep that folder if you plan to reinstall.
+            </p>
+          </section>
+        </article>
       </div>
     </section>
   </main>
@@ -460,21 +767,22 @@
   <footer class="footer">
     <div class="footer-grid">
       <div>
-        <a class="brand" href="index.html">
+        <a class="brand" href="#">
           <img src="favicon.svg" alt="" width="21" height="21">
           <span>Anki Dictionary <b>Add-on</b></span>
         </a>
         <p class="footer-tag">
-          The lookup window that lives inside Anki. Local dictionaries, AI definitions,
-          media and card export in one place.
+          A dictionary window inside Anki. Local dictionaries, AI definitions, media and
+          card export in one place.
         </p>
       </div>
       <div>
-        <h4>Product</h4>
+        <h4>Guide</h4>
         <ul>
-          <li><a href="guide.html">Guide</a></li>
-          <li><a href="#features">Features</a></li>
-          <li><a href="#themes">Themes</a></li>
+          <li><a href="#installation">Installation</a></li>
+          <li><a href="#first-lookup">First lookup</a></li>
+          <li><a href="#search-modes">Search modes</a></li>
+          <li><a href="#troubleshooting">Troubleshooting</a></li>
         </ul>
       </div>
       <div>
@@ -490,9 +798,8 @@
         <h4>Install</h4>
         <ul>
           <li><a href="#install">AnkiWeb code</a></li>
-          <li><a href="guide.html#installation">Installation guide</a></li>
-          <li><a href="guide.html#troubleshooting">Troubleshooting</a></li>
           <li><a href="https://ankiweb.net/shared/info/1973740182" target="_blank" rel="noopener">AnkiWeb listing ↗</a></li>
+          <li><a href="#videos">Videos</a></li>
         </ul>
       </div>
     </div>
