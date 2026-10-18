@@ -30,6 +30,8 @@ class DictDB:
         self.conn: sqlite3.Connection | None = None
         self.c: sqlite3.Cursor | None = None
         self.oldConnection: sqlite3.Cursor | None = None
+        self.db_file: str | None = None
+        self._data_revision = 0
         self._extra_data_cache: dict[str, list[Any]] = {}
         self._registry: WordListRegistry | None = None
         self._frequency_engine: FrequencyEngine | None = None
@@ -57,6 +59,7 @@ class DictDB:
         if not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
 
+        self.db_file = db_file
         try:
             self.conn = sqlite3.connect(db_file, check_same_thread=False)
             self.c = self.conn.cursor()
@@ -74,6 +77,69 @@ class DictDB:
     def _quote_identifier(name: str) -> str:
         """Safely quote a SQLite identifier (table/index name) to prevent injection."""
         return '"' + name.replace('"', '""') + '"'
+
+    @property
+    def data_revision(self) -> int:
+        """Monotonic counter bumped whenever dictionary rows change."""
+        return self._data_revision
+
+    def _invalidate_data_cache(self) -> None:
+        self._data_revision += 1
+
+    # Covering indexes for substring searches.  A ``LIKE '%term%'`` scan
+    # cannot use the existing term B-tree; scanning ``(column, term,
+    # frequency)`` instead keeps the match/sort phase index-only, and the full
+    # row is fetched only for the rows that survive the LIMIT.
+    _FREQUENCY_INDEX_COLUMNS = {
+        "term": ("itf", "term, frequency"),
+        "altterm": ("iaf", "altterm, term, frequency"),
+        "pronunciation": ("ipf", "pronunciation, term, frequency"),
+    }
+
+    def _create_frequency_index(
+        self, cursor: sqlite3.Cursor, table_name: str, column: str
+    ) -> None:
+        spec = self._FREQUENCY_INDEX_COLUMNS[column]
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            + self._quote_identifier(spec[0] + table_name)
+            + " ON "
+            + self._quote_identifier(table_name)
+            + " ("
+            + spec[1]
+            + ");"
+        )
+
+    def ensure_frequency_index(self, table_name: str, column: str) -> bool:
+        """Create the covering index used by substring searches, if missing.
+
+        Existing dictionaries get the index lazily on their first substring
+        lookup; new imports create it directly after the bulk insert.  A
+        separate connection is used so an open transaction on the shared
+        addon connection is never committed as a side effect.
+        """
+        if column not in self._FREQUENCY_INDEX_COLUMNS or not self.db_file:
+            return False
+        index_name = self._FREQUENCY_INDEX_COLUMNS[column][0] + table_name
+        cursor = self._get_cursor()
+        cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?;",
+            (index_name,),
+        )
+        if cursor.fetchone():
+            return True
+        try:
+            conn = sqlite3.connect(self.db_file, timeout=10)
+            try:
+                self._create_frequency_index(conn.cursor(), table_name, column)
+                conn.commit()
+            finally:
+                conn.close()
+            logger.info("Created search index %s", index_name)
+            return True
+        except sqlite3.Error as e:
+            logger.warning("Could not create search index %s: %s", index_name, e)
+            return False
 
     def _ensure_connection(self) -> bool:
         """Ensure database connection is active. Returns True if connection is ready."""
@@ -575,6 +641,7 @@ class DictDB:
             + safe_table
             + " (pronunciation);"
         )
+        self._invalidate_data_cache()
 
     def importToDict(
         self, dictName: str, dictionaryData: list[tuple[Any, ...]]
@@ -590,6 +657,7 @@ class DictDB:
             + " (term, altterm, pronunciation, pos, definition, examples, audio, frequency, starCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
             dictionaryData,
         )
+        self._invalidate_data_cache()
 
     def dropTables(self, text: str) -> None:
         """Drop all tables matching the given pattern."""
@@ -604,6 +672,8 @@ class DictDB:
         for name in dicts:
             safe_table = self._quote_identifier(name[0])
             cursor.execute("DROP TABLE IF EXISTS " + safe_table + " ;")
+        if dicts:
+            self._invalidate_data_cache()
 
     def setFieldsSetting(self, name: str, fields: str) -> None:
         """Set the fields setting for a dictionary."""
