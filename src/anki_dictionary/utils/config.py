@@ -17,13 +17,123 @@ from .paths import get_addon_name, get_addon_root
 
 logger = get_logger(__name__.split(".")[-1])
 
+# Bump when a new key needs a one-off migration. ``get_addon_config`` fills in
+# missing keys from the packaged defaults on every load, so most versions only
+# need the merge; this stamp is for changes that cannot be expressed as a
+# default.
+CONFIG_VERSION = 2
+
+# Keys injected into the live config for convenience, never persisted.
+_TRANSIENT_KEYS = frozenset(
+    {
+        "addon_path",
+        "addon_name",
+        "addon_root",
+        "dict_path",
+        "home_dir",
+    }
+)
+
+_DEFAULT_CONFIG: dict[str, Any] = {
+    "config_version": CONFIG_VERSION,
+    "DictionaryGroups": {},
+    "ExportTemplates": {},
+    "ImageFields": [],
+    "ImageAddType": "add",
+    "maxWidth": 1500,
+    "maxHeight": 400,
+    "dictSearch": 50,
+    "maxSearch": 1000,
+    "frontBracket": "【",
+    "backBracket": "】",
+    "highlightTarget": True,
+    "showTarget": False,
+    "exportHeaderHtml": False,
+    "tooltips": True,
+    "currentGroup": "All",
+    "searchMode": "Forward",
+    "currentTemplate": False,
+    "currentDeck": False,
+    "exporterSizePos": None,
+    "exporterLastTags": "",
+    "autoDefinitionSettings": False,
+    "autoAddDefinitions": False,
+    "unknownsToSearch": 3,
+    "deinflect": False,
+    "onetab": True,
+    "dictSizePos": [0, 0, 800, 600],
+    "dictAlwaysOnTop": False,
+    "dictOnStart": False,
+    "day": True,
+    "theme": "light",
+    "imageAutoConvert": True,
+    "imageSearchRegion": "United States",
+    "forvo_enabled": True,
+    "forvo_language": "en",
+    "forvo_limit": 3,
+    "ForvoFields": [],
+    "ForvoAddType": "add",
+    "star_char": "★",
+    "star_thresholds": [1501, 5001, 15001, 30001, 60001],
+    "show_stars": True,
+    "show_rank": False,
+    "show_level_labels": True,
+    "word_list_visibility": {},
+    "auto_select_dict_group": True,
+    "language_defaults": {},
+    "last_seen_version": "",
+    "hide_release_notes": False,
+    "clipboard_monitor_enabled": True,
+    "restore_session": False,
+    "session_terms": [],
+    "llm_enabled": False,
+    "llm_api_key": "",
+    "llm_base_url": "https://api.openai.com/v1/chat/completions",
+    "llm_model": "gpt-4o-mini",
+    "llm_prompt": "Provide a concise dictionary definition for the word: {term}",
+    "llm_timeout": 20,
+    "llm_temperature": 0.3,
+    "llm_keep_alive": "30m",
+    "llm_think": False,
+    "llm_stream": False,
+    "llm_get_pronunciation": False,
+}
+
+
+def _packaged_defaults() -> dict[str, Any]:
+    """Return the defaults shipped in ``config.json``, if readable."""
+    defaults = dict(_DEFAULT_CONFIG)
+    try:
+        config_path = os.path.join(get_addon_root(), "config.json")
+        with open(config_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            # Packaged defaults win over the built-in fallback for every key
+            # they define, but never contribute user data (groups/templates).
+            for key, value in data.items():
+                if key not in ("DictionaryGroups", "ExportTemplates", "ImageFields"):
+                    defaults[key] = value
+    except Exception:
+        logger.debug("Could not read packaged config.json defaults", exc_info=True)
+    defaults["config_version"] = CONFIG_VERSION
+    return defaults
+
+
+def _normalise_config(config: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge stored config over packaged defaults and stamp the version."""
+    merged = _packaged_defaults()
+    if isinstance(config, dict):
+        merged.update({k: v for k, v in config.items() if k not in _TRANSIENT_KEYS})
+    merged["config_version"] = CONFIG_VERSION
+    return merged
+
 
 def get_addon_config() -> dict[str, Any]:
     """
-    Get addon configuration safely.
+    Get addon configuration safely, with missing keys filled from defaults.
 
     Returns:
-        dict: The addon configuration, or an empty dict if not available.
+        dict: The addon configuration, or defaults if not available.
     """
     # Try to get config from our state manager first
     try:
@@ -37,7 +147,7 @@ def get_addon_config() -> dict[str, Any]:
 
             state = get_addon_state()
             if state.config:
-                return state.config
+                return _normalise_config(state.config)
         except ImportError:
             logger.debug("get_addon_state not available, using fallback")
         finally:
@@ -54,14 +164,14 @@ def get_addon_config() -> dict[str, Any]:
     ):
         config_dict = aqt.mw.__dict__["AnkiDictConfig"]
         if isinstance(config_dict, dict):
-            return config_dict
+            return _normalise_config(config_dict)
 
     # Fallback 2: try to get config using correct addon name
     addon_name = get_addon_name()
     try:
         config = aqt.mw.addonManager.getConfig(addon_name)
         if config:
-            return config
+            return _normalise_config(config)
     except Exception:
         logger.debug("Could not load config from addonManager")
 
@@ -71,51 +181,12 @@ def get_addon_config() -> dict[str, Any]:
         config_path = os.path.join(addon_root, "config.json")
         if os.path.exists(config_path):
             with open(config_path, encoding="utf-8") as f:
-                return json.load(f)
+                return _normalise_config(json.load(f))
     except Exception:
         logger.debug("Could not load config from config.json")
 
     # If all else fails, return basic defaults
-    return {
-        "DictionaryGroups": {},
-        "maxWidth": 1500,
-        "maxHeight": 400,
-        "dictSearch": 50,
-        "maxSearch": 1000,
-        "frontBracket": "【",
-        "backBracket": "】",
-        "highlightTarget": True,
-        "showTarget": False,
-        "exportHeaderHtml": False,
-        "tooltips": True,
-        "currentGroup": "All",
-        "searchMode": "Forward",
-        "deinflect": False,
-        "onetab": True,
-        "dictSizePos": [0, 0, 800, 600],
-        "dictAlwaysOnTop": False,
-        "day": True,
-        "theme": "light",
-        "imageAutoConvert": True,
-        "forvo_enabled": True,
-        "forvo_language": "ja",
-        "forvo_limit": 3,
-        "ForvoFields": [],
-        "ForvoAddType": "add",
-        "star_char": "★",
-        "star_thresholds": [1501, 5001, 15001, 30001, 60001],
-        "show_stars": True,
-        "show_rank": False,
-        "show_level_labels": True,
-        "word_list_visibility": {},
-        "auto_select_dict_group": True,
-        "language_defaults": {},
-        "last_seen_version": "",
-        "hide_release_notes": False,
-        "clipboard_monitor_enabled": True,
-        "restore_session": False,
-        "session_terms": [],
-    }
+    return _packaged_defaults()
 
 
 def get_session_terms(config: dict[str, Any] | None) -> list[str]:
@@ -150,6 +221,7 @@ def refresh_anki_dict_config(
     """
     if config is not None:
         # Direct config provided - use it
+        config = _normalise_config(config)
         if hasattr(aqt.mw, "__dict__"):
             aqt.mw.__dict__["AnkiDictConfig"] = config
     else:
@@ -182,6 +254,8 @@ def save_addon_config(config: dict[str, Any]) -> bool:
     Returns:
         bool: True if saved successfully, False otherwise.
     """
+    config = _normalise_config(config)
+
     # 1. Update our state manager
     try:
         addon_root = get_addon_root()

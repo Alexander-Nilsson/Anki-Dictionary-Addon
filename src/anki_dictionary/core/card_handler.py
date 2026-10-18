@@ -137,9 +137,6 @@ class CardCreationHandler:
         self.midict.addWindow.scrollArea.show()
         self.midict.addWindow.exportWord(word)
 
-    def attemptAutoAdd(self, bulkExport: Any) -> None:
-        self.midict.addWindow.attemptAutoAdd(bulkExport)
-
     def getFieldContent(
         self, fContent: str, definition: str, addType: str
     ) -> str | bool:

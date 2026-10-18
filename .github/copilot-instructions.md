@@ -90,7 +90,7 @@ src/anki_dictionary/
 │   ├── japanese.py      # Japanese-specific features
 │   └── llm.py           # LLM integration for AI definitions
 ├── exporters/         # Card export logic
-├── utils/             # Utilities (config, history, clipboard, logger, FFmpeg)
+├── utils/             # Utilities (config, history, clipboard, logger)
 └── web/               # Web components (HTML templates, JS)
 
 assets/               # HTML/CSS/JS assets (inlined at runtime)
@@ -103,7 +103,7 @@ user_files/           # User data: DBs, themes, media (created during build)
 
 #### 1. **Core Dictionary Loop**
 - `DictInterface` (in `core/dictionary.py`) is the main orchestrator
-- `ClipThread` monitors clipboard for word changes
+- `ClipThread` polls the clipboard while the dictionary is visible and handles the macOS Cmd+C capture
 - Lookup engine queries `DictDB` (SQLite wrapper)
 - Results rendered in `AnkiWebView` (QtWebEngine)
 - User can export findings to Anki cards via export dialogs
@@ -121,7 +121,7 @@ user_files/           # User data: DBs, themes, media (created during build)
 - Themes are JSON-based; CSS/HTML injected at runtime via `assets/`
 
 #### 4. **Async Operations**
-- Image search, LLM calls, and clipboard monitoring use `asyncio`
+- Image search and LLM calls run on Qt worker threads; clipboard monitoring uses a QTimer
 - Long-running tasks offload to background threads to prevent UI freezes
 - Integrations use `aiohttp` for async HTTP requests
 

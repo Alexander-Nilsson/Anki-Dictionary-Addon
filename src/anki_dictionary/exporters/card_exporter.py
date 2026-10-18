@@ -71,7 +71,6 @@ class CardExporter:
         self.definitionSettings = self.config["autoDefinitionSettings"]
         self.templates = self.config["ExportTemplates"]
         self.decks = self.getDecks()
-        self.exportJS = self.config["jReadingCards"]
 
         # ── card state (mirrored to/from the web UI) ──────────
         self.template = self._initial_template()
@@ -84,7 +83,6 @@ class CardExporter:
         self.definitionList = []
         # Parallel to definitionList: `file://` thumbnails for image rows.
         self.definitionThumbs = []
-        self.autoAdd = bool(self.config["autoAddCards"])
         self.autoAddDefinitions = bool(self.config["autoAddDefinitions"])
         self.unknownsToSearch = int(self.config.get("unknownsToSearch", 3))
 
@@ -164,7 +162,6 @@ class CardExporter:
             "imageLabel": self.imageLabel,
             "audioLabel": self.audioLabel,
             "imagePreview": self._preview_url(self.imgPath) if self.imgPath else "",
-            "autoAdd": self.autoAdd,
             "autoAddDefinitions": self.autoAddDefinitions,
             "unknownsToSearch": self.unknownsToSearch,
             "tooltips": bool(self.config.get("tooltips", True)),
@@ -231,7 +228,6 @@ class CardExporter:
         "word": "word_text",
         "notes": "notes_html",
         "tags": "tags_text",
-        "autoAdd": "autoAdd",
         "autoAddDefinitions": "autoAddDefinitions",
         "unknownsToSearch": "unknownsToSearch",
     }
@@ -248,7 +244,7 @@ class CardExporter:
             return
         if field == "unknownsToSearch":
             value = int(value or 0)
-        elif field in ("autoAdd", "autoAddDefinitions"):
+        elif field == "autoAddDefinitions":
             value = bool(value)
         else:
             value = "" if value is None else str(value)
@@ -260,8 +256,6 @@ class CardExporter:
             self.dictInt.writeConfig("currentTemplate", value)
         elif field == "deck":
             self.dictInt.writeConfig("currentDeck", value)
-        elif field == "autoAdd":
-            self._saveConfigValue("autoAddCards", value)
         elif field == "autoAddDefinitions":
             self._saveConfigValue("autoAddDefinitions", value)
         elif field == "unknownsToSearch":
@@ -425,8 +419,6 @@ Please review your template and notetype combination."""
                 if did:
                     if word and self.autoAddDefinitions:
                         note = self.automaticallyAddDefinitions(note, word, template)
-                    if self.exportJS:
-                        note = self.dictInt.jHandler.attemptGenerate(note)
                     if not self.addNote(note, did):
                         return
                 if imgField and imgField in modelFields:
@@ -610,10 +602,6 @@ Please review your template and notetype combination."""
 
     # ── batch processing ──────────────────────────────────────
 
-    def attemptAutoAdd(self, bulkExport):
-        if self.autoAdd or bulkExport:
-            self.addCard()
-
     def addTextCard(self, card):
         templateName = self.template
         sentence = card["primary"]
@@ -647,8 +635,6 @@ Please review your template and notetype combination."""
                             note = self.automaticallyAddDefinitions(
                                 note, word, template
                             )
-                        if self.exportJS:
-                            note = self.dictInt.jHandler.attemptGenerate(note)
                         note.model()["did"] = int(did)  # ty:ignore[unresolved-attribute]
                         self.mw.col.addNote(note)
                 else:
@@ -687,8 +673,6 @@ Please review your template and notetype combination."""
                             note = self.automaticallyAddDefinitions(
                                 note, word, template
                             )
-                        if self.exportJS:
-                            note = self.dictInt.jHandler.attemptGenerate(note)
                         note.model()["did"] = int(did)  # ty:ignore[unresolved-attribute]
                         self.mw.col.addNote(note)
                 else:

@@ -209,14 +209,6 @@
   </div>
 
   <footer class="exporter-footer">
-    <label class="checkbox">
-      <input
-        type="checkbox"
-        checked={s.autoAdd}
-        onchange={(e) => exporter.setField("autoAdd", e.currentTarget.checked)}
-      />
-      Add Extension Cards Automatically
-    </label>
     <span class="spacer"></span>
     <button type="button" class="btn" onclick={() => exporter.close()}>Cancel</button>
     <button type="button" class="btn primary" onclick={() => exporter.add()}>Add</button>

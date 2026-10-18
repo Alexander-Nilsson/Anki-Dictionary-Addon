@@ -27,6 +27,26 @@
     return [{ text: single as string, active: true }];
   }
 
+  const PRESETS = [
+    { id: "openai", label: "OpenAI", url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini" },
+    { id: "openrouter", label: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", model: "openai/gpt-4o-mini" },
+    { id: "ollama", label: "Ollama (local)", url: "http://localhost:11434/api/chat", model: "llama3.1" },
+    { id: "lmstudio", label: "LM Studio (local)", url: "http://localhost:1234/v1/chat/completions", model: "local-model" },
+    { id: "groq", label: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
+  ];
+
+  const activePreset = $derived.by(() => {
+    const url = String(cfg.get("llm_base_url", ""));
+    return PRESETS.find((p) => p.url === url)?.id ?? "custom";
+  });
+
+  function applyPreset(id: string): void {
+    const preset = PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    cfg.set("llm_base_url", preset.url);
+    cfg.set("llm_model", preset.model);
+  }
+
   let rows = $state<PromptRow[]>(prompts());
 
   function addRow(): void {
@@ -53,6 +73,19 @@
     Enable LLM Dictionary
   </label>
   <div class="field">
+    <label for="llmPreset">Provider preset</label>
+    <select
+      id="llmPreset"
+      value={activePreset}
+      onchange={(e) => applyPreset(e.currentTarget.value)}
+    >
+      <option value="custom">Custom / keep current</option>
+      {#each PRESETS as p (p.id)}
+        <option value={p.id}>{p.label}</option>
+      {/each}
+    </select>
+  </div>
+  <div class="field">
     <label for="llmApiKey">API Key</label>
     <input id="llmApiKey" type="password" value={cfg.get("llm_api_key", "")} oninput={(e) => cfg.set("llm_api_key", e.currentTarget.value)} />
   </div>
@@ -70,6 +103,10 @@
   <div class="field">
     <label for="llmTemp">Temperature</label>
     <input id="llmTemp" type="number" step="0.1" min="0" max="2" value={Number(cfg.get("llm_temperature", 0.3))} oninput={(e) => cfg.set("llm_temperature", Number(e.currentTarget.value))} />
+  </div>
+  <div class="field">
+    <label for="llmTimeout">Timeout (seconds)</label>
+    <input id="llmTimeout" type="number" min="1" max="300" value={Number(cfg.get("llm_timeout", 20))} oninput={(e) => cfg.set("llm_timeout", Number(e.currentTarget.value) || 20)} />
   </div>
   <div class="field">
     <label for="llmKeepAlive">Keep Alive</label>

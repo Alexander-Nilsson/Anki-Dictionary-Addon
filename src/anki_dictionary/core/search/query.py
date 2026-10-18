@@ -33,7 +33,7 @@ class SearchQueryBuilder:
         self._index_lock = Lock()
 
     def get_def_ex(self, sT: str) -> bool:
-        return sT in ("Definition", "Example")
+        return sT == "Definition"
 
     def apply_search_type(self, terms: list[str], sT: str) -> list[str]:
         for idx, _term in enumerate(terms):
@@ -48,7 +48,9 @@ class SearchQueryBuilder:
             elif sT == "Definition":
                 terms[idx] = "%" + terms[idx] + "%"
             else:
-                terms[idx] = "%「%" + terms[idx] + "%」%"
+                # Unknown/legacy mode: behave like Forward rather than
+                # searching a punctuation pattern that no data contains.
+                terms[idx] = terms[idx] + "%"
         return terms
 
     def deconjugate(

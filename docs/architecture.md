@@ -6,7 +6,7 @@
 src/anki_dictionary/
 ├── core/
 │   ├── card_handler.py      # CardHandler — card content generation from dictionary results
-│   ├── clip_thread.py       # ClipThread — background clipboard monitoring
+│   ├── clip_thread.py       # ClipThread — global hotkey + clipboard monitoring
 │   ├── database.py          # DictDB — SQLite wrapper for dictionary lookups
 │   ├── dictionary.py        # DictInterface — main dictionary UI orchestrator
 │   ├── hooks.py             # Anki addon hook registration
@@ -85,7 +85,7 @@ user_files/               # db/, dictionaries/, themes/, fonts/, media/
 - **DictInterface** (`core/dictionary.py`) is the main orchestrator; renders results in `AnkiWebView`
 - **Svelte UI (Phase 1):** The dictionary shell — tab bar, welcome screen, sidebar state, font scaling — is now a Svelte 5 app (`web/`) compiled by Vite into one self-contained `dictionary.html`. `MIDict.getHTMLURL` prefers the built bundle (`web/dist/dictionary.html` in a checkout, `assets/web/dictionary.html` packaged) and falls back to the legacy `assets/templates/dictionary.html` + `dictionary.js` when no build exists. Tab *content* is still Python-generated HTML injected through the `{@html}` boundary; the Svelte shell re-exposes the exact bridge API (`addNewTab`, `loadImageHtml`, `appendNewImages`, `addCustomFont`, `openSidebar`, `scaleFont`) plus content-level globals (`ankiExport`, `clipText`, ...) so the addon behaves identically. Later phases convert content to structured data + Svelte components.
 - **Bridge contract:** Python → JS goes through `AnkiWebView.eval(...)` into `window.*` globals installed by `web/src/lib/bridge.ts`; JS → Python goes through `pycmd(...)` (AnkiWebView bridge) handled by `MIDict.handleDictAction`.
-- **ClipThread** monitors clipboard for word changes on a background thread
+- **ClipThread** polls the clipboard on a timer while the dictionary is visible (and intercepts Cmd+C on macOS)
 - **DictDB** (`core/database.py`) abstracts SQLite schema differences across dictionary types
 - **Themes** are JSON-based; active theme stored in `user_files/themes/active.json`
 - **LLM**, **image search**, and **Forvo** are async; use background threads to avoid UI freezes

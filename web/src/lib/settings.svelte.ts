@@ -33,6 +33,18 @@ export interface ForvoLanguage {
   name: string;
 }
 
+export interface SetupStatus {
+  languages: string[];
+  dictionary_count: number;
+  word_list_count: number;
+  conjugation_languages: string[];
+  missing_conjugation: string[];
+  curl_cffi: boolean;
+  forvo_enabled: boolean;
+  llm_enabled: boolean;
+  llm_configured: boolean;
+}
+
 interface LlmTestResult {
   ok: boolean;
   message: string;
@@ -48,7 +60,10 @@ class SettingsStore {
   providers = $state<WordListProvider[]>([]);
   noteTypes = $state<Record<string, string[]>>({});
   languagesDicts = $state<Record<string, string[]>>({});
+  languagesLoaded = $state(false);
   forvoLanguages = $state<ForvoLanguage[]>([]);
+  setupStatus = $state<SetupStatus | null>(null);
+  imageRegions = $state<string[]>([]);
   llmTest = $state<LlmTestResult | null>(null);
   llmTestPending = $state(false);
   savedRevision = $state(0);
@@ -107,11 +122,18 @@ export interface WebIndex {
   languages?: WebIndexLanguage[];
 }
 
+/** Mirrors `web/config.py`'s DEFAULT_SERVER. */
+export const DEFAULT_DICTIONARY_SERVER =
+  "https://github.com/Alexander-Nilsson/dictionaries/raw/main";
+
 export interface WebInstallState {
   running: boolean;
   percent: number;
   log?: string[];
   completed?: boolean;
+  failed?: number;
+  installed?: number;
+  skipped?: number;
 }
 
 export const settings = new SettingsStore();
@@ -125,6 +147,8 @@ export function loadSettings(): void {
   pycmd(SETTINGS_CMD.getNoteTypes());
   pycmd(SETTINGS_CMD.getLanguagesDicts());
   pycmd(SETTINGS_CMD.getForvoLanguages());
+  pycmd(SETTINGS_CMD.getSetupStatus());
+  pycmd(SETTINGS_CMD.getImageRegions());
   pycmd(SETTINGS_CMD.getThemes());
 }
 
@@ -240,11 +264,18 @@ export function wireSettingsReplies(): void {
   };
   replies.setLanguagesDicts = (data: unknown) => {
     settings.languagesDicts = (data ?? {}) as Record<string, string[]>;
+    settings.languagesLoaded = true;
   };
   replies.setForvoLanguages = (data: unknown) => {
     settings.forvoLanguages = Array.isArray(data)
       ? (data as ForvoLanguage[])
       : [];
+  };
+  replies.setSetupStatus = (data: unknown) => {
+    settings.setupStatus = (data ?? null) as SetupStatus | null;
+  };
+  replies.setImageRegions = (data: unknown) => {
+    settings.imageRegions = Array.isArray(data) ? (data as string[]) : [];
   };
   replies.setLLMTest = (result: unknown) => {
     settings.llmTestPending = false;
@@ -285,6 +316,9 @@ export function wireSettingsReplies(): void {
       running?: boolean;
       log?: string[];
       completed?: boolean;
+      failed?: number;
+      installed?: number;
+      skipped?: number;
     };
     const current = settings.webInstall;
     settings.webInstall = {
@@ -292,6 +326,9 @@ export function wireSettingsReplies(): void {
       percent: typeof d.percent === "number" ? d.percent : current.percent,
       log: Array.isArray(d.log) ? d.log : current.log,
       completed: typeof d.completed === "boolean" ? d.completed : current.completed,
+      failed: typeof d.failed === "number" ? d.failed : current.failed,
+      installed: typeof d.installed === "number" ? d.installed : current.installed,
+      skipped: typeof d.skipped === "number" ? d.skipped : current.skipped,
     };
   };
   replies.setThemes = (data: unknown) => {

@@ -1,44 +1,33 @@
-import os
-import re
-import sys
-from os.path import dirname, join
+"""Global hotkey listener.
+
+The addon no longer ships an external browser-extension transport. This module
+keeps the one global shortcut that is actually wired end-to-end: on macOS,
+Cmd+C outside Anki searches the selected clipboard text in the dictionary.
+The regular Windows/Linux paths use Anki's own application shortcuts
+(Ctrl+S / Ctrl+Shift+B).
+"""
+
 from typing import Any
 
 from anki.utils import is_lin, is_mac, is_win
-from aqt.qt import QObject, QSize, Qt, pyqtSignal
+from aqt.qt import QObject, QTimer, pyqtSignal
 
-from ..utils import media_manager
-from ..utils.config import get_addon_config
 from ..utils.logger import get_logger
 
 log = get_logger("clip_thread")
 
 
 class ClipThread(QObject):
-    sentence = pyqtSignal(str)
     search = pyqtSignal(str)
-    colSearch = pyqtSignal(str)
-    add = pyqtSignal(str)
-    image = pyqtSignal(list)
     test = pyqtSignal(list)
     release = pyqtSignal(list)
-    extensionCardExport = pyqtSignal(dict)
-    searchFromExtension = pyqtSignal(list)
-    extensionFileNotFound = pyqtSignal()
-    bulkTextExport = pyqtSignal(list)
-    bulkMediaExport = pyqtSignal(dict)
-    pageRefreshDuringBulkMediaImport = pyqtSignal()
 
     def __init__(self, mw: Any, path: str) -> None:
         super().__init__(mw)
         self.mw = mw
+        self.addonPath = path
         try:
             if is_mac:
-                import ssl
-
-                setattr(
-                    ssl, "_create_default_https_context", ssl._create_unverified_context
-                )
                 try:
                     from Quartz import (
                         CGEventGetIntegerValueField,
@@ -53,7 +42,6 @@ class ClipThread(QObject):
                     self.CGEventGetIntegerValueField = None
             elif is_lin:
                 pass
-            sys.path.insert(0, join(dirname(__file__)))
 
             try:
                 from pynput import keyboard
@@ -67,11 +55,35 @@ class ClipThread(QObject):
             log.warning(f"Error initializing ClipThread: {e}")
             self.keyboard = None
 
-        self.addonPath = path
-        self.addon_root = dirname(dirname(dirname(dirname(__file__))))
-        self.temp_dir = join(self.addon_root, "temp")
-        os.makedirs(self.temp_dir, exist_ok=True)
-        self.config = get_addon_config()
+        self._last_clipboard = ""
+        self._clip_timer = QTimer(self)
+        self._clip_timer.setInterval(800)
+        self._clip_timer.timeout.connect(self.poll_clipboard)
+
+    def poll_clipboard(self) -> None:
+        """Search words copied while the dictionary is visible.
+
+        Long selections and multi-line text are ignored: they are sentences,
+        not headwords, and turning every copy into a lookup would make the
+        monitor unusable. The in-web pause pill disables this path.
+        """
+        dictionary = getattr(self.mw, "ankiDictionary", None)
+        if not dictionary or not dictionary.isVisible():
+            return
+        config = getattr(self.mw, "AnkiDictConfig", {}) or {}
+        if not config.get("clipboard_monitor_enabled", True):
+            return
+        try:
+            text = self.mw.app.clipboard().text().strip()
+        except Exception:
+            return
+        if self.mw.__dict__.pop("_anki_dict_suppress_clipboard", False):
+            self._last_clipboard = text
+            return
+        if not text or text == self._last_clipboard or len(text) > 60 or "\n" in text:
+            return
+        self._last_clipboard = text
+        self.search.emit(text)
 
     def on_press(self, key: Any) -> None:
         self.test.emit([key])
@@ -98,6 +110,10 @@ class ClipThread(QObject):
         return event
 
     def run(self) -> None:
+        # Clipboard polling is independent of pynput; keep it working even
+        # when the global key listener cannot start.
+        self._clip_timer.start()
+
         if not self.keyboard:
             log.warning("Keyboard monitoring not available - skipping hotkey setup")
             return
@@ -125,107 +141,17 @@ class ClipThread(QObject):
         except Exception as e:
             log.warning(f"Could not start keyboard listener: {e}")
 
-    def attemptAddCard(self) -> None:
-        self.add.emit("add")
-
-    def checkDict(self) -> bool:
-        if not self.mw.ankiDictionary or not self.mw.ankiDictionary.isVisible():
-            return False
-        return True
-
-    def handleExtensionSearch(self, terms: list) -> None:
-        self.searchFromExtension.emit(terms)
-
     def handleSystemSearch(self) -> None:
-        self.search.emit(self.mw.app.clipboard().text())
+        text = self.mw.app.clipboard().text()
+        self._last_clipboard = text.strip()
+        self.search.emit(text)
 
-    def handleColSearch(self) -> None:
-        self.colSearch.emit(self.mw.app.clipboard().text())
-
-    def getConfig(self) -> dict[str, Any]:
-        return get_addon_config()
-
-    def handleBulkTextExport(self, cards: list) -> None:
-        self.bulkTextExport.emit(cards)
-
-    def handleExtensionCardExport(self, card: dict) -> None:
-        audioFileName = card["audio"]
-        imageFileName = card["image"]
-        bulk = card["bulk"]
-        media_dir = self.mw.col.media.dir()
-        if audioFileName:
-            audioTempPath = join(self.temp_dir, audioFileName)
-            if not media_manager.wait_for_file(audioTempPath):
-                self.extensionFileNotFound.emit()
-                return
-            media_manager.copy_to_media(audioTempPath, audioFileName, media_dir)
-            media_manager.remove_file(audioTempPath)
-        if imageFileName:
-            imageTempPath = join(self.temp_dir, imageFileName)
-            if media_manager.wait_for_file(imageTempPath):
-                converted_name = re.sub(
-                    r"\.[^.]+$",
-                    f".{media_manager.preferred_image_ext()}",
-                    imageFileName,
-                )
-                media_manager.scale_image(
-                    imageTempPath,
-                    join(media_dir, converted_name),
-                    self.mw.AnkiDictConfig["maxWidth"],
-                    self.mw.AnkiDictConfig["maxHeight"],
-                )
-                media_manager.remove_file(imageTempPath)
-        if bulk:
-            self.bulkMediaExport.emit(card)
-        else:
-            self.extensionCardExport.emit(card)
-
-    def handlePageRefreshDuringBulkMediaImport(self) -> None:
-        self.pageRefreshDuringBulkMediaImport.emit()
-
-    def handleImageExport(self) -> None:
-        if self.checkDict():
-            mime = self.mw.app.clipboard().mimeData()
-            clip = self.mw.app.clipboard().text()
-
-            if not clip.endswith(".mp3") and mime.hasImage():
-                image = mime.imageData()
-                ext = media_manager.preferred_image_ext()
-                filename = media_manager.unique_filename(ext=ext)
-                fullpath = join(self.temp_dir, filename)
-                maxW = max(self.maxW, image.width())  # ty:ignore[unresolved-attribute]
-                maxH = max(self.maxH, image.height())  # ty:ignore[unresolved-attribute]
-                image = image.scaled(
-                    QSize(maxW, maxH),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                image.save(fullpath, media_manager.qt_format_for_ext(ext))
-                if os.path.exists(fullpath):
-                    self.image.emit([fullpath, filename])
-            elif clip.endswith(".mp3"):
-                if not is_lin:
-                    if is_mac:
-                        try:
-                            clip = str(
-                                self.mw.app.clipboard().mimeData().urls()[0].url()
-                            )
-                        except Exception:
-                            return
-                    if clip.startswith("file:///") and clip.endswith(".mp3"):
-                        try:
-                            if is_mac:
-                                path = clip.replace("file://", "", 1)
-                            else:
-                                path = clip.replace("file:///", "", 1)
-                            temp, mp3 = media_manager.copy_to_temp(
-                                path, self.temp_dir, ext="mp3"
-                            )
-                            if mp3:
-                                self.image.emit([temp, "[sound:" + mp3 + "]", mp3])
-                        except Exception:
-                            return
-
-    def handleSentenceExport(self) -> None:
-        if self.checkDict():
-            self.sentence.emit(self.mw.app.clipboard().text())
+    def stop(self) -> None:
+        """Stop polling and the pynput listener (profile unload)."""
+        self._clip_timer.stop()
+        listener = getattr(self, "listener", None)
+        if listener is not None:
+            try:
+                listener.stop()
+            except Exception:
+                log.debug("Could not stop hotkey listener", exc_info=True)

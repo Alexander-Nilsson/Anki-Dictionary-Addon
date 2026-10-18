@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide — Anki Dictionary Add-on</title>
-<meta name="description" content="Install the Anki Dictionary Add-on, learn all seven search modes, connect an LLM, send images and Forvo audio, export cards and mass-edit definitions, and theme the window.">
+<meta name="description" content="Install the Anki Dictionary Add-on, learn all six search modes, connect an LLM, send images and Forvo audio, export cards and mass-edit definitions, and theme the window.">
 <link rel="canonical" href="https://alexander-nilsson.github.io/Anki-Dictionary-Addon/guide.html">
 <meta name="theme-color" content="#17171a">
 <meta property="og:type" content="article">
@@ -79,7 +79,7 @@
       <p class="eyebrow">The manual, re-cut</p>
       <h1>Everything, <em>documented.</em></h1>
       <p class="lede">
-        Installation, all seven search modes, AI definitions, images and native audio,
+        Installation, all six search modes, AI definitions, images and native audio,
         the Card Exporter, mass export, JSON themes, settings, and the fixes for the
         things that usually go wrong.
       </p>
@@ -151,9 +151,12 @@
           <h3>Install dictionaries</h3>
           <p>
             Open <b>Anki Dictionary → Dictionary Settings → Dictionaries</b>. Use
-            <b>Install Languages in Wizard</b> for a guided language → dictionaries flow,
-            or <b>Install Dictionary From File</b> for a Yomichan- or Migaku-format ZIP.
-            You can add frequency lists and conjugation tables from the same tab.
+            <b>Quick Setup</b> to install one recommended dictionary plus frequency,
+            level and conjugation data for your language pair, or
+            <b>Install Dictionaries (Web)</b> to pick individual dictionaries.
+            <b>Install Dictionaries (Files)</b> accepts Yomichan <code>.zip</code> and
+            Migaku <code>.json</code> files. Frequency and conjugation data live on the
+            same tab.
           </p>
           <figure class="doc-fig">
             <picture>
@@ -201,7 +204,7 @@
             are stripped with their contents, so pasted text with furigana still works.
           </p>
 
-          <h3>Seven search modes</h3>
+          <h3>Six search modes</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Mode</th><th>What it matches</th></tr></thead>
@@ -211,7 +214,6 @@
                 <tr><td><b>Exact</b></td><td>Entries equal to the query</td></tr>
                 <tr><td><b>Anywhere</b></td><td>The query anywhere in the entry</td></tr>
                 <tr><td><b>Definition</b></td><td>The query in definition text</td></tr>
-                <tr><td><b>Example</b></td><td>The query in an example sentence</td></tr>
                 <tr><td><b>Pronunciation</b></td><td>Entries whose pronunciation matches (forward-style)</td></tr>
               </tbody>
             </table>
@@ -486,9 +488,7 @@ List the part of speech and register.</code><button class="copy" type="button" d
           <p>
             <b>Automatically Add Definitions</b> opens a settings panel where you can
             choose up to three dictionaries and a per-dictionary limit. The same panel can
-            pull <b>DuckDuckGo Images</b> and <b>Forvo</b> audio automatically. With
-            <b>Add Extension Cards Automatically</b>, the note is created as soon as the
-            content is ready.
+            pull <b>DuckDuckGo Images</b> and <b>Forvo</b> audio automatically.
           </p>
 
           <h3>Mass export existing cards</h3>

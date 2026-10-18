@@ -193,7 +193,8 @@ class MIDict(AnkiWebView):
             f1, f2 = dAct[7:].split(":")
             self.dictInt.writeConfig("fontSizes", [int(f1), int(f2)])
         elif dAct.startswith("openSettings"):
-            self.dictInt.openDictionarySettings()
+            tab = dAct[len("openSettings") :].lstrip(":").strip() or None
+            self.dictInt.openDictionarySettings(tab)
         elif dAct.startswith("saveSidebarWidth:"):
             width = max(int(dAct[17:]), 20)
             self.dictInt.writeConfig("sidebarWidth", width)
@@ -220,6 +221,9 @@ class MIDict(AnkiWebView):
                 self.dictInt.updateAddType(addType["name"], addType["type"])
         elif dAct.startswith("clipped:"):
             text = dAct[8:]
+            # Do not let the clipboard monitor turn the addon's own copy
+            # action into a search.
+            self.dictInt.mw.__dict__["_anki_dict_suppress_clipboard"] = True
             self.dictInt.mw.app.clipboard().setText(text.replace("<br>", "\n"))
         elif dAct.startswith("clipped_images:"):
             urls_json = dAct[15:]
@@ -449,7 +453,7 @@ class DictInterface(QWidget):
             willSearch = True
         self.config = self.getConfig()
         self.allGroups = self.getAllGroups()
-        self.defaultGroups = self.db.getDefaultGroups()
+        self.defaultGroups = self._with_forvo(self.db.getDefaultGroups())
         self.userGroups = self.getUserGroups()
         self.searchOptions = [
             "Forward",
@@ -457,7 +461,6 @@ class DictInterface(QWidget):
             "Exact",
             "Anywhere",
             "Definition",
-            "Example",
             "Pronunciation",
         ]
         self.setWindowTitle("Anki Dictionary")
@@ -689,10 +692,22 @@ class DictInterface(QWidget):
         dicts.append({"dict": "Images", "lang": ""})
         if self.config.get("llm_enabled", False):
             dicts.append({"dict": "LLM", "lang": ""})
+        if self.config.get("forvo_enabled", True):
+            dicts.append({"dict": "Forvo", "lang": ""})
         allGroups["dictionaries"] = dicts
         allGroups["customFont"] = False
         allGroups["font"] = False
         return allGroups
+
+    def _with_forvo(self, groups: dict[str, dict]) -> dict[str, dict]:
+        """Add Forvo to each language's default group when enabled."""
+        if not self.config.get("forvo_enabled", True):
+            return groups
+        for lang, group in groups.items():
+            dicts = group.setdefault("dictionaries", [])
+            if not any(d.get("dict") == "Forvo" for d in dicts):
+                dicts.append({"dict": "Forvo", "lang": lang})
+        return groups
 
     def getInsertHTMLJS(self):
         insertHTML = join(self.addonPath, "assets", "scripts", "insertHTML.js")
@@ -731,7 +746,7 @@ class DictInterface(QWidget):
         self.search.setText("")
         self.config = self.getConfig()
         self.allGroups = self.getAllGroups()
-        self.defaultGroups = self.db.getDefaultGroups()
+        self.defaultGroups = self._with_forvo(self.db.getDefaultGroups())
         self.userGroups = self.getUserGroups()
 
         # Refresh the hidden state holders (no Qt toolbar anymore — the
@@ -1023,12 +1038,17 @@ class DictInterface(QWidget):
         settings.clicked.connect(self.openDictionarySettings)
         return settings
 
-    def openDictionarySettings(self):
+    def openDictionarySettings(self, tab=None):
+        # Qt's clicked signal passes a bool; only strings are tab names.
+        if not isinstance(tab, str):
+            tab = None
         if not self.mw.dictSettings:
             self.mw.dictSettings = SettingsGui(
                 self.mw, self.addonPath, self.openDictionarySettings
             )
         self.mw.dictSettings.show()
+        if tab:
+            self.mw.dictSettings.show_tab(tab)
         if self.mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:
             # Window is minimised. Restore it.
             self.mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)
@@ -1102,7 +1122,6 @@ class DictInterface(QWidget):
             "Exact": "Find words that match your search term exactly.",
             "Anywhere": "Find words containing your search term anywhere in the headword.",
             "Definition": "Search for your term within the dictionary definitions.",
-            "Example": "Search for your term within example sentences (looks for text inside 「...」 markers).",
             "Pronunciation": "Find words with pronunciations starting with your search term.",
         }
 

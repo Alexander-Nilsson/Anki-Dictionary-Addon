@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib
+import io
 import json
+import os
 import re
 import zipfile
 from types import ModuleType
@@ -55,6 +57,20 @@ def importDict(
 
     if parent is None:
         parent = aqt.mw.app.activeWindow() or aqt.mw
+
+    # Migaku dictionaries are single JSON files; wrap one in an in-memory
+    # ZIP so the rest of the import path (ZIP + JSON readers) stays shared.
+    if isinstance(file, str) and file.lower().endswith(".json"):
+        try:
+            with open(file, "rb") as fh:
+                raw = fh.read()
+        except OSError as e:
+            raise ValueError(f"Could not read dictionary file: {e}") from e
+        wrapped = io.BytesIO()
+        with zipfile.ZipFile(wrapped, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(os.path.basename(file), raw)
+        wrapped.seek(0)
+        file = wrapped
 
     try:
         zfile = zipfile.ZipFile(file)

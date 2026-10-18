@@ -84,6 +84,27 @@ class TestConfig(unittest.TestCase):
         )
 
     @patch("anki_dictionary.utils.config.aqt.mw")
+    @patch("anki_dictionary.utils.config.get_addon_root", return_value="/fake/addon")
+    def test_get_addon_config_merges_defaults_and_drops_transient(
+        self, mock_root, mock_mw
+    ):
+        from __init__ import get_addon_state
+
+        get_addon_state.return_value.config = {
+            "addon_path": "/tmp/addon",
+            "addon_name": "anki-dictionary",
+            "llm_stream": True,
+        }
+        result = get_addon_config()
+        get_addon_state.return_value.config = {}
+
+        self.assertNotIn("addon_path", result)
+        self.assertNotIn("addon_name", result)
+        self.assertEqual(result["llm_stream"], True)
+        self.assertIn("llm_model", result)
+        self.assertEqual(result["config_version"], 2)
+
+    @patch("anki_dictionary.utils.config.aqt.mw")
     def test_get_addon_config_from_state(self, mock_mw):
         from __init__ import get_addon_state
 
@@ -95,7 +116,12 @@ class TestConfig(unittest.TestCase):
         ):
             result = get_addon_config()
 
-        self.assertEqual(result, state_config)
+        self.assertEqual(result["from_state"], True)
+        self.assertEqual(result["maxSearch"], 500)
+        # Missing keys are filled from the packaged defaults.
+        self.assertIn("config_version", result)
+        self.assertEqual(result["currentGroup"], "All")
+        get_addon_state.return_value.config = {}
 
 
 if __name__ == "__main__":

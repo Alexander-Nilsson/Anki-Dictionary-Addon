@@ -142,6 +142,9 @@ class WebInstallWorker(QThread):
         super().__init__()
         self.selection = {k: v for k, v in selection.items() if k in _WORKER_KEYS}
         self.cancel_requested = False
+        self.installed = 0
+        self.skipped = 0
+        self.failed = 0
 
     # ── helpers ────────────────────────────────────────────
 
@@ -180,6 +183,8 @@ class WebInstallWorker(QThread):
             return None
         chunks = []
         for chunk in resp.iter_content(chunk_size=16384):
+            if self.cancel_requested:
+                return None
             if chunk:
                 chunks.append(chunk)
         data = b"".join(chunks)
@@ -206,10 +211,13 @@ class WebInstallWorker(QThread):
                 client, self.construct_url(str(wl_info.get("url", ""))), wl_name
             )
             if data is None:
+                if not self.cancel_requested:
+                    self.failed += 1
                 continue
             data = extract_zipped_json(data, self.log_line.emit)
             validated = sanitize_json_bytes(data, wl_name, self.log_line.emit)
             if validated is None:
+                self.failed += 1
                 continue
             slug = "".join(
                 c for c in wl_name.lower().replace(" ", "_") if c.isalnum() or c == "_"
@@ -218,6 +226,7 @@ class WebInstallWorker(QThread):
             filename = f"{lang_part}_{slug}{type_tag}.json"
             with open(os.path.join(wl_dir, filename), "wb") as f:
                 f.write(validated)
+            self.installed += 1
             self.log_line.emit(f" Installed as {filename}")
 
     def _install_conjugation(
@@ -226,14 +235,20 @@ class WebInstallWorker(QThread):
         conj_dir = get_conjugation_dir()
         os.makedirs(conj_dir, exist_ok=True)
         self.log_line.emit(f"Installing {lang} conjugation data...")
-        data = self._download(
-            client, self.construct_url(str(conj.get("url", ""))), "conjugation"
-        )
+        conj_url = str(conj.get("url") or conj.get("conjugation_url") or "").strip()
+        if not conj_url:
+            self.failed += 1
+            self.log_line.emit(" ERROR: Conjugation data has no URL.")
+            return
+        data = self._download(client, self.construct_url(conj_url), "conjugation")
         if data is None:
+            if not self.cancel_requested:
+                self.failed += 1
             return
         dst_path = os.path.join(conj_dir, f"{lang}.json")
         with open(dst_path, "wb") as f:
             f.write(data)
+        self.installed += 1
 
     def _install_dictionaries(
         self,
@@ -251,6 +266,7 @@ class WebInstallWorker(QThread):
             dname = str(d.get("name") or "dictionary")
             if aqt.mw.miDictDB.dictExists(dname, lang):  # ty:ignore[unresolved-attribute]
                 self.log_line.emit(f"Skipping {dname} (already installed).")
+                self.skipped += 1
                 done += 1
                 self.progress.emit(round(done * 100 / max(total, 1)))
                 continue
@@ -260,6 +276,8 @@ class WebInstallWorker(QThread):
                 client, self.construct_url(str(d.get("url", ""))), dname
             )
             if data is None:
+                if not self.cancel_requested:
+                    self.failed += 1
                 done += 1
                 self.progress.emit(round(done * 100 / max(total, 1)))
                 continue
@@ -267,8 +285,11 @@ class WebInstallWorker(QThread):
             self.log_line.emit(" Importing...")
             try:
                 importDict(lang, io.BytesIO(data), dname, overwrite=True)
+                self.installed += 1
                 self.log_line.emit(f" Installed {dname}.")
-            except ValueError as e:
+            except Exception as e:  # noqa: BLE001 - report and continue
+                self.failed += 1
+                logger.exception("Dictionary import failed: %s", dname)
                 self.log_line.emit(f" ERROR: {str(e)}")
             done += 1
             self.progress.emit(round(done * 100 / max(total, 1)))
@@ -324,5 +345,8 @@ class WebInstallWorker(QThread):
             self.done.emit(False)
             return
         self.progress.emit(100)
-        self.log_line.emit("All done.")
-        self.done.emit(True)
+        self.log_line.emit(
+            f"Finished: {self.installed} installed, {self.skipped} skipped, "
+            f"{self.failed} failed."
+        )
+        self.done.emit(self.failed == 0)

@@ -6,7 +6,6 @@ allowing users to search dictionaries and automatically create cards.
 """
 
 import os
-import ssl
 import sys
 from typing import Any
 
@@ -14,10 +13,6 @@ try:
     from aqt import mw
 except ImportError:
     mw = None
-
-# macOS SSL certificate fix
-if sys.platform == "darwin":
-    ssl._create_default_https_context = ssl._create_unverified_context
 
 # Add the vendor directory to the system path
 vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
@@ -50,6 +45,18 @@ elif sys.platform.startswith("linux"):
 
 if vendor_path not in sys.path:
     sys.path.append(vendor_path)
+
+# macOS/Python builds sometimes ship without a usable CA bundle. Point the
+# stdlib and requests at certifi instead of disabling verification globally
+# (which weakens every HTTPS request in the Anki process).
+try:
+    import certifi
+
+    _ca_bundle = certifi.where()
+    os.environ.setdefault("SSL_CERT_FILE", _ca_bundle)
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", _ca_bundle)
+except Exception:
+    pass
 
 # Special check for broken PIL in vendor (often happens if bundled on different OS)
 if os.path.exists(os.path.join(vendor_path, "PIL")):

@@ -39,7 +39,6 @@ def db_and_midict(tmp_path):
         "show_stars": True,
         "show_rank": False,
         "show_hsk": True,
-        "hsk_mode": "hsk3",
     }
 
     db_path = os.path.join(str(tmp_path), "dictionaries.sqlite")

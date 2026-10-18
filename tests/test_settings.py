@@ -676,9 +676,32 @@ class TestSettingsBridge(unittest.TestCase):
             mw.miDictDB._registry.clear_cache.assert_called_once()
             refresh.assert_called_once()
             self.assertIsNone(bridge._install_worker)
-            push = bridge._push.call_args
-            self.assertEqual(push.args[0], "setWebInstall")
-            self.assertFalse(push.args[1]["running"])
+            install_pushes = [
+                call
+                for call in bridge._push.call_args_list
+                if call.args[0] == "setWebInstall"
+            ]
+            self.assertEqual(len(install_pushes), 1)
+            self.assertFalse(install_pushes[0].args[1]["running"])
+
+    def test_install_done_reports_failure_counts(self):
+        bridge, _, _ = _make_bridge()
+        worker = MagicMock()
+        worker.failed = 2
+        worker.installed = 1
+        worker.skipped = 3
+        bridge._install_worker = worker
+        with patch.object(bridge, "_push") as push:
+            bridge._on_install_done(False)
+            payload = next(
+                call.args[1]
+                for call in push.call_args_list
+                if call.args[0] == "setWebInstall"
+            )
+        self.assertFalse(payload["completed"])
+        self.assertEqual(payload["failed"], 2)
+        self.assertEqual(payload["installed"], 1)
+        self.assertEqual(payload["skipped"], 3)
 
     # ── theme injection ───────────────────────────────────
 

@@ -52,6 +52,13 @@ def closeDictionary():
     """Close dictionary when profile is unloaded."""
     if hasattr(mw, "ankiDictionary") and mw.ankiDictionary:
         mw.ankiDictionary.hide()  # ty:ignore[unresolved-attribute]
+    hotkeys = getattr(mw, "hkThread", None)
+    if hotkeys is not None:
+        try:
+            hotkeys.stop()
+        except Exception:
+            print("Anki Dictionary: could not stop global hotkeys")
+        mw.__dict__["hkThread"] = None
 
 
 def dictOnStart():
@@ -68,6 +75,35 @@ def dictOnStart():
     except Exception as exc:
         # Non-critical: release notes popup should not block addon startup.
         print(f"Anki Dictionary: failed to show release notes: {exc}")
+
+    # First run: make the setup path visible instead of leaving the user with
+    # an empty dictionary window they have to discover the menus for.
+    try:
+        from aqt.qt import QTimer
+
+        from ..ui.main_window import (
+            dictionaryInit,
+            initGlobalHotkeys,
+            openDictionarySettings,
+        )
+        from ..utils.config import get_addon_config
+
+        QTimer.singleShot(0, initGlobalHotkeys)
+        config = get_addon_config()
+        db = getattr(mw, "miDictDB", None)
+        installed = db.getCurrentDbLangs() if db is not None else []
+        if not installed:
+
+            def _first_run() -> None:
+                dictionaryInit()
+                openDictionarySettings("dictionaries")
+
+            QTimer.singleShot(700, _first_run)
+        elif config.get("dictOnStart", False):
+            QTimer.singleShot(700, dictionaryInit)
+    except Exception as exc:
+        # Startup convenience only; never block profile loading.
+        print(f"Anki Dictionary: could not open dictionary on start: {exc}")
 
 
 def addToContextMenu(webview, menu):

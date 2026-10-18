@@ -235,6 +235,86 @@ class TestLLMWorker(unittest.TestCase):
         self.assertEqual(payload["keep_alive"], "30m")
         self.assertEqual(payload["temperature"], 0.3)
 
+    @patch("anki_dictionary.integrations.llm.requests.post")
+    def test_llm_worker_openai_stream(self, mock_post):
+        """OpenAI-compatible SSE chunks are concatenated into one definition."""
+        config = self.config.copy()
+        config["llm_stream"] = True
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b'data: {"choices":[{"delta":{"content":"A round "}}]}',
+            b"",
+            b'data: {"choices":[{"delta":{"content":"red fruit."}}]}',
+            b"data: [DONE]",
+            b'data: {"choices":[{"delta":{"content":" ignored"}}]}',
+        ]
+        mock_post.return_value = mock_response
+
+        worker = LLMWorker(self.term, config)
+        results = []
+        worker.signals.result_ready.connect(lambda x: results.append(x))
+        worker.run()
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["definition"], "A round red fruit.")
+        args, kwargs = mock_post.call_args
+        self.assertTrue(kwargs["stream"])
+        self.assertTrue(kwargs["json"]["stream"])
+        self.assertEqual(mock_response.json.call_count, 0)
+        mock_response.close.assert_called_once()
+
+    @patch("anki_dictionary.integrations.llm.requests.post")
+    def test_llm_worker_ollama_stream(self, mock_post):
+        """Ollama NDJSON chunks are concatenated until 'done' is true."""
+        config = self.config.copy()
+        config["llm_base_url"] = "http://localhost:11434/api/chat"
+        config["llm_stream"] = True
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = [
+            b'{"message":{"content":"A "},"done":false}',
+            b'{"message":{"content":"fruit."},"done":false}',
+            b'{"message":{"content":""},"done":true}',
+            b'{"message":{"content":" ignored"},"done":false}',
+        ]
+        mock_post.return_value = mock_response
+
+        worker = LLMWorker(self.term, config)
+        results = []
+        worker.signals.result_ready.connect(lambda x: results.append(x))
+        worker.run()
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["definition"], "A fruit.")
+        args, kwargs = mock_post.call_args
+        self.assertTrue(kwargs["stream"])
+        self.assertTrue(kwargs["json"]["stream"])
+        self.assertEqual(mock_response.json.call_count, 0)
+        mock_response.close.assert_called_once()
+
+    @patch("anki_dictionary.integrations.llm.requests.post")
+    def test_llm_config_check_forces_stream_false(self, mock_post):
+        """Connection test never requests streaming, even if enabled in config."""
+        config = self.config.copy()
+        config["llm_stream"] = True
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"choices": [{"message": {"content": "OK"}}]}
+        mock_post.return_value = mock_response
+
+        callback_results = []
+        _llm_config_check(config, lambda ok, msg: callback_results.append((ok, msg)))
+
+        self.assertTrue(callback_results[0][0])
+        args, kwargs = mock_post.call_args
+        self.assertFalse(kwargs["json"]["stream"])
+        # The caller's config must not be mutated.
+        self.assertTrue(config["llm_stream"])
+
     def test_split_llm_definitions_single(self):
         """Single definition with no delimiter returns one chunk."""
         text = "A round fruit."

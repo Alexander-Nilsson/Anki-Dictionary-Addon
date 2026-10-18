@@ -33,8 +33,6 @@ DRIVER_DIR = Path(__file__).resolve().parent / "driver_addon"
 # no global keyboard/mouse grabbing, no LLM calls (no local endpoint), and
 # dictionary opens on startup.
 ADDON_CONFIG = {
-    "globalHotkeys": False,
-    "openOnGlobal": False,
     "llm_enabled": False,
     "dictOnStart": False,
     "onetab": True,

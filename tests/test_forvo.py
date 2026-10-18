@@ -1,5 +1,6 @@
 import base64
 import subprocess
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +15,21 @@ def _curl(stdout, returncode=0):
     """A completed `curl -w "\n%{http_code}"` run."""
     return subprocess.CompletedProcess(
         args=[], returncode=returncode, stdout=stdout, stderr=""
+    )
+
+
+def _response(status_code, text=""):
+    return MagicMock(status_code=status_code, text=text)
+
+
+def _fake_curl_cffi(get):
+    """Patch ``curl_cffi`` so ``_fetch_url`` imports this fake module."""
+    requests_mod = MagicMock()
+    requests_mod.get = get
+    module = MagicMock()
+    module.requests = requests_mod
+    return patch.dict(
+        sys.modules, {"curl_cffi": module, "curl_cffi.requests": requests_mod}
     )
 
 
@@ -54,14 +70,111 @@ class TestForvo(unittest.TestCase):
             self.assertIn("test.mp3", result["items"][0]["audio_url"])
 
 
-class TestFetchUrl(unittest.TestCase):
-    """`_fetch_url` must report Forvo's real HTTP status.
+class TestFetchUrlCurlCffi(unittest.TestCase):
+    """`_fetch_url` prefers curl_cffi over the system curl binary.
+
+    curl_cffi ships its own libcurl and impersonates Chrome's TLS fingerprint,
+    so Forvo stays reachable on machines with no `curl` executable.
+    """
+
+    def test_returns_the_real_http_status_and_body(self):
+        get = MagicMock(return_value=_response(200, "<html>hi</html>"))
+        with _fake_curl_cffi(get), patch("subprocess.run") as run:
+            status, html = _fetch_url("https://forvo.com/word/cat")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(html, "<html>hi</html>")
+        get.assert_called_once_with(
+            "https://forvo.com/word/cat",
+            impersonate="chrome",
+            timeout=15,
+            allow_redirects=True,
+        )
+        run.assert_not_called()
+
+    def test_404_is_final_and_not_retried(self):
+        get = MagicMock(return_value=_response(404, "not found"))
+        with _fake_curl_cffi(get):
+            with patch("time.sleep") as sleep:
+                status, _ = _fetch_url("https://forvo.com/word/nope")
+
+        self.assertEqual(status, 404)
+        self.assertEqual(get.call_count, 1, "a 404 is a final answer")
+        sleep.assert_not_called()
+
+    def test_cloudflare_challenge_becomes_403_after_retries(self):
+        get = MagicMock(return_value=_response(200, "<html>Just a moment...</html>"))
+        with _fake_curl_cffi(get):
+            with patch("time.sleep") as sleep:
+                status, html = _fetch_url("https://forvo.com/word/cat")
+
+        self.assertEqual(status, 403)
+        self.assertEqual(html, "")
+        self.assertEqual(get.call_count, 3)
+        self.assertEqual(
+            [call.args[0] for call in sleep.call_args_list],
+            [1, 2],
+            "back off progressively",
+        )
+
+    def test_retries_then_succeeds(self):
+        get = MagicMock(
+            side_effect=[
+                _response(503, "later"),
+                _response(200, "<html>ok</html>"),
+            ]
+        )
+        with _fake_curl_cffi(get):
+            with patch("time.sleep"):
+                status, html = _fetch_url("https://forvo.com/word/cat")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(html, "<html>ok</html>")
+        self.assertEqual(get.call_count, 2)
+
+    def test_transport_error_falls_back_to_curl(self):
+        get = MagicMock(side_effect=RuntimeError("could not resolve host"))
+        with (
+            _fake_curl_cffi(get),
+            patch("subprocess.run", return_value=_curl("<html>ok</html>\n200")) as run,
+        ):
+            with patch("time.sleep"):
+                status, html = _fetch_url("https://forvo.com/word/cat")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(html, "<html>ok</html>")
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(run.call_count, 1)
+
+    def test_transport_failures_report_no_http_response(self):
+        get = MagicMock(side_effect=RuntimeError("connection reset"))
+        with (
+            _fake_curl_cffi(get),
+            patch("subprocess.run", return_value=_curl("", 7)) as run,
+        ):
+            with patch("time.sleep"):
+                status, _ = _fetch_url("https://forvo.com/word/cat")
+
+        self.assertEqual(status, NO_HTTP_RESPONSE)
+        self.assertEqual(run.call_count, 3)
+
+
+class TestFetchUrlCurlFallback(unittest.TestCase):
+    """Without curl_cffi the system curl path still has to work as before.
 
     It used to return curl's *exit code* as the status, so every distinct
     failure — a missing word, a Cloudflare challenge, a dead network — was
     reported as "HTTP 403", and the 404 branch in `ForvoWorker.run` could never
     fire.
     """
+
+    def setUp(self):
+        patcher = patch(
+            "anki_dictionary.integrations.forvo._import_curl_requests",
+            return_value=None,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_returns_the_real_http_status_and_body(self):
         with patch("subprocess.run", return_value=_curl("<html>hi</html>\n200")):

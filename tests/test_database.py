@@ -35,7 +35,6 @@ class TestDictDB(unittest.TestCase):
             "show_stars": True,
             "show_rank": False,
             "show_hsk": True,
-            "hsk_mode": "hsk3",
         }
 
         # Use the REAL creation script to set up the database
