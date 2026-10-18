@@ -14,8 +14,8 @@ html[data-theme="ink"] {
   --faint2: #908f96;
   --line: #26262b;
   --line2: #35353d;
-  --spot: #cba6f7;
-  --spot-ink: #17171a;
+  --spot: #4dabf7;
+  --spot-ink: #0b1220;
   --grid: #202024;
   --run: #5fae74;
   --terminal: #0c0c0b;
@@ -36,7 +36,7 @@ html[data-theme="paper"] {
   --faint2: #6a6554;
   --line: #e2ded4;
   --line2: #cbc5b6;
-  --spot: #7c35d6;
+  --spot: #0066cc;
   --spot-ink: #fff;
   --grid: #e4e0d6;
   --run: #2d9f52;
@@ -847,7 +847,7 @@ a.stat:hover { background: color-mix(in srgb, var(--spot) 6%, transparent); }
   pointer-events: none;
   backdrop-filter: blur(6px);
 }
-.chapter-now-index { color: #cba6f7; }
+.chapter-now-index { color: var(--spot); }
 .chapter-now-label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1055,7 +1055,7 @@ a.stat:hover { background: color-mix(in srgb, var(--spot) 6%, transparent); }
 .page-head .meta-line a { color: var(--spot); text-decoration: none; }
 .page-head .meta-line a:hover { text-decoration: underline; }
 
-".docs-layout {
+.docs-layout {
   display: grid;
   grid-template-columns: 272px minmax(0, 1fr);
   align-items: start;
@@ -1115,6 +1115,7 @@ a.stat:hover { background: color-mix(in srgb, var(--spot) 6%, transparent); }
 .doc {
   width: 100%;
   max-width: 940px;
+  margin-inline: auto;
   padding: 12px var(--gut) 90px;
 }
 .doc section {
@@ -1147,15 +1148,20 @@ a.stat:hover { background: color-mix(in srgb, var(--spot) 6%, transparent); }
   text-transform: uppercase;
 }
 .doc p,
-.doc li { color: var(--dim); font-size: 14.5px; line-height: 1.75; }
+.doc li { max-width: 36em; color: var(--dim); font-size: 14.5px; line-height: 1.75; }
+.doc .note { max-width: 36em; }
 .doc .doc-sub { color: var(--faint); font-size: 0.55em; letter-spacing: 0; }
 .doc p { margin: 0 0 14px; }
 .doc ul, .doc ol { margin: 0 0 16px; padding-left: 22px; }
 .doc li { margin: 5px 0; }
 .doc li::marker { color: var(--faint2); }
 .doc b, .doc strong { color: var(--ink); font-weight: 600; }
-.doc a { color: var(--spot); text-decoration: none; }
-.doc a:hover { text-decoration: underline; }
+.doc a {
+  color: var(--spot);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.doc a:hover { text-decoration-thickness: 2px; }
 .doc code {
   padding: 1px 5px;
   border: 1px solid var(--line2);
