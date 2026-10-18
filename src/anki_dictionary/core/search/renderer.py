@@ -128,18 +128,30 @@ class ResultRenderer:
         return formatted.replace(".0k", "k")
 
     def _levels_data(self, entry: dict[str, Any]) -> list[dict[str, str]] | None:
-        """Structured level-label data: ``[{label, source?}]`` (None when none)."""
+        """Structured level-label data: ``[{label, source?}]`` (None when none).
+
+        Two frequency lists can publish the same level label (e.g. "HSK³:1"
+        from both HSK 2.0 and 3.0). Collapse those into one pill and list
+        every source in its tooltip — duplicate pills read as a rendering
+        glitch, and duplicate keys crash the keyed Svelte each loop.
+        """
         data = entry.get("levelLabelsData")
         if data and isinstance(data, list):
-            items: list[dict[str, str]] = []
+            merged: dict[str, str] = {}
             for item in data:
                 label = item.get("label", "")
                 if not label:
                     continue
                 source = item.get("source", "")
-                items.append(
-                    {"label": label, "source": source} if source else {"label": label}
-                )
+                prev = merged.get(label, "")
+                if source and source not in prev:
+                    merged[label] = f"{prev}, {source}" if prev else source
+                else:
+                    merged.setdefault(label, source)
+            items = [
+                {"label": label, "source": source} if source else {"label": label}
+                for label, source in merged.items()
+            ]
             return items if items else None
         levels = entry.get("levelLabels", "")
         if levels:
