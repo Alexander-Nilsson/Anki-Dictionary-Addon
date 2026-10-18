@@ -17,6 +17,7 @@ The reply surface (``window.SETTINGS``) is installed by
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 from typing import Any
@@ -299,12 +300,8 @@ class SettingsBridge(AnkiWebView):
         )
 
         try:
-            from curl_cffi import (
-                requests as _curl_requests,  # noqa: F401
-            )
-
-            status["curl_cffi"] = True
-        except Exception:
+            status["curl_cffi"] = importlib.util.find_spec("curl_cffi") is not None
+        except (ImportError, ValueError):
             status["curl_cffi"] = False
 
         try:
