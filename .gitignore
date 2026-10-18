@@ -91,3 +91,6 @@ web/dist/
 # Playwright CLI scratch dir (browser snapshots)
 .playwright-cli/
 
+
+# Raw screen captures for the docs site (only optimized assets are committed)
+site/media/raw/
