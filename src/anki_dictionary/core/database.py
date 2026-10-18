@@ -220,6 +220,11 @@ class DictDB:
             return False, "Database connection failed", None
         try:
             lid = self.getLangId(lang)
+            if lid is None:
+                # Web installs import straight into a fresh database; make
+                # sure the language row exists before referencing its id.
+                self.addLanguages([lang])
+                lid = self.getLangId(lang)
             clean_name = self.normalize_dict_name(dictname)
             cursor = self._get_cursor()
 
@@ -353,11 +358,20 @@ class DictDB:
     def getUserGroups(self, dicts: list[str]) -> list[dict[str, str]]:
         """Get user dictionary groups based on provided dictionary names."""
         currentDicts = self.getDictToTable()
+
+        def norm(name: str) -> str:
+            # The settings UI shows clean names with spaces; the DB keys use
+            # underscores. Treat them as equivalent.
+            return name.replace(" ", "_").casefold()
+
+        norm_map = {norm(k): v for k, v in currentDicts.items()}
         foundDicts: list[dict[str, str]] = []
         for d in dicts:
             # Check for both raw table name and clean name
             if d in currentDicts:
                 foundDicts.append(currentDicts[d])
+            elif norm(d) in norm_map:
+                foundDicts.append(norm_map[norm(d)])
             elif d in ["Images", "LLM", "Forvo"]:
                 # Virtual dictionaries
                 if d == "Images":

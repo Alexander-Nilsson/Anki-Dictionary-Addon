@@ -93,6 +93,12 @@ def setupMenu(browser):
     action2 = dict_menu.addAction("Dictionary Settings")
     action2.triggered.connect(openDictionarySettings)
 
+    from ..exporters.mass_export import show_export_definitions_dialog
+
+    browser.form.menuEdit.addSeparator()
+    export_action = browser.form.menuEdit.addAction("Export Definitions")
+    export_action.triggered.connect(lambda: show_export_definitions_dialog(browser))
+
 
 def selectedText(page):
     """Get selected text from a web page."""

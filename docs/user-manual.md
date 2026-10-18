@@ -1,5 +1,8 @@
 # Anki Dictionary Add-on User Manual
 
+> The maintained version of this manual is the [web guide](https://alexander-nilsson.github.io/Anki-Dictionary-Addon/guide.html).
+> This file is kept for in-repo reference.
+
 ## Table of Contents
 
 - [Intro](#intro)
@@ -73,7 +76,7 @@ You can check your Anki version:
 
 ### Add-on Installation
 
-1. Download the `.ankiaddon` file from the [releases page](https://github.com/anki-dictionary-addon/releases)
+1. Download the `.ankiaddon` file from the [releases page](https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases)
 2. Open Anki, go to **Tools → Add-ons**
 3. Click **Install from file…**
 4. Select the downloaded `.ankiaddon` file
@@ -210,8 +213,6 @@ Because the add-on uses an SQLite database that cannot be deleted while in use:
 - Click **Anki Dictionary → Open Dictionary** in the top menu
 - Or press **Ctrl+W** (Windows/Linux) or **⌘+W** (Mac)
 
-![Dictionary welcome screen](images/welcome-screen.png)
-
 The dictionary opens to the welcome screen showing available hotkeys.
 
 **Hotkeys:**
@@ -226,8 +227,6 @@ The dictionary opens to the welcome screen showing available hotkeys.
 
 Type a word into the search bar and press **Enter** or click the search button.
 
-![Search bar](images/search-bar.png)
-
 You can also highlight any text in Anki and:
 - Press **Ctrl+S** / **⌘+S** to search instantly
 - Right-click and select **Search in Dictionary**
@@ -237,8 +236,6 @@ You can also highlight any text in Anki and:
 Dictionary groups let you search a specific subset of your installed dictionaries.
 
 Select a group from the dropdown in the toolbar:
-
-![Dictionary group dropdown](images/dictionary-group-dropdown.png)
 
 Default groups:
 
@@ -264,8 +261,6 @@ Custom groups can be created in settings. See [Dictionary Groups](#dictionary-gr
 
 Select the mode from the dropdown next to the search bar.
 
-![Search mode dropdown](images/search-mode-dropdown.png)
-
 #### Tabs
 
 Tabs let you keep results from multiple searches open. Two modes:
@@ -280,8 +275,6 @@ Toggle between modes with the tab button in the toolbar. Right-click a tab to cl
 When toggled on, conjugated words are automatically deconjugated to their dictionary form before searching.
 
 Toggle deconjugation mode with the cube icon in the toolbar.
-
-![Deconjugation toggle](images/deconjugation-toggle.png)
 
 Requires a conjugation table installed for the language. See [Deconjugation Support](#deconjugation-support).
 
@@ -304,16 +297,12 @@ Each dictionary section has a header showing:
 - **Left**: Dictionary name
 - **Right**: Duplicate header toggle, output mode, field selector, previous/next dictionary buttons
 
-![Dictionary header](images/dictionary-header.png)
-
 #### Definition Headers
 
 Each result entry has a header showing:
 
 - **Left**: Term, alternative term(s), pronunciation, frequency score
 - **Right**: Send to Exporter, Copy, Send to Field, next/previous entry buttons
-
-![Definition header](images/definition-header.png)
 
 - The **Copy** button copies the entire definition to clipboard (or only the highlighted portion)
 - Header order can be customised per dictionary. See [Customising the Definition Header](#customising-the-definition-header)
@@ -357,8 +346,6 @@ One of the most powerful features: send definitions directly to fields on your A
 
 1. Use the **Field Selector** dropdown in a dictionary header to choose which fields the add-on should target
 
-![Field selector](images/field-selector.png)
-
 2. Click the **Send to Field** button in a definition header
 
 This works from the Add Cards window, Edit window, Card Browser, and Reviewer.
@@ -395,8 +382,6 @@ The add-on can search DuckDuckGo for images related to your query, just like any
 1. Select the **Images** dictionary group
 2. Click an image to select it, click again to deselect
 3. Click **Send to Field** to add the image to your card
-
-![DuckDuckGo image results](images/image-results.png)
 
 Configure the image search region and maximum image dimensions in [Settings](#options).
 
@@ -436,8 +421,6 @@ The add-on can generate definitions using large language models (LLMs) via OpenA
 
 The LLM receives the word, its part of speech, and optionally its frequency and HSK level as context.
 
-![LLM result](images/llm-result.png)
-
 ### Troubleshooting
 
 - **Connection errors** — verify the base URL and API key
@@ -473,8 +456,6 @@ You must create at least one template before using the exporter. See [Export Tem
 - Or use the hotkey **Ctrl+C+Alt** (Windows/Linux) / **⌘+C+Ctrl** (Mac)
 
 When opened via hotkey, any selected text is sent to the sentence field. If nothing is selected, clipboard contents are used.
-
-![Card exporter window](images/card-exporter.png)
 
 ### Adding Definitions Manually
 
@@ -558,15 +539,11 @@ Add definitions to multiple cards at once from the Card Browser.
    - **Max Per Dict** — maximum definitions per dictionary
 4. Click **Execute**
 
-![Mass export dialog](images/mass-export.png)
-
 ---
 
 ## Settings
 
 Open settings: **Anki Dictionary → Dictionary Settings** or the gear icon in the dictionary window.
-
-![Settings window](images/settings-window.png)
 
 ### Restoring Defaults
 
@@ -643,8 +620,6 @@ Manage installed dictionaries and languages:
 - **Install Frequency Data** — from file or server
 - **Install Conjugation Data** — from file or server
 - **Edit Definition Header** — customise per-dictionary header order
-
-![Dictionaries tab](images/dictionaries-tab.png)
 
 ### LLM Settings
 

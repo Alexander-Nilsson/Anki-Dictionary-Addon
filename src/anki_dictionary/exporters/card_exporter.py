@@ -163,7 +163,7 @@ class CardExporter:
             "definitions": self._definition_rows(),
             "imageLabel": self.imageLabel,
             "audioLabel": self.audioLabel,
-            "imagePreview": self._file_url(self.imgPath) if self.imgPath else "",
+            "imagePreview": self._preview_url(self.imgPath) if self.imgPath else "",
             "autoAdd": self.autoAdd,
             "autoAddDefinitions": self.autoAddDefinitions,
             "unknownsToSearch": self.unknownsToSearch,
@@ -182,17 +182,40 @@ class CardExporter:
                 {
                     "name": entry[0],
                     "short": entry[1] if isinstance(entry[1], str) else "",
-                    "thumbs": [self._file_url(p) for p in thumbs],
+                    "thumbs": [self._preview_url(p) for p in thumbs],
                 }
             )
         return rows
 
     @staticmethod
-    def _file_url(path):
-        from urllib.parse import quote
-        from urllib.request import pathname2url
+    def _preview_url(path):
+        """Inline a local image so the exporter can render it.
 
-        return "file://" + quote(pathname2url(path))
+        QtWebEngine blocks ``file://`` subresources on Anki's webview pages,
+        so local thumbnails and the image preview must travel as data URIs.
+        """
+        if not path:
+            return ""
+        if path.startswith(("data:", "http://", "https://", "file://")):
+            return path
+        import base64
+        from os.path import splitext
+
+        mime = {
+            ".avif": "image/avif",
+            ".gif": "image/gif",
+            ".jpeg": "image/jpeg",
+            ".jpg": "image/jpeg",
+            ".png": "image/png",
+            ".svg": "image/svg+xml",
+            ".webp": "image/webp",
+        }.get(splitext(path)[1].lower(), "image/png")
+        try:
+            with open(path, "rb") as handle:
+                data = handle.read()
+        except OSError:
+            return ""
+        return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
 
     def pushState(self):
         """Re-render the web UI from Python's state."""
@@ -213,8 +236,13 @@ class CardExporter:
         "unknownsToSearch": "unknownsToSearch",
     }
 
-    def set_web_field(self, field, value):
-        """Mirror one edit from the web UI, persisting the ones that are config."""
+    def set_web_field(self, field, value, persist=True):
+        """Mirror one edit from the web UI, persisting the ones that are config.
+
+        ``apply_web_state`` passes ``persist=False``: the snapshot is only
+        used to assemble the note, and persisting it would refresh the
+        dictionary (and tear down this exporter) mid-add.
+        """
         attr = self._WEB_FIELDS.get(field)
         if attr is None:
             return
@@ -226,6 +254,8 @@ class CardExporter:
             value = "" if value is None else str(value)
         setattr(self, attr, value)
 
+        if not persist:
+            return
         if field == "template":
             self.dictInt.writeConfig("currentTemplate", value)
         elif field == "deck":
@@ -243,13 +273,14 @@ class CardExporter:
             return
         for field in self._WEB_FIELDS:
             if field in state:
-                self.set_web_field(field, state[field])
+                self.set_web_field(field, state[field], persist=False)
 
     def _saveConfigValue(self, key, value):
         config = self.getConfig()
         config[key] = value
         self.config = config
-        self.mw.refresh_anki_dict_config(config)
+        # Exporter-only settings do not need the dictionary rebuilt; a refresh
+        # here would replace MIDict (and this exporter) while it is editing.
         save_addon_config(config)
 
     # ── window plumbing ───────────────────────────────────────

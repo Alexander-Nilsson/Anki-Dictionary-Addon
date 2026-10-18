@@ -109,6 +109,8 @@ def download_image(
             image = QImage()
             image.loadFromData(file_data)
             if image.isNull():
+                image = _decode_with_pillow(file_data)
+            if image.isNull():
                 return False
             image = image.scaled(
                 QSize(max_w, max_h),
@@ -123,6 +125,25 @@ def download_image(
     except Exception as e:
         logger.error(f"Failed to download image {url}: {e}")
         return False
+
+
+def _decode_with_pillow(file_data: bytes) -> QImage:
+    """Decode formats Qt lacks (notably WebP in some PyQt6 builds)."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image  # ty:ignore[unresolved-import]
+
+        with Image.open(BytesIO(file_data)) as source:
+            converted = source.convert("RGBA")
+        buffer = BytesIO()
+        converted.save(buffer, format="PNG")
+    except Exception as error:
+        logger.debug("Pillow could not decode image: %s", error)
+        return QImage()
+    image = QImage()
+    image.loadFromData(buffer.getvalue())
+    return image
 
 
 def _save_data_uri(data_uri: str, dest_path: str) -> bool:

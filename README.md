@@ -57,11 +57,11 @@ This addon is the modern successor to the [Migaku Dictionary Addon](https://gith
 
 | Topic | Link |
 |---|---|
-| Installation | [docs/installation.md](docs/installation.md) |
+| Installation | [Guide — Installation](https://alexander-nilsson.github.io/Anki-Dictionary-Addon/guide.html#installation) |
+| User guide & troubleshooting | [Guide](https://alexander-nilsson.github.io/Anki-Dictionary-Addon/guide.html) |
 | Development setup & commands | [docs/development.md](docs/development.md) |
 | Architecture & project structure | [docs/architecture.md](docs/architecture.md) |
 | Testing guide | [docs/testing.md](docs/testing.md) |
-| Usage video | https://www.youtube.com/watch?v=vrzBeiFlKjg |
 
 ## Compatibility
 

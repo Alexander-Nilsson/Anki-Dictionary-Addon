@@ -67,6 +67,7 @@
     <a href="#installation">Installation</a>
     <a href="#quick-start">Quick start</a>
     <a href="#searching">Searching</a>
+    <a href="#shortcuts">Shortcuts</a>
     <a href="#card-exporter">Card exporter</a>
     <a href="#themes">Themes</a>
     <a href="#troubleshooting">Troubleshooting</a>
@@ -83,9 +84,8 @@
         things that usually go wrong.
       </p>
       <p class="meta-line">
-        Updated for Anki 25.09+ ·
-        <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/tree/master/docs" target="_blank" rel="noopener">Developer docs ↗</a> ·
-        <a href="https://www.youtube.com/watch?v=vrzBeiFlKjg" target="_blank" rel="noopener">Video walkthrough ↗</a>
+        <span data-docs-updated>Updated for Anki 25.09+</span> ·
+        <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/tree/master/docs" target="_blank" rel="noopener">Developer docs ↗</a>
       </p>
     </header>
 
@@ -97,6 +97,7 @@
             <a href="#installation">Installation</a>
             <a href="#quick-start">Quick start</a>
             <a href="#searching">Searching</a>
+            <a href="#shortcuts">Keyboard shortcuts</a>
             <a href="#send-to-field">Send to field</a>
             <a href="#llm">LLM definitions</a>
             <a href="#images">DuckDuckGo images</a>
@@ -274,6 +275,11 @@
             <li><b>Zoom</b> with the <b>+</b> and <b>−</b> buttons; the sidebar and definitions resize together.</li>
             <li><b>Search Collection</b> (right-click a selected word) finds cards containing it in the Card Browser.</li>
           </ul>
+          <p>
+            To choose what a definition header shows and in which order, open
+            <b>Settings → Dictionaries</b>, select the dictionary, then click
+            <b>Edit Definition Header</b>. The setting is per dictionary.
+          </p>
           <figure class="doc-fig">
             <picture>
               <source type="image/avif" srcset="assets/media/s08-sidebar.avif">
@@ -281,6 +287,58 @@
             </picture>
             <figcaption>The sidebar indexes the whole result set; history sits beside it.</figcaption>
           </figure>
+        </section>
+
+        <section id="shortcuts">
+          <h2>Keyboard shortcuts</h2>
+          <p>
+            Anki's global shortcuts work from any window. The in-dictionary keys work while
+            the dictionary window has focus; press <kbd>?</kbd> inside the dictionary to
+            show the same map as an overlay.
+          </p>
+
+          <h3>Anywhere in Anki</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Action</th><th>Windows / Linux</th><th>macOS</th></tr></thead>
+              <tbody>
+                <tr><td>Open or hide the dictionary</td><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td><kbd>⌘</kbd>+<kbd>W</kbd></td></tr>
+                <tr><td>Search the selected text</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td><kbd>⌘</kbd>+<kbd>S</kbd></td></tr>
+                <tr><td>Search the collection in the Card Browser</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd></td><td><kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>In the dictionary window</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Key</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr><td><kbd>/</kbd></td><td>Focus the search box</td></tr>
+                <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd> / <kbd>⌘</kbd>+<kbd>K</kbd></td><td>Open the command palette</td></tr>
+                <tr><td><kbd>?</kbd> or <kbd>Shift</kbd>+<kbd>/</kbd></td><td>Show or hide the shortcut map</td></tr>
+                <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Previous / next result entry</td></tr>
+                <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Previous / next dictionary</td></tr>
+                <tr><td><kbd>E</kbd></td><td>Send the current entry to the exporter</td></tr>
+                <tr><td><kbd>C</kbd></td><td>Copy the current entry</td></tr>
+                <tr><td><kbd>Esc</kbd></td><td>Close the overlay, or hide the dictionary</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Card Exporter</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Action</th><th>Windows / Linux</th><th>macOS</th></tr></thead>
+              <tbody>
+                <tr><td>Paste image or audio from the clipboard</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd></td><td><kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd></td></tr>
+                <tr><td>Add the card</td><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td><kbd>⌘</kbd>+<kbd>Enter</kbd></td></tr>
+                <tr><td>Bold / italic / underline in notes</td><td><kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd></td><td><kbd>⌘</kbd>+<kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd></td></tr>
+                <tr><td>Search selected text in the dictionary</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td><kbd>⌘</kbd>+<kbd>S</kbd></td></tr>
+                <tr><td>Search selected text in the Card Browser</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td><kbd>⌘</kbd>+<kbd>F</kbd></td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section id="send-to-field">
@@ -420,6 +478,12 @@ List the part of speech and register.</code><button class="copy" type="button" d
             <li>Click <b>Add</b>, or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> / <kbd>⌘</kbd>+<kbd>Enter</kbd>.</li>
           </ol>
           <p>
+            In notes fields, <kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd>
+            (<kbd>⌘</kbd> on macOS) toggle bold, italic and underline. Select text and
+            press <kbd>Ctrl</kbd>+<kbd>S</kbd> to look it up in the dictionary, or
+            <kbd>Ctrl</kbd>+<kbd>F</kbd> to search the collection.
+          </p>
+          <p>
             <b>Automatically Add Definitions</b> opens a settings panel where you can
             choose up to three dictionaries and a per-dictionary limit. The same panel can
             pull <b>DuckDuckGo Images</b> and <b>Forvo</b> audio automatically. With
@@ -516,6 +580,15 @@ List the part of speech and register.</code><button class="copy" type="button" d
             <b>Restore Defaults</b> sits at the bottom-left of the settings window. Close and
             reopen the dictionary window after restoring.
           </p>
+
+          <h3>Other tabs</h3>
+          <ul>
+            <li><b>Dictionaries</b> — install, remove and reorder dictionaries; add languages, frequency lists and conjugation tables; edit definition headers.</li>
+            <li><b>LLM</b> — endpoint, API key, model, prompt templates, temperature, timeout and streaming.</li>
+            <li><b>Forvo</b> — enable the service and choose the language to search.</li>
+            <li><b>Export Templates</b> — note type and field mapping used by the Card Exporter.</li>
+            <li><b>Dictionary Groups</b> — which dictionaries a group searches, and in what order.</li>
+          </ul>
         </section>
 
         <section id="troubleshooting">
@@ -586,6 +659,13 @@ List the part of speech and register.</code><button class="copy" type="button" d
             <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/issues" target="_blank" rel="noopener">bug report</a>.
           </p>
 
+          <h3>How do I update the add-on?</h3>
+          <p>
+            Open <b>Tools → Add-ons</b>, click <b>Check for Updates</b>, then restart Anki
+            when prompted. Add-ons installed from a release file must be reinstalled from
+            the latest <a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/releases" target="_blank" rel="noopener">release</a>.
+          </p>
+
           <h3>How do I uninstall?</h3>
           <p>
             Disable the add-on, restart Anki, then delete it from <b>Tools → Add-ons</b>.
@@ -604,6 +684,7 @@ List the part of speech and register.</code><button class="copy" type="button" d
             <li><a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/blob/master/docs/architecture.md" target="_blank" rel="noopener">Architecture</a> — package layout, search pipeline, rendering</li>
             <li><a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/blob/master/docs/development.md" target="_blank" rel="noopener">Development</a> — environment, build, add-on linking</li>
             <li><a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/blob/master/docs/testing.md" target="_blank" rel="noopener">Testing</a> — unit, integration and UI checks</li>
+            <li><a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/edit/master/site/guide.html" target="_blank" rel="noopener">Edit this guide</a> — fix a typo or add a missing screenshot</li>
           </ul>
           <pre><code>uv sync
 python dev.py test
@@ -653,7 +734,6 @@ python dev.py lint</code></pre>
         <ul>
           <li><a href="index.html#install">AnkiWeb code</a></li>
           <li><a href="https://ankiweb.net/shared/info/1973740182" target="_blank" rel="noopener">AnkiWeb listing ↗</a></li>
-          <li><a href="https://www.youtube.com/watch?v=vrzBeiFlKjg" target="_blank" rel="noopener">Usage video ↗</a></li>
           <li><a href="https://github.com/Alexander-Nilsson/Anki-Dictionary-Addon/issues" target="_blank" rel="noopener">Issues ↗</a></li>
         </ul>
       </div>
