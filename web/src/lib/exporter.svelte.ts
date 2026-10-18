@@ -41,7 +41,6 @@ export interface ExporterState {
   audioLabel: string;
   /** `file://` preview of the attached image, "" when none. */
   imagePreview: string;
-  autoAdd: boolean;
   autoAddDefinitions: boolean;
   unknownsToSearch: number;
   tooltips: boolean;
@@ -65,7 +64,6 @@ function emptyState(): ExporterState {
     imageLabel: "No Image Selected",
     audioLabel: "No Audio Selected",
     imagePreview: "",
-    autoAdd: false,
     autoAddDefinitions: false,
     unknownsToSearch: 3,
     tooltips: true,

@@ -315,10 +315,8 @@ class TestCardExporter(unittest.TestCase):
             }
         },
         "currentTemplate": "Basic",
-        "autoAddCards": False,
         "unknownsToSearch": 3,
         "autoAddDefinitions": False,
-        "jReadingCards": False,
         "tooltips": False,
         "currentDeck": "Default",
         "dictAlwaysOnTop": False,
@@ -581,34 +579,16 @@ class TestCardExporter(unittest.TestCase):
         self.exporter.bulk_processor.media_export_progress_window = MagicMock()
         self.exporter.bulk_processor.media_export_progress_window.current_value = 5
 
-        self.exporter.bulkMediaExportCancelledByBrowserRefresh()
+        with patch("anki_dictionary.exporters.bulk_processor.miInfo") as info:
+            self.exporter.bulkMediaExportCancelledByBrowserRefresh()
 
+        info.assert_called_once()
         self.assertIsNone(self.exporter.bulk_processor.media_export_progress_window)
         self.assertFalse(self.exporter.mw.DictBulkMediaExportWasCancelled)
 
     def test_bulk_media_export_cancelled_no_window(self):
         self.exporter.bulk_processor.media_export_progress_window = None
         self.exporter.bulkMediaExportCancelledByBrowserRefresh()
-
-    # -- attemptAutoAdd -------------------------------------------------
-
-    def test_attempt_auto_add_when_checked(self):
-        self.exporter.autoAdd = True
-        self.exporter.addCard = MagicMock()
-        self.exporter.attemptAutoAdd(bulkExport=False)
-        self.exporter.addCard.assert_called_once()
-
-    def test_attempt_auto_add_when_bulk_export(self):
-        self.exporter.autoAdd = False
-        self.exporter.addCard = MagicMock()
-        self.exporter.attemptAutoAdd(bulkExport=True)
-        self.exporter.addCard.assert_called_once()
-
-    def test_attempt_auto_add_skipped(self):
-        self.exporter.autoAdd = False
-        self.exporter.addCard = MagicMock()
-        self.exporter.attemptAutoAdd(bulkExport=False)
-        self.exporter.addCard.assert_not_called()
 
     # -- web bridge state ------------------------------------------------
 
@@ -635,7 +615,6 @@ class TestCardExporter(unittest.TestCase):
                 "word": "w",
                 "tags": "t",
                 "unknownsToSearch": 5,
-                "autoAdd": True,
             }
         )
         self.assertEqual(self.exporter.sentence_html, "s")
@@ -644,7 +623,6 @@ class TestCardExporter(unittest.TestCase):
         self.assertEqual(self.exporter.word_text, "w")
         self.assertEqual(self.exporter.tags_text, "t")
         self.assertEqual(self.exporter.unknownsToSearch, 5)
-        self.assertTrue(self.exporter.autoAdd)
 
     def test_apply_web_state_does_not_persist_config(self):
         # Persisting mid-add refreshes the dictionary, which replaces MIDict
@@ -654,7 +632,6 @@ class TestCardExporter(unittest.TestCase):
             {
                 "template": "Basic",
                 "deck": "Default",
-                "autoAdd": True,
                 "autoAddDefinitions": True,
                 "unknownsToSearch": 4,
                 "sentence": "s",
@@ -664,7 +641,7 @@ class TestCardExporter(unittest.TestCase):
         self.dictInt.writeConfig.assert_not_called()
 
     def test_save_config_value_does_not_reset_dictionary(self):
-        self.exporter._saveConfigValue("autoAddCards", True)
+        self.exporter._saveConfigValue("unknownsToSearch", 3)
         self.mock_save_config.assert_called_once()
         self.dictInt.mw.refreshAnkiDictConfig.assert_not_called()
 

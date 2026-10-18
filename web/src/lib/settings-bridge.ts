@@ -44,6 +44,8 @@ export const SETTINGS_CMD = {
   getNoteTypes: () => "settings:getNoteTypes",
   getLanguagesDicts: () => "settings:getLanguagesDicts",
   getForvoLanguages: () => "settings:getForvoLanguages",
+  getSetupStatus: () => "settings:getSetupStatus",
+  getImageRegions: () => "settings:getImageRegions",
   save: (config: unknown) => `settings:save:${JSON.stringify(config)}`,
   testLLM: (config: unknown) => `settings:testLLM:${JSON.stringify(config)}`,
   deleteWordList: (filename: string) =>
@@ -71,6 +73,8 @@ export function initSettingsBridge(): void {
     setNoteTypes: () => undefined,
     setLanguagesDicts: () => undefined,
     setForvoLanguages: () => undefined,
+    setSetupStatus: () => undefined,
+    setImageRegions: () => undefined,
     setLLMTest: () => undefined,
     setSaved: () => undefined,
     setFontFile: () => undefined,

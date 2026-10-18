@@ -23,7 +23,10 @@ def prefer_ipv4() -> Generator[None]:
 
 
 def miInfo(
-    text: str, parent: QWidget | bool = False, level: str = "msg", day: bool = True
+    text: str,
+    parent: QWidget | bool | None = False,
+    level: str = "msg",
+    day: bool = True,
 ) -> int:
     if level == "wrn":
         title = "Anki Dictionary Warning"
@@ -35,8 +38,11 @@ def miInfo(
         title = "Anki Dictionary"
     if parent is False:
         parent = aqt.mw.app.activeWindow() or aqt.mw
+    if not isinstance(parent, QWidget):
+        # Tests and headless callers sometimes pass a stub; Qt rejects it.
+        parent = None
     icon = QIcon(os.path.join(get_icons_dir(), "anki.svg"))
-    mb = QMessageBox(parent)  # ty:ignore[invalid-argument-type]
+    mb = QMessageBox(parent)
     if not day:
         mb.setStyleSheet(" QMessageBox {background-color: #272828;}")
     mb.setText(text)

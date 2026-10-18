@@ -158,7 +158,6 @@ const MOCK_CONFIG: Record<string, unknown> = {
     { text: "Provide a concise dictionary definition for the word: {term}", active: true },
   ],
   llm_prompt: "Provide a concise dictionary definition for the word: {term}",
-  jReadingCards: false,
 };
 
 const MOCK_DICTIONARY_NAMES = ["Images", "JMdict", "Kanji", "LLM", "Mock Dictionary"];
@@ -265,6 +264,25 @@ const MOCK_LANGUAGES_DICTS: Record<string, string[]> = {
 };
 
 /** A subset of the full Forvo catalogue (Python's FORVO_LANGUAGES). */
+const MOCK_SETUP_STATUS = {
+  languages: ["Japanese"],
+  dictionary_count: 2,
+  word_list_count: 3,
+  conjugation_languages: ["Japanese"],
+  missing_conjugation: [],
+  curl_cffi: true,
+  forvo_enabled: true,
+  llm_enabled: true,
+  llm_configured: true,
+};
+
+const MOCK_IMAGE_REGIONS = [
+  "Japan",
+  "Taiwan",
+  "United Kingdom",
+  "United States",
+];
+
 const MOCK_FORVO_LANGUAGES = [
   { code: "ar", name: "Arabic" },
   { code: "de", name: "German" },
@@ -511,6 +529,10 @@ function handleSettingsCommand(cmd: string): void {
     callSettingsReply("setLanguagesDicts", MOCK_LANGUAGES_DICTS);
   } else if (cmd === "settings:getForvoLanguages") {
     callSettingsReply("setForvoLanguages", MOCK_FORVO_LANGUAGES);
+  } else if (cmd === "settings:getSetupStatus") {
+    callSettingsReply("setSetupStatus", MOCK_SETUP_STATUS);
+  } else if (cmd === "settings:getImageRegions") {
+    callSettingsReply("setImageRegions", MOCK_IMAGE_REGIONS);
   } else if (cmd.startsWith("settings:save:")) {
     callSettingsReply("setSaved", true);
     console.log("[dev-mock] settings saved (not persisted)");

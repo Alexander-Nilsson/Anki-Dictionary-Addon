@@ -4,6 +4,8 @@ Scrapes pronunciations from Forvo.com.
 """
 
 import base64
+import os
+import platform
 import re
 import subprocess
 import sys
@@ -69,9 +71,9 @@ class ForvoWorkerSignals(QObject):
     finished = pyqtSignal()
 
 
-# Curl exit code reported as the "status" when we never got an HTTP reply at
-# all (DNS failure, timeout, curl missing). Distinct from any real status so
-# callers can tell "could not reach Forvo" from "Forvo answered with an error".
+# Status reported when we never got an HTTP reply at all (DNS failure,
+# timeout, transport error). Distinct from any real status so callers can tell
+# "could not reach Forvo" from "Forvo answered with an error".
 NO_HTTP_RESPONSE = 0
 
 # How many times to re-issue a request that failed in a way a retry might fix.
@@ -83,61 +85,128 @@ def _is_cloudflare_challenge(html: str) -> bool:
     return "Just a moment" in html or "cf-browser-verification" in html
 
 
-def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
-    """Fetch a Forvo page using curl, whose TLS fingerprint Cloudflare accepts.
+def _import_curl_requests() -> Any:
+    """Return curl_cffi's ``requests`` module, or ``None`` if it is missing.
 
-    Returns ``(http_status, html)``. The status is the real HTTP status code —
-    curl's ``%{http_code}`` — not curl's exit code, so a word Forvo simply does
-    not have (404) is distinguishable from being blocked (403) or from never
-    reaching the site at all (:data:`NO_HTTP_RESPONSE`).
+    curl_cffi is preferred over the system curl binary: it ships its own libcurl
+    and impersonates a browser's TLS fingerprint, which Cloudflare accepts, and
+    it works even where no ``curl`` executable is installed. The add-on bundles
+    it under ``vendor/<platform>/``, which may not be on ``sys.path`` yet.
+    """
+    try:
+        from curl_cffi import requests as curl_requests  # ty:ignore[unresolved-import]
+
+        return curl_requests
+    except ImportError:
+        pass
+
+    machine = platform.machine().lower()
+    if sys.platform == "darwin":
+        vendor_platform = "mac_arm64" if machine == "arm64" else "mac_x86_64"
+    elif sys.platform == "win32":
+        vendor_platform = "win_amd64"
+    else:
+        vendor_platform = "linux_x86_64"
+
+    addon_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    )
+    vendor_dir = os.path.join(addon_root, "vendor", vendor_platform)
+    if os.path.isdir(vendor_dir) and vendor_dir not in sys.path:
+        sys.path.insert(0, vendor_dir)
+
+    try:
+        from curl_cffi import requests as curl_requests  # ty:ignore[unresolved-import]
+
+        return curl_requests
+    except ImportError as exc:
+        logger.debug("curl_cffi unavailable (%s); falling back to curl", exc)
+        return None
+
+
+def _fetch_with_curl(url: str, timeout: int) -> tuple[int, str, int]:
+    """Fetch with the system curl binary. Returns ``(status, html, exit_code)``."""
+    try:
+        result = subprocess.run(
+            [
+                CURL_BIN,
+                "-s",
+                "-L",
+                "--compressed",
+                "--connect-timeout",
+                str(timeout),
+                "--max-time",
+                str(timeout),
+                # Append the status so one call yields both body and code.
+                "-w",
+                "\n%{http_code}",
+                *CURL_HEADERS,
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
+        )
+    except subprocess.TimeoutExpired:
+        logger.debug("Forvo fetch timed out")
+        return NO_HTTP_RESPONSE, "", NO_HTTP_RESPONSE
+    except FileNotFoundError:
+        # No curl on this machine — retrying cannot help.
+        logger.error("curl not found (%s); Forvo needs it to fetch pages", CURL_BIN)
+        raise
+
+    if result.returncode != 0:
+        logger.debug("curl exited %d for Forvo", result.returncode)
+        return NO_HTTP_RESPONSE, "", result.returncode
+
+    html, _, code = result.stdout.rpartition("\n")
+    try:
+        return int(code.strip()), html, 0
+    except ValueError:
+        return NO_HTTP_RESPONSE, "", 0
+
+
+def _fetch_url(url: str, timeout: int = 15) -> tuple[int, str]:
+    """Fetch a Forvo page with curl_cffi, falling back to the curl binary.
+
+    Returns ``(http_status, html)``. The status is the real HTTP status code, so
+    a word Forvo simply does not have (404) is distinguishable from being
+    blocked (403) or from never reaching the site at all
+    (:data:`NO_HTTP_RESPONSE`).
+
+    curl_cffi is tried first because it impersonates a browser's TLS
+    fingerprint (which Cloudflare accepts) and does not depend on a system curl
+    binary. If it is missing, or a request fails below HTTP level, the
+    subprocess curl path takes over.
 
     Only failures a retry could plausibly fix are retried: a Cloudflare
-    challenge, rate limiting, a server error, or a curl-level failure. A 404 is
+    challenge, rate limiting, a server error, or a transport failure. A 404 is
     a final answer and returns immediately.
     """
     last_exit = NO_HTTP_RESPONSE
+    curl_requests = _import_curl_requests()
+
     for attempt in range(_MAX_ATTEMPTS):
-        try:
-            result = subprocess.run(
-                [
-                    CURL_BIN,
-                    "-s",
-                    "-L",
-                    "--compressed",
-                    "--connect-timeout",
-                    str(timeout),
-                    "--max-time",
-                    str(timeout),
-                    # Append the status so one call yields both body and code.
-                    "-w",
-                    "\n%{http_code}",
-                    *CURL_HEADERS,
+        if curl_requests is not None:
+            try:
+                response = curl_requests.get(
                     url,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=timeout + 5,
-            )
-        except subprocess.TimeoutExpired:
-            logger.debug("Forvo fetch timed out (attempt %d)", attempt + 1)
-            status, html = NO_HTTP_RESPONSE, ""
-        except FileNotFoundError:
-            # No curl on this machine — retrying cannot help.
-            logger.error("curl not found (%s); Forvo needs it to fetch pages", CURL_BIN)
-            raise
-        else:
-            if result.returncode != 0:
-                last_exit = result.returncode
-                logger.debug(
-                    "curl exited %d for Forvo (attempt %d)", last_exit, attempt + 1
+                    impersonate="chrome",
+                    timeout=timeout,
+                    allow_redirects=True,
                 )
-                status, html = NO_HTTP_RESPONSE, ""
+            except Exception as exc:
+                # A libcurl-level failure (DNS, timeout, TLS). Stop using
+                # curl_cffi and let the system curl path take over.
+                logger.debug(
+                    "curl_cffi failed for Forvo (%s); falling back to curl", exc
+                )
+                curl_requests = None
+                status, html, last_exit = _fetch_with_curl(url, timeout)
             else:
-                html, _, code = result.stdout.rpartition("\n")
-                try:
-                    status = int(code.strip())
-                except ValueError:
-                    status, html = NO_HTTP_RESPONSE, ""
+                status, html = response.status_code, response.text
+        else:
+            status, html, last_exit = _fetch_with_curl(url, timeout)
 
         if status == 200 and _is_cloudflare_challenge(html):
             logger.debug("Cloudflare challenge from Forvo (attempt %d)", attempt + 1)
@@ -172,7 +241,7 @@ class ForvoWorker(QRunnable):
     def _failure_message(status: int) -> str:
         """Say what actually went wrong, not just "HTTP 403"."""
         if status == NO_HTTP_RESPONSE:
-            return "Could not reach forvo.com (network error or curl unavailable)"
+            return "Could not reach forvo.com (network error)"
         if status == 403:
             return (
                 "Forvo returned HTTP 403 - Cloudflare is challenging the request. "

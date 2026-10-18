@@ -33,7 +33,6 @@
   - [Adding Images Automatically](#adding-images-automatically)
   - [Adding Audio Automatically](#adding-audio-automatically)
   - [Adding Cards](#adding-cards)
-  - [Adding Cards Automatically](#adding-cards-automatically)
   - [Text Styling in the Exporter](#text-styling-in-the-exporter)
 - [Mass Exporting Definitions](#mass-exporting-definitions)
 - [Settings](#settings)
@@ -53,7 +52,7 @@
 
 The Anki Dictionary Add-on dramatically simplifies and expedites the use of Anki for language learning. Features include:
 
-- Multi-dictionary lookup with seven search modes
+- Multi-dictionary lookup with six search modes
 - Frequency-based word ranking (stars, rank, HSK, JLPT, CEFR)
 - AI-generated definitions via LLM (OpenAI, Ollama)
 - DuckDuckGo image search
@@ -113,18 +112,24 @@ Fields:
 
 #### Installing Dictionaries
 
+##### Quick Setup (recommended)
+
+1. Open **Anki Dictionary → Settings → Dictionaries**
+2. In **Quick Setup**, choose your target language and the language you want definitions in
+3. Click **Install recommended pack** — one dictionary plus frequency, level and conjugation data are installed and Forvo is configured for the target language
+
 ##### From the Dictionary Server (Web)
 
 1. Open **Anki Dictionary → Settings → Dictionaries**
 2. Click **Install Dictionaries (Web)**
 3. Pick a server (default: the add-on's dictionary server) and click **Connect**
-4. Check the languages and dictionaries you want, optionally enable frequency and conjugation data
-5. Click **Install** and watch the progress log
+4. Open the target language, then pick the translation language and dictionaries you want
+5. Optionally enable word lists and conjugation data, then click **Install**
 
-##### From a ZIP File
+##### From a File
 
 1. Open **Anki Dictionary → Settings → Dictionaries**
-2. Click **Install Dictionaries (Files)**, choose a language, then select the dictionary ZIPs
+2. Click **Install Dictionaries (Files)**, choose a language, then select Yomichan `.zip` or Migaku `.json` files
 3. Optionally rename each dictionary
 
 #### Removing Dictionaries
@@ -177,9 +182,7 @@ A `conjugations.json` file mapping inflected endings to dictionary form endings:
 
 #### Installation
 
-1. In the Dictionaries tab, select a language
-2. Click **Install Conjugation Data in Wizard**
-3. Select the language and click **Download**
+Conjugation data is installed automatically by **Quick Setup**. For a manual install, use **Install Dictionaries (Web)** in the Dictionaries tab, enable **Install Conjugation Data**, and install the language again.
 
 ### Customising the Definition Header
 
@@ -256,7 +259,6 @@ Custom groups can be created in settings. See [Dictionary Groups](#dictionary-gr
 | Exact | Entries matching your query exactly |
 | Anywhere | Query appears anywhere in the entry |
 | Definition | Query appears in the definition text |
-| Example | Query appears in an example sentence |
 | Pronunciation | Entries whose pronunciation matches the query (Forward-style) |
 
 Select the mode from the dropdown next to the search bar.
@@ -405,8 +407,8 @@ The add-on can generate definitions using large language models (LLMs) via OpenA
 
 1. Open **Anki Dictionary → Dictionary Settings → LLM** tab
 2. Enable LLM, then configure:
-   - **Provider** — select OpenAI or Ollama
-   - **Base URL** — API endpoint (e.g. `https://api.openai.com/v1` or `http://localhost:11434`)
+   - **Provider preset** — OpenAI, OpenRouter, Ollama, LM Studio or Groq; fills the URL and model for you
+   - **Base URL** — full endpoint (e.g. `https://api.openai.com/v1/chat/completions` or `http://localhost:11434/api/chat`)
    - **API Key** — your API key (not needed for local Ollama)
    - **Model** — e.g. `gpt-4o-mini`, `llama3`
    - **Prompt** — customise the instruction sent to the model
@@ -419,7 +421,7 @@ The add-on can generate definitions using large language models (LLMs) via OpenA
 2. Switch to the **LLM** dictionary group or wait for the LLM result to load
 3. The LLM definition appears alongside regular dictionary results
 
-The LLM receives the word, its part of speech, and optionally its frequency and HSK level as context.
+The LLM receives the word and your prompt template. Use `{term}` as the placeholder.
 
 ### Troubleshooting
 
@@ -508,10 +510,6 @@ Definitions are populated when you create the card.
 ### Adding Cards
 
 Once all content is ready, click the **Add** button or press **Ctrl+Enter** / **⌘+Enter** to create the card.
-
-### Adding Cards Automatically
-
-Check **Add Extension Cards Automatically** to bypass the Add button — the card is created as soon as all content is populated.
 
 ### Text Styling in the Exporter
 
@@ -613,12 +611,12 @@ Click the **X** button next to the template and confirm.
 
 Manage installed dictionaries and languages:
 
-- **Install Languages in Wizard** — guided dictionary installation
-- **Install Dictionary From File** — install from a ZIP
-- **Add a Language** — create a new language group
-- **Remove Language / Remove Dictionary** — uninstall
-- **Install Frequency Data** — from file or server
-- **Install Conjugation Data** — from file or server
+- **Quick Setup** — install one recommended dictionary plus frequency, level and conjugation data for a language pair
+- **Install Dictionaries (Web)** — choose translation language and individual dictionaries
+- **Install Dictionaries (Files)** — install Yomichan `.zip` or Migaku `.json` files
+- **Install Frequency Data (Web / Files)** — frequency and level lists
+- **Install Conjugation Data** — enable the checkbox in the web installer
+- **Remove Language** — uninstall a language and its data
 - **Edit Definition Header** — customise per-dictionary header order
 
 ### LLM Settings

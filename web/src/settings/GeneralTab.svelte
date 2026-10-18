@@ -3,6 +3,8 @@
   import DictGroupEditorModal from "./modals/DictGroupEditorModal.svelte";
   import ExportTemplateModal from "./modals/ExportTemplateModal.svelte";
 
+  let { goto }: { goto?: (tab: string) => void } = $props();
+
   interface Group {
     dictionaries?: string[];
     customFont?: boolean;
@@ -48,6 +50,12 @@
     const t = cfg.get("ExportTemplates", {});
     return typeof t === "object" && t ? (t as Record<string, TemplateFields>) : {};
   }
+
+  const imageRegionOptions = $derived.by(() => {
+    const current = String(cfg.get("imageSearchRegion", "United States"));
+    const list = settings.imageRegions;
+    return current && !list.includes(current) ? [current, ...list] : list;
+  });
 
   function addGroupEditor(): void {
     editingGroupName = null;
@@ -98,6 +106,69 @@
     cfg.set("ExportTemplates", t);
   }
 </script>
+
+<!-- Setup Status -->
+<div class="card">
+  <h3>Setup Status</h3>
+  {#if settings.setupStatus}
+    {@const s = settings.setupStatus}
+    <div class="list">
+      <div class="list-row">
+        <span class="name">Dictionaries</span>
+        <span class="sub">
+          {#if s.dictionary_count > 0}
+            {s.dictionary_count} installed · {s.languages.length} language(s)
+          {:else}
+            None installed
+          {/if}
+        </span>
+        <button type="button" class="btn" onclick={() => goto?.("dictionaries")}>Manage</button>
+      </div>
+      <div class="list-row">
+        <span class="name">Frequency / level data</span>
+        <span class="sub">{s.word_list_count} file(s)</span>
+        <button type="button" class="btn" onclick={() => goto?.("frequency")}>Manage</button>
+      </div>
+      <div class="list-row">
+        <span class="name">Conjugation data</span>
+        <span class="sub">
+          {#if s.languages.length === 0}
+            Install a language first
+          {:else if s.missing_conjugation.length === 0}
+            Installed for all languages
+          {:else}
+            Missing for {s.missing_conjugation.join(", ")}
+          {/if}
+        </span>
+        <button type="button" class="btn" onclick={() => goto?.("dictionaries")}>Install</button>
+      </div>
+      <div class="list-row">
+        <span class="name">Forvo audio</span>
+        <span class="sub">
+          {s.forvo_enabled ? "Enabled" : "Disabled"} · {s.curl_cffi
+            ? "curl_cffi available"
+            : "using system curl fallback"}
+        </span>
+        <button type="button" class="btn" onclick={() => goto?.("forvo")}>Settings</button>
+      </div>
+      <div class="list-row">
+        <span class="name">AI definitions</span>
+        <span class="sub">
+          {#if !s.llm_enabled}
+            Disabled
+          {:else if s.llm_configured}
+            Enabled
+          {:else}
+            Enabled, but no endpoint configured
+          {/if}
+        </span>
+        <button type="button" class="btn" onclick={() => goto?.("llm")}>Settings</button>
+      </div>
+    </div>
+  {:else}
+    <p class="hint">Loading setup status…</p>
+  {/if}
+</div>
 
 <!-- Dictionary Groups -->
 <div class="card">
@@ -157,7 +228,15 @@
   </div>
   <div class="field">
     <label for="imageSearchRegion">Image Search Region</label>
-    <input id="imageSearchRegion" type="text" value={cfg.get("imageSearchRegion", "United States")} oninput={(e) => cfg.set("imageSearchRegion", e.currentTarget.value)} />
+    <select
+      id="imageSearchRegion"
+      value={cfg.get("imageSearchRegion", "United States")}
+      onchange={(e) => cfg.set("imageSearchRegion", e.currentTarget.value)}
+    >
+      {#each imageRegionOptions as region (region)}
+        <option value={region}>{region}</option>
+      {/each}
+    </select>
   </div>
   <div class="field">
     <span class="field-label" id="bracketLabel">Surround Term</span>
@@ -188,6 +267,10 @@
     <input type="checkbox" checked={!!cfg.get("dictAlwaysOnTop", false)} onchange={(e) => cfg.set("dictAlwaysOnTop", e.currentTarget.checked)} />
     Keep Dictionary Always on Top
   </label>
+  <label class="check">
+    <input type="checkbox" checked={!!cfg.get("dictOnStart", false)} onchange={(e) => cfg.set("dictOnStart", e.currentTarget.checked)} />
+    Open Dictionary on Anki Startup
+  </label>
 </div>
 
 <!-- Media & Integration -->
@@ -204,10 +287,6 @@
   <label class="check">
     <input type="checkbox" checked={!!cfg.get("imageAutoConvert", true)} onchange={(e) => cfg.set("imageAutoConvert", e.currentTarget.checked)} />
     Auto-convert images (resize + AVIF where supported, else WebP)
-  </label>
-  <label class="check">
-    <input type="checkbox" checked={!!cfg.get("jReadingCards", false)} onchange={(e) => cfg.set("jReadingCards", e.currentTarget.checked)} />
-    Generate Japanese Readings (Export)
   </label>
 </div>
 

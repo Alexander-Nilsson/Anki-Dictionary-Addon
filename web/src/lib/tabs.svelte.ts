@@ -42,7 +42,6 @@ class DictionaryUIStore {
     "Exact",
     "Anywhere",
     "Definition",
-    "Example",
     "Pronunciation",
   ]);
   searchMode = $state("Forward");

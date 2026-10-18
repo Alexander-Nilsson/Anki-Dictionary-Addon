@@ -17,6 +17,7 @@ The reply surface (``window.SETTINGS``) is installed by
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 from typing import Any
@@ -24,9 +25,9 @@ from typing import Any
 from aqt.webview import AnkiWebView
 
 from ...utils.config import get_addon_config, save_addon_config
-from ...utils.constants import FORVO_LANGUAGES
+from ...utils.constants import COUNTRY_TO_DDG, FORVO_LANGUAGES
 from ...utils.logger import get_logger
-from ...utils.paths import get_addon_root, get_word_lists_dir
+from ...utils.paths import get_addon_root, get_conjugation_dir, get_word_lists_dir
 from ...web import config as webConfig
 
 logger = get_logger(__name__.split(".")[-1])
@@ -59,6 +60,7 @@ class SettingsBridge(AnkiWebView):
         # Web install (install modals): one worker at a time + streamed log.
         self._install_worker: Any = None
         self._web_install_log: list[str] = []
+        self._pending_setup: dict[str, Any] | None = None
         self.loadSettingsPage()
 
     def loadSettingsPage(self) -> None:
@@ -243,6 +245,74 @@ class SettingsBridge(AnkiWebView):
             logger.debug("Could not load Forvo language list", exc_info=True)
             return []
 
+    def _image_regions(self) -> list[str]:
+        """Country names the image search can target."""
+        return sorted(COUNTRY_TO_DDG, key=str.casefold)
+
+    def _setup_status(self) -> dict[str, Any]:
+        """Small health summary rendered on the General tab."""
+        status: dict[str, Any] = {
+            "languages": [],
+            "dictionary_count": 0,
+            "word_list_count": 0,
+            "conjugation_languages": [],
+            "missing_conjugation": [],
+            "curl_cffi": False,
+            "forvo_enabled": self._forvo_enabled(),
+            "llm_enabled": self._llm_enabled(),
+            "llm_configured": False,
+        }
+        installed_languages: list[str] = []
+        try:
+            db = self.mw.miDictDB
+            languages = db.getCurrentDbLangs()
+            if isinstance(languages, list):
+                installed_languages = [str(name) for name in languages]
+            status["languages"] = installed_languages
+            dictionaries = db.getAllDictsWithLang()
+            status["dictionary_count"] = (
+                len(dictionaries) if isinstance(dictionaries, list) else 0
+            )
+        except Exception:
+            logger.debug("Could not read dictionary status", exc_info=True)
+
+        try:
+            word_lists = self._word_list_data()["files"]
+            status["word_list_count"] = sum(
+                len(group.get("files", [])) for group in word_lists
+            )
+        except Exception:
+            logger.debug("Could not read word-list status", exc_info=True)
+
+        try:
+            conj_dir = get_conjugation_dir()
+            if os.path.isdir(conj_dir):
+                status["conjugation_languages"] = sorted(
+                    name[:-5] for name in os.listdir(conj_dir) if name.endswith(".json")
+                )
+        except Exception:
+            logger.debug("Could not read conjugation status", exc_info=True)
+
+        status["missing_conjugation"] = sorted(
+            lang
+            for lang in installed_languages
+            if lang and lang not in status["conjugation_languages"]
+        )
+
+        try:
+            status["curl_cffi"] = importlib.util.find_spec("curl_cffi") is not None
+        except (ImportError, ValueError):
+            status["curl_cffi"] = False
+
+        try:
+            config = self.settings_gui.config
+            status["llm_configured"] = bool(
+                config.get("llm_base_url") and config.get("llm_model")
+            )
+        except Exception:
+            pass
+        return status
+
     # ── themes ─────────────────────────────────────────────
 
     def _theme_manager(self) -> Any:
@@ -381,6 +451,10 @@ class SettingsBridge(AnkiWebView):
             self._push("setLanguagesDicts", self._languages_dicts())
         elif dAct == "settings:getForvoLanguages":
             self._push("setForvoLanguages", self._forvo_languages())
+        elif dAct == "settings:getSetupStatus":
+            self._push("setSetupStatus", self._setup_status())
+        elif dAct == "settings:getImageRegions":
+            self._push("setImageRegions", self._image_regions())
         elif dAct == "settings:getThemes":
             self._push_themes()
         elif dAct.startswith("settings:applyTheme:"):
@@ -442,6 +516,7 @@ class SettingsBridge(AnkiWebView):
         if not saved:
             logger.warning("settings:save could not persist config")
         self.settings_gui.after_save()
+        self._push("setSetupStatus", self._setup_status())
 
     def _run_llm_test(self, raw: str) -> None:
         try:
@@ -589,6 +664,8 @@ class SettingsBridge(AnkiWebView):
 
         from ...web.install_service import WebInstallWorker
 
+        setup = selection.pop("apply_setup", None)
+        self._pending_setup = setup if isinstance(setup, dict) else None
         self._web_install_log = []
         worker = WebInstallWorker(selection)
         worker.log_line.connect(self._on_install_log)
@@ -612,7 +689,13 @@ class SettingsBridge(AnkiWebView):
         )
 
     def _on_install_done(self, completed: bool) -> None:
+        failed = 0
+        installed = 0
+        skipped = 0
         if self._install_worker is not None:
+            failed = getattr(self._install_worker, "failed", 0)
+            installed = getattr(self._install_worker, "installed", 0)
+            skipped = getattr(self._install_worker, "skipped", 0)
             self._install_worker.wait()
             self._install_worker = None
         # Invalidate caches so installed data is picked up immediately.
@@ -627,10 +710,41 @@ class SettingsBridge(AnkiWebView):
         self._push(
             "setWebInstall",
             {
-                "percent": 100 if completed else 0,
+                "percent": 100 if (completed or failed) else 0,
                 "running": False,
                 "completed": completed,
+                "failed": failed,
+                "installed": installed,
+                "skipped": skipped,
             },
         )
+        if completed and self._pending_setup:
+            self._apply_setup(self._pending_setup)
+        self._pending_setup = None
         if hasattr(self.settings_gui, "_after_native_change"):
             self.settings_gui._after_native_change()
+        self._push("setSetupStatus", self._setup_status())
+
+    def _apply_setup(self, setup: dict[str, Any]) -> None:
+        """Apply the target language chosen by the Quick Setup card."""
+        try:
+            config = dict(get_addon_config())
+            language = str(setup.get("language") or "").strip()
+            if language:
+                defaults = dict(config.get("language_defaults") or {})
+                defaults[language] = language
+                config["language_defaults"] = defaults
+                # Default groups are named after the language.
+                config["currentGroup"] = language
+            forvo_language = str(setup.get("forvo_language") or "").strip()
+            if forvo_language:
+                config["forvo_language"] = forvo_language
+            if setup.get("deinflect"):
+                config["deinflect"] = True
+            save_addon_config(config)
+            self.settings_gui.config = config
+            if hasattr(self.mw, "refreshAnkiDictConfig"):
+                self.mw.refreshAnkiDictConfig(config)
+            self._push("setConfig", config)
+        except Exception:
+            logger.exception("Could not apply quick-setup configuration")

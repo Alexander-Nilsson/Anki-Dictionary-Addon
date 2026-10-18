@@ -3,6 +3,7 @@ LLM Integration for Anki Dictionary.
 Supports OpenAI-compatible APIs and Ollama /api/chat.
 """
 
+import json
 import re
 from collections.abc import Callable
 from typing import Any
@@ -110,6 +111,87 @@ def extract_llm_content(data: dict[str, Any], base_url: str) -> str:
     )
 
 
+def _decode_stream_line(line: Any) -> str:
+    """Normalise a streamed line to text, whether bytes or str."""
+    if isinstance(line, bytes):
+        return line.decode("utf-8", errors="ignore")
+    return str(line)
+
+
+def _extract_openai_stream_chunk(data: dict[str, Any]) -> str:
+    """Extract incremental content from an OpenAI-compatible stream chunk."""
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        return ""
+
+    delta = choice.get("delta")
+    if isinstance(delta, dict):
+        content = delta.get("content")
+        if isinstance(content, str):
+            return content
+
+    message = choice.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+
+    text = choice.get("text")
+    if isinstance(text, str):
+        return text
+
+    return ""
+
+
+def read_openai_stream(response: Any) -> str:
+    """Accumulate text from an OpenAI-compatible SSE response."""
+    chunks: list[str] = []
+    for raw_line in response.iter_lines():
+        line = _decode_stream_line(raw_line).strip()
+        if not line.startswith("data:"):
+            # Blank keep-alive lines and comments are ignored.
+            continue
+        data_str = line[len("data:") :].strip()
+        if data_str == "[DONE]":
+            break
+        try:
+            data = json.loads(data_str)
+        except (ValueError, TypeError):
+            # Malformed keep-alive or partial line; skip it.
+            continue
+        if isinstance(data, dict):
+            content = _extract_openai_stream_chunk(data)
+            if content:
+                chunks.append(content)
+    return "".join(chunks)
+
+
+def read_ollama_stream(response: Any) -> str:
+    """Accumulate text from an Ollama newline-delimited JSON response."""
+    chunks: list[str] = []
+    for raw_line in response.iter_lines():
+        line = _decode_stream_line(raw_line).strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        message = data.get("message")
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str):
+                chunks.append(content)
+        if data.get("done", False):
+            break
+    return "".join(chunks)
+
+
 def split_llm_definitions(content: str) -> list[str]:
     """
     Split a multi-definition LLM response into individual definition strings.
@@ -214,15 +296,30 @@ class LLMWorker(QRunnable):
                 headers["Authorization"] = f"Bearer {api_key}"
 
             payload = prepare_llm_payload(base_url, model, prompt, self.config)
+            stream = bool(self.config.get("llm_stream", False))
 
             logger.debug(f"[LLM] Sending request to {base_url}")
             response = requests.post(
-                base_url, headers=headers, json=payload, timeout=self.timeout
+                base_url,
+                headers=headers,
+                json=payload,
+                timeout=self.timeout,
+                stream=stream,
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+                if stream:
+                    if base_url.endswith("/api/chat"):
+                        raw_content = read_ollama_stream(response)
+                    else:
+                        raw_content = read_openai_stream(response)
+                else:
+                    data = response.json()
+                    raw_content = extract_llm_content(data, base_url)
+            finally:
+                if stream:
+                    response.close()
 
-            data = response.json()
-            raw_content = extract_llm_content(data, base_url)
             content = clean_llm_content(raw_content, self.config)
 
             if not content:
@@ -276,7 +373,7 @@ def test_llm_config(config: dict[str, Any], callback: Callable[[bool, str], None
             base_url,
             model,
             "Hello, respond with only the word 'OK'.",
-            config,
+            {**config, "llm_stream": False},
             is_test=True,
         )
 

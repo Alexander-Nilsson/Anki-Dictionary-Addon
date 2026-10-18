@@ -85,7 +85,7 @@ class ExternalServiceCoordinator:
         language: str | None = None,
     ) -> None:
         if language is None:
-            language = config.get("forvo_language", "ja")
+            language = config.get("forvo_language", "en")
         assert language is not None
         worker = forvo_integration.ForvoWorker(term, language, config, id_name)
         worker.signals.result_ready.connect(self._on_forvo_result)

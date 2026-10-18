@@ -28,7 +28,7 @@
     { code: "ar", name: "Arabic" },
   ];
 
-  let current = $state(String(cfg.get("forvo_language", "ja")));
+  let current = $state(String(cfg.get("forvo_language", "en")));
 
   // Full catalogue from Python, or the fallback list while loading.
   const catalogue = $derived(

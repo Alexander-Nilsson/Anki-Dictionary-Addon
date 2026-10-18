@@ -27,18 +27,23 @@ An **Anki Dictionary** menu will appear in Anki's top menu bar.
 
 Open the add-on settings: **Anki Dictionary → Dictionary Settings → Dictionaries** tab.
 
-### Option A: Use the Wizard (recommended)
+### Option A: Quick Setup (recommended)
 
-1. Click **Install Languages in Wizard**
-2. Select your target language → translation language
-3. Check the dictionaries you want
-4. Confirm and wait for installation
+1. In the **Quick Setup** card, choose your target language and the language you want definitions in
+2. Click **Install recommended pack**
+3. Wait for the dictionary, frequency/level lists and conjugation data to install
 
-### Option B: Install from a ZIP file
+### Option B: Choose dictionaries manually
 
-1. Select a language on the left
-2. Click **Install Dictionary From File**
-3. Pick a Yomichan or Migaku-format dictionary ZIP
+1. Click **Install Dictionaries (Web)**
+2. Pick a server (the default is pre-filled) and click **Connect**
+3. Check the translation language and dictionaries you want
+4. Optionally enable word lists and conjugation data, then click **Install**
+
+### Option C: Install from a file
+
+1. Click **Install Dictionaries (Files)**, choose a language
+2. Pick a Yomichan-format `.zip` or a Migaku-format `.json` file
 
 ## 4. Open the Dictionary
 

@@ -8,6 +8,7 @@
    * lists), then streams the install job's progress log.
    */
   import {
+    DEFAULT_DICTIONARY_SERVER,
     cancelWebInstall,
     fetchWebIndex,
     settings,
@@ -22,10 +23,7 @@
   }
   let { mode, onclose }: Props = $props();
 
-  /** Default server — mirrors `web/config.py`'s DEFAULT_SERVER. */
-  const DEFAULT_SERVER = "https://github.com/Alexander-Nilsson/dictionaries/raw/main";
-
-  let server = $state(DEFAULT_SERVER);
+  let server = $state(DEFAULT_DICTIONARY_SERVER);
   let fetched = $state(false); // a fetch has been attempted
   let selectedLangs = $state<Record<string, boolean>>({});
   // Dict selections keyed by `${langIndex}:${toIndex}:${dictIdx}`.
@@ -44,7 +42,7 @@
 
   function connect(): void {
     fetched = true;
-    fetchWebIndex(server.trim() || DEFAULT_SERVER);
+    fetchWebIndex(server.trim() || DEFAULT_DICTIONARY_SERVER);
   }
 
   // Load the default server's index as soon as the modal opens, so the
@@ -60,30 +58,63 @@
     return label;
   }
 
-  function flatDicts(l: WebIndexLanguage): { name: string; url: string }[] {
-    const out: { name: string; url: string }[] = [];
-    for (const tl of l.to_languages ?? []) {
-      for (const d of tl.dictionaries ?? []) out.push(d);
+  interface DictGroup {
+    key: string;
+    label: string;
+    dicts: { name: string; url: string }[];
+  }
+
+  /** Dictionaries split by translation language, plus any top-level extras. */
+  function dictGroups(l: WebIndexLanguage, i: number): DictGroup[] {
+    const groups: DictGroup[] = [];
+    (l.to_languages ?? []).forEach((tl, ti) => {
+      if (tl.dictionaries?.length) {
+        groups.push({
+          key: `${i}:${ti}`,
+          label: tl.name_en ?? tl.code ?? "Translation",
+          dicts: tl.dictionaries,
+        });
+      }
+    });
+    if (l.dictionaries?.length) {
+      groups.push({
+        key: `${i}:extra`,
+        label: "Additional dictionaries",
+        dicts: l.dictionaries,
+      });
     }
-    for (const d of l.dictionaries ?? []) out.push(d);
-    return out;
+    return groups;
+  }
+
+  function allDictKeys(i: number, l: WebIndexLanguage): string[] {
+    return dictGroups(l, i).flatMap((g) =>
+      g.dicts.map((_, di) => `${g.key}:${di}`),
+    );
   }
 
   function langHasDicts(l: WebIndexLanguage): boolean {
-    return flatDicts(l).length > 0;
+    return allDictKeys(0, l).length > 0;
   }
 
   function toggleLang(i: number, l: WebIndexLanguage, checked: boolean): void {
     selectedLangs = { ...selectedLangs, [i]: checked };
     const next = { ...selectedDicts };
-    flatDicts(l).forEach((_, di) => {
-      next[`${i}:${di}`] = checked;
-    });
+    for (const key of allDictKeys(i, l)) next[key] = checked;
     selectedDicts = next;
   }
 
-  function toggleDict(i: number, di: number, checked: boolean): void {
-    selectedDicts = { ...selectedDicts, [`${i}:${di}`]: checked };
+  function toggleGroup(key: string, count: number, checked: boolean): void {
+    const next = { ...selectedDicts };
+    for (let di = 0; di < count; di += 1) next[`${key}:${di}`] = checked;
+    selectedDicts = next;
+  }
+
+  function groupChecked(key: string, count: number): boolean {
+    return count > 0 && Array.from({ length: count }, (_, di) => !!selectedDicts[`${key}:${di}`]).every(Boolean);
+  }
+
+  function toggleDict(key: string, di: number, checked: boolean): void {
+    selectedDicts = { ...selectedDicts, [`${key}:${di}`]: checked };
   }
 
   function toggleList(i: number, li: number, checked: boolean): void {
@@ -91,8 +122,8 @@
   }
 
   function langChecked(i: number, l: WebIndexLanguage): boolean {
-    const dicts = flatDicts(l);
-    return dicts.length > 0 && dicts.every((_, di) => selectedDicts[`${i}:${di}`]);
+    const keys = allDictKeys(i, l);
+    return keys.length > 0 && keys.every((key) => !!selectedDicts[key]);
   }
 
   function anyDictSelected(): boolean {
@@ -107,9 +138,12 @@
     const languages: Record<string, unknown>[] = [];
     if (mode === "dictionaries") {
       index.forEach((l, i) => {
-        const dicts = flatDicts(l)
-          .filter((_, di) => selectedDicts[`${i}:${di}`])
-          .map((d) => ({ name: d.name, url: d.url }));
+        const dicts = dictGroups(l, i)
+          .flatMap((g) =>
+            g.dicts
+              .filter((_, di) => selectedDicts[`${g.key}:${di}`])
+              .map((d) => ({ name: d.name, url: d.url })),
+          );
         if (!dicts.length) return;
         languages.push({
           name: l.name_en,
@@ -121,7 +155,7 @@
         });
       });
       startWebInstall({
-        server: server.trim() || DEFAULT_SERVER,
+        server: server.trim() || DEFAULT_DICTIONARY_SERVER,
         install_dictionaries: true,
         install_word_lists: installWordLists,
         install_conjugation: installConjugation,
@@ -136,7 +170,7 @@
         languages.push({ name: l.name_en, frequency_lists: lists });
       });
       startWebInstall({
-        server: server.trim() || DEFAULT_SERVER,
+        server: server.trim() || DEFAULT_DICTIONARY_SERVER,
         install_dictionaries: false,
         install_word_lists: true,
         install_conjugation: false,
@@ -215,21 +249,37 @@
                     onchange={(e) => toggleLang(i, l, e.currentTarget.checked)}
                   />
                   <strong>{langLabel(l)}</strong>
-                  <span class="sub">{flatDicts(l).length} dictionaries</span>
+                  <span class="sub">{allDictKeys(i, l).length} dictionaries</span>
                 </label>
-                <div class="install-dicts">
-                  {#each flatDicts(l) as d, di (`${i}:${di}`)}
+                {#each dictGroups(l, i) as g (g.key)}
+                  <div class="install-dicts" style="margin-left:18px">
                     <label class="check">
                       <input
                         type="checkbox"
-                        checked={!!selectedDicts[`${i}:${di}`]}
+                        checked={groupChecked(g.key, g.dicts.length)}
                         disabled={installing}
-                        onchange={(e) => toggleDict(i, di, e.currentTarget.checked)}
+                        onchange={(e) =>
+                          toggleGroup(g.key, g.dicts.length, e.currentTarget.checked)}
                       />
-                      {d.name}
+                      <strong>{g.label}</strong>
+                      <span class="sub">{g.dicts.length}</span>
                     </label>
-                  {/each}
-                </div>
+                    <div style="margin-left:18px">
+                      {#each g.dicts as d, di (`${g.key}:${di}`)}
+                        <label class="check">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedDicts[`${g.key}:${di}`]}
+                            disabled={installing}
+                            onchange={(e) =>
+                              toggleDict(g.key, di, e.currentTarget.checked)}
+                          />
+                          {d.name}
+                        </label>
+                      {/each}
+                    </div>
+                  </div>
+                {/each}
               </div>
             {/if}
           {/each}

@@ -161,7 +161,7 @@ class SettingsGui(QWidget):
             self,
             "Select the dictionaries you want to import",
             os.path.expanduser("~"),
-            "ZIP Files (*.zip);;All Files (*.*)",
+            "Dictionary Files (*.zip *.json);;ZIP Files (*.zip);;JSON Files (*.json);;All Files (*.*)",
         )
         if not paths:
             return

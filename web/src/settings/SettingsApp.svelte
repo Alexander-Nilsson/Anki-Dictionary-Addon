@@ -80,6 +80,18 @@
     }
   });
 
+  // First run: land on the one tab that actually unblocks the addon. Do this
+  // once, after the language list arrives, so a slow reply cannot move the
+  // user out of a tab they picked.
+  let setupTabApplied = $state(false);
+  $effect(() => {
+    if (setupTabApplied || !settings.languagesLoaded) return;
+    setupTabApplied = true;
+    if (Object.keys(settings.languagesDicts).length === 0) {
+      active = "dictionaries";
+    }
+  });
+
   onMount(() => {
     loadSettings();
     // Handshake with Python — lets the bridge know the page is ready.
@@ -114,7 +126,7 @@
     </div>
   {:else}
     {#if active === "general"}
-      <GeneralTab />
+      <GeneralTab goto={(tab) => (active = tab as TabId)} />
     {:else if active === "appearance"}
       <AppearanceTab />
     {:else if active === "llm"}

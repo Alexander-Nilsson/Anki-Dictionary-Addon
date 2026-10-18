@@ -9,20 +9,19 @@ import json
 import os
 import re
 
+import aqt
 from anki.utils import is_mac, is_win
 from aqt import mw
 
 from ..utils.logger import get_logger
 
 log = get_logger("main_window")
-import aqt.utils
 from aqt.qt import Qt
 from aqt.utils import showInfo
 
 from ..core.clip_thread import ClipThread
 from ..core.dictionary import DictInterface
 from ..ui.settings.settings_gui import SettingsGui
-from ..utils.common import miInfo
 from ..utils.config import get_session_terms
 from ..utils.paths import get_addon_root, get_templates_dir
 
@@ -123,6 +122,29 @@ def releaseKey(keyList):
         mw.currentlyPressed.remove(char)  # ty:ignore[unresolved-attribute]
 
 
+def _with_setup_cta(html: str) -> str:
+    """Prepend a one-click setup card while no languages are installed."""
+    try:
+        db = getattr(mw, "miDictDB", None)
+        if db is not None and db.getCurrentDbLangs():
+            return html
+    except Exception:
+        return html
+    cta = (
+        '<div class="setup-cta" style="margin:0 auto 12px;max-width:1200px;'
+        "padding:14px 18px;border:1px solid var(--border);border-radius:8px;"
+        'background:var(--background-secondary);text-align:center">'
+        '<p style="margin:0 0 8px;font-size:var(--font-size-lg);color:var(--text)">'
+        "No dictionaries are installed yet.</p>"
+        '<button type="button" onclick="if(window.pycmd)pycmd(\'openSettings:dictionaries\')" '
+        'style="padding:8px 16px;border:1px solid var(--search_term);border-radius:6px;'
+        "background:var(--search_term);color:var(--definition_background);"
+        'font-size:var(--font-size-base);cursor:pointer">Set up dictionaries</button>'
+        "</div>"
+    )
+    return cta + html
+
+
 def getWelcomeScreen():
     """Get welcome screen HTML with platform-adaptive modifier badges.
 
@@ -136,7 +158,7 @@ def getWelcomeScreen():
     try:
         with open(htmlPath, encoding="utf-8") as fh:
             file = fh.read()
-        return render_shortcut_badges(file, bool(is_mac))
+        return _with_setup_cta(render_shortcut_badges(file, bool(is_mac)))
     except Exception as e:
         log.error(f"Error loading welcome screen from {htmlPath}: {e}")
         return ""
@@ -157,9 +179,9 @@ def getMacWelcomeScreen():
         # The mac template shares the same placeholder; force the mac modifier
         # even if the file still contains a literal.
         rendered = render_shortcut_badges(file, True)
-        if "{{MOD_KEY}}" in file:
-            return rendered
-        return rendered.replace(">Ctrl<", ">\u2318<")
+        if "{{MOD_KEY}}" not in file:
+            rendered = rendered.replace(">Ctrl<", ">\u2318<")
+        return _with_setup_cta(rendered)
     except Exception as e:
         log.error(f"Error loading Mac welcome screen from {htmlPath}: {e}")
         return ""
@@ -204,7 +226,7 @@ def dictionaryInit(terms=False):
     if not mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
         # A5: when no explicit search terms were given and session restore is
         # enabled, reopen the tabs from the previous session. The config is read
-        # directly (like ``searchTermList``) because the instance does not exist
+        # directly (like ``searchTerm``) because the instance does not exist
         # at this point.
         if not terms:
             restored = get_session_terms(mw.AnkiDictConfig)  # ty:ignore[unresolved-attribute]
@@ -227,52 +249,27 @@ def dictionaryInit(terms=False):
         mw.ankiDictionary.hide()  # ty:ignore[unresolved-attribute]
 
 
-def openDictionarySettings():
-    """Open dictionary settings window."""
+def openDictionarySettings(tab: str | None = None):
+    """Open dictionary settings, optionally on a specific tab."""
     if not mw.dictSettings:  # ty:ignore[unresolved-attribute]
         mw.dictSettings = SettingsGui(mw, addon_path, openDictionarySettings)  # ty:ignore[unresolved-attribute]
     mw.dictSettings.show()  # ty:ignore[unresolved-attribute]
+    if tab:
+        mw.dictSettings.show_tab(tab)  # ty:ignore[unresolved-attribute]
     if mw.dictSettings.windowState() == Qt.WindowState.WindowMinimized:  # ty:ignore[unresolved-attribute]
         mw.dictSettings.setWindowState(Qt.WindowState.WindowNoState)  # ty:ignore[unresolved-attribute]
     mw.dictSettings.setFocus()  # ty:ignore[unresolved-attribute]
     mw.dictSettings.activateWindow()  # ty:ignore[unresolved-attribute]
 
 
-def searchTermList(terms):
-    """Search for a list of terms."""
-    limit = mw.AnkiDictConfig.get("unknownsToSearch", 3)  # ty:ignore[unresolved-attribute]
-    terms = terms[:limit]
-    if not mw.ankiDictionary or not mw.ankiDictionary.isVisible():  # ty:ignore[unresolved-attribute]
-        dictionaryInit(terms)
-    else:
-        for term in terms:
-            mw.ankiDictionary.initSearch(term, source="extension")  # ty:ignore[unresolved-attribute]
-        showAfterGlobalSearch()
-
-
-def extensionFileNotFound():
-    """Handle extension file not found."""
-    miInfo(
-        'The media files were not found in your "Download Directory", please make sure you have selected the correct directory.'
-    )
-
-
 def initGlobalHotkeys():
-    """Initialize global hotkey thread."""
+    """Initialize the global hotkey listener (idempotent)."""
+    if getattr(mw, "hkThread", None) is not None:
+        return
     mw.hkThread = ClipThread(mw, addon_path)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.sentence.connect(exportSentence)  # ty:ignore[unresolved-attribute]
     mw.hkThread.search.connect(trySearch)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.colSearch.connect(performColSearch)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.image.connect(exportImage)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.bulkTextExport.connect(extensionBulkTextExport)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.add.connect(attemptAddCard)  # ty:ignore[unresolved-attribute]
     mw.hkThread.test.connect(captureKey)  # ty:ignore[unresolved-attribute]
     mw.hkThread.release.connect(releaseKey)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.pageRefreshDuringBulkMediaImport.connect(cancelBulkMediaExport)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.bulkMediaExport.connect(extensionBulkMediaExport)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.extensionCardExport.connect(extensionCardExport)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.searchFromExtension.connect(searchTermList)  # ty:ignore[unresolved-attribute]
-    mw.hkThread.extensionFileNotFound.connect(extensionFileNotFound)  # ty:ignore[unresolved-attribute]
     mw.hkThread.run()  # ty:ignore[unresolved-attribute]
 
 
@@ -325,17 +322,14 @@ mw.searchTerm = searchTerm  # ty:ignore[unresolved-attribute]
 mw.searchCol = searchCol  # ty:ignore[unresolved-attribute]
 
 
-# Implementation of global exporter functions
-def exportSentence(sentence):
-    """Export sentence to the card exporter."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.addWindow.exportSentence(sentence)  # ty:ignore[unresolved-attribute]
-
-
+# Global search entry points
 def trySearch(text):
     """Try to search text in the dictionary (clipboard/global-hotkey path)."""
+    if not text:
+        return
     if not mw.ankiDictionary:  # ty:ignore[unresolved-attribute]
+        # A global search is an explicit action; open the window for it.
+        dictionaryInit([text])
         return
     # U2: honour the one-click clipboard-monitor pause (in-web pill). When
     # paused, ignore clipboard-derived searches so users can stop hotkey-
@@ -343,51 +337,3 @@ def trySearch(text):
     if not mw.ankiDictionary.config.get("clipboard_monitor_enabled", True):  # ty:ignore[unresolved-attribute]
         return
     mw.ankiDictionary.initSearch(text, source="clipboard")  # ty:ignore[unresolved-attribute]
-
-
-def exportImage(path, name):
-    """Export image to the card exporter."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.addWindow.exportImage(path, name)  # ty:ignore[unresolved-attribute]
-
-
-def extensionBulkTextExport(cards):
-    """Handle bulk text export from extension."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.addWindow.bulkTextExport(cards)  # ty:ignore[unresolved-attribute]
-
-
-def attemptAddCard():
-    """Attempt to add a card from exporter."""
-    if (
-        mw.ankiDictionary  # ty:ignore[unresolved-attribute]
-        and mw.ankiDictionary.dict  # ty:ignore[unresolved-attribute]
-        and mw.ankiDictionary.dict.addWindow  # ty:ignore[unresolved-attribute]
-    ):
-        mw.ankiDictionary.dict.addWindow.addCard()  # ty:ignore[unresolved-attribute]
-
-
-def cancelBulkMediaExport():
-    """Cancel ongoing bulk media export."""
-    if (
-        mw.ankiDictionary  # ty:ignore[unresolved-attribute]
-        and mw.ankiDictionary.dict  # ty:ignore[unresolved-attribute]
-        and mw.ankiDictionary.dict.addWindow  # ty:ignore[unresolved-attribute]
-    ):
-        mw.ankiDictionary.dict.addWindow.bulkMediaExportCancelledByBrowserRefresh()  # ty:ignore[unresolved-attribute]
-
-
-def extensionBulkMediaExport(card):
-    """Handle bulk media export from extension."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.addWindow.bulkMediaExport(card)  # ty:ignore[unresolved-attribute]
-
-
-def extensionCardExport(card):
-    """Handle single card export from extension."""
-    if mw.ankiDictionary and mw.ankiDictionary.dict:  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.initCardExporterIfNeeded()  # ty:ignore[unresolved-attribute]
-        mw.ankiDictionary.dict.addWindow.addMediaCard(card)  # ty:ignore[unresolved-attribute]

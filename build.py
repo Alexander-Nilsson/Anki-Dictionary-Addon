@@ -346,24 +346,51 @@ def build_addon():
         with open(config_path, encoding="utf-8") as f:
             config = json.load(f)
 
-        # Reset to defaults
-        config["DictionaryGroups"] = {}
-        config["ExportTemplates"] = {}
-        config["ImageFields"] = []
-        config["currentGroup"] = "All"
-        config["dictSizePos"] = [0, 0, 800, 600]
-        config["currentTemplate"] = False
-        config["currentDeck"] = False
-
-        # Reset LLM settings
-        config["llm_enabled"] = False
-        config["llm_api_key"] = ""
-        config["llm_base_url"] = "https://api.openai.com/v1/chat/completions"
-        config["llm_model"] = "gpt-3.5-turbo"
-        config["llm_prompt"] = (
-            "Provide a concise dictionary definition for the word: {term}"
+        # Reset every key that can carry a developer's local state.
+        config.update(
+            {
+                "config_version": 2,
+                "DictionaryGroups": {},
+                "ExportTemplates": {},
+                "ImageFields": [],
+                "currentGroup": "All",
+                "currentTemplate": False,
+                "currentDeck": False,
+                "dictSizePos": [0, 0, 800, 600],
+                "exporterSizePos": None,
+                "theme": "light",
+                "dictOnStart": False,
+                "forvo_enabled": True,
+                "forvo_language": "en",
+                "forvo_limit": 3,
+                "ForvoFields": [],
+                "ForvoAddType": "add",
+                "imageSearchRegion": "United States",
+                "language_defaults": {},
+                "last_seen_version": "",
+                "hide_release_notes": False,
+                "restore_session": False,
+                "session_terms": [],
+                "exporterLastTags": "",
+                "llm_enabled": False,
+                "llm_api_key": "",
+                "llm_base_url": "https://api.openai.com/v1/chat/completions",
+                "llm_model": "gpt-4o-mini",
+                "llm_prompt": (
+                    "Provide a concise dictionary definition for the word: {term}"
+                ),
+                "llm_timeout": 20,
+            }
         )
-        config["llm_timeout"] = 15
+        for dead_key in (
+            "hsk_mode",
+            "jReadingCards",
+            "jReadingEdit",
+            "globalHotkeys",
+            "openOnGlobal",
+            "autoAddCards",
+        ):
+            config.pop(dead_key, None)
 
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=4)

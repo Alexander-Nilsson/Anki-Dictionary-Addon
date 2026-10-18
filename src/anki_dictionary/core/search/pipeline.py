@@ -146,7 +146,7 @@ class SearchPipeline:
         # Forvo
         forvo_id = ""
         if self.midict.config.get("forvo_enabled", False) and "Forvo" in group_dicts:
-            forvo_lang = self.midict.config.get("forvo_language", "ja")
+            forvo_lang = self.midict.config.get("forvo_language", "en")
             for d in selected_group.get("dictionaries", []):
                 if d["dict"] == "Forvo" and d.get("lang"):
                     forvo_lang = d["lang"]
