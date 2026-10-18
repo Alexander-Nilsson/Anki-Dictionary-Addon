@@ -213,11 +213,15 @@ class TestTrySearchClipboardPause:
             module.trySearch("\u98df\u3079\u308b")
         anki.initSearch.assert_not_called()
 
-    def test_noop_when_dictionary_closed(self):
+    def test_opens_dictionary_when_closed(self):
         module = self._main_window()
-        with patch.object(module, "mw") as mock_mw:
+        with (
+            patch.object(module, "mw") as mock_mw,
+            patch.object(module, "dictionaryInit") as init,
+        ):
             mock_mw.ankiDictionary = None
-            module.trySearch("\u98df\u3079\u308b")  # must not raise
+            module.trySearch("\u98df\u3079\u308b")
+        init.assert_called_once_with(["\u98df\u3079\u308b"])
 
 
 class TestSearchTermRunsOnce:
