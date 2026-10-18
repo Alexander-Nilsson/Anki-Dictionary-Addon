@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib
 import json
 import re
 import zipfile
+from types import ModuleType
 from typing import Any, BinaryIO
 
 import aqt
@@ -10,7 +12,36 @@ from aqt.qt import QMessageBox, QWidget
 
 from ...utils.logger import get_logger
 
+_orjson: ModuleType | None = None
+try:
+    _orjson = importlib.import_module("orjson")
+except ImportError:  # Anki bundles orjson; keep older runtimes working.
+    pass
+
+orjson = _orjson
+
 log = get_logger("dict_import")
+
+
+def _loads_dictionary_json(content: bytes) -> Any:
+    """Parse dictionary JSON, preferring Anki's bundled orjson.
+
+    orjson parses UTF-8 directly from bytes and rejects a BOM, so the stdlib
+    fallback keeps UTF-16 and BOM-prefixed archives working.
+    """
+    if orjson is not None:
+        try:
+            return orjson.loads(content)
+        except orjson.JSONDecodeError:
+            pass
+    try:
+        decoded = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            decoded = content.decode("utf-16")
+        except UnicodeDecodeError:
+            decoded = content.decode("latin-1")
+    return json.loads(decoded)
 
 
 def importDict(
@@ -122,15 +153,7 @@ def loadDict(
     jsonDict = []
     for filename in filenames:
         with zfile.open(filename, "r") as jsonDictFile:
-            content = jsonDictFile.read()
-            try:
-                decoded = content.decode("utf-8-sig")
-            except UnicodeDecodeError:
-                try:
-                    decoded = content.decode("utf-16")
-                except UnicodeDecodeError:
-                    decoded = content.decode("latin-1")
-            jsonDict += json.loads(decoded)
+            jsonDict += _loads_dictionary_json(jsonDictFile.read())
     for count, entry in enumerate(jsonDict):
         if (
             isinstance(entry, list)

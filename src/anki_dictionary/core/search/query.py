@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections import OrderedDict
+from threading import Lock
 from typing import Any
 
 from ...utils.config import get_addon_config
@@ -9,10 +11,26 @@ from ...utils.logger import get_logger
 
 logger = get_logger(__name__.split(".")[-1])
 
+_SEARCH_COLUMNS = (
+    "term, altterm, pronunciation, pos, definition, examples, audio, "
+    "starCount, frequency"
+)
+_CACHE_MAX_ENTRIES = 256
+_CACHE_MAX_ROWS = 4096
+_SQL_CHUNK = 900
+
 
 class SearchQueryBuilder:
     def __init__(self, dict_db: Any) -> None:
         self._db = dict_db
+        self._row_cache: OrderedDict[tuple[Any, ...], list[tuple[Any, ...]]] = (
+            OrderedDict()
+        )
+        self._cached_rows = 0
+        self._cache_revision: int | None = None
+        self._cache_lock = Lock()
+        self._indexed_columns: set[tuple[str, str]] = set()
+        self._index_lock = Lock()
 
     def get_def_ex(self, sT: str) -> bool:
         return sT in ("Definition", "Example")
@@ -100,29 +118,150 @@ class SearchQueryBuilder:
             "levelLabels": "",
         }
 
+    @staticmethod
+    def _covering_column(column: str, op: str, terms: list[str]) -> str | None:
+        """Return the column to index for a substring scan, if supported.
+
+        Only leading-wildcard LIKE patterns need the covering scan.  Prefix
+        and exact searches already use the term B-trees, and ``definition``
+        matches still require a table scan (no FTS index is maintained).
+        """
+        if op != "LIKE" or column not in ("term", "altterm", "pronunciation"):
+            return None
+        if any(isinstance(t, str) and t.startswith("%") for t in terms):
+            return column
+        return None
+
+    def _ensure_covering_index(self, dict_name: str, column: str) -> bool:
+        key = (dict_name, column)
+        if key in self._indexed_columns:
+            return True
+        with self._index_lock:
+            if key in self._indexed_columns:
+                return True
+            if self._db.ensure_frequency_index(dict_name, column):
+                self._indexed_columns.add(key)
+                return True
+            return False
+
+    def _table_search(
+        self,
+        cursor: sqlite3.Cursor,
+        dict_name: str,
+        to_query: str,
+        dict_limit: int,
+        term_tuple: tuple[Any, ...],
+    ) -> list[tuple[Any, ...]]:
+        safe_table = self._quote_identifier(dict_name)
+        cursor.execute(
+            f"SELECT {_SEARCH_COLUMNS} FROM {safe_table} WHERE {to_query}"
+            " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT ?",
+            term_tuple + (dict_limit,),
+        )
+        return cursor.fetchall()
+
+    def _covered_search(
+        self,
+        cursor: sqlite3.Cursor,
+        dict_name: str,
+        to_query: str,
+        dict_limit: int,
+        term_tuple: tuple[Any, ...],
+    ) -> list[tuple[Any, ...]]:
+        """Match and rank on the covering index, then fetch full rows.
+
+        The original query reads every table row (including the definition
+        text) just to throw most of them away.  Scanning ``(column, term,
+        frequency)`` keeps the match/order phase index-only; only the LIMIT
+        rows are read from the table.
+        """
+        safe_table = self._quote_identifier(dict_name)
+        cursor.execute(
+            f"SELECT rowid, term, frequency FROM {safe_table} WHERE {to_query}"
+            " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT ?",
+            term_tuple + (dict_limit,),
+        )
+        ranked = cursor.fetchall()
+        if not ranked:
+            return []
+        rowids = [row[0] for row in ranked]
+        rows_by_id: dict[int, tuple[Any, ...]] = {}
+        for start in range(0, len(rowids), _SQL_CHUNK):
+            chunk = rowids[start : start + _SQL_CHUNK]
+            placeholders = ",".join("?" for _ in chunk)
+            cursor.execute(
+                f"SELECT rowid, {_SEARCH_COLUMNS} FROM {safe_table}"
+                f" WHERE rowid IN ({placeholders})",
+                chunk,
+            )
+            for row in cursor.fetchall():
+                rows_by_id[row[0]] = row[1:]
+        return [rows_by_id[rid] for rid in rowids if rid in rows_by_id]
+
+    def _sync_cache_revision(self) -> None:
+        revision = self._db.data_revision
+        if revision != self._cache_revision:
+            self._row_cache.clear()
+            self._cached_rows = 0
+            self._cache_revision = revision
+
+    def _cache_get(self, key: tuple[Any, ...]) -> list[tuple[Any, ...]] | None:
+        with self._cache_lock:
+            self._sync_cache_revision()
+            rows = self._row_cache.get(key)
+            if rows is None:
+                return None
+            self._row_cache.move_to_end(key)
+            return rows
+
+    def _cache_put(self, key: tuple[Any, ...], rows: list[tuple[Any, ...]]) -> None:
+        if len(rows) > _CACHE_MAX_ROWS:
+            return
+        with self._cache_lock:
+            self._sync_cache_revision()
+            if key in self._row_cache:
+                return
+            self._row_cache[key] = rows
+            self._cached_rows += len(rows)
+            while self._row_cache and (
+                len(self._row_cache) > _CACHE_MAX_ENTRIES
+                or self._cached_rows > _CACHE_MAX_ROWS
+            ):
+                _, evicted = self._row_cache.popitem(last=False)
+                self._cached_rows -= len(evicted)
+
     def execute_search(
         self,
         dict_name: str,
         to_query: str,
         dict_limit: int,
         term_tuple: tuple[Any, ...],
+        covering_column: str | None = None,
     ) -> list[tuple[Any, ...]]:
+        cache_key = (dict_name, to_query, term_tuple, dict_limit)
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
         cursor = self._db._get_cursor()
-        safe_table = self._quote_identifier(dict_name)
-        cols = "term, altterm, pronunciation, pos, definition, examples, audio, starCount, frequency"
-        query = (
-            f"SELECT {cols} FROM {safe_table} WHERE {to_query}"
-            " ORDER BY LENGTH(term) ASC, frequency ASC LIMIT ?"
-        )
         try:
-            cursor.execute(query, term_tuple + (dict_limit,))
-            return cursor.fetchall()
+            if covering_column and self._ensure_covering_index(
+                dict_name, covering_column
+            ):
+                rows = self._covered_search(
+                    cursor, dict_name, to_query, dict_limit, term_tuple
+                )
+            else:
+                rows = self._table_search(
+                    cursor, dict_name, to_query, dict_limit, term_tuple
+                )
         except sqlite3.Error as e:
             logger.error(f"Search error in dictionary '{dict_name}': {e}")
             return []
         except Exception as e:
             logger.error(f"Unexpected error searching dictionary '{dict_name}': {e}")
             return []
+        self._cache_put(cache_key, rows)
+        return rows
 
     def get_term_frequency_info(
         self, term: str, lang: str, config: dict[str, Any]
@@ -235,7 +374,13 @@ class SearchQueryBuilder:
 
             to_query = self.get_query_criteria(column, current_terms, op)
             term_tuple = tuple(current_terms)
-            all_rows = self.execute_search(table_name, to_query, dict_limit, term_tuple)
+            all_rows = self.execute_search(
+                table_name,
+                to_query,
+                dict_limit,
+                term_tuple,
+                self._covering_column(column, op, current_terms),
+            )
 
             if all_rows:
                 dict_res = []
@@ -252,7 +397,11 @@ class SearchQueryBuilder:
                 for col in ("altterm", "pronunciation"):
                     to_query = self.get_query_criteria(col, current_terms, op)
                     all_rows = self.execute_search(
-                        table_name, to_query, dict_limit, term_tuple
+                        table_name,
+                        to_query,
+                        dict_limit,
+                        term_tuple,
+                        self._covering_column(col, op, current_terms),
                     )
                     if all_rows:
                         dict_res = []
