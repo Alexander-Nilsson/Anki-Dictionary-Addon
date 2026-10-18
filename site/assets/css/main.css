@@ -803,6 +803,10 @@ a.stat:hover { background: color-mix(in srgb, var(--spot) 6%, transparent); }
   white-space: nowrap;
 }
 .film figcaption span { color: var(--faint); }
+.film-wide { grid-column: 1 / -1; }
+.film-wide video { aspect-ratio: 16 / 9; object-fit: contain; }
+.film-wide figcaption { flex-wrap: wrap; }
+.film-wide figcaption a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── CTA ─────────────────────────────────────────────────────────── */
 
