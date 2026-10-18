@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -666,6 +667,50 @@ class TestCardExporter(unittest.TestCase):
         self.exporter._saveConfigValue("autoAddCards", True)
         self.mock_save_config.assert_called_once()
         self.dictInt.mw.refreshAnkiDictConfig.assert_not_called()
+
+    def test_preview_url_inlines_local_image(self):
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
+            handle.write(b"png-bytes")
+            path = handle.name
+        try:
+            url = self.exporter._preview_url(path)
+            self.assertTrue(url.startswith("data:image/png;base64,"))
+        finally:
+            Path(path).unlink()
+        self.assertEqual(
+            self.exporter._preview_url("data:image/png;base64,abc"),
+            "data:image/png;base64,abc",
+        )
+        self.assertEqual(
+            self.exporter._preview_url("https://example.test/a.png"),
+            "https://example.test/a.png",
+        )
+        self.assertEqual(self.exporter._preview_url("/does/not/exist.png"), "")
+
+    def test_definition_rows_inline_thumbnails(self):
+        with tempfile.NamedTemporaryFile(suffix=".avif", delete=False) as handle:
+            handle.write(b"avif-bytes")
+            path = handle.name
+        try:
+            self.exporter.definitionList = [
+                ["Images", False, '<img src="a.avif">', '<img src="a.avif">']
+            ]
+            self.exporter.definitionThumbs = [[path]]
+            rows = self.exporter._definition_rows()
+            self.assertTrue(rows[0]["thumbs"][0].startswith("data:image/avif;base64,"))
+        finally:
+            Path(path).unlink()
+
+    def test_web_state_inlines_image_preview(self):
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
+            handle.write(b"png-bytes")
+            path = handle.name
+        try:
+            self.exporter.imgPath = path
+            state = self.exporter.web_state()
+            self.assertTrue(state["imagePreview"].startswith("data:image/png;base64,"))
+        finally:
+            Path(path).unlink()
 
     def test_web_state_reports_media_labels(self):
         state = self.exporter.web_state()
