@@ -808,6 +808,148 @@ a.stat:hover { background: color-mix(in srgb, var(--spot) 6%, transparent); }
 .film-wide figcaption { flex-wrap: wrap; }
 .film-wide figcaption a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 
+/* Chaptered feature walkthroughs: a section rail beside the video. */
+.film-chapters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 310px);
+}
+.film-chapters .film-player {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  background: var(--terminal);
+}
+.film-chapters .film-player video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: var(--terminal);
+}
+.chapter-now {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: calc(100% - 28px);
+  padding: 7px 10px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 2px;
+  background: rgb(12 12 11 / 0.82);
+  color: #eae8ee;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+.chapter-now-index { color: #cba6f7; }
+.chapter-now-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.film-chapters .chapter-rail {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--line2);
+  background: var(--panel);
+}
+.chapter-rail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line2);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.chapter-time {
+  color: var(--faint2);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.chapter-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+.chapter-list button {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chapter-list button:hover {
+  background: var(--mass);
+  color: var(--ink);
+}
+.chapter-list button.is-active {
+  border-color: var(--line2);
+  background: var(--mass);
+  box-shadow: inset 2px 0 0 var(--spot);
+  color: var(--ink);
+}
+.chapter-at {
+  min-width: 34px;
+  color: var(--faint2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.chapter-list button.is-active .chapter-at { color: var(--spot); }
+.chapter-label { font-size: 12.5px; line-height: 1.35; }
+.film-chapters figcaption {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+@media (max-width: 980px) {
+  .film-chapters { grid-template-columns: 1fr; }
+  .film-chapters .chapter-rail {
+    grid-column: 1;
+    grid-row: 2;
+    border-top: 1px solid var(--line2);
+    border-left: 0;
+  }
+  .film-chapters figcaption { grid-row: 3; }
+  .chapter-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .chapter-list { grid-template-columns: 1fr; }
+  .chapter-now { top: 10px; left: 10px; }
+}
+
 /* ── CTA ─────────────────────────────────────────────────────────── */
 
 .cta {

@@ -262,6 +262,64 @@
     highlight();
   }
 
+  /* ── chaptered feature walkthroughs ─────────────────────────── */
+
+  const formatChapterTime = (seconds) => {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+  };
+
+  document.querySelectorAll("[data-chaptered]").forEach((figure) => {
+    const video = figure.querySelector("video");
+    const buttons = [...figure.querySelectorAll(".chapter-list button")];
+    const nowIndex = figure.querySelector(".chapter-now-index");
+    const nowLabel = figure.querySelector(".chapter-now-label");
+    const timeLabel = figure.querySelector("[data-chapter-time]");
+    if (!video || !buttons.length) return;
+
+    let active = -1;
+
+    const setActive = (index, scroll) => {
+      if (index === active) return;
+      active = index;
+      buttons.forEach((button, i) => {
+        const on = i === index;
+        button.classList.toggle("is-active", on);
+        if (on) button.setAttribute("aria-current", "true");
+        else button.removeAttribute("aria-current");
+      });
+      if (index < 0) return;
+      const label = buttons[index].querySelector(".chapter-label")?.textContent ?? "";
+      if (nowIndex) nowIndex.textContent = String(index + 1).padStart(2, "0");
+      if (nowLabel) nowLabel.textContent = label;
+      if (scroll) buttons[index].scrollIntoView({ block: "nearest" });
+    };
+
+    const sync = () => {
+      const time = video.currentTime || 0;
+      let index = 0;
+      buttons.forEach((button, i) => {
+        if (Number(button.dataset.at) <= time + 0.05) index = i;
+      });
+      setActive(index, false);
+      if (timeLabel) {
+        timeLabel.textContent = `${formatChapterTime(time)} / ${formatChapterTime(video.duration)}`;
+      }
+    };
+
+    buttons.forEach((button, index) => {
+      button.addEventListener("click", () => {
+        video.currentTime = Number(button.dataset.at) || 0;
+        setActive(index, true);
+        video.play().catch(() => {});
+      });
+    });
+
+    video.addEventListener("timeupdate", sync);
+    video.addEventListener("loadedmetadata", sync);
+    sync();
+  });
+
   /* ── motion preferences for autoplaying captures ────────────── */
 
   if (reduceMotion) {
