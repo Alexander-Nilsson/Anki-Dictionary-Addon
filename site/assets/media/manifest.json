@@ -1,0 +1,20 @@
+{
+  "images": [
+    "s01-welcome",
+    "s02-search-light",
+    "s03-search-dark",
+    "s04-search-catppuccin_mocha",
+    "s05-search-gruvbox",
+    "s06-search-nord",
+    "s07-multitab",
+    "s08-sidebar",
+    "s09-settings",
+    "s10-settings-theme",
+    "s11-settings-dicts"
+  ],
+  "videos": [
+    "v01-search",
+    "v02-themes",
+    "v03-tabs-sidebar"
+  ]
+}

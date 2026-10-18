@@ -20,6 +20,10 @@
   <img src="assets/demo/demo.avif" alt="Anki Dictionary Addon Demo" width="800">
 </p>
 
+<p align="center">
+  <b><a href="https://alexander-nilsson.github.io/Anki-Dictionary-Addon/">Documentation &amp; feature tour →</a></b>
+</p>
+
 ## Core Features
 
 The **Anki Dictionary Addon** is a high-performance lookup and card-creation tool designed for modern language learners.
