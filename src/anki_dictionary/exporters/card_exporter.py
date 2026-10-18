@@ -213,8 +213,13 @@ class CardExporter:
         "unknownsToSearch": "unknownsToSearch",
     }
 
-    def set_web_field(self, field, value):
-        """Mirror one edit from the web UI, persisting the ones that are config."""
+    def set_web_field(self, field, value, persist=True):
+        """Mirror one edit from the web UI, persisting the ones that are config.
+
+        ``apply_web_state`` passes ``persist=False``: the snapshot is only
+        used to assemble the note, and persisting it would refresh the
+        dictionary (and tear down this exporter) mid-add.
+        """
         attr = self._WEB_FIELDS.get(field)
         if attr is None:
             return
@@ -226,6 +231,8 @@ class CardExporter:
             value = "" if value is None else str(value)
         setattr(self, attr, value)
 
+        if not persist:
+            return
         if field == "template":
             self.dictInt.writeConfig("currentTemplate", value)
         elif field == "deck":
@@ -243,19 +250,14 @@ class CardExporter:
             return
         for field in self._WEB_FIELDS:
             if field in state:
-                self.set_web_field(field, state[field])
+                self.set_web_field(field, state[field], persist=False)
 
     def _saveConfigValue(self, key, value):
         config = self.getConfig()
         config[key] = value
         self.config = config
-        refresher = getattr(self.mw, "refreshAnkiDictConfig", None)
-        if callable(refresher):
-            refresher(config)
-        else:
-            from ..utils.config import refresh_anki_dict_config
-
-            refresh_anki_dict_config(config)
+        # Exporter-only settings do not need the dictionary rebuilt; a refresh
+        # here would replace MIDict (and this exporter) while it is editing.
         save_addon_config(config)
 
     # ── window plumbing ───────────────────────────────────────

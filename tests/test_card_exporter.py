@@ -645,6 +645,28 @@ class TestCardExporter(unittest.TestCase):
         self.assertEqual(self.exporter.unknownsToSearch, 5)
         self.assertTrue(self.exporter.autoAdd)
 
+    def test_apply_web_state_does_not_persist_config(self):
+        # Persisting mid-add refreshes the dictionary, which replaces MIDict
+        # and clears the exporter before addCard can assemble the note.
+        self.exporter._saveConfigValue = MagicMock()
+        self.exporter.apply_web_state(
+            {
+                "template": "Basic",
+                "deck": "Default",
+                "autoAdd": True,
+                "autoAddDefinitions": True,
+                "unknownsToSearch": 4,
+                "sentence": "s",
+            }
+        )
+        self.exporter._saveConfigValue.assert_not_called()
+        self.dictInt.writeConfig.assert_not_called()
+
+    def test_save_config_value_does_not_reset_dictionary(self):
+        self.exporter._saveConfigValue("autoAddCards", True)
+        self.mock_save_config.assert_called_once()
+        self.dictInt.mw.refreshAnkiDictConfig.assert_not_called()
+
     def test_web_state_reports_media_labels(self):
         state = self.exporter.web_state()
         self.assertEqual(state["imageLabel"], "No Image Selected")
