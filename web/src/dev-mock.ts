@@ -427,7 +427,27 @@ function pushMockThemes(): void {
 
 // ── canned dictionary data ───────────────────────────────────────────────────
 
+const REAL_DOC_CACHE = new Map<string, DictDocument>();
 
+/**
+ * Search documents produced by the real pipeline (scripts/docs_media/dump_docs.py).
+ * When a doc is served at ``docs/<term>.json`` next to the page, the browser
+ * preview shows real dictionary entries; otherwise it falls back to the
+ * placeholder below. Inert inside Anki (the path only exists in the preview).
+ */
+async function realDocument(term: string): Promise<DictDocument | null> {
+  const cached = REAL_DOC_CACHE.get(term);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`docs/${encodeURIComponent(term)}.json`);
+    if (!res.ok) return null;
+    const doc = (await res.json()) as DictDocument;
+    REAL_DOC_CACHE.set(term, doc);
+    return doc;
+  } catch {
+    return null;
+  }
+}
 
 /** A believable search document so the dictionary page renders a result. */
 function mockDocument(term: string): DictDocument {
@@ -613,8 +633,9 @@ function handleDictionaryCommand(cmd: string): void {
     const term = cmd.slice("searchTerm:".length) || "example";
     MOCK_HISTORY = [[term, new Date().toISOString().slice(0, 10)], ...MOCK_HISTORY];
     pushMockHistory();
-    setTimeout(() => {
-      callReply("addNewTab", mockDocument(term), term, MOCK_STATE.singleTab, 1);
+    setTimeout(async () => {
+      const doc = (await realDocument(term)) ?? mockDocument(term);
+      callReply("addNewTab", doc, term, MOCK_STATE.singleTab, 1);
     }, 250);
   } else if (cmd.startsWith("updateTerm:")) {
     // Tab term renamed (from a new search on an existing tab).

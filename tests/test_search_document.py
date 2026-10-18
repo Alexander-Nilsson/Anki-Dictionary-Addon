@@ -282,3 +282,66 @@ class TestNoResultsSuggestions:
         assert (
             SearchPipeline._levenshtein("\u98df\u3079\u308a", "\u98df\u3079\u308b") == 1
         )
+
+
+class TestLevelLabelDedup:
+    """Frequency lists may publish the same level label twice (HSK 2.0 + 3.0).
+
+    ``ResultRenderer._levels_data`` must emit one pill per distinct label:
+    the Svelte keyed-each keys on the label, so duplicates crashed the shell
+    with ``each_key_duplicate`` and killed the whole results page.
+    """
+
+    def test_same_label_merges_sources(self):
+        from anki_dictionary.core.search.renderer import ResultRenderer
+
+        renderer = ResultRenderer("", "")
+        entry = {
+            "levelLabelsData": [
+                {"label": "HSK\u00b3:1", "source": "Hsk 30", "display": "HSK\u00b3"},
+                {"label": "HSK\u00b3:1", "source": "Hsk 20", "display": "HSK\u00b3"},
+                {"label": "JLPT:N5", "source": "JLPT", "display": "JLPT"},
+            ]
+        }
+
+        levels = renderer._levels_data(entry)
+
+        assert levels == [
+            {"label": "HSK\u00b3:1", "source": "Hsk 30, Hsk 20"},
+            {"label": "JLPT:N5", "source": "JLPT"},
+        ]
+
+    def test_duplicate_source_is_not_repeated(self):
+        from anki_dictionary.core.search.renderer import ResultRenderer
+
+        entry = {
+            "levelLabelsData": [
+                {"label": "HSK\u00b3:1", "source": "HSK 3.0"},
+                {"label": "HSK\u00b3:1", "source": "HSK 3.0"},
+            ]
+        }
+
+        assert ResultRenderer("", "")._levels_data(entry) == [
+            {"label": "HSK\u00b3:1", "source": "HSK 3.0"}
+        ]
+
+    def test_empty_labels_are_dropped(self):
+        from anki_dictionary.core.search.renderer import ResultRenderer
+
+        entry = {
+            "levelLabelsData": [
+                {"label": "", "source": "broken"},
+                {"label": "HSK\u00b3:2"},
+            ]
+        }
+
+        assert ResultRenderer("", "")._levels_data(entry) == [{"label": "HSK\u00b3:2"}]
+
+    def test_legacy_level_label_fallback(self):
+        from anki_dictionary.core.search.renderer import ResultRenderer
+
+        renderer = ResultRenderer("", "")
+        assert renderer._levels_data({"levelLabels": "HSK\u00b3:1"}) == [
+            {"label": "HSK\u00b3:1"}
+        ]
+        assert renderer._levels_data({}) is None
