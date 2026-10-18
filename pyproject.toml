@@ -63,7 +63,7 @@ quote-style = "double"
 [tool.ty]
 
 [tool.ty.analysis]
-allowed-unresolved-imports = ["PyQt6.*", "anki.*", "aqt.*"]
+allowed-unresolved-imports = ["PyQt6.*", "anki.*", "aqt.*", "curl_cffi.*"]
 
 [tool.ty.environment]
 python-version = "3.13"

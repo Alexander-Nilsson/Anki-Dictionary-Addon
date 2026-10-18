@@ -300,7 +300,7 @@ class SettingsBridge(AnkiWebView):
 
         try:
             from curl_cffi import (
-                requests as _curl_requests,  # noqa: F401  # ty:ignore[unresolved-import]
+                requests as _curl_requests,  # noqa: F401
             )
 
             status["curl_cffi"] = True
