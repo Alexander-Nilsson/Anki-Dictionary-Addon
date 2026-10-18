@@ -264,7 +264,7 @@ def openDictionarySettings(tab: str | None = None):
 
 def initGlobalHotkeys():
     """Initialize the global hotkey listener (idempotent)."""
-    if getattr(mw, "hkThread", None) is not None:  # ty:ignore[unresolved-attribute]
+    if getattr(mw, "hkThread", None) is not None:
         return
     mw.hkThread = ClipThread(mw, addon_path)  # ty:ignore[unresolved-attribute]
     mw.hkThread.search.connect(trySearch)  # ty:ignore[unresolved-attribute]
