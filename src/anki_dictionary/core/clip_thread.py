@@ -9,7 +9,7 @@ The regular Windows/Linux paths use Anki's own application shortcuts
 
 from typing import Any
 
-from anki.utils import is_lin, is_mac, is_win
+from anki.utils import is_mac
 from aqt.qt import QObject, QTimer, pyqtSignal
 
 from ..utils.logger import get_logger
@@ -40,8 +40,9 @@ class ClipThread(QObject):
                     log.warning("Quartz not available on this system")
                     self.kCGKeyboardEventKeycode = None
                     self.CGEventGetIntegerValueField = None
-            elif is_lin:
-                pass
+            else:
+                self.kCGKeyboardEventKeycode = None
+                self.CGEventGetIntegerValueField = None
 
             try:
                 from pynput import keyboard
@@ -114,29 +115,23 @@ class ClipThread(QObject):
         # when the global key listener cannot start.
         self._clip_timer.start()
 
+        # The global key listener only serves the macOS Cmd+C intercept. It
+        # must never run on Windows/Linux: pynput's win32 ``suppress=True``
+        # swallows every key event system-wide (#66), and no feature on
+        # either platform reads the key log the listener feeds.
+        if not is_mac:
+            return
+
         if not self.keyboard:
             log.warning("Keyboard monitoring not available - skipping hotkey setup")
             return
 
         try:
-            if is_win:
-                self.listener = self.keyboard.Listener(
-                    on_press=self.on_press,
-                    on_release=self.on_release,
-                    dict=self.mw,
-                    suppress=True,
-                )
-            elif is_mac:
-                self.listener = self.keyboard.Listener(
-                    on_press=self.on_press,
-                    on_release=self.on_release,
-                    dict=self.mw,
-                    darwin_intercept=self.darwinIntercept,
-                )
-            else:
-                self.listener = self.keyboard.Listener(
-                    on_press=self.on_press, on_release=self.on_release
-                )
+            self.listener = self.keyboard.Listener(
+                on_press=self.on_press,
+                on_release=self.on_release,
+                darwin_intercept=self.darwinIntercept,
+            )
             self.listener.start()
         except Exception as e:
             log.warning(f"Could not start keyboard listener: {e}")
