@@ -21,6 +21,8 @@ from .word_list_registry import WordListRegistry
 # Initialize logger
 logger = get_logger("database")
 
+_SQLITE_BUSY_TIMEOUT_SECONDS = 30.0
+
 
 class DictDB:
     """Database interface for dictionary management."""
@@ -61,7 +63,11 @@ class DictDB:
 
         self.db_file = db_file
         try:
-            self.conn = sqlite3.connect(db_file, check_same_thread=False)
+            self.conn = sqlite3.connect(
+                db_file,
+                timeout=_SQLITE_BUSY_TIMEOUT_SECONDS,
+                check_same_thread=False,
+            )
             self.c = self.conn.cursor()
             self.c.execute("PRAGMA foreign_keys = ON")
             self.c.execute("PRAGMA case_sensitive_like=ON;")
@@ -129,7 +135,10 @@ class DictDB:
         if cursor.fetchone():
             return True
         try:
-            conn = sqlite3.connect(self.db_file, timeout=10)
+            conn = sqlite3.connect(
+                self.db_file,
+                timeout=_SQLITE_BUSY_TIMEOUT_SECONDS,
+            )
             try:
                 self._create_frequency_index(conn.cursor(), table_name, column)
                 conn.commit()

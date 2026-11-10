@@ -424,10 +424,17 @@ class SearchQueryBuilder:
     ) -> tuple[list[dict[str, Any]], Any, Any]:
         dup_result = self._db.getDuplicateSetting(rN)
         duplicate_header, term_header = dup_result if dup_result else (None, None)
+        # Mirror the interactive search's case handling (search(): term,
+        # lower, capitalize): SQLite `=` is case-sensitive, so without the
+        # variants a field holding "china" never matches a "China" entry.
+        terms = [term]
+        if term.lower() not in terms:
+            terms.append(term.lower())
+        if term.capitalize() not in terms:
+            terms.append(term.capitalize())
         results: list[dict[str, Any]] = []
         for col in ("term", "altterm", "pronunciation"):
-            terms = [term]
-            to_query = f" {col} = ? "
+            to_query = self.get_query_criteria(col, terms, "=")
             all_rows = self.execute_search(dN, to_query, limit, tuple(terms))
             if all_rows:
                 results = [self.result_to_dict(r) for r in all_rows]

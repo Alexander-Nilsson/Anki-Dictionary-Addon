@@ -129,6 +129,7 @@ export const DEFAULT_DICTIONARY_SERVER =
 export interface WebInstallState {
   running: boolean;
   percent: number;
+  status?: string;
   log?: string[];
   completed?: boolean;
   failed?: number;
@@ -313,6 +314,7 @@ export function wireSettingsReplies(): void {
   replies.setWebInstall = (data: unknown) => {
     const d = (data ?? {}) as {
       percent?: number;
+      status?: string;
       running?: boolean;
       log?: string[];
       completed?: boolean;
@@ -322,6 +324,7 @@ export function wireSettingsReplies(): void {
     };
     const current = settings.webInstall;
     settings.webInstall = {
+      status: typeof d.status === "string" ? d.status : current.status,
       running: !!d.running,
       percent: typeof d.percent === "number" ? d.percent : current.percent,
       log: Array.isArray(d.log) ? d.log : current.log,

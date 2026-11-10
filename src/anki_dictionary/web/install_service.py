@@ -16,11 +16,11 @@ from __future__ import annotations
 import io
 import json
 import os
+import time
 import zipfile
 from collections.abc import Callable
 from typing import Any
 
-import aqt
 from anki.httpclient import HttpClient
 from aqt.qt import QThread, pyqtSignal
 
@@ -103,11 +103,73 @@ def extract_zipped_json(data: bytes, log: Callable[[str], None]) -> bytes:
         return data
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
-            json_files = [n for n in z.namelist() if n.endswith(".json")]
-            if json_files:
-                return z.read(json_files[0])
+            names = [
+                n
+                for n in z.namelist()
+                if n.endswith(".json")
+                and "__MACOSX" not in n.split("/")
+                and not n.rsplit("/", 1)[-1].startswith("._")
+            ]
+            banks = [
+                n for n in names if n.rsplit("/", 1)[-1].startswith("term_meta_bank_")
+            ]
+            if banks:
+                ranks: dict[str, float] = {}
+                metadata = next(
+                    (n for n in names if n.rsplit("/", 1)[-1] == "index.json"), None
+                )
+                header = (
+                    json.loads(z.read(metadata).decode("utf-8-sig")) if metadata else {}
+                )
+                occurrence = header.get("frequencyMode") == "occurrence-based"
+                for name in banks:
+                    for row in json.loads(z.read(name).decode("utf-8-sig")):
+                        if (
+                            not isinstance(row, list)
+                            or len(row) < 3
+                            or row[1] != "freq"
+                        ):
+                            continue
+                        value = row[2]
+                        if isinstance(value, dict):
+                            value = value.get("frequency", value.get("value"))
+                        if isinstance(value, dict):
+                            value = value.get("value")
+                        try:
+                            value = float(str(value).replace(",", ""))
+                        except (ValueError, TypeError):
+                            continue
+                        term = str(row[0])
+                        if term not in ranks or (
+                            value > ranks[term] if occurrence else value < ranks[term]
+                        ):
+                            ranks[term] = value
+                if not ranks:
+                    raise ValueError("frequency banks contain no usable word data")
+                if occurrence:
+                    ranks = {
+                        term: rank
+                        for rank, term in enumerate(
+                            sorted(ranks, key=lambda term: ranks[term], reverse=True), 1
+                        )
+                    }
+                log(f" Read {len(ranks):,} words from {len(banks)} frequency banks.")
+                return json.dumps({"index": ranks}, ensure_ascii=False).encode("utf-8")
+            # Ignore the archive header; combine every data bank.
+            files = [n for n in names if n.rsplit("/", 1)[-1] != "index.json"]
+            if len(files) == 1:
+                return z.read(files[0])
+            if files:
+                merged = []
+                for name in files:
+                    rows = json.loads(z.read(name).decode("utf-8-sig"))
+                    if not isinstance(rows, list):
+                        raise ValueError("multiple word-list files must contain lists")
+                    merged.extend(rows)
+                return json.dumps(merged, ensure_ascii=False).encode("utf-8")
+            raise ValueError("archive contains no word-data files")
     except Exception as e:
-        log(f" ERROR: Failed to unzip: {str(e)}")
+        log(f" ERROR: Failed to unzip word data: {e}")
     return data
 
 
@@ -136,6 +198,7 @@ class WebInstallWorker(QThread):
 
     log_line = pyqtSignal(str)
     progress = pyqtSignal(int)
+    status = pyqtSignal(str)
     done = pyqtSignal(bool)  # True when nothing was cancelled
 
     def __init__(self, selection: dict[str, Any]) -> None:
@@ -145,6 +208,32 @@ class WebInstallWorker(QThread):
         self.installed = 0
         self.skipped = 0
         self.failed = 0
+        self._db: Any = None
+        self._total_items = 1
+        self._completed_items = 0
+        self._last_percent = -1
+        self._last_update = 0.0
+        self._item_name = ""
+
+    def _log(self, line: str) -> None:
+        logger.info("%s", line)
+        self.log_line.emit(line)
+
+    def _update_progress(self, fraction: float, message: str) -> None:
+        percent = min(
+            99,
+            int(100 * (self._completed_items + fraction) / max(self._total_items, 1)),
+        )
+        if percent > self._last_percent:
+            self._last_percent = percent
+            self.progress.emit(percent)
+        self.status.emit(message)
+
+    def _finish_item(self) -> None:
+        self._completed_items += 1
+        self._update_progress(
+            0, f"Processed {self._completed_items} of {self._total_items} items"
+        )
 
     # ── helpers ────────────────────────────────────────────
 
@@ -156,7 +245,7 @@ class WebInstallWorker(QThread):
     def construct_url(self, url: str) -> str:
         if url.startswith("http"):
             return url
-        return self._server_root() + url
+        return self._server_root() + "/" + url.lstrip("/")
 
     def fetch_data(self, client: HttpClient, url: str):
         """Fetch data from URL with standard quoting."""
@@ -164,34 +253,80 @@ class WebInstallWorker(QThread):
 
         parts = url.split("://")
         if len(parts) > 1:
-            quoted_url = parts[0] + "://" + urllib.parse.quote(parts[1], safe="/")
+            quoted_url = (
+                parts[0] + "://" + urllib.parse.quote(parts[1], safe="/%:@?=&+")
+            )
         else:
-            quoted_url = urllib.parse.quote(url, safe="/")
+            quoted_url = urllib.parse.quote(url, safe="/%:@?=&+")
 
         with prefer_ipv4():
             return client.session.get(quoted_url, timeout=60, stream=True)  # ty:ignore[unresolved-attribute]
 
     def _download(self, client: HttpClient, url: str, name: str) -> bytes | None:
-        self.log_line.emit(f" Downloading {url}...")
-        try:
-            resp = self.fetch_data(client, url)
-        except Exception as e:
-            self.log_line.emit(f" ERROR: Download failed ({e}).")
-            return None
-        if resp.status_code != 200:
-            self.log_line.emit(f" ERROR: Download failed ({resp.status_code}).")
-            return None
-        chunks = []
-        for chunk in resp.iter_content(chunk_size=16384):
+        self._item_name = name
+        self._log(f" Downloading {url}...")
+        # Retry transient HTTP/stream errors, closing every response.
+        for attempt in range(3):
             if self.cancel_requested:
                 return None
-            if chunk:
-                chunks.append(chunk)
-        data = b"".join(chunks)
-        if not data:
-            self.log_line.emit(f" ERROR: {name} downloaded an empty file. Skipping.")
-            return None
-        return data
+            resp = None
+            received = 0
+            try:
+                self._update_progress(0, f"Downloading {name} — connecting…")
+                resp = self.fetch_data(client, url)
+                if resp.status_code != 200:
+                    message = f"HTTP {resp.status_code} for {name}: {url}"
+                    if resp.status_code not in (408, 429, 500, 502, 503, 504):
+                        self._log(f" ERROR: {message}")
+                        return None
+                    raise OSError(message)
+                try:
+                    total = int(resp.headers.get("Content-Length", 0))
+                except (ValueError, TypeError):
+                    total = 0
+                chunks = []
+                for chunk in resp.iter_content(chunk_size=65536):
+                    if self.cancel_requested:
+                        return None
+                    if not chunk:
+                        continue
+                    chunks.append(chunk)
+                    received += len(chunk)
+                    now = time.monotonic()
+                    if now - self._last_update >= 0.2:
+                        self._last_update = now
+                        size = f"{received / 1048576:.1f} MB"
+                        if total:
+                            size += f" / {total / 1048576:.1f} MB"
+                        self._update_progress(
+                            0.65 * min(received / total, 1) if total else 0,
+                            f"Downloading {name} — {size}",
+                        )
+                data = b"".join(chunks)
+                if not data:
+                    raise OSError("server returned an empty file")
+                if data.startswith(b"version https://git-lfs"):
+                    self._log(
+                        f" ERROR: {name} is a Git LFS pointer instead of file contents: {url}"
+                    )
+                    return None
+                self._update_progress(
+                    0.65, f"Downloaded {name} — {received / 1048576:.1f} MB"
+                )
+                return data
+            except Exception as exc:
+                if attempt == 2:
+                    self._log(
+                        f" ERROR: Download failed for {name} after 3 attempts ({exc}): {url}"
+                    )
+                else:
+                    self._log(
+                        f" Retrying {name} after interrupted download ({exc}); attempt {attempt + 2}/3."
+                    )
+            finally:
+                if resp is not None:
+                    resp.close()
+        return None
 
     # ── installers ─────────────────────────────────────────
 
@@ -205,19 +340,22 @@ class WebInstallWorker(QThread):
             if self.cancel_requested:
                 return
             wl_name = str(wl_info.get("name") or "word list")
+            self._update_progress(0, f"Preparing {wl_name}")
             type_label = "frequency list" if wl_type == "frequency" else "word list"
-            self.log_line.emit(f"Installing {lang} {wl_name} ({type_label})...")
+            self._log(f"Installing {lang} {wl_name} ({type_label})...")
             data = self._download(
                 client, self.construct_url(str(wl_info.get("url", ""))), wl_name
             )
             if data is None:
                 if not self.cancel_requested:
                     self.failed += 1
+                self._finish_item()
                 continue
-            data = extract_zipped_json(data, self.log_line.emit)
-            validated = sanitize_json_bytes(data, wl_name, self.log_line.emit)
+            data = extract_zipped_json(data, self._log)
+            validated = sanitize_json_bytes(data, wl_name, self._log)
             if validated is None:
                 self.failed += 1
+                self._finish_item()
                 continue
             slug = "".join(
                 c for c in wl_name.lower().replace(" ", "_") if c.isalnum() or c == "_"
@@ -227,28 +365,32 @@ class WebInstallWorker(QThread):
             with open(os.path.join(wl_dir, filename), "wb") as f:
                 f.write(validated)
             self.installed += 1
-            self.log_line.emit(f" Installed as {filename}")
+            self._log(f" Installed as {filename}")
+            self._finish_item()
 
     def _install_conjugation(
         self, client: HttpClient, lang: str, conj: dict[str, Any]
     ) -> None:
         conj_dir = get_conjugation_dir()
         os.makedirs(conj_dir, exist_ok=True)
-        self.log_line.emit(f"Installing {lang} conjugation data...")
+        self._log(f"Installing {lang} conjugation data...")
         conj_url = str(conj.get("url") or conj.get("conjugation_url") or "").strip()
         if not conj_url:
             self.failed += 1
-            self.log_line.emit(" ERROR: Conjugation data has no URL.")
+            self._log(" ERROR: Conjugation data has no URL.")
+            self._finish_item()
             return
         data = self._download(client, self.construct_url(conj_url), "conjugation")
         if data is None:
             if not self.cancel_requested:
                 self.failed += 1
+            self._finish_item()
             return
         dst_path = os.path.join(conj_dir, f"{lang}.json")
         with open(dst_path, "wb") as f:
             f.write(data)
         self.installed += 1
+        self._finish_item()
 
     def _install_dictionaries(
         self,
@@ -259,40 +401,60 @@ class WebInstallWorker(QThread):
     ) -> None:
         from ..ui.dialogs.dict_import import importDict
 
-        done = 0
         for d in dictionaries:
             if self.cancel_requested:
                 return
             dname = str(d.get("name") or "dictionary")
-            if aqt.mw.miDictDB.dictExists(dname, lang):  # ty:ignore[unresolved-attribute]
-                self.log_line.emit(f"Skipping {dname} (already installed).")
+            exists = self._db.dictExists(dname, lang)
+            if exists:
+                table = self._db.formatDictName(
+                    self._db.getLangId(lang), self._db.normalize_dict_name(dname)
+                )
+                quoted = self._db._quote_identifier(table)
+                # A crashed import can leave its metadata and an empty table.
+                exists = (
+                    self._db._get_connection()
+                    .execute(f"SELECT 1 FROM {quoted} LIMIT 1")
+                    .fetchone()
+                    is not None
+                )
+            if exists:
+                self._log(f"Skipping {dname} (already installed).")
                 self.skipped += 1
-                done += 1
-                self.progress.emit(round(done * 100 / max(total, 1)))
+                self._finish_item()
                 continue
 
-            self.log_line.emit(f"Installing {dname}...")
+            self._log(f"Installing {dname}...")
             data = self._download(
                 client, self.construct_url(str(d.get("url", ""))), dname
             )
             if data is None:
                 if not self.cancel_requested:
                     self.failed += 1
-                done += 1
-                self.progress.emit(round(done * 100 / max(total, 1)))
+                self._finish_item()
                 continue
 
-            self.log_line.emit(" Importing...")
+            self._log(" Importing...")
             try:
-                importDict(lang, io.BytesIO(data), dname, overwrite=True)
+                importDict(
+                    lang,
+                    io.BytesIO(data),
+                    dname,
+                    overwrite=True,
+                    db=self._db,
+                    progress=lambda fraction, message, name=dname: (
+                        self._update_progress(
+                            0.65 + 0.35 * fraction, f"Importing {name} — {message}"
+                        )
+                    ),
+                )
                 self.installed += 1
-                self.log_line.emit(f" Installed {dname}.")
+                self._log(f" Installed {dname}.")
             except Exception as e:  # noqa: BLE001 - report and continue
                 self.failed += 1
                 logger.exception("Dictionary import failed: %s", dname)
-                self.log_line.emit(f" ERROR: {str(e)}")
-            done += 1
-            self.progress.emit(round(done * 100 / max(total, 1)))
+                self._log(f" ERROR: {str(e)}")
+            self._finish_item()
 
     # ── thread body ────────────────────────────────────────
 
@@ -310,10 +472,28 @@ class WebInstallWorker(QThread):
         total_dicts = sum(
             len(l.get("dictionaries") or []) for l in languages if install_dicts
         )
-        self.log_line.emit(f"Installing {total_dicts} dictionaries...")
+        self._total_items = total_dicts + sum(
+            (
+                len(l.get("frequency_lists") or []) + len(l.get("word_lists") or [])
+                if install_wl
+                else 0
+            )
+            + (1 if install_conj and l.get("conjugation_url") else 0)
+            for l in languages
+        )
+        self._log(
+            f"Installing {total_dicts} dictionaries and {self._total_items - total_dicts} data files..."
+        )
+        self._update_progress(0, f"Preparing {self._total_items} items")
 
         client = HttpClient()
         try:
+            if install_dicts:
+                from ..core.database import DictDB
+
+                # SQLite connections and cursors must belong to this worker,
+                # never to the UI that can query while an import is running.
+                self._db = DictDB()
             for l in languages:
                 if self.cancel_requested:
                     self.done.emit(False)
@@ -338,14 +518,20 @@ class WebInstallWorker(QThread):
                         self._install_dictionaries(client, lang, dicts, total_dicts)
         except Exception as e:  # noqa: BLE001 - surface any crash as a log line
             logger.exception("Web install failed")
-            self.log_line.emit(f" ERROR: {e}")
+            self.failed += 1
+            self._log(f" ERROR: {e}")
+        finally:
+            if self._db is not None:
+                self._db.closeConnection()
+                self._db = None
 
         if self.cancel_requested:
-            self.log_line.emit("Cancelled.")
+            self._log("Cancelled.")
             self.done.emit(False)
             return
         self.progress.emit(100)
-        self.log_line.emit(
+        self.status.emit("Installation finished")
+        self._log(
             f"Finished: {self.installed} installed, {self.skipped} skipped, "
             f"{self.failed} failed."
         )

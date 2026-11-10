@@ -6,6 +6,7 @@ import json
 import os
 import re
 import zipfile
+from collections.abc import Callable
 from types import ModuleType
 from typing import Any, BinaryIO
 
@@ -52,10 +53,13 @@ def importDict(
     dict_name: str,
     parent: QWidget | None = None,
     overwrite: bool = False,
+    db: Any = None,
+    progress: Callable[[float, str], None] | None = None,
 ) -> None:
-    db = aqt.mw.miDictDB  # ty:ignore[unresolved-attribute]
+    if db is None:
+        db = aqt.mw.miDictDB  # ty:ignore[unresolved-attribute]
 
-    if parent is None:
+    if parent is None and not overwrite:
         parent = aqt.mw.app.activeWindow() or aqt.mw
 
     # Migaku dictionaries are single JSON files; wrap one in an in-memory
@@ -77,12 +81,19 @@ def importDict(
     except zipfile.BadZipFile as e:
         raise ValueError("Dictionary archive is invalid.") from e
 
-    has_term_bank = any(fn.startswith("term_bank_") for fn in zfile.namelist())
-    has_index = any(fn == "index.json" for fn in zfile.namelist())
+    names = [
+        n
+        for n in zfile.namelist()
+        if "__MACOSX" not in n.split("/") and not n.rsplit("/", 1)[-1].startswith("._")
+    ]
+    has_term_bank = any(
+        n.rsplit("/", 1)[-1].startswith(("term_bank_", "kanji_bank_")) for n in names
+    )
+    has_index = any(fn.rsplit("/", 1)[-1] == "index.json" for fn in names)
 
     is_pitch_dict = False
     if has_index:
-        for fn in zfile.namelist():
+        for fn in names:
             if fn.endswith(".json") and (
                 "pitch" in fn.lower() or "accent" in fn.lower()
             ):
@@ -135,12 +146,12 @@ def importDict(
         )
 
     dict_files = []
-    for fn in zfile.namelist():
-        if not fn.endswith(".json") or fn == "index.json":
+    for fn in names:
+        if not fn.endswith(".json") or fn.rsplit("/", 1)[-1] == "index.json":
             continue
         if is_yomichan:
             if not (
-                fn.startswith("term_bank_")
+                fn.rsplit("/", 1)[-1].startswith(("term_bank_", "kanji_bank_"))
                 or "pitch" in fn.lower()
                 or "accent" in fn.lower()
             ):
@@ -148,7 +159,25 @@ def importDict(
         dict_files.append(fn)
     dict_files = natural_sort(dict_files)
 
-    loadDict(zfile, dict_files, lang_name, final_name, not is_yomichan)
+    try:
+        if not dict_files:
+            raise ValueError("Dictionary archive contains no supported entry banks.")
+        loadDict(
+            zfile,
+            dict_files,
+            lang_name,
+            final_name,
+            not is_yomichan,
+            db=db,
+            progress=progress,
+        )
+    except Exception:
+        # Do not leave a partially imported dictionary marked as installed.
+        db._get_connection().rollback()
+        db.deleteDict(final_name)
+        raise
+    finally:
+        zfile.close()
     return final_name
 
 
@@ -164,26 +193,66 @@ def loadDict(
     lang: str,
     dictName: str,
     miDict: bool = False,
+    db: Any = None,
+    progress: Callable[[float, str], None] | None = None,
 ) -> None:
-    tableName = "l" + str(aqt.mw.miDictDB.getLangId(lang)) + "name" + dictName  # ty:ignore[unresolved-attribute]
-    jsonDict = []
-    for filename in filenames:
-        with zfile.open(filename, "r") as jsonDictFile:
-            jsonDict += _loads_dictionary_json(jsonDictFile.read())
-    for count, entry in enumerate(jsonDict):
-        if (
-            isinstance(entry, list)
-            and len(entry) >= 3
-            and isinstance(entry[2], dict)
-            and "pitches" in entry[2]
-        ):
-            handlePitchDictEntry(jsonDict, count, entry)
-        elif miDict:
-            handleMiDictEntry(jsonDict, count, entry)
-        else:
-            handleYomiDictEntry(jsonDict, count, entry)
-    aqt.mw.miDictDB.importToDict(tableName, jsonDict)  # ty:ignore[unresolved-attribute]
-    aqt.mw.miDictDB.commitChanges()  # ty:ignore[unresolved-attribute]
+    if db is None:
+        db = aqt.mw.miDictDB  # ty:ignore[unresolved-attribute]
+    tableName = "l" + str(db.getLangId(lang)) + "name" + dictName
+    total_bytes = max(1, sum(zfile.getinfo(name).file_size for name in filenames))
+    processed_bytes = 0
+    for file_index, filename in enumerate(filenames):
+        size = zfile.getinfo(filename).file_size
+        if progress:
+            progress(
+                processed_bytes / total_bytes,
+                f"reading bank {file_index + 1}/{len(filenames)}",
+            )
+        try:
+            rows = _loads_dictionary_json(zfile.read(filename))
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError(f"Invalid dictionary JSON in {filename}: {exc}") from exc
+        if not isinstance(rows, list):
+            raise ValueError(f"Dictionary bank {filename} must contain an entry list")
+        is_kanji = filename.rsplit("/", 1)[-1].startswith("kanji_bank_")
+        for start in range(0, len(rows), 2000):
+            batch = rows[start : start + 2000]
+            for count, entry in enumerate(batch):
+                if is_kanji:
+                    if not isinstance(entry, list) or len(entry) < 5:
+                        raise ValueError(f"Invalid character entry in {filename}")
+                    # Yomitan character banks store meanings in field 4.
+                    reading = " ".join(str(v) for v in entry[1:3] if v)
+                    handleYomiDictEntry(
+                        batch, count, [entry[0], reading, entry[3], "", 0, entry[4]]
+                    )
+                elif (
+                    isinstance(entry, list)
+                    and len(entry) >= 3
+                    and isinstance(entry[2], dict)
+                    and "pitches" in entry[2]
+                ):
+                    handlePitchDictEntry(batch, count, entry)
+                elif miDict:
+                    handleMiDictEntry(batch, count, entry)
+                else:
+                    handleYomiDictEntry(batch, count, entry)
+            db.importToDict(tableName, batch)
+            if progress:
+                end = min(start + len(batch), len(rows))
+                fraction = (
+                    processed_bytes + size * end / max(1, len(rows))
+                ) / total_bytes
+                progress(
+                    fraction,
+                    f"bank {file_index + 1}/{len(filenames)}, {end:,}/{len(rows):,} entries",
+                )
+        processed_bytes += size
+    if progress:
+        progress(1, "committing dictionary")
+    db.commitChanges()
+    if progress:
+        progress(1, "dictionary saved")
 
 
 def getAdjustedTerm(term: str) -> str:

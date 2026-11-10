@@ -83,19 +83,14 @@ def install_curl_cffi(vendor_dir):
     browser TLS impersonation on every OS — plain requests gets HTTP 403)."""
     print("📦 Downloading platform-specific curl_cffi (via pip --platform)...")
 
-    # curl_cffi 0.7.4 uses abi3, compatible with all recent Anki/Python versions
+    # curl_cffi uses abi3, but its CFFI dependency needs Anki's Python ABI.
+    # uv resolves --python-platform from Rust target triples (not wheel tags)
+    # and accepts exactly one per invocation.
     platforms = [
-        {
-            "name": "mac_arm64",
-            "platforms": [
-                "macosx_11_0_arm64",
-                "macosx_12_0_arm64",
-                "macosx_13_0_arm64",
-            ],
-        },
-        {"name": "mac_x86_64", "platforms": ["macosx_10_9_x86_64"]},
-        {"name": "linux_x86_64", "platforms": ["manylinux2014_x86_64"]},
-        {"name": "win_amd64", "platforms": ["win_amd64"]},
+        {"name": "mac_arm64", "platform": "aarch64-apple-darwin"},
+        {"name": "mac_x86_64", "platform": "x86_64-apple-darwin"},
+        {"name": "linux_x86_64", "platform": "x86_64-manylinux2014"},
+        {"name": "win_amd64", "platform": "x86_64-pc-windows-msvc"},
     ]
 
     for p in platforms:
@@ -104,19 +99,17 @@ def install_curl_cffi(vendor_dir):
 
         print(f"   Installing curl_cffi for {p['name']}...")
         try:
-            # Use cp38-abi3 as baseline to get universal wheel
-            # We add multiple platforms to ensure cffi and other deps are found
-            platform_args = []
-            for plat in p["platforms"]:
-                platform_args += ["--platform", plat]
-
+            # Resolve native dependencies for Anki's Python, not the build host.
             run_pip_command(
                 [
                     "install",
                     "curl_cffi==0.7.4",
                     "-t",
                     str(dest),
-                    *platform_args,
+                    "--platform",
+                    p["platform"],
+                    "--python-version",
+                    "3.13",
                     "--only-binary=:all:",
                     "--no-compile",
                 ]
@@ -124,7 +117,7 @@ def install_curl_cffi(vendor_dir):
 
             print(f"   ✓ curl_cffi for {p['name']} completed")
         except Exception as e:
-            print(f"   ⚠️ Could not install curl_cffi for {p['name']}: {e}")
+            raise RuntimeError(f"Could not bundle curl_cffi for {p['name']}") from e
 
 
 def install_macos_curl_cffi(vendor_dir):
@@ -255,24 +248,26 @@ def build_web_ui(addon_dir: Path):
     (results shell), ``web/dist/settings.html`` (settings window) and
     ``web/dist/exporter.html`` (card exporter). They are
     copied to ``assets/web/`` inside the addon package so the Python side can
-    find them at runtime. Skips (with a warning) when Node.js / npm are
-    unavailable or the web build fails.
+    find them at runtime. All three pages are required; failures stop the build.
     """
     print("🌐 Building Svelte web UI...")
 
     web_dir = Path("web")
     if not web_dir.exists():
-        print("   ⚠️  No web/ directory found - skipping Svelte build")
-        return False
+        raise RuntimeError(
+            "web/ directory is required to build the settings and exporter screens"
+        )
 
-    if shutil.which("npm") is None:
-        print("   ⚠️  npm not found - skipping Svelte build (legacy UI will be used)")
-        return False
+    npm = shutil.which("npm")
+    if npm is None:
+        raise RuntimeError(
+            "npm is required to build the dictionary, settings and exporter screens"
+        )
 
     try:
-        subprocess.run(["npm", "ci"], cwd=str(web_dir), check=True, capture_output=True)
+        subprocess.run([npm, "ci"], cwd=str(web_dir), check=True, capture_output=True)
         subprocess.run(
-            ["npm", "run", "build"], cwd=str(web_dir), check=True, capture_output=True
+            [npm, "run", "build"], cwd=str(web_dir), check=True, capture_output=True
         )
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Web UI build failed: {e}")
@@ -280,7 +275,7 @@ def build_web_ui(addon_dir: Path):
             print(f"      stdout: {e.stdout.decode(errors='replace')[:2000]}")
         if e.stderr:
             print(f"      stderr: {e.stderr.decode(errors='replace')[:2000]}")
-        return False
+        raise RuntimeError("Required web UI build failed") from e
 
     target_dir = addon_dir / "assets" / "web"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -294,8 +289,7 @@ def build_web_ui(addon_dir: Path):
     for src_name, dst_name in pages.items():
         bundled = web_dir / "dist" / src_name
         if not bundled.exists():
-            print(f"   ⚠️  Bundled {src_name} not found after build - skipping")
-            continue
+            raise RuntimeError(f"Required web UI page missing after build: {bundled}")
         shutil.copy2(bundled, target_dir / dst_name)
         print(f"   ✓ Copied Svelte bundle to {target_dir / dst_name}")
         copied = True
@@ -434,12 +428,41 @@ def build_addon():
     except subprocess.CalledProcessError as e:
         print(f"   ❌ Error creating themes.json: {e}")
 
-    print(f"✅ Addon built in: {addon_dir}")
-
     # Build and bundle the Svelte UI last (it only needs assets/ + src/ present).
     build_web_ui(addon_dir)
+    validate_build(addon_dir)
+    print(f"✅ Addon built in: {addon_dir}")
 
     return addon_dir
+
+
+def validate_build(addon_dir: Path) -> None:
+    """Reject incomplete packages even when packaging an existing build."""
+    missing = []
+    for page in ("dictionary.html", "settings.html", "exporter.html"):
+        path = addon_dir / "assets" / "web" / page
+        if not path.is_file() or not path.stat().st_size:
+            missing.append(str(path))
+    for platform in ("win_amd64", "mac_arm64", "mac_x86_64", "linux_x86_64"):
+        vendor = addon_dir / "vendor" / platform
+        for package in ("curl_cffi", "cffi", "certifi"):
+            if not (vendor / package / "__init__.py").is_file():
+                missing.append(str(vendor / package))
+        if not any((vendor / "curl_cffi").glob("_wrapper*.pyd")) and not any(
+            (vendor / "curl_cffi").glob("_wrapper*.so")
+        ):
+            missing.append(str(vendor / "curl_cffi" / "_wrapper native module"))
+        if platform == "win_amd64" and not any(
+            (vendor / "curl_cffi.libs").glob("*.dll")
+        ):
+            missing.append(str(vendor / "curl_cffi.libs"))
+        suffix = "*.pyd" if platform == "win_amd64" else "*.so"
+        if not any(vendor.glob("_cffi_backend" + suffix)):
+            missing.append(str(vendor / "_cffi_backend native module"))
+    if missing:
+        raise RuntimeError(
+            "Build is incomplete; missing required files: " + ", ".join(missing)
+        )
 
 
 def create_ankiaddon_package():
@@ -453,6 +476,7 @@ def create_ankiaddon_package():
         print("❌ Build directory not found. Run build first.")
         return None
 
+    validate_build(addon_dir)
     version = get_version()
     package_name = f"anki_dictionary_addon_v{version}.ankiaddon"
     package_path = build_dir / package_name

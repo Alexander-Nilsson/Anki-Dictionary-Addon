@@ -176,6 +176,27 @@ class TestFetchUrlCurlFallback(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def test_fallback_does_not_advertise_brotli(self):
+        with patch("subprocess.run", return_value=_curl("<html>ok</html>\n200")) as run:
+            _fetch_url("https://forvo.com/word/cat")
+
+        command = run.call_args.args[0]
+        self.assertIn("Accept-Encoding: gzip, deflate", command)
+        self.assertNotIn("Accept-Encoding: gzip, deflate, br", command)
+
+    def test_windows_curl_does_not_open_a_console_window(self):
+        with (
+            patch("anki_dictionary.integrations.forvo.sys.platform", "win32"),
+            patch(
+                "subprocess.run",
+                return_value=_curl("<html>ok</html>\n200"),
+            ) as run,
+        ):
+            _fetch_url("https://forvo.com/word/cat")
+
+        expected_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        self.assertEqual(run.call_args.kwargs["creationflags"], expected_flags)
+
     def test_returns_the_real_http_status_and_body(self):
         with patch("subprocess.run", return_value=_curl("<html>hi</html>\n200")):
             status, html = _fetch_url("https://forvo.com/word/cat")

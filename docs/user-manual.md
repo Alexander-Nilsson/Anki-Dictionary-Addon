@@ -397,6 +397,10 @@ Search Forvo for audio pronunciations and send them to your cards.
 
 Configure the Forvo language in [Forvo Settings](#forvo-settings).
 
+On Windows, the request runs in the background without opening a terminal window. If an
+older running Anki session still reports a curl encoding error after updating, restart
+Anki so it reloads the add-on.
+
 ---
 
 ## LLM (AI) Definitions
