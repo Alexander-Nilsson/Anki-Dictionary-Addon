@@ -26,6 +26,7 @@ class ClipThread(QObject):
         super().__init__(mw)
         self.mw = mw
         self.addonPath = path
+        self.keyboard = None
         try:
             if is_mac:
                 try:
@@ -40,21 +41,18 @@ class ClipThread(QObject):
                     log.warning("Quartz not available on this system")
                     self.kCGKeyboardEventKeycode = None
                     self.CGEventGetIntegerValueField = None
+
+                try:
+                    from pynput import keyboard
+
+                    self.keyboard = keyboard
+                except ImportError:
+                    log.warning("pynput not available - global hotkeys will not work")
             else:
                 self.kCGKeyboardEventKeycode = None
                 self.CGEventGetIntegerValueField = None
-
-            try:
-                from pynput import keyboard
-
-                self.keyboard = keyboard
-            except ImportError:
-                log.warning("pynput not available - global hotkeys will not work")
-                self.keyboard = None
-
         except Exception as e:
             log.warning(f"Error initializing ClipThread: {e}")
-            self.keyboard = None
 
         self._last_clipboard = ""
         self._clip_timer = QTimer(self)

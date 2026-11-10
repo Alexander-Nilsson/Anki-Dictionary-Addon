@@ -49,6 +49,12 @@ class TestDictDB(unittest.TestCase):
         self.config_patcher.stop()
         self.test_dir.cleanup()
 
+    def test_database_configures_a_lock_wait_timeout(self):
+        """Reads should wait for a transient writer instead of failing immediately."""
+        assert self.db.conn is not None
+        busy_timeout = self.db.conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        self.assertGreaterEqual(busy_timeout, 30_000)
+
     def test_add_languages(self):
         langs = ["English", "Japanese", "Chinese"]
         self.db.addLanguages(langs)

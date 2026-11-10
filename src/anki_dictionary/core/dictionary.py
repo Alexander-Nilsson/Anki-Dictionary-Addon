@@ -144,7 +144,14 @@ class MIDict(AnkiWebView):
                 )
 
         def run():
-            page = self.page()
+            try:
+                page = self.page()
+            except RuntimeError as exc:
+                if "has been deleted" in str(exc):
+                    logger.debug("Bridge probe skipped; webview was destroyed")
+                else:
+                    logger.exception("Could not access the JS -> Python bridge")
+                return
             if page is None:
                 return
             try:

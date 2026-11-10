@@ -177,17 +177,35 @@ def _clip() -> clip_thread.ClipThread:
 
 
 class TestIssue66KeyboardNotSuppressed(unittest.TestCase):
+    def test_windows_does_not_require_pynput_for_clipboard_monitor(self):
+        attempted = []
+        real_import = __import__
+
+        def tracking_import(name, *args, **kwargs):
+            if name == "pynput":
+                attempted.append(name)
+                raise ImportError("pynput is not installed in the source checkout")
+            return real_import(name, *args, **kwargs)
+
+        with (
+            _platform("win"),
+            patch("builtins.__import__", side_effect=tracking_import),
+        ):
+            clip_thread.ClipThread(MagicMock(), "/tmp")
+
+        self.assertEqual(attempted, [])
+
     def test_windows_starts_no_global_key_listener(self):
         with _platform("win"):
             thread = _clip()
             thread.run()
-        thread.keyboard.Listener.assert_not_called()
+        self.assertIsNone(thread.keyboard)
 
     def test_linux_starts_no_global_key_listener(self):
         with _platform("lin"):
             thread = _clip()
             thread.run()
-        thread.keyboard.Listener.assert_not_called()
+        self.assertIsNone(thread.keyboard)
 
     def test_macos_listens_but_never_suppresses(self):
         with _platform("mac"):

@@ -34,7 +34,7 @@ CURL_HEADERS = [
     "-H",
     "Accept-Language: en-US,en;q=0.9",
     "-H",
-    "Accept-Encoding: gzip, deflate, br",
+    "Accept-Encoding: gzip, deflate",
     "-H",
     "Referer: https://forvo.com/",
     "-H",
@@ -126,6 +126,16 @@ def _import_curl_requests() -> Any:
 
 def _fetch_with_curl(url: str, timeout: int) -> tuple[int, str, int]:
     """Fetch with the system curl binary. Returns ``(status, html, exit_code)``."""
+    run_kwargs: dict[str, Any] = {
+        "capture_output": True,
+        "text": True,
+        "timeout": timeout + 5,
+    }
+    if sys.platform == "win32":
+        run_kwargs["creationflags"] = getattr(
+            subprocess, "CREATE_NO_WINDOW", 0x08000000
+        )
+
     try:
         result = subprocess.run(
             [
@@ -143,9 +153,7 @@ def _fetch_with_curl(url: str, timeout: int) -> tuple[int, str, int]:
                 *CURL_HEADERS,
                 url,
             ],
-            capture_output=True,
-            text=True,
-            timeout=timeout + 5,
+            **run_kwargs,
         )
     except subprocess.TimeoutExpired:
         logger.debug("Forvo fetch timed out")
