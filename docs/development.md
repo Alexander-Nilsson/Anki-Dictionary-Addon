@@ -42,8 +42,6 @@ npm run check        # svelte-check (types + a11y warnings)
 | `python dev.py clean` | Clean build artifacts |
 | `pytest tests/ -m "not integration and not network" --ignore=tests/test_all_dictionaries.py --ignore=tests/test_dictionary_index.py` | Fast unit tests only |
 | `pytest tests/integration/` | Integration tests (needs anki installed) |
-| `dagger run python -m ci` | Run full CI pipeline locally via Dagger (containerized) |
-| `python dev.py dagger` | Run same pipeline via dev.py wrapper |
 | `cd web && npm run build` | Build the Svelte UI bundle |
 | `cd web && npm run check` | Run svelte-check on the Svelte UI |
 | `uvx pip-audit -r <(uv export --dev --frozen)` | Security audit (Python deps) |
@@ -54,21 +52,29 @@ The CI pipeline (`.github/workflows/ci.yml`) runs on every push/PR to master:
 
 | Job | What it does |
 |---|---|
-| `ci` | Lint (ruff), type check (ty), unit tests, integration tests, security audit (pip-audit), and build on `ubuntu-latest` |
-| `macos-ci` | Lint, type check, and unit tests on `macos-latest` (no manylinux workaround needed) |
-| `release` | Version bump, rebuild, git tag, and GitHub release — only on master push, requires both CI jobs |
+| `lint` | Ruff check, ruff format check, and type check (ty) on `ubuntu-latest` |
+| `web` | `npm ci`, Vite build, and `svelte-check`; the built `web/dist` is shared with the test jobs |
+| `test` | Unit and integration tests on `ubuntu-latest`, `windows-latest` and `macos-latest`; the pytest-anki2 smoke test runs on Linux under Xvfb |
+| `build` | Packages the `.ankiaddon` with `build.py all` and uploads it as an artifact |
+| `release` | Version bump, rebuild, git tag, and GitHub release — triggered by merged PRs (`.github/workflows/release.yml`) |
 | CodeQL | Weekly Python security analysis (`.github/workflows/codeql.yml`) |
 | Dependabot | Weekly PRs for `pip` and `github-actions` dependency bumps (`.github/dependabot.yml`) |
 
-To run the full CI pipeline locally (containerized, reproducible):
+To run the same checks locally:
 
 ```bash
-dagger run python -m ci
+uv sync --frozen
+uv run ruff check . && uv run ruff format --check .
+uv run ty check .
+cd web && npm ci && npm run build && npm run check
+cd ..
+uv run pytest tests/ -m "not integration and not network" \
+  --ignore=tests/test_all_dictionaries.py --ignore=tests/test_dictionary_index.py
+uv run pytest tests/integration/ --ignore=tests/integration/test_smoke_pytest_anki.py
+uv run python build.py all
 ```
 
-Requires [Dagger](https://docs.dagger.io/install) and a Docker daemon. The Dagger pipeline builds an `ubuntu:24.04` container, installs all system deps and uv, then runs lint, type check, tests, and build — matching the GitHub Actions environment exactly.
-
-You can also run via the dev.py wrapper: `python dev.py dagger`.
+`python dev.py ci` runs the lint, type-check and test steps in one command.
 
 ## Code Conventions
 
