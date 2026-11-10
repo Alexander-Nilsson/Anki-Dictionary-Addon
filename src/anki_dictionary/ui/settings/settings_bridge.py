@@ -669,17 +669,30 @@ class SettingsBridge(AnkiWebView):
         self._web_install_log = []
         worker = WebInstallWorker(selection)
         worker.log_line.connect(self._on_install_log)
-        worker.progress.connect(
-            lambda pct: self._push("setWebInstall", {"percent": pct, "running": True})
-        )
+        worker.progress.connect(self._on_install_progress)
+        worker.status.connect(self._on_install_status)
         worker.done.connect(self._on_install_done)
         self._install_worker = worker
-        self._push("setWebInstall", {"percent": 0, "running": True, "log": []})
+        self._push(
+            "setWebInstall",
+            {
+                "percent": 0,
+                "running": True,
+                "log": [],
+                "status": "Preparing installation…",
+            },
+        )
         worker.start()
 
     def _cancel_web_install(self) -> None:
         if self._install_worker is not None and self._install_worker.isRunning():
             self._install_worker.cancel_requested = True
+
+    def _on_install_progress(self, percent: int) -> None:
+        self._push("setWebInstall", {"percent": percent, "running": True})
+
+    def _on_install_status(self, message: str) -> None:
+        self._push("setWebInstall", {"status": message, "running": True})
 
     def _on_install_log(self, line: str) -> None:
         self._web_install_log.append(line)
@@ -702,6 +715,7 @@ class SettingsBridge(AnkiWebView):
         db = getattr(self.mw, "miDictDB", None)
         if db is not None:
             try:
+                db._invalidate_data_cache()
                 if db._registry is not None:
                     db._registry.clear_cache()
                 db._extra_data_cache.clear()

@@ -199,7 +199,7 @@
       </div>
       <p class="hint">
         {#if settings.webInstall.running}
-          {settings.webInstall.percent ?? 0}% — downloading and importing…
+          {settings.webInstall.percent ?? 0}% — {settings.webInstall.status || "Preparing installation…"}
         {:else if settings.webInstall.completed}
           Installed. Reopen the dictionary to search.
         {:else if (settings.webInstall.failed ?? 0) > 0}

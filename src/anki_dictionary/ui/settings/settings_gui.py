@@ -84,10 +84,20 @@ class SettingsGui(QWidget):
     # ── teardown ─────────────────────────────────────────────
 
     def hideEvent(self, event: QEvent) -> None:  # ty:ignore[invalid-method-override]
-        self.mw.dictSettings = None
+        if not self._install_running():
+            self.mw.dictSettings = None
         event.accept()
 
+    def _install_running(self) -> bool:
+        worker = self._bridge._install_worker
+        return worker is not None and worker.isRunning()
+
     def closeEvent(self, event: QEvent) -> None:  # ty:ignore[invalid-method-override]
+        if self._install_running():
+            # Keep the window/bridge and its QThread alive until completion.
+            event.ignore()
+            self.hide()
+            return
         self.mw.dictSettings = None
         event.accept()
 

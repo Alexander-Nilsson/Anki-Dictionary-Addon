@@ -32,7 +32,7 @@
   let selectedLists = $state<Record<string, boolean>>({});
   let installWordLists = $state(true);
   let installConjugation = $state(true);
-  let launched = $state(false);
+  let launched = $state(settings.webInstall.running);
 
   const index = $derived(settings.webIndex?.ok ? (settings.webIndex?.index?.languages ?? []) : []);
   const installing = $derived(settings.webInstall.running);
@@ -181,7 +181,6 @@
   }
 
   function close(): void {
-    if (settings.webInstall.running) cancelWebInstall();
     onclose();
   }
 
@@ -314,6 +313,7 @@
           <div class="install-progress-bar" role="progressbar" aria-valuenow={settings.webInstall.percent} aria-valuemin="0" aria-valuemax="100">
             <div style="width:{Math.max(2, settings.webInstall.percent)}%"></div>
           </div>
+          <p role="status">{settings.webInstall.percent}% — {settings.webInstall.status || "Preparing installation…"}</p>
           <pre class="install-log">{settings.webInstall.log?.join("\n")}</pre>
         </div>
       {/if}
