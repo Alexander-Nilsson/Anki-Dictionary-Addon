@@ -65,6 +65,12 @@ class TestMassExportFormatting(unittest.TestCase):
     def test_strip_field_html_removes_tags_and_media(self):
         self.assertEqual(strip_field_html("<b>日本</b> [sound:foo.mp3]"), "日本")
 
+    def test_strip_field_html_drops_ruby_readings(self):
+        field = "<ruby>自<rt>じ</rt>行<rt>こう</rt></ruby>"
+        self.assertEqual(strip_field_html(field), "自行")
+        with_rp = "<ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>"
+        self.assertEqual(strip_field_html(with_rp), "漢")
+
     def test_apply_output_mode(self):
         self.assertEqual(apply_output_mode("old", "new", MODE_ADD), "old<br><br>new")
         self.assertEqual(apply_output_mode("", "new", MODE_ADD), "new")
@@ -163,6 +169,57 @@ class TestMassExportWrite(unittest.TestCase):
             )
         self.assertEqual(updated, 0)
         self.assertFalse(mw.col.notes[1].flushed)
+
+
+class TestMassExportCaseVariants(unittest.TestCase):
+    """get_def_for_mass_exp must match interactive search's case handling."""
+
+    def setUp(self):
+        import os
+        import tempfile
+
+        from anki_dictionary.core.database import DictDB
+        from scripts.create_empty_db import create_empty_database
+
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.test_dir.cleanup)
+        db_path = os.path.join(self.test_dir.name, "dictionaries.sqlite")
+        create_empty_database(db_path)
+        patcher = patch(
+            "anki_dictionary.core.database.get_db_dir",
+            return_value=self.test_dir.name,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.db = DictDB()
+        self.addCleanup(self.db.closeConnection)
+        self.db.addLanguages(["English"])
+        ok, _, _ = self.db.addDict("Mini", "English", '["term"]')
+        self.assertTrue(ok)
+        table = self.db.formatDictName(self.db.getLangId("English"), "Mini")
+        self.table = table
+        cur = self.db._get_cursor()
+        cur.execute(
+            f'INSERT INTO "{table}" (term, definition, frequency) VALUES (?, ?, ?)',
+            ("China", "A country.", 1),
+        )
+        self.db.commitChanges()
+
+    def test_lowercase_field_matches_capitalized_entry(self):
+        entries, _, headers = self.db.search_query_builder.get_def_for_mass_exp(
+            "china", self.table, 1, "Mini"
+        )
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["term"], "China")
+        self.assertEqual(headers, ["term"])
+
+    def test_uppercase_field_matches_capitalized_entry(self):
+        entries, _, _ = self.db.search_query_builder.get_def_for_mass_exp(
+            "CHINA", self.table, 1, "Mini"
+        )
+        # CHINA -> lower "china" still misses; capitalize "China" hits.
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["term"], "China")
 
 
 if __name__ == "__main__":

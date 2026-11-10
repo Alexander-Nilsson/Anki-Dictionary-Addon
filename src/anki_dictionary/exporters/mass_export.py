@@ -22,7 +22,13 @@ MODES = (MODE_ADD, MODE_OVERWRITE, MODE_IF_EMPTY)
 
 
 def strip_field_html(text: str) -> str:
-    text = re.sub(r"<[^>]+>", "", text or "")
+    # Drop ruby annotations first: <rt> readings and <rp> fallback parens
+    # are not part of the term, and naive tag-stripping would fuse them
+    # into it (自<rt>zì</rt> would become 自zì and never match).
+    text = re.sub(r"<rt[^>]*>.*?</rt>", "", text or "", flags=re.DOTALL)
+    text = re.sub(r"<rp[^>]*>.*?</rp>", "", text, flags=re.DOTALL)
+    text = re.sub(r"</?r[pt][^>]*>", "", text)
+    text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"\[[^\]]+?\]", "", text)
     return text.strip()
 
