@@ -15,6 +15,25 @@ python dev.py ci     # Run linting + tests
 python dev.py build  # Build for testing
 ```
 
+### Running a source checkout from Anki
+
+Anki runs its own bundled Python interpreter; it does not use the repository's
+`.venv`. A Windows or Linux source symlink therefore does not need `pynput`:
+the add-on intentionally does not install a low-level global keyboard hook on
+those platforms. The in-app Qt shortcuts and clipboard polling remain
+available.
+
+For macOS, where the Cmd+C interception uses `pynput`, build the add-on on
+macOS first so the platform-specific `vendor/` dependencies are generated,
+then link `build/anki_dictionary_addon` into Anki's add-ons directory. Do not
+reuse a `vendor/` directory generated on another operating system.
+
+On Windows, keep the checkout and its mutable `user_files/` directory on a
+Windows filesystem. Do not point Anki at a symlink into a WSL `/home` checkout:
+Windows Anki and WSL can open the same SQLite file through different locking
+implementations, which can surface `sqlite3.OperationalError: database is
+locked`. Use a Windows checkout or a packaged build instead.
+
 ## Svelte Web UI
 
 The dictionary interface (rendered in AnkiWebView) is a Svelte 5 app in `web/`. It is built with Vite into a single self-contained `dist/dictionary.html` (inlined JS + CSS).
@@ -27,7 +46,7 @@ npm run build        # Build + inline → web/dist/dictionary.html
 npm run check        # svelte-check (types + a11y warnings)
 ```
 
-`build.py` runs `npm ci && npm run build` automatically when packaging (skips with a warning if npm is missing — the legacy `assets/templates/dictionary.html` remains the fallback). `MIDict.getHTMLURL` uses the built bundle when present, dev checkouts find it at `web/dist/dictionary.html`; the packaged addon ships it at `assets/web/dictionary.html`.
+`build.py` runs `npm ci && npm run build` automatically when packaging. Node.js and npm are required: missing tools, failed builds, or missing dictionary/settings/exporter pages stop packaging. Platform-specific `curl_cffi` and CFFI dependencies are resolved for Anki’s Python 3.13; dependency failures also stop the build. Packaging validates the required web pages and native modules before creating an archive. `MIDict.getHTMLURL` uses the built bundle when present, dev checkouts find it at `web/dist/dictionary.html`; the packaged addon ships it at `assets/web/dictionary.html`.
 
 ## Commands
 
